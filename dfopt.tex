@@ -1,0 +1,2007 @@
+\newif\ifnotesinmargin \notesinmargintrue 
+\IfFileExists{notesinline.tex}{\notesinmarginfalse}{\relax}
+
+\documentclass[blockstyle,preprint,nocopyrightspace]{sigplanconf}
+
+
+\usepackage{alltt}
+\usepackage{array}
+\newcommand\lbr{\char`\{}
+\newcommand\rbr{\char`\}}
+
+\newcommand\arrow{\rightarrow}
+
+\newcommand\slotof[1]{\ensuremath{s_{#1}}}
+\newcommand\tempof[1]{\ensuremath{t_{#1}}}
+
+\makeatletter
+\newcommand{\nrmono}[1]{%
+  {\@tempdima = \fontdimen2\font\relax
+   \texttt{\spaceskip = 1.1\@tempdima #1}}}
+\makeatother
+
+\usepackage{times}  % denser fonts
+\renewcommand{\ttdefault}{aett} % \texttt that goes better with times fonts
+\usepackage{enumerate}
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{natbib}
+\bibpunct();A{},
+\let\cite\citep
+\let\citeyear=\citeyearpar
+
+\usepackage[ps2pdf,bookmarksopen,breaklinks,pdftitle=dataflow-made-simple]{hyperref}
+
+\newcommand\naive{na\"\i ve}
+
+\usepackage{amsfonts}
+\newcommand\naturals{\ensuremath{\mathbb{N}}}
+\newcommand\true{\ensuremath{\mathbf{true}}}
+\newcommand\implies{\supseteq}  % could use \Rightarrow?
+
+\newcommand\PAL{\mbox{C{\texttt{-{}-}}}}
+\newcommand\high[1]{\mbox{\fboxsep=1pt \smash{\fbox{\vrule height 6pt
+   depth 0pt width 0pt \leavevmode \kern 1pt #1}}}}
+
+% Put figures in boxes
+\usepackage{float}
+\floatstyle{boxed}
+\restylefloat{figure}
+
+
+
+% Change the defn of \authornote to suppress notes
+%\newcommand{\qed}{QED}
+\ifnotesinmargin
+  \long\def\authornote#1{%
+          \leavevmode\unskip\raisebox{-3.5pt}{\rlap{$\scriptstyle\diamond$}}%
+          \marginpar{\raggedright\hbadness=10000
+         \def\baselinestretch{0.8}\tiny
+         \it #1\par}}
+\else
+  % Simon: please set \notesinmargingfalse on the first line
+  \newcommand{\authornote}[1]{{\em #1}}
+\fi
+\newcommand{\simon}[1]{\authornote{SLPJ: #1}}
+\newcommand{\norman}[1]{\authornote{NR: #1}}
+\let\remark\norman
+\newcommand{\john}[1]{\authornote{JD: #1}}
+\newcommand{\todo}[1]{\textbf{To~do:} \emph{#1}}
+
+\newcommand\secref[1]{Section~\ref{sec:#1}}
+\newcommand\seclabel[1]{\label{sec:#1}}
+
+\newcommand\figref[1]{Figure~\ref{fig:#1}}
+\newcommand\figlabel[1]{\label{fig:#1}}
+
+
+\newcommand{\CPS}{\textbf{StkMan}}    % Not sure what to call it.
+
+
+\usepackage{code}   % At-sign notation
+
+\begin{document}
+\title{Dataflow Optimization Made Simple}
+%\subtitle{\today}
+
+\authorinfo{Jo\~ao Dias}{Tufts University}{dias@cs.tufts.edu}
+\authorinfo{Norman Ramsey}{Tufts University}{nr@cs.tufts.edu}
+\authorinfo{Simon Peyton Jones}{Microsoft Research}{simonpj@microsoft.com}
+
+
+\maketitle
+ 
+\begin{abstract}
+Blah
+\end{abstract}
+
+\makeatactive   %  Enable @foo@ notation
+
+\section{Introduction}
+
+Anyone writing a compiler for an imperative language gets the benefit
+of over forty years' work on code improvement, also called
+``optimization.''
+But the way this work is typically organized and presented annoys us: 
+we see a large collection of apparently unrelated analyses and
+transformations, each with its own name---who remembers the difference
+between ``copy propagation'' and ``constant propagation,'' anyway?
+The typical taxonomic treatment obscures fundamental principles of
+code improvement and the relationships between them.
+
+The contribution of this paper is to elucidate a large body of work on code
+improvement; the body of work known as ``dataflow optimization.''
+\remark{Look up and see if ``dataflow optimization is a real term or
+  if we want something else}
+\begin{itemize}
+\item
+We show that the ad-hoc ``optimization zoo'' consists mostly of special
+cases of reasoning techniques that have long been understood and used
+by semanticists and functional programmers:
+assertions about states, assertations about continuations, and
+substitution of equals for equals.
+What distinguishes dataflow optimization from classic formal reasoning
+about programs is that in dataflow optimization, the assertions are
+\emph{approximated}. 
+\item
+We embody our ideas in an implementation that makes it not just
+possible but \emph{easy} to adapt imperative, dataflow-based
+code-improvement techniques to a purely functional compiler.
+\end{itemize}
+
+
+Our primary
+claim is that powerful, dataflow-based analyses and transformations can
+be understood and implemented simply.
+\secref{example:xforms} shows transformations of two simple examples,
+showing how we think about and justify classical optimizations using
+Hoare logic and the substitution of equals for equals.
+\secref{example:code} shows our implementations of some representative analyses
+and transformations.
+\remark{Forward refs need fixing}
+The rest of the paper sketches 
+our view of the logical foundations (\secref{logic}), 
+our representations of control-flow graphs (\secref{zipcfg}),
+and our implementation of the optimization-combining framework of
+\citet{lerner-grove-chambers:2002} (\secref{dataflow}).
+%
+%%  \iftrue
+%%  So as not to overrun the space available or overtax the patience of
+%%  our readers,
+%%  \else
+%%  Space limitations require that
+%%  \fi
+%%  we sketch or gloss over many aspects of
+%%  the implementation.
+
+
+
+\section{Dataflow analysis {\&} transformation by \rlap{example}}
+
+\seclabel{example:transforms}
+\seclabel{example:xforms}
+
+In dataflow optimization, code-improving transformations are justified
+by assertions about the program;
+such assertions are typically computed using
+strongest postconditions or weakest liberal preconditions.
+The most typical transformations are
+insertion of redundant assignments,
+substitution of
+equals for equals, 
+and
+removal of redundandant assignments,
+all of which preserve semantics.
+(Insertion and removal are often composed to achieve the effect called
+``code motion,'' as done by \cite{knoop:lazy-code-motion}, for example.) 
+The examples below express classical code
+improvements by composing small analyses and transformations.
+
+
+
+\newcommand\exampletransform{\subsection}
+
+
+\exampletransform{Simple transformations}
+
+\seclabel{constant-propagation}
+
+Here is a sequence of three assignments separated by assertions.
+We compute the assertions by starting with the weakest possible
+assertion (@true@) and computing strongest postconditions.\footnote
+{Variables do not alias.}
+\begin{verbatim}
+    { true }
+  x = 7;
+    { x == 7 }
+  y = 8: 
+    { x == 7 && y == 8 }
+  z = x + y;
+\end{verbatim}
+In the assignment to~@z@, the assertion @x == 7@ justifies
+substituting 7~for~@x@, leaving @z = 7 + y@.  
+This transformation is traditionally called ``constant propagation.''
+We may also substitute 8~for~@y@.
+Finally, because @7 + 8 == 15@, we may again substitute equals for
+equals, leaving the final assignment as
+\begin{verbatim}
+  z = 15;
+\end{verbatim}
+This transformation, although another instance of substituting equals
+for equals, has a different name: ``constant folding.''
+
+\exampletransform{A complex transformation}
+
+The loop optimization known as ``induction-variable elimination'' is
+actually a collection of simple transformations.
+We begin by showing a simple loop written in the style of FORTRAN,
+although the code is~C code:
+\begin{verbatim}
+  struct pixel { double r, g, b; };
+  double sum_r(struct pixel a[], int n) {
+    double x = 0.0;
+    int i;
+    for (i = 0; i < n; i++)
+      x += a[i].r;
+    return x;
+  }
+\end{verbatim}
+To explain the improvement we wish to make, we show the same
+code at the machine level.
+We write machine-level examples using our low-level compiler-target
+language,~{\PAL} % tuning for line breaks
+\cite{peyton-jones-ramsey:garbage-collection,peyton-jones-ramsey:exceptions}: 
+\begin{verbatim}
+  sum_r("address" bits32 a, bits32 n) {
+       bits64 x; bits32 i;
+       x = 0.0;
+       i = 0;
+   L1: if (i >= n) goto L2;
+       x = %fadd(x, bits64[a+i*24]);
+       i = i + 1;
+       goto L1;
+   L2: return x; 
+  }
+\end{verbatim}
+The code improvement called ``induction-variable elimination''
+replaces~@i@ with a new variable~@p@ so that we can avoid repeating
+the computation @a+i*24@ on each iteration through the loop.
+The new variable~@p@ is intended to satisfy the invariant
+\begin{verbatim}
+   { p == a + i * 24 }
+\end{verbatim}
+The variable @i@ is also used in the loop-termination test.
+To rewrite that test, 
+we introduce a new variable @lim@ satisfying @lim == a + n * 24@,
+so that @i >= n@ if and only if @p >= lim@.
+
+We implement the code improvement as a sequence of transformations.
+After each step, the observable behavior of the program is unchanged,
+and it is possible to generate code (see discussion in \secref{vpoiso}).
+%
+Our first step is to declare @p@ and @lim@ and to insert suitable
+assignments. 
+New code is \high{boxed}\,.
+\begin{alltt}
+  sum_r("address" bits32 a, bits32 n) \lbr
+       bits64 x; bits32 i; \high{bits32 p, lim;}
+       x = 0.0;
+       i = 0; \high{p = a; lim = a + n * 24;}
+   L1: if (i >= n) goto L2;
+       x = %fadd(x, bits64[a+i*24]);
+       i = i + 1; \high{p = p + 24;}
+       goto L1;
+   L2: return x; 
+  \rbr
+\end{alltt}
+
+As written, the assignments to @p@~and~@lim@ have no
+effect on the program, but they enable the compiler to establish the assertions
+@p == a + i * 24@ and @(i >= n) == (p >= lim)@.
+On~the basis of these assertions, the compiler substitutes equals for
+equals, resulting in the new code in boxes below:
+\begin{alltt}
+  sum_r("address" bits32 a, bits32 n) \lbr
+       bits64 x; bits32 i; bits32 p, lim;
+       x = 0.0;
+       i = 0; p = a; lim = a + n * 24;
+   L1: if (\high{p >= lim}) goto L2;
+       x = %fadd(x, bits64[\kern1pt{}\high{p}\kern1pt{}]);
+       i = i + 1; p = p + 24;
+       goto L1;
+   L2: return x; 
+  \rbr
+\end{alltt}
+
+At this point, the compiler switches from reasoning about states to
+reasoning about continuations.
+In~particular, we reason about whether the value of a variable can be
+used by a continuation; this reasoning is called ``liveness analysis.''
+A~\naive\ analysis would show that although @i@~is not live at
+label~@L2@, it is nevertheless live immediately after 
+the assignment
+@i = i + 1@ in the loop body,
+because the value of~@i@ could be used by the next iteration of the
+loop.
+But we use the framework of
+\citet{lerner-grove-chambers:2002} to \emph{interleave} liveness
+analysis with 
+``dead-assignment elimination.'' 
+Dead-assignment elimination removes an assignment if the variable
+assigned to is not live, that is, if it cannot be used by the
+assignment's continuation.
+As~explained in detail by Lerner, Grove, and Chambers, no sequential
+composition of liveness analysis and dead-assignment elimination can
+get rid of these assignments to~@i@, but interleaving analysis with
+transformation does the trick.\footnote
+{Here an experienced reader might be tempted simply to modify the
+liveness analysis so that
+it does not generate any ``uses'' if the assigned variable is itself
+dead.
+This modification is tantamount to writing a single, combined dataflow
+pass that understands \emph{both} liveness analysis and dead-code
+elimination.
+For this particular example, writing a single, combined pass presents
+few difficulties, but the approach does not scale:
+most combined analyses are more complicated than the examples shown here;
+the cost of writing combined analsyses does not scale linearly with
+the number of individual analyses;
+combined analyses often cannot be composed;
+and 
+some combined analyses require nonstandard, handwritten traversals of
+the control-flow graph.
+\citet{lerner-grove-chambers:2002} discuss these issues in detail;
+\citet{click-cooper} present a handwritten combined pass of
+significant complexity.}
+\secref{dfengine} describes our implementation of their interleaving
+method, which eliminates the boxed assignments to~@i@:
+\begin{alltt}
+sum_r("address" bits32 a, bits32 n) \lbr
+     bits64 x; \high{bits32 i;} bits32 p, lim;
+     x = 0.0;
+     \high{i = 0;} p = a; lim = a + n * 24;
+ L1: if ({p >= lim}) goto L2;
+     x = %fadd(x, bits64[{p}]);
+     \high{i = i + 1;} p = p + 24;
+     goto L1;
+ L2: return x; 
+\rbr
+\end{alltt}
+
+After the insertion of assignments to @p@~and~@lim@, the substitution
+of equals for equals, the removal of newly redundant assignments
+to~@i@, we have ``eliminated the induction variable:''
+\begin{alltt}
+sum_r("address" bits32 a, bits32 n) \lbr
+     bits64 x; bits32 p, lim;
+     x = 0.0;
+     p = a; lim = a + n * 24;
+ L1: if ({p >= lim}) goto L2;
+     x = %fadd(x, bits64[{p}]);
+     p = p + 24;
+     goto L1;
+ L2: return x; 
+\rbr
+\end{alltt}
+
+\exampletransform{Spilling variables at calls}
+
+\seclabel{spill-reload-example}
+
+Our dataflow framework is used in the Glasgow Haskell Compiler~(GHC),
+which does not use callee-saves registers.
+It~is therefore necessary to ensure that at each call site, every live
+variable is saved on the stack.
+And~to keep register pressure down, we want to save each variable as
+early as possible (just after each reaching definition) and reload it
+as late as possible (just before each use).
+Here is a very contrived example:
+\begin{alltt}
+f (bits32 a) \lbr
+  bits32 x, y, z;  // local variables
+  x = a * a;
+  y = g(a + a);
+  z = y + y;
+  if (y > 0) \lbr
+    return z;
+  \rbr else \lbr
+    return z + x;
+  \rbr
+\rbr
+\end{alltt}
+If @R1@ is the first argument register and @R0@ is the result
+register, an intermediate form of this code looks like this:
+\newcommand\bigstrut{%
+  \leavevmode\vrule width 0pt height 11pt depth 6pt }
+\begin{alltt}
+f (bits32 a) \lbr
+  bits32 x, y, z;  // local variables
+  x = a * a;
+  \high{SPILL x;}
+  \bigstrut\high{R1 = a + a;} // no register pressure from x
+  \high{y = g(R1);} // call instruction
+  z = y + y;
+  if (y > 0) \lbr
+    return z;
+  \rbr else \lbr
+    \high{RELOAD x;}
+    return z + x;
+  \rbr
+\rbr
+\end{alltt}
+Although the @SPILL@ and @RELOAD@ operations are introduced because of
+the call to @g(a)@, they are moved as far from the call as possible:
+@x@~is spilled immediately after its last definition and is reloaded
+immediately before its first use.
+\secref{reload} presents some of the code we use to implement this
+transformation. 
+  
+\section {How to make dataflow simple}
+
+\seclabel{roadmap}
+
+We implement transformations like the ones shown above using a Haskell
+library we call \emph{the dataflow framework}.
+The dataflow framework blends many cooperating elements:
+\remark{This bit needs some forward references to sections}
+\begin{itemize}
+\item 
+A procedure is represented by a \emph{control-flow graph}.\footnote
+{The dataflow framework does only intraprocedural optimization;
+interprocedural optimizations are the work of the GHC~inliner
+\cite{peyton-jones:secrets-inliner}.} 
+A~control-flow graph is a collection of labelled \emph{basic blocks}.
+Each basic block is a sequence beginning with a \emph{first node},
+containing zero or more \emph{middle nodes},
+and ending in a \emph{last node}.
+%%  
+%%  %
+A~first node is always and only a label;
+a~typical middle node assigns to a register or memory location;
+a~typical last node is a conditional, unconditional, or indirect branch.
+\remark{Forward reference?}
+
+\item
+Assertions about the program may be written only in a restricted
+language of \emph{dataflow facts}.
+The connection between dataflow facts and traditional program logic is
+elucidated in \secref{next-700}, but the most salient points are
+these:
+\begin{itemize}
+\item
+A dataflow fact is equivalent to an assertion about program state or
+about a continution.
+For example, in \secref{constant-propagation} @x == 7@ is a dataflow
+fact. 
+\item
+Each particular analysis or transformation may use its own language of
+dataflow facts.
+Such a language forms a lattice.
+\item
+Dataflow facts before and after nodes are related by \emph{transfer
+functions}.
+\end{itemize}
+\item
+A~dataflow analysis or transformation is represented by a
+\emph{dataflow pass}.
+\remark{Need to investigate and possibly invent a new term of art?
+Or that the very least explain that it \emph{is} a term of art and
+blame~UW.} 
+%
+An~analysis pass is presented with dataflow facts on edges coming
+into each node, and it computes the dataflow facts on outgoing edges;
+in other words, an analysis pass implements transfer functions.
+A~transformation pass is presented with dataflow facts on edges coming
+into each node, and it elects either to rewrite the node or to leave
+it alone.
+The transformation pass uses facts on incoming edges to guarantee that
+any proposed rewrite
+preserves semantics.
+For example, in \secref{constant-propagation} the fact @x == 7@ is
+used to justify rewriting @z = x + y@ to @z = 7 + y@.
+%
+\remark{(Maybe elsewhere?) Dataflow passes can be composed using
+higher-order functions. }
+\item
+The main part of the implementation of the dataflow framework is the
+\emph{dataflow engine}.
+The dataflow engine may be used with a analysis pass,
+in which case it sets up the recursion equations implied by the
+transfer functions and finds a solution by iterating to a fixed point.
+The solution is represented by a finite map giving the dataflow fact
+at each label; other facts can be reconstructed using the transfer functions.
+
+The dataflow engine may also be used to \emph{interleave} analysis
+with transformation, in which case
+it not only solves the dataflow equations but may also rewrite the
+graph  \cite{lerner-grove-chambers:2002}. 
+%%%%\item
+%%%%The ease with which the framework can be used is determined by the
+%%%%\emph{interface} between the dataflow engine and the client passes.
+\end{itemize}
+The main contribution of this paper is to present an interface which
+enables many powerful program transformations based on dataflow
+analysis while keeping the individual dataflow passes as simple as
+possible.
+We keep the \emph{concepts} simple by relating dataflow facts and
+transfer functions to classic work in program correctness, as
+discussed in \secref{next-700}.
+We keep the \emph{implementations of dataflow passes} simple by pushing
+as much work as
+possible into the dataflow engine, which is implemented just once.
+We have also made the dataflow engine and its interface polymorphic in
+the types of 
+the nodes that appear in the control-flow graph \secref{polymorphic-framework}.
+Parametricity ensures separation of concerns between the dataflow
+engine and the individual dataflow passes.
+
+
+%%\item The \emph{interface} between the clients and the library 
+%%(Section~\ref{s:interface}).
+%%This interface is one of the main contributions of the paper.
+%%We use polymorphism to make our dataflow library very general.
+%%In particular, the library specifies how a control-flow \emph{graph} is
+%%represented, but it is completely polymorphic in the \emph{nodes} that
+%%populate the graph.  
+
+
+%%  
+%%  The main are the \emph{clients} of the dataflow framework,
+%%  the \emph{interface} to the dataflow framework,
+%%  and the \emph{dataflow engine}, which the clients use to analyze and rewrite
+%%  control-flow graphs.
+%%  
+%%  \item The \emph{clients} of the library.  A client invokes one of
+%%  the library functions, supplying arguments that specialise the
+%%  dataflow framework to a particular problem.  We illustrate with two
+%%  particular clients, one that uses forward dataflow
+%%  (Section~\ref{s:fwd-client}), and one that uses backward dataflow
+%%  (Section~\ref{s:bwd-client}).
+
+
+
+%%  \item A \emph{graph} is a collection of \emph{blocks}, together
+%%  with a distinguished \emph{block-id} that identifies the entry
+%%  point. 
+%%  \item A \emph{block} is identified by a block-id, unique within
+%%  the procedure, and consists of a linear sequnce of
+%%  follows by a \emph{last node}.  A middle node never performs a
+%%  control transfer; a last node always does.
+%%  \end{itemize}
+%%  Although the dataflow library is deliberately oblivious to the
+%%  exact nature of middle and last nodes, it is helpful to have
+%%  in mind a typical client instantiation:
+%%  \begin{itemize}
+%%  \item A typical \emph{middle node} is either an \emph{assignment} to a local
+%%  variable, or a \emph{store} to a memory location.  A middle node
+%%  never performs a control transfer.
+%%  \item A typical \emph{last node} is an unconditional branch to
+%%  another block; or a conditional branch or switch to two or more blocks;
+%%  or a a call, specifying the block where control resumes.
+%%  \end{itemize}
+
+
+
+
+%%  Our framework is a Haskell library that provides functions which,
+%%  when given transfer functions for individual nodes,
+%%  will perform dataflow analyses and transformations on an entire control-flow graph.
+%%  For example, given the transfer functions that compute liveness
+%%  on an individual node,
+%%  \john{Are nodes defined yet?}
+%%  our framework provides a function to perform a backward analysis
+%%  on a procedure, returning a map from
+%%  @BlockID@s to the set of variables live at each basic block.
+%%  % \simon{I think we need a bit more or a road-map.  Beginning of suggestion}
+%%  % What is our ``framework''?  It is
+%%  % just a Haskell library, that provides functions like ``Given a
+%%  % specified transfer function for individual nodes, do a forward
+%%  % dataflow analysis on the entire graph, returning a mapping of BlockId
+%%  % to dataflow facts''. 
+%%  To describe the details of the framework, we must focus on three different players:
+%%  \begin{itemize}
+%%  \item The \emph{implementation} of the library (Section~\ref{sec:engine}).
+%%  \end{itemize}
+%%  
+%%  
+%%  
+%%  The rest of the paper \todo{does something wonderful}.
+
+
+%%  \section{The dataflow framework} 
+%%  
+%%  There are many moving parts in a dataflow optimization,
+%%  but most of those parts can be reused in any optimization.
+%%  Among the reusable parts are 
+%%  the storage of dataflow facts,
+%%  the iteration to a fixed point,
+%%  and the interleaving of analyses and transformations
+%%  \cite{lerner-grove-chambers:2002}. 
+%%  A good dataflow framework should provide all of this machinery
+%%  with a simple interface for clients.
+
+
+
+
+\section{Dataflow analysis} 
+
+\seclabel{analysis-interface}
+
+
+Like logical formulae, dataflow facts have a lattice structure.
+In our first examples, we consider facts that correspond to assertions
+about program state.
+The bottom element of the lattice corresponds to \true, the weakest
+possible assertion;
+the join operation corresponds to disjunction.
+\remark{Let's reconsider this \S\ and the order in which material is presented}
+
+
+
+
+
+
+
+
+
+As an example lattice of dataflow facts, 
+we present a representation for facts about constant propagation.
+At any program point, a standard constant-propagation analyis
+computes exactly one of the following three
+things about a variable~$x$:
+\begin{itemize}
+\item
+The analyis shows that
+$x = k$, where $k$~is a compile-time constant.
+\item
+The analysis shows that $x$~is \emph{not} a compile-time constant.
+We~notate this fact by writing $x = \top$.
+\item
+The analysis draws no conclusions about~$x$,\remark{bletch---lost
+parallel structure}, which we notate $x=\bot$.
+\end{itemize}
+The lattice  used by the analysis is the Cartesian product of the
+lattices for all the local variables.
+The bottom element of the lattice is~$\bot$, and
+the join operation corresponds to disjunction.
+\emph{The logic implied by the
+representation of dataflow facts cannot represent disjunction
+exactly}; instead, a
+disjunction of two inconsistent facts is represented by~$\top$.
+\remark{At some point must talk about how the facts are
+\emph{represented}, e.g., finite map from variable to @Maybe Const@}
+Here are some examples:
+\begin{itemize}
+\item
+$i = 7 \lor i=\bot \equiv i=7$ (no loss of information)
+\item
+$i = 7 \lor i= 7 \equiv  i=7$ (no loss of information)
+\item
+$i = 7 \lor i = 8 \equiv i = \top$ (loss of information)
+\end{itemize}
+Because in any one program there are only finitely many variables,
+only finitely many facts are computed at any program point, which
+guarantees that the dataflow engine can
+reach a fixed point.
+In~\emph{any} dataflow lattice, the compiler writer must ensure that 
+from any point in the lattice, the top is reached after finitely many joins.
+
+
+\begin{figure}
+\begin{code}
+newtype LastFacts a = LastFacts [(BlockId, a)] 
+data ForwardTransfers mid last a = ForwardTransfers
+ {ft_first_out  :: BlockId -> a -> a,
+  ft_middle_out :: mid     -> a -> a,
+  ft_last_outs  :: last    -> a -> LastFacts a} 
+
+data BackTransfers mid last a = BackTransfers
+ {bt_first_in  :: BlockId -> a              -> a,
+  bt_middle_in :: mid     -> a              -> a,
+  bt_last_in   :: last    -> (BlockId -> a) -> a} 
+\end{code}
+\caption{Transfer functions for forward and backward analyses.}
+\figlabel{transfers}
+%
+% elided: 
+%    ft_exit_out   ::            a -> a
+%
+\end{figure}
+
+
+The dataflow engine computes, for the beginning of each basic block,
+the strongest dataflow fact it can justify for that point in the
+control-flow graph.
+It~represents a set of facts about a graph as a finite map from block
+label to fact. 
+The engine works iteratively:
+Initially, it assigns the bottom dataflow fact to each block.
+It then propagates facts through nodes using \emph{transfer functions}.
+In~a forward dataflow analysis, facts flow in from predecessors and
+out to successors; in a backward analysis,
+facts flow in from successors and
+out to predecessors.
+
+To understand how transfer functions work, it helps to understand the
+invariants that constrain the number of predecessors and successors of
+each type of node in the control-flow graph.
+A~first node has arbitrarily many predecessors and exactly one
+successor;
+a~middle node has exactly one predecessor and one successor;
+and a last node has exactly one predecessor and arbitrarily many
+successors. 
+These constraints determine the signatures of transfer functions,
+which are shown in \figref{transfers}.
+For each type of node (first, middle, last) and for each kind of
+analysis (forward, backward), there is a distinct transfer function.
+Functions are grouped by kind of analysis, and each group is
+parameterized over a dataflow fact of type~@a@ and over the types
+@mid@ and @last@ of middle and last nodes.
+
+
+Because a fact in a forward analysis typically represents an assertion
+about program state, and because passing a label does not change
+program state, the transfer function @ft_first_out@ is typically 
+@flip const@---a variation on
+the
+identity function.
+\remark{Somewhere we should explain what a fact in a backward analysis
+typically represents}
+For a middle node, the transfer function @ft_middle_out@ is given a
+node and a precondition and returns an approximation of the strongest
+postcondition. 
+For a last node, different postconditions may be propagated to
+different successors; for example, the true and false successors of a
+conditional branch may accumulate information implied by the truth or
+falsehood of the condition.
+The collection of (successor, fact) pairs is represented by a value of
+type @LastFacts a@.
+
+In a forward analysis, the dataflow engine starts with the fact at the
+beginning of a block and applies transfer functions to the nodes in
+that block until eventually the transfer function for the last node
+computes the facts that are propagated to the block's successors.
+For example, in the basic block
+\begin{verbatim}
+  L1: x = 7;
+      y = 8;
+      z = x + y;
+      goto L2;
+\end{verbatim}
+a forward analysis would propagate the fact 
+$f = @x == 7@ \land @y == 8@$ along the edge to~@L2@.
+\remark{Do we want an example that says 
+$@ft\_middle\_out@\;f = f \land @x == 7@$?}
+The dataflow engine then \emph{replaces} the current fact at~@L2@
+(call it $f_2$), with the lattice join $f \vee f_2$.
+The dataflow engine iterates over the blocks repeatedly until
+$f \vee f_2 = f_2$ at every block.
+When the facts associated with blocks no longer change, the dataflow
+engine has reached a fixed point.
+\remark{Promissory note: compose this analysis with two
+transformations: constant propagation and constant folding}
+
+
+\begin{figure}
+\begin{code}
+data ChangeFlag = NoChange | SomeChange
+data TxRes a    = TxRes ChangeFlag a
+data DataflowLattice a = DataflowLattice
+ {fact_bot        :: a,
+  fact_add_to     :: a -> a -> TxRes a,
+  fact_name       :: String, -- for debugging
+  fact_do_logging :: Bool}   -- also for debugging
+\end{code}
+\caption{The lattice type} \figlabel{lattice-type} \figlabel{lattice}
+\end{figure}
+
+The lattice operations are shown in \figref{lattice}.
+The @fact_bot@ value is the bottom element of the
+lattice, which in our constant-propagation example is an empty
+conjunction.
+The join operation~$\vee$ and equality test~$=$ are represented by a
+single function called @fact_add_to@.
+The term $@fact_add_to@\;f\;f_2$ is equal to
+$@TxRes NoChange@\; (f \vee f_2)$ if $f \vee f_2 = f_2$
+and is equal to
+$@TxRes SomeChange@\; (f \vee f_2)$ otherwise.
+We combine lattice join and equality test in a single function purely
+for reasons of efficiency;
+when computing a join, the marginal cost of learning whether the join
+is equal to the right argument is typically very low.
+%
+The remaining elements of a record of @DataflowLattice@ type,
+@fact_name@ 
+and @fact_do_logging@,
+ are used
+for debugging.
+
+
+To write a dataflow pass that does a  forward analysis, the compiler
+writer must 
+\begin{itemize}
+\item
+Choose a representation $F$ of dataflow facts and a logical interpretation
+thereof.
+\item
+Write an implementation of type $@DataflowLattice@\;F$ which  is sound
+with respect to the logical interpretation of~$F$.
+\item
+Write sound transfer functions for first, middle, and last nodes;
+if $F$~represents a logical assertion about program state, it is
+sufficient that the strongest postcondition imply the output of each
+transfer function.
+\end{itemize}
+Given such a pass, the compiler writer can then use the
+dataflow-engine function @zdfSolveFwd@ to compute a solution:
+\begin{code}
+  zdfSolveFwd 
+    :: LastNode l             -- Constraint on last nodes
+    => PassName               -- Name of this analysis pass
+    -> DataflowLattice a      -- Lattice
+    -> ForwardTransfers m l a -- Transfer functions
+    -> a                      -- Input fact
+    -> Graph m l              -- Control-flow graph
+    -> ForwardFixedPoint m l a
+\end{code}
+The engine is polymorphic in the types of middle and last nodes
+@m@~and~@l@ and in the type of the dataflow fact~@a@.
+The first three arguments characterize the pass.
+The next argument is the dataflow fact that holds on entry to the graph;
+a~rewriting pass uses the solver on a subgraph (\secref{recursive-solver}),
+so this fact
+is not always~$\bot$, and it must be passed in.
+The last argument is the graph, and the result is a 
+fixed point.\footnote
+{The type of @zdfSolveFwd@ contains some pedagogical lies;
+truth is told in~\secref{engine-truth}.}
+
+The @ForwardFixedPoint@ data structure is a big bag
+of information about the solution.
+The significant results of an analysis are
+a finite map from each block label to the dataflow fact that holds at
+the label,
+and
+a list of facts that hold on edges leaving the graph, which is
+nonempty only if the solution is for a subgraph.
+
+
+
+
+
+
+\iffalse
+% never tell the whole truth!
+\begin{code}
+class DataflowSolverDirection
+        transfers fixedpt where
+  zdfSolveFrom :: (DebugNodes m l, Outputable a)
+    => BlockEnv a        -- Init facts
+    -> PassName          -- Analysis name
+    -> DataflowLattice a -- Lattice
+    -> transfers m l a   -- Transfers
+    -> a                 -- Input fact
+    -> Graph m l         -- CFG
+    -> DFMonad (fixedpt m l a ())
+\end{code}
+\fi
+
+
+
+\section{Example analysis passes}
+
+
+Our big claim is that using our data structures, algorithms, and
+interfaces makes it easy to write compiler passes based on dataflow.
+In~this section we provide evidence for that claim by sketching the
+implementation of HOW~MANY passes.\remark{Needs a number}
+
+\newcommand\T{\rule{0pt}{0.6ex}}
+\newcommand\B{\rule[-0.05ex]{0pt}{0pt}}
+\newcolumntype{C}{>{\begin{minipage}{5.35in}}l<{\end{minipage}}} % code
+\newcolumntype{L}{>{\Large\bfseries}m{1.3in}<{\centering}}       % label
+\begin{figure*}
+\begin{tabular}{CL}
+\T\begin{code}
+data AvailVars = UniverseMinus VarSet
+               | AvailVars     VarSet
+extendAvail  :: AvailVars -> LocalVar  -> AvailVars
+delFromAvail :: AvailVars -> LocalVar  -> AvailVars
+elemAvail    :: AvailVars -> LocalVar  -> Bool
+interAvail   :: AvailVars -> AvailVars -> AvailVars
+smallerAvail :: AvailVars -> AvailVars -> Bool
+\end{code}\B
+& Dataflow fact and operations\\
+\hline
+
+\T\begin{code}
+availVarsLattice :: DataflowLattice AvailVars
+availVarsLattice = DataflowLattice "reloaded registers" empty add False
+    where empty = UniverseMinus emptyVarSet
+          add new old = let join = interAvail new old in
+                        if join `smallerAvail` old then aTx join else noTx join
+\end{code}\B
+& Lattice\\
+\hline
+
+%%  \T\begin{code}
+%%  agen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
+%%  akill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
+%%  agen  a avail = foldVarsUsed extendAvail  avail a
+%%  akill a avail = foldVarsDefd delFromAvail avail a
+%%  \end{code}\B
+%%  & Gen/Kill \mbox{functions}\\
+%%  \hline
+%%  
+\T\begin{code}
+avail_reloads_transfer :: ForwardTransfers Middle Last AvailVars
+avail_reloads_transfer = ForwardTransfers (flip const) middleAvail lastAvail
+
+middleAvail :: Middle -> AvailVars -> AvailVars
+middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail
+                 | l `isStackSlotOf` x = extendAvail avail x
+middleAvail (MidAssign lhs _expr) avail = 
+  foldVarsDefd delFromAvail avail lhs  -- remove variables defined in 'lhs'
+middleAvail (MidForeignCall {})   _    = AvailVars emptyVarSet
+middleAvail (MidStore {})         avail = avail
+middleAvail (MidComment {})       avail = avail
+
+lastAvail :: Last -> AvailVars -> LastOutFacts AvailVars
+lastAvail (LastCall _ (Just k) _ _) _ = LastOutFacts [(k, AvailVars emptyVarSet)]
+lastAvail l avail = LastOutFacts $ map (\id -> (id, avail)) $ succs l
+\end{code}\B
+& Transfer \mbox{functions}\\
+\hline
+
+\T\begin{code}
+type AvailFix = DFMonad (ForwardFixedPoint Middle Last AvailVars ())
+cmmAvailableReloads :: LGraph Middle Last -> DFMonad (BlockEnv AvailVars)
+cmmAvailableReloads g = liftM zdfFpFacts $ (res :: AvailFix)
+  where res = zdfSolveFromL emptyBlockEnv "available reloads" availVarsLattice
+                            avail_reloads_transfer (fact_bot availVarsLattice) g
+\end{code}\B
+& Available-reloads analysis\\
+%\hline
+
+\end{tabular}
+% \caption{Available-variable analysis}
+\caption{Dataflow analysis pass to compute available variables}
+\figlabel{avail-all}
+\figlabel{avail}
+\figlabel{avail-lattice}
+\figlabel{avail-gen-kill}
+\figlabel{avail-transfers}
+\figlabel{avail-running}
+\end{figure*}
+% Old captions' text:
+% The dataflow fact for the available-reload analysis describes
+%   the set of registers for which a reload is available.
+%   We list the types of the functions that manipuate sets of available registers,
+%   as well as the definition of the lattice.
+% The standard gen and kill functions for available expressions
+% The transfer functions for the available-reloads analysis.
+% Running the available-reloads analysis and extracting the results with \texttt{zdfFpFacts}
+% The rewrite functions to insert redundant reloads immediately before uses
+
+% Probably no space for the implementations:
+% interAvail (UniverseMinus s) (UniverseMinus s') =
+%   UniverseMinus (s `plusVarSet`  s')
+% interAvail (AvailVars     s) (AvailVars     s') =
+%   AvailVars (s `timesVarSet` s')
+% interAvail (AvailVars     s) (UniverseMinus s') =
+%   AvailVars (s  `minusVarSet` s')
+% interAvail (UniverseMinus s) (AvailVars     s') =
+%   AvailVars (s' `minusVarSet` s )
+% 
+% smallerAvail (AvailVars _) (UniverseMinus _) = True
+% smallerAvail (UniverseMinus _) (AvailVars _) = False
+% smallerAvail (AvailVars     s) (AvailVars    s')  =
+%   sizeVarSet s < sizeVarSet s'
+% smallerAvail (UniverseMinus s) (UniverseMinus s') =
+%   sizeVarSet s > sizeVarSet s'
+% 
+% extendAvail (UniverseMinus s) r =
+%   UniverseMinus (deleteFromVarSet s r)
+% extendAvail (AvailVars     s) r =
+%   AvailVars (extendVarSet s r)
+% 
+% delFromAvail (UniverseMinus s) r =
+%   UniverseMinus (extendVarSet s r)
+% delFromAvail (AvailVars     s) r =
+%   AvailVars (deleteFromVarSet s r)
+% 
+% elemAvail (UniverseMinus s) r =
+%   not $ elemVarSet r s
+% elemAvail (AvailVars     s) r =
+%   elemVarSet r s
+
+\subsection{Available variables: a forward analysis} \label{s:fwd-client}
+
+At each call site, GHC requires that all local variables be saved on
+the stack.
+In order to reduce register pressure,
+such variables should be reloaded not immediately after the call site
+but instead immediately before they are used, as shown above in
+\secref{spill-reload-example}: the variable~@x@ is reloaded not
+immediately after the call to~@g@, but just before its use in the
+expression @z + x@;
+and on the control-flow path to @return z@, @x@~needn't be reloaded
+at all.
+
+Getting spills and reloads in the right places requires the
+composition of several dataflow passes:
+\begin{enumerate}
+\item
+A backward transformation inserts reloads immediately after each call
+site.
+The same pass inserts spills not immediately before call sites, but
+rather immediately after the appropriate reaching definitions.
+\item
+\label{reload-duplication}
+A second pass inserts redundant reloads immediately before the
+reloaded variables are used.
+By keeping variables on the stack longer, this pass reduces register
+pressure.
+\item
+\label{remove-dead-reloads}
+A final pass, dead-assignment elimination, removes redundant reloads.
+\end{enumerate}
+The combined effect of passes
+\ref{reload-duplication}~and~\ref{remove-dead-reloads} is to ``sink''
+the reloads as far as possible from the call site.
+In this section we describe an analysis that supports
+pass~\ref{reload-duplication}; 
+pass~\ref{reload-duplication} itself is described in
+\secref{sink-reloads}, and 
+pass~\ref{remove-dead-reloads} is described in
+\secref{dead-code-elimination}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  desperately trying to get figures to emerge in a decent order
+%
+\begin{figure*}
+\begin{tabular}{CL}
+\T\begin{code}
+type Live = VarSet
+\end{code}\B
+& Dataflow fact\\
+\hline
+
+\T\begin{code}
+liveLattice :: DataflowLattice Live
+liveLattice = DataflowLattice "live LocalReg's" emptyVarSet add False
+  where add new old =
+          let join = unionVarSets new old in
+          (if sizeVarSet join > sizeVarSet old then aTx else noTx) join
+\end{code}\B
+& Lattice\\
+\hline
+
+\T\begin{code}
+gen  :: UserOfLocalVars    a => a -> Live -> Live
+kill :: DefinerOfLocalVars a => a -> Live -> Live 
+gen  a live = foldVarsUsed extendVarSet  live a
+kill a live = foldVarsDefd delFromVarSet live a
+\end{code}\B
+& Gen/Kill \mbox{functions}\\
+\hline
+
+\T\begin{code}
+liveTransfers :: BackwardTransfers Middle Last Live
+liveTransfers = BackwardTransfers (flip const) middleLiveness lastLiveness
+
+middleLiveness :: Middle -> Live -> Live
+lastLiveness   :: Last -> (BlockId -> Live) -> Live
+middleLiveness l = gen l . kill l   -- WHAT ABOUT MidForeignCall??? <===== <========
+lastLiveness   l = gen l . kill l . lastLiveOut l 
+
+lastLiveOut :: Last -> (BlockId -> Live) -> Live
+lastLiveOut l env = last l 
+  where
+    last (LastBranch id)        = env id 
+    last (LastCall _ _  _ _)    = emptyVarSet
+    last (LastCondBranch _ t f) = unionVarSets (env t) (env f)
+    last (LastSwitch _ tbl)     = unionManyVarSets $ map env (catMaybes tbl)
+\end{code}\B
+& Transfer \mbox{functions}\\
+\hline
+
+\T\begin{code}
+cmmLivenessZ :: CmmGraph -> DFMonad (BlockEnv Live)
+cmmLivenessZ g@(LGraph entry _ _) =
+  liftM zdfFpFacts (res :: DFMonad (CmmBackwardFixedPoint Live))
+    where res = zdfSolveFrom emptyBlockEnv "liveness analysis" liveLattice
+                             liveTransfers emptyVarSet (graphOfLGraph g)
+\end{code}\B
+& Liveness \mbox{analysis}\\
+\end{tabular}
+\caption{Liveness analysis}
+\figlabel{liveness-all}
+\figlabel{liveness}
+\figlabel{live-lattice}
+\figlabel{live-transfers}
+\figlabel{live-running}
+\end{figure*}
+%
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+To~understand the analysis, you must know that for each variable~$x$,
+there is a compiler pseudoregister~\tempof x and a stack slot~\slotof x, each of
+which is used only to hold the value of~$x$.
+\remark{Changing ``register'' to
+``variable'' makes the example easier to understand and hides a
+GHC-ism, but there's a slippery slope here\ldots}
+%
+The logical assertion of interest is that the value of a variable is
+equal to the value stored in its stack slot, i.e., $x = \slotof x$.
+The dataflow fact that corresponds to a conjunction of assertions of
+this form is a set of variables~$X$ such that $\forall x \in X \mathrel
+: x = \slotof x$.
+The lattice-join operation is set intersection,\footnote
+{A variable $x = \slotof x$ at a label~@L@ if and
+only if $x = \slotof x$ on every control-flow edge coming into~@L@.}
+and the bottom element
+is the universal set containing all variables.
+Because universal sets can be awkward to manipulate, we represent a
+set using one of two alternatives
+(see~\figref{avail-lattice}):
+\begin{itemize}
+\item @UniverseMinus s@: All variables except those in the set~@s@
+\item @AvailVars s@: The variables in the set~@s@
+\end{itemize}
+The bottom element is @UniverseMinus emptyVarSet@.
+
+
+
+
+%%  Among many other uses, an available-expressions analysis can be~used
+%%  in code-motion optimizations.
+%%  For example, when making a function call, we insert
+%%  spills and reloads to save and restore the values of local variables
+%%  around the call site.
+%%  It is easy to insert the reloads at the function-call return site,
+%%  but to avoid register pressure, it would be better to leave the variable
+%%  where it was spilled on the stack.
+%%  Rather than complicating the code that inserts the spills and
+%%  reloads around call sites,
+%%  we write an analysis to insert a redundant reload immediately
+%%  before a reloaded variable is used.
+%%  Then, we rely on a dead-code elimination to~remove
+%%  the early reload.
+
+To manipulate sets of variables, we provide these functions:
+\begin{itemize}
+\item \texttt{extendAvail~~s~x}: Add variable @x@ to the set~@s@
+\item \texttt{delFromAvail~s~x}: Remove variable @x@ from the set~@s@
+\item \texttt{elemAvail~~~~s~x}: Check if variable @x@ is in the set~@s@
+\item \texttt{interAvail~~~s s'}: Intersect sets @s@ and @s'@
+\item \texttt{smallerAvail~s s'}: Check if set~@s@ is smaller than @s'@
+\end{itemize}
+The implementations are a thin veneer over analogous set operations.
+
+%%In~the lattice of available reloads (\figref{avail-lattice}),
+%%the~join is computed by taking the intersection of two sets
+%%of available reloads,
+%%The join operation (@add@) returns a \emph{transaction} @aTx@
+%%if the join has not yet reached a fixed point;
+%%otherwise, it returns @noTx@ to indicate that the dataflow fact
+%%did not change.
+%%The bottom element of the lattice is the universe of all variables,
+%%reflecting the initial assumption that all variables
+%%have available reloads.
+%%\john{Shouldn't it be @AvailRels@ instead of @AvailVars@?}
+
+
+
+The most interesting part of the pass is the @middleAvail@ transfer
+function in \figref{avail-transfers}.
+The first case identifies an assignment that reloads local
+variable~@x@ from its stack slot.\remark{I propose the compiler be
+modified to use @isStackSlotOf@ as I've written. JD~approves.}
+After such an assignment $@x@ = \slotof{@x@}$, and no other variable
+is affected, so @x@~is added to the set of available
+variables.\remark{I'm not sure @agen@ and 
+@akill@ are helping the exposition.}
+In the next case, an assignment to a local variable means that the
+variable is no longer necessarily equal to the value in its stack
+slot, so if @lhs@ is a variable, it is removed from the set of
+available variables.
+In the third case, a foreign call destroys the values of all local
+variables, so the set of available variables is empty.
+In the other cases, comments and stores to memory don't affect the set
+of available variables.\footnote
+{Although @MidStore@ may overwrite a stack slot \slotof x, GHC's back end
+carefully arranges that all stores to \slotof x have the form
+$\slotof{@x@}= @x@$.
+These stores could be used to extend the set of available variables,
+but it is not useful to do so.}
+\remark{How do we know that @MidStore@ doesn't
+destroy a stack slot??  I've put in a footnote but it will probably be
+simpler to fix the code.}
+
+
+The transfer function for a last node checks to see if the node is a
+function call; if so, as for the foreign call, the set of
+available variables is empty on every outgoing control-flow edge.
+Other last nodes do not change values of variables or stack slots, 
+so the set of available variables remains unchanged.
+%
+A~first node has no effect on program state, so its transfer function
+is @flip const@.
+
+\bigskip
+
+\hrule
+
+\textbf{BELOW THIS LINE, TEXT HAS BEEN EDITED, BUT NORMAN'S NOT DONE}
+
+\hrule
+
+Following the standard optimization literature,
+we describe the transfer functions using
+gen and kill functions that~add and remove variables from the set of available reloads
+(see~\figref{avail-gen-kill}).\remark{Not thrilled about this exposition}
+To streamline the code, our clients rely on
+the @UserOfLocalVars@ and @DefinerOfLocalVars@ typeclasses,
+which provide functions to~fold over the registers used and defined
+in the intermediate code.
+
+%%Using the @agen@ and @akill@ functions, we define the transfer functions
+%%for the available-reloads analysis (see~\figref{avail-transfers}):
+%%\begin{itemize}
+%%\item \emph{First nodes}:
+%%  A first node cannot define a variable,
+%%  so the set of available reloads is the same before and after a first node.
+%%  We return the set unchanged using @flip const@.
+%%\item \emph{Middle nodes}:
+%%  If a middle node reloads a value from a register's slot on the stack (@RegSlot@),
+%%  then we add the register the register to the set of available reloads.
+%%  For any other assignment to a register, we remove the register from the
+%%  set of available reloads.
+%%  Similarly, because a function call can overwrite the value of any local variable,
+%%  the set of available reloads is empty after a~function call.
+%%  Any other middle node leaves the set of available reloads unchanged.
+%%\item \emph{Last nodes}:
+%%  If the last node is a function call, the outgoing set of available reloads
+%%  is empty for every successor basic block.
+%%  Otherwise, the last node cannot modify any variables,
+%%  so the set of available reloads remains unchanged.
+%%\end{itemize}
+
+Finally, we can perform the available-reloads analysis by calling
+the dataflow framework's @zdfSolveFromL@ function
+with the lattice and transfer functions
+(\figref{avail-running}).
+The function @zdfFpFacts@ returns the result of the analysis
+in the form of a map from basic-block IDs to the set of available reloads
+at the beginning of each block.
+\john{Should probably say something about the LGraph vs. Graph...}
+\john{Need to do something about these LGraph Middle Last -- we should
+  just use a type synonym.}
+
+
+
+
+
+
+\subsection{Liveness: a backward analysis} 
+
+The assertion computed by a 
+a backward dataflow analysis typically applies to a
+\emph{continuation} at a program point, not to a state.
+The classic example is a liveness analysis;
+the logical fact of interest is that at a particular program point,
+the answer produced by the continuation does not depend on
+the value of a particular variable~$x$.
+If~so, $x$ is said to be \emph{dead} at that point.
+The dataflow fact we use to represent such assertions is the set of
+variables that are \emph{not} dead; such variables are said to
+be~\emph{live}.\footnote
+{Liveness cannot be decided accurately; it reduces easily to the halting problem.
+As usual, we approximate liveness by reachability.}
+The bottom element of the fact lattice is the empty set, and the join
+operation is set union (\figref{live-lattice}).
+
+The results of liveness analysis are used by several clients,
+including the dead-assignment eliminator,
+which removes assigments to dead variables, 
+and the register allocator, which
+ensures that if two variables are simultaneously
+live, they are not assigned to the same register.
+\remark{If we had a discussion of the transfer functions, I've lost
+track of it}
+
+%%  If the result of the join is larger than the old set,
+%%  then the @add@ operation returns a transaction (@aTx@),
+%%  which indicates that the analysis has not yet reached a fixed point.
+
+
+
+
+
+
+%%  The client implements a collection of transfer functions
+%%  (see~
+%%  which generate dataflow facts on each edge of the control-flow graph.
+%%  Forward and backward analyses must implement different sets of
+%%  transfer functions.
+%%  In general, the inputs to a transfer function are a dataflow fact and an instruction,
+%%  and the result is a new dataflow fact. \simon{At this point you speak
+%%  of ``instructions'' whereas previously you've talked of ``nodes''. 
+%%  Must clear this up.}
+%%  For a forward analysis, the input dataflow fact is an assertion
+%%  on the state before the input instruction,
+%%  and the output dataflow fact is an assertion on the state after the instruction.
+%%  Conversely, for a backward analysis, the input dataflow fact is an assertion
+%%  on the continuation after the input instruction,
+%%  and the output dataflow fact is an assertion on the continuation
+%%  including the instruction. 
+%%  \simon{For forwards you speak of ``an assertion on the state after the instruction'',
+%%  whereas for backwards it's ``an assertion
+%%  on the continuation after the input instruction''.  Are these different?
+%%  I don't think so.  Better to use the same terminology.}
+%%  
+%%  Most of the transfer functions are straightforward,
+%%  but the transfer functions for the control-flow (or @last@) nodes 
+%%  is more complicated.
+%%  For a forward analysis, the transfer function for the last node
+%%  must produce a separate dataflow fact along with the block ID
+%%  for each successor block.
+%%  Conversely, for a backward analysis,
+%%  the transfer function for the last node in a basic block
+%%  gets a function mapping the IDs of successor blocks to dataflow facts.
+%%  Finally, for an exit node in a graph, the transfer function has
+%%  no instruction to inspect.
+%%  \john{SURELY THIS NEEDS TO BE DEFINED SOMEWHERE EARLIER....
+%%   OR MAYBE THIS CASE CAN BE DROPPED COMPLETELY -- IS IT ALWAYS IDENTITY?}
+%%  
+%%  % Do we still need exit_out if we splice subgraphs directly
+%%  % into the bigger graph before doing the analysis on the subgraph?
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+
+%%  \simon{We don't really have first nodes do we?  What might @ft\_first\_out@ do?
+%%  Is there any example of it doing anything at all?  We must link this 
+%%  text back to the description of graphs that is now sketched at the
+%%  start of \secref{roadmap}.\par}
+%%  %
+%%  \simon{What is @fr\_exit\_out@?  It smells of the horrid stuff about
+%%  exit nodes that has offended my tender nostrils since Day 1.}
+%%  \norman{The exit nodes have a simple explanation in terms of graphs and in
+%%  terms of C-- code.  Without exit nodes, how do you propose to
+%%  represent a code fragment for which control "falls off the end"?
+%%  The ability to write such fragments is too useful to give up.
+%%  I agree that the most obvious need is in the AGraph representation,
+%%  but it is also the case that during optimization a middle node can be
+%%  rewritten as a graph with a default exit.\par}
+%%  %
+
+
+\bigskip
+
+\hrule
+
+\textbf{BELOW THIS LINE, TEXT HAS BEEN EXCISED, BUT LITTLE OTHER
+EDITING HAS BEEN DONE}
+
+\hrule
+
+
+\section{Writing transfer functions using \texttt{gen} and
+\texttt{kill}}
+
+\emph{
+\begin{itemize}
+\item
+Traditional in books \&\ elsewhere
+\item
+An assignment could \emph{establish} an assertion, which is often
+called ``gen.''
+\item
+An assignment could also change state in such a way that an assertion
+no longer holds, which is often called ``kill.''
+\item
+Or both!
+\item
+If you want to transliterate code from books, it's easy.
+\item 
+An example or two
+\end{itemize}
+}
+
+
+
+\section{Using dataflow facts to rewrite graphs, with examples}
+
+\begin{figure*}
+\begin{tabular}{CL}
+\T\begin{code}
+availRewrites :: ForwardRewrites Middle Last AvailVars
+availRewrites = ForwardRewrites first middle last exit
+  where first _ _ = Nothing
+        middle m avail = maybe_reload_before avail m (mkMiddle m)
+        last   l avail = maybe_reload_before avail l (mkLast l)
+        exit _ = Nothing
+        maybe_reload_before avail node tail =
+            let used = filterVarsUsed (elemAvail avail) node
+            in  if isEmptyVarSet used then Nothing
+                else Just $ reloadTail used tail
+        reloadTail regset t = foldl rel t $ uniqSetToList regset
+          where rel t r = mkMiddle (reload r) <*> t
+\end{code}\B
+& Rewrite \mbox{functions}\\
+\hline
+
+\T\begin{code}
+type LateReloadFix = DFMonad (ForwardFixedPoint Middle Last AvailVars CmmGraph)
+insertLateReloads :: (LGraph Middle Last) -> DFMonad (LGraph Middle Last)
+insertLateReloads g = liftM zdfFpContents $ (res :: LateReloadFix)
+  where res = zdfFRewriteFromL RewriteShallow emptyBlockEnv "insert late reloads"
+                               availVarsLattice avail_reloads_transfer
+                               availRewrites (fact_bot availVarsLattice) g
+\end{code}%
+& Insert \mbox{late-reload} \mbox{transformation}\\
+\end{tabular}
+\caption{Late-reload insertion, which relies on the analysis of \figref{avail}}
+\figlabel{avail-rewrites}
+\end{figure*}
+
+
+A client can transform a procedure by implementing
+rewrite functions (see~\figref{rewrites}).
+%
+\simon{Need to talk about @DFMonad@.  It's a cool thing.}
+%
+%
+Like the transfer functions, forward and backward transformations
+must implement different sets of rewrite functions.
+In general, the inputs to a rewrite function are a dataflow fact and an instruction,
+and the output may produce a new fragment of a control-flow graph;
+if the instruction should not be transformed, the rewrite function
+returns @Nothing@. \simon{See my above note about postponing rewriting.
+This bit is very hard to understand.  We hvae not heard about @AGraphs@ before,
+and they are not explained here.  Indeed the text says ``fragment'' but the code
+says @AGraph@ and we never get to see how the @AGraph@ is used.}
+For a forward analysis, the input dataflow fact is an assertion
+on the state before the input instruction.
+For a backward analysis, the input dataflow fact is an assertion
+on the continuation after the input instruction.
+\john{WHEN DO WE REWRITE EXIT NODES? MAYBE THIS IS AN UNNECESSARY FEATURE?}
+
+After defining the lattice, the transfer functions, and the rewrite functions,
+the client runs the analysis by invoking the dataflow framework
+(see~\figref{framework-fns}).
+The function @zdfSolveFrom@ performs an analysis on an input control-flow graph,
+using a dataflow lattice and a set of transfer functions.
+The additional arguments to the function provide
+the name of the analysis,
+the initial set of dataflow facts (usually empty),
+and the initial fact (usually bottom)
+that flows into either the entry or exit of the graph,
+depending on whether the transfers define a forward or backward analysis.
+The result of the function is the fixed point of the analysis,
+which stores the dataflow fact on entry to each basic block.
+\john{Maybe we should export a simple version of these functions to clients?
+  Do they always do the obvious things with the initial facts and in-fact?
+  Initial facts can reuse results of a previous analysis, but then you lose
+  interleaving.}
+
+To combine an analysis and a transformation,
+the client calls the @zdfRewriteFrom@ function,
+which takes the same arguments as @zdfSolveFrom@,
+with the addition of the set of rewrite functions
+and a parameter (@RewritingDepth@) that decides whether the result
+of a rewrite function should be considered for further rewriting.
+The result of the function is not only the fixed point of the
+analysis interleaved with the transformation,
+but also the transformed control-flow graph.
+
+\begin{figure}
+\begin{code}
+type Rewrite mid last = Maybe (AGraph mid last)
+data ForwardRewrites mid last a = ForwardRewrites
+ {fr_first  :: BlockId -> a -> Rewrite mid last,
+  fr_middle :: mid     -> a -> Rewrite mid last,
+  fr_last   :: last    -> a -> Rewrite mid last,
+  fr_exit   ::            a -> Rewrite mid last} 
+
+data BackRewrites mid last a = BackRewrites
+ {br_first  :: BlockId  -> a  -> Rewrite mid last,
+  br_middle :: mid      -> a  -> Rewrite mid last,
+  br_last   :: last ->
+               (BlockId -> a) -> Rewrite mid last,
+  br_exit   ::                   Rewrite mid last} 
+\end{code}
+\caption{Dataflow rewrites for both forward and backward transformations.}
+\figlabel{rewrites}
+\end{figure}
+
+
+
+\begin{figure*}
+\begin{tabular}{ll}
+\begin{minipage}{3.4in}
+\end{minipage}
+& 
+\begin{minipage}{3.4in}
+\begin{code}
+class DataflowSolverDirectiontransfers fixedpt =>
+      DataflowDirection
+        transfers fixedpt rewrites where
+  zdfRewriteFrom :: (DebugNodes m l, Outputable a)
+    => RewritingDepth    -- Recursive rewrites?
+    -> BlockEnv a        -- Init facts
+    -> PassName          -- Analysis name
+    -> DataflowLattice a -- Lattice
+    -> transfers m l a   -- Transfers
+    -> rewrites m l a    -- Input fact
+    -> a                 -- Input fact
+    -> Graph m l         -- CFG
+    -> DFMonad (fixedpt m l a (Graph m l))
+\end{code}
+\end{minipage}
+\end{tabular}
+\caption{The dataflow framework provides functions for running an analysis
+  and for running a combined anlysis and transformation.}
+\figlabel{framework-fns}
+\end{figure*}
+
+\subsection{Sinking reloads: a forward transformation}
+
+
+After the lattice and transfer functions have ben defined,
+we can use the available-reloads analysis to insert reloads
+immediately before uses.
+The new code consists of a set of rewrite functions and an invocation
+of the dataflow framework (\figref{avail-rewrites}).
+For first and exit nodes, the rewrites return @Nothing@ to indicate
+that the graph should remain unchanged.
+For middle and last nodes, the @maybe_reload_before@ function
+checks whether the instruction uses a register that has an available reload.
+If so, the @reloadTail@ function returns a new graph
+in which a redundant reload is inserted for each used registers
+that has an available reload.
+Finally, the @insertLateReloads@ function invokes the @zdfRewriteFromL@ function
+to~perform the interleaved available-reload analysis
+and redundant-reload insertion.
+\john{Transition? The next pass should clean up the former.}
+\john{Can probably factor out empty as emptyAvail}
+
+\subsection{Dead-assignment elimination: a backward transformation}
+
+\seclabel{bwd-rewrite}
+
+\begin{figure*}
+\begin{tabular}{CL}
+\T\begin{code}
+deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing Nothing
+  where nothing _ _ = Nothing
+
+middleRemoveDeads :: Middle -> CmmLive -> Maybe (AGraph Middle Last)
+middleRemoveDeads (MidAssign (CmmLocal x) _) live
+    | not (x `elemVarSet` live) = Just emptyAGraph
+middleRemoveDeads _ _ = Nothing
+\end{code}\B
+& Rewrite \mbox{functions}\\
+\hline
+
+\T\begin{code}
+removeDeadAssignments :: (LGraph Middle Last) -> DFMonad (Graph Middle Last)
+removeDeadAssignments g =
+   liftM zdfFpContents (res :: DFMonad (BackwardFixedPoint Middle Last
+                                            CmmLive (Graph Middle Last)))
+     where res = zdfRewriteFrom RewriteDeep emptyBlockEnv "dead-assignment elim"
+                                liveLattice liveTransfers rewrites emptyVarSet
+                                (graphOfLGraph g)
+\end{code}%
+& \mbox{Dead-code} elimination\\
+\end{tabular}
+\caption{Dead-assignment elimination, which relies on the analysis of
+\figref{liveness}} 
+\figlabel{dead-elim}
+\end{figure*}
+
+\def\liveout{$\mathit{live_{out}}$}
+Each transfer function takes an instruction and
+the set of live registers in the instruction's continuation (the \liveout\ set);
+the result of the function is the set of live registers before the instruction.
+The standard procedure is to start with the set \liveout\,
+then remove each register defined by the instruction and
+add any register used by the instruction.
+In classic optimization literature, this procedure
+is~described in terms of @gen@ and @kill@ functions
+that add and remove registers from the live sets.
+
+Using the @gen@ and @kill@ functions, we define the 
+transfer functions for the liveness analysis as @liveTransfers@
+(see~\figref{live-transfers}):
+\begin{itemize}
+\item \emph{First nodes}:
+  The set of live registers is the same before and after a first node,
+  so we return the \liveout\ set unchanged using @flip const@.
+\item \emph{Middle nodes}:
+  The set of live registers is determined by the @gen@ and @kill@
+  functions, which are composed in @middleLiveness@.
+\item \emph{Last nodes}:
+  Like a middle node, the set of live register is determined by
+  the @gen@ and @kill@ sets, which are composed in @lastLiveness@.
+  But because a last node may have multiple sucessors,
+  we use the @lastLiveOut@ function to compute the set of registers that
+  must be live in any continuation of the last node.
+  For most last nodes, we take the union of the live sets from all of the successors.
+  The exception is for call nodes: because a function call can overwrite any
+  local register, there must not be any registers live out of a call site.
+\end{itemize}
+
+Finally, we can perform the liveness analysis by calling the dataflow framework's
+@zdfSolveFrom@ function with the lattice
+and transfer functions (see~\figref{live-running}).
+The function @zdfFpFacts@ returns the result of the analysis
+in the form of a map from basic-block IDs to the set of variables
+live at the beginning of each block.
+\john{Don't forget to go back and check consistency of names (e.g. s/CmmLive/Live/)}
+\john{I've dropped some sanity checking code.}
+\john{Maybe we can use typeclasses to hide the graphOfLGraph?}
+
+Using the lattice and transfer functions,
+we can use the dataflow framework to implement dead-assignment elimination.
+The new code consists of a set of rewrite functions and an invocation
+of the dataflow framework (\figref{dead-elim}).
+For first, last, and exit nodes, the rewrites return @Nothing@ to indicate
+that the graph should remain unchanged.
+For middle nodes, if the instruction is an assignment to a local variable
+that is dead in the continuation,
+then we replace the instruction with an empty graph;
+otherwise, we return @Nothing@.
+Finally, the @removeDeadAssignments@ function invokes the @zdfRewriteFrom@ function
+to~perform the interleaved liveness analysis and dead-code elimination.
+\john{Need to run this version of the code in anger.}
+
+% Dataflow consists of a, b, and c, (using language from section 2).
+% But a lot of the machinery is the same for any dataflow analysis;
+% dataflow framework captures the common machinery.
+%  (no more discussion of machinery in this section)
+% What exactly is needed for each client, and how can we express
+% that concisely?
+% 
+% What does the client interface look like?
+% 
+% What do specific clients look like?
+%  - forward-dataflow  example showing assertions on state
+%  - backward-dataflow example showing assertions on continuation
+% 
+% How do we make use of typeclasses?
+%  -- witness defs and uses used by multiple clients
+
+\section{Graphs}
+\seclabel{graphs}
+
+Our optimizer represents each procedure using a control-flow graph.
+Our representation of control-flow graphs is
+\begin{itemize}
+\item
+Purely applicative, which makes it exceptionally easy to compose
+analyses and transformations as described in \secref{engine}
+\item
+Polymorphic, which enables us not only to reuse the graph for
+different low-level intermediate languages, but which forces us to
+distinguish generally useful dataflow algorithms from particular
+realizations in~GHC
+\item
+Based on Huet's \citeyearpar{huet:zipper} \emph{zipper},
+which makes it easy to adapt existing code improvements written in
+imperative style
+\end{itemize}
+\citet{dias-ramsey:applicative-flow-graph} present our design in
+detail, as well as discussing alternatives, advantages, and
+disadvantages.
+In~this paper we give a high-level view of the data structure, and we
+emphasize a significant refinement: the introduction of polymorphism.
+
+\subsection{Basic data structure}
+
+Our refined design uses no mutable pointers of any kind, which means
+there are no complicated pointer invariants to get wrong.
+Because control-flow edges can form a cycle, we need to use 
+indirection to represent at least one of the edges on a cycle.
+We adopt the simple and traditional solution, which is to use
+indirection for edges out of control-transfer instructions, and direct
+references otherwise.
+We therefore have three kinds of nodes:
+\begin{itemize}
+\item
+A~node that could be the target of a control transfer carries only
+a \emph{unique id} of type @Uniq@.
+Such a node serves only to mark a point in the
+program; it has no computational effect.
+\item
+A node that is reached only by its immediate predecessor and reaches
+only its immediate successor has its control flow represented
+directly. 
+When ``looking forward,'' we have a cons cell that refers to the node
+and its immediate successor;
+when ``looking backward,'' the cons cell refers to the node
+and its immediate predecessor.
+\item
+A~node that could be the source of a back edge or that could
+have multiple successors requires indirection;
+each of the node's
+successors is identified by its @Uniq@.
+\end{itemize}
+As noted in \secref{example2},
+we call such nodes \emph{first}, \emph{middle}, and \emph{last} nodes
+respectively.
+A~sequence beginning in a first node, containing zero or more middle
+nodes, and terminating in a last node is a basic block.
+
+A control-flow graph is a collection of nodes.
+A~graph has a single \emph{entry} and at most one \emph{default exit}.
+A~graph has a default exit, which we abbreviate just ``exit'', only if
+control can ``fall off the end.'' 
+A~graph has no exit if control leaves the graph only by an explicit
+procedure return or tail call;
+for example, the graph for a whole procedure  has no exit.
+The most common use of a single-entry, single-exit flow graph is as a
+replacement for a middle node during code improvement.
+
+Each control-flow graph is represented as a finite map from @Uniq@ to
+basic block, together with a distinguished @Uniq@ that marks the entry
+node.\footnote
+{The representation of @Uniq@ is carefully chosen so that not only is
+  it efficient to create an infinite supply of @Uniq@s, but finite
+  maps with @Uniq@ keys can be implemented using a Patricia tree,
+  which is even more efficient than a balanced binary tree
+  \cite{okasaki-gill:integer-map,adams:balancing-act}.} 
+When a graph is ``being modified'',
+we \emph{focus} on one internal edge of one basic block.
+The focus is represented by a pair.
+One element of the pair points to the
+source of the edge, which is linked to its predecessor, and so on up
+to the block's first node.
+The other element of the pair points to the
+sink of the edge, which is linked to its successor, and so on down
+to the block's last node.
+We~``modify'' the graph by creating a new focus; to ``insert'',
+``remove'', or ``mutate'' a node typically requires a couple of
+allocations and produces a fresh graph
+\cite{dias-ramsey:applicative-flow-graph}. 
+With these operations it is easy to recase imperative graph-rewriting
+code into a pure functional form.
+
+\subsection{Realization in GHC}
+
+The two significant differences between the applicative flow graph
+used in Quick~{\PAL} \cite{dias-ramsey:applicative-flow-graph} and the
+refined version described in this paper are that the new version is
+polymorphic, and the new version stores properties in separate finite
+maps, not in mutable property lists.
+We use finite maps in order to avoid mutable reference cells, which
+require that computations be done in the @IO@~monad.
+The change from propertly lists to finite maps is inconsequential,
+affecting the algorithms in only minor ways and the structure of the
+code not at all.
+The change from a monomorphic to a polymorphic control-flow graph, by
+contrast, has far-reaching implications.
+
+Types related to control flow graph are polymorphic in two parameters:
+the type of middle nodes and the type of last nodes.\footnote
+{We considered abstracting over types associated with first nodes as
+  well, but we preferred to restrict first nodes so that a first node
+  carries a @Uniq@ and only a @Uniq@.
+  This design gives us fewer type parameters and
+  therefore fewer higher-order functions associated with those
+  parameters.
+  Because we can always use a finite map to associate data with
+  each first node, we don't lose any expressive power.}
+This design militates strongly toward a more modular implementation,
+in which the implementation of the dataflow engine is 
+decoupled from the representation of computations at individual nodes.
+\begin{itemize}
+\item
+Module @ZipCfg@ exports data structures and algorithms that are
+independent of the type of middle and last nodes.
+However, in order to enable other algorithms to change the flow graph
+without knowing the representation of a last node, @ZipCfg@ exports a
+@LastNode@ type class which all last nodes must support.
+Ths @LastNode@ type class expresses the minimum required of a type
+that claims to repesent a control transfer:
+it must be possible to
+create a last node that branches unconditionally to a given @Uniq@ (goto);
+to test to see if a last node is an unconditional branch, and if so, to
+what target;
+and to observe what @Uniqs@ designate possible successors of a last
+node.
+Operations that observe successors are extended to basic
+blocks.\remark{And to ``tails'', but not clear if that should be
+  mentioned}
+
+@ZipCfg@ exports a number of basic algorithms on graphs, including the
+splicing algorithms described by
+\citet{ramsey-dias:applicative-flow-graph}. 
+The most important algorithm is postorder depth-first-search
+traversal, which orders the basic blocks in a way such that iterative
+dataflow analyses converge quickly.
+As~a benevolent side effect, this traversal also prunes unreachable
+code from the graph.
+\item
+Module @ZipCfgCmmRep@ depends on @ZipCfg@, but not the converse.
+It~exports definitions of the middle- and last-node types needed to
+represent GHC's low-level intermediate code, @Cmm@.
+For convenience, it also exports instantiations of graph types,
+and it exports instance declarations that make it easy to walk @Cmm@
+nodes and find out what registers and stack slots are defined and
+used.
+\item
+The \emph{representation} exported by
+modules @ZipCfg@ and @ZipCfgCmmRep@ is useful primarily
+for \emph{analyzing} flow graphs.
+To~\emph{construct} a flow graph we use ``smart constructors'' which
+produce monadic functions from graphs to graphs.
+These constructors, which are inspired by Hughes's \citeyearpar{hughes:novel-lists}
+representation of lists, are purely functional and shield the clients
+from the need for a supply of @Uniq@ values.
+When a client \emph{wants} to use a @Uniq@, for example, to translate
+structured control flow into conditional and unconditional branches,
+the graph-construction interface provides a constructor with a type
+analogous to $(\mathtt{Uniq} \arrow \mathit{graph}) \arrow \mathit{graph}$.
+By means of this interface, GHC's front end creates large graphs by
+composing smaller ones, as described in the companion paper
+\cite{dias-peyton:refactoring}. 
+\end{itemize}
+
+
+
+
+\section{The Dataflow Engine}
+\seclabel{engine}
+
+\begin{itemize}
+\item
+Dataflow monad is just
+\begin{itemize}
+\item
+Plumbing for a supply of @Uniq@ labels
+\item
+State monad to keep track of the dataflow fact at each block, so we
+know when we've reached a fixed point.
+\end{itemize}
+\item
+Note that the dataflow engine is the only part of the system that is
+hard to get right---this is where all the hair is.
+Prime benefit of our system is that once this is right, everything is
+easy (and indeed is just logic, strongest postcondition, or weakest
+precondition). 
+\item
+Note shallow and deep rewriting---may be that we can eliminate shallow
+rewriting through clever adjustment of dataflow facts
+\item
+Excerpts from implementation of the dataflow engine
+\end{itemize}
+
+
+\input{logic} % let's try to avoid darcs conflicts, shall we?
+
+\section{Conclusion}
+
+We make dataflow optimization simple not by using a single magic
+ingredient, but by blending proven ideas in a way that
+makes it possible to think simple thoughts about classical code improvements.
+\begin{itemize}
+\item
+We are concerned only with code improvements over low-level
+imperative codes, emcompassing both intermediate languages and machine
+languages.
+As \citet{benitez-davidson:portable-optimizer} have shown, all of the
+classical scalar and loop optimizations can be performed over such
+codes.
+Moreover, any functional program compiled to native code must
+eventually translate to such a code.
+\item
+We acknowledge only one program-analysis technique: the solution of
+recursion equations.
+Most equations relate
+properties of program states; some relate properties of continuations.
+\item
+When looking at properties of program states, we consider only two
+relations: weakest liberal precondition and strongest liberal
+postcondition.
+In the compiler literature, these relations correspond respectively to
+``backward dataflow problems'' and ``forward dataflow problems.''
+\item
+Like our colleagues working in imperative languages, we solve
+recursion equations by iterating to a fixed point.
+In a language that admits loops, iterating weakest preconditions or
+strongest postconditions typically does not reach a fixed point in
+finitely many steps; hence the need for loop invariants
+\cite{dijkstra:discipline,hoare:???,gries:science-programming,floyd:???}.
+In \secref{logic-reconciled}, we show that we can guarantee to reach a
+fixed point by limiting what we can express in the logic.
+We~show that many classical analyses can be explained this way;
+the great diversity of classical analyses corresponds to a great
+diversity of inexpressive logics.
+This view leads us to a unifying principle:
+\emph{To implement a code-improving transformation, find the least
+  expressive logic that can justify the transformation, then use that
+  logic to compute strongest postconditions, which justify the
+  transformation locally.}
+\item
+We consider only two program transformation techniques:
+substutition of equals for equals, and removal of redundant
+assignments.
+Substitution of equals for equals may require reasoning about program
+states; for example, if we have a program point at which variable~$x$
+is always~7, we are justified in substituting 7 for~$x$.
+\remark{We can also justify substitution of \emph{labels} in goto
+  statements by reasoning about continuations.  The introduction is
+  probably not the place to mention this fact.}
+Removal of redundant assignments requires reasoning about program
+continuations; an assignment is redundant if its results are not used
+by its continuation.
+
+Some compiler texts treat the removal of unreachable code as a
+code-improving transformation in its own right.
+In~our framework, unreachable code becomes unreachable in the
+garbage-collection sense, so no special effort is required to remove
+it.
+\item
+More complex code improvements are decomposed into simpler ones.
+For example, both ``code motion'' and ``induction-variable
+elimination'' are implemented in three stages: introduce redundant
+code, substitute equals for equals, remove redundant code
+(\secref{induction-var-elim}). 
+This technique also makes it easier to debug the optimizer
+\cite{whalley:isolation}. 
+\end{itemize}
+
+We also blend proven implementation technqiues
+in a way that
+makes it possible to
+write simple code
+to implement classical code improvements.
+\begin{itemize}
+\item
+To \emph{analyze} programs, we use a purely applicative representation of
+control-flow graphs, inspired by Huet's zipper
+\cite{huet:zipper,ramsey-dias:applicative-flow-graph}. 
+\item
+To \emph{construct} programs, we use a different representation of
+flow graphs, one which hides the complexity of the zipper and which
+provides a constant-time operation for joining flow graphs in
+sequence.
+It is inspired in part by Hughes's \citeyearpar{hughes:novel-lists}
+representation of lists, which supports a constant-time append operation.
+\item
+Improving on our own prior work, we make all flow-graph
+representations fully polymorphic in the representations of
+assignments and control-flow operations.
+Although our polymorphic representations have been instantiated only
+with the low-level intermediate code used by the Glasgow Haskell
+Compiler, they are intended eventually to be instantiated with
+machine-dependent representations of target-machine instructions, as
+part of a larger project of refactoring GHC's back ends.
+
+Making the control-flow graph polymorphic seems obvious in retrospect,
+but we underestimated the degree to which polymorphism forces us to
+separate concerns.
+Even though at present the polymorphic types have but one instance
+apiece, introducing polymorphism has made the code far simpler, easier
+to understand, and easier to maintain.
+\item
+Judicious use of Haskell type classes makes is possible to write
+weakest precondition or strongest postcondition using the ``transfer
+equations'' that are familiar from compiler textbooks.
+If you like, you can even write overloaded @gen@ and @kill@ functions.
+The benefit is that it is easy to compare the actual code with the
+abstract treatments found in textbooks (\secref{example1,example2}).
+\item
+Finally, we use both polymorphism and type classes to implement a single,
+higher-order framework used to compose analyses and transformations
+\cite{lerner-grove-chambers:2002}. 
+\todo{This framework holds all the complexity and hair.  Independent
+  tests considered useful?}
+\end{itemize}
+When combined, these techniques give us a very powerful tool for
+analyzing and transforming low-level imperative code.
+In our code generator, 
+we use this ``big hammer'' not just for code improvement but wherever
+we can.
+
+
+\makeatother
+
+\providecommand\includeftpref{\relax} %% total bafflement -- workaround
+\bibliography{cs,ramsey,simon,jd} 
+\bibliographystyle{plainnatx}
+
+\end{document}

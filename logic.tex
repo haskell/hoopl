@@ -1,0 +1,146 @@
+\section{The next 700 dataflow analyses}
+
+\seclabel{next-700}
+
+\simon{This section is utterly opaque at the moment.
+I suggest we put it at the *end* of the paper, when
+we have enough concrete examples to hang these reflections on.
+At the moment it's a big sand-bar between me and the payload.
+
+Agreed: When preceding and succeeding sections settle, I will
+intercalate a short section titled something like ``from
+transformations to data structures and algorithms'' and then move the
+``Next 700\ldots'' stuff to the end. ---NR
+}
+
+%%  \section{Logical view of optimization}
+%%  
+%%  Connection to Hoare logic:
+%%   - facts derived by forward analysis as assertions on state
+%%   - facts derived by backward analysis as assertions on continuation.
+%%  
+%%  Examples on board.
+
+\seclabel{logic}
+
+
+Our view of program analysis is grounded in the great work done by
+\citet{floyd:???},
+\citet{hoare:???},
+and
+\citet{dijkstra:discipline}
+on systematic program construction and
+axiomatic semantics of programming languages.
+We focus particularly on Hoare logic:
+if in every reachable program state, 
+ an assertion holds at a point in the program,
+the assertion can be used to justify changing the code at that point.
+
+We would like to elucidate a relationship between the formal methods a
+person uses to 
+\emph{construct} a new program with the formal methods a compiler uses
+to \emph{analyze} a program that already exists.
+Understanding this relationship is a bit tricky, because compilers and
+people typically work in opposite directions.
+The most highly developed
+methodology for constructing a procedure (Dijkstra's) starts with a
+given postcondition, then works backwards using weakest
+preconditions until the programmer reaches an assertion that is
+implied by a given precondition.
+A~compiler is given a program and typically starts with a precondition (usually the
+weakest possible precondition), then uses strongest postconditions to
+compute assertions that hold in various points throughout the program.
+
+Computing either strongest postconditions or weakest liberal
+preconditions is a simple matter of calculation---except for loops.
+\emph{[Let's consider the example in section 1.  At the start of the
+    loop, what do we know about~@i@?
+Well, if it's the first trip through the loop, $i=1$.
+Given this precondition, the strongest postcondition at the end of the
+body implies $i=2$.
+We therefore have to recompute based on a precondition of $i=1 \lor
+i=2$.
+If the compiler can't prove the loop terminates, the fixed point is
+the limit of the sequence $\{P_n\}$, where $P_n = \bigwedge_k=1^n i =
+k$.
+It's easy for a person to see that the limit exists and is equivalent
+to $i \in \naturals$.
+It's not so easy for a compiler.
+]}
+
+Neither people nor compilers are especially good at solving recursion
+equations that require limits of infinite sequences.
+What people do is invent \emph{loop invariants}.
+In the classic situation, using weakest preconditions, a loop
+invariant~$I$ is an assertion that is \emph{stronger} than the weakest
+precondition and has these properties:
+\begin{itemize}
+\item
+Together with the loop-termination condition, the invariant~$I$ implies the weakest
+precondition of the code following the loop.
+\item
+The invariant~$I$ implies the weakest precondition of the loop body
+with respect to~$I$.
+In other words, $I$~is strong enought so that having $I$ hold at the
+beginning of the loop body is enough to
+imply that $I$~also holds at the end of the loop body.
+\end{itemize}
+To be useful, a loop invariant must be neither too strong nor too
+weak.
+Much like finding a useful induction hypothesis for a proof, 
+finding a loop invariant requires art and intuition.
+In~all but the simplest cases, it is beyond the capabilities of any
+compiler.
+
+Strongest postconditions also require a loop invariant, but with dual
+properties:
+\begin{itemize}
+\item
+The invariant~$I$ is weaker than the true strongest postcondition,
+but it is implied by the strongest postcondition of the code before
+the loop.
+\item
+Assuming invariant~$I$ holds on entry to the loop, the strongest
+postcondition of the loop body must imply~$I$.
+\item
+The strongest postcondition of the entire loop is deemed to be the
+conjunction of invariant~$I$ and the termination condition.
+\end{itemize}
+
+So if we can't find loop invariants automatically, what's a poor
+compiler writer to do?
+Our answer is that to write a new dataflow analysis, a compiler writer
+\emph{invents a new logic which is so inexpressive that a fixed point
+  can be reached in finitely many steps}.
+A~loop invariant is synthesized from a disjunction by finding the best
+approximation to the disjunction that a logic can express.
+Thus, the next 700 dataflow analyes will spring from 700 variations on
+predicate logic, each of which is inexpressive in a different way.
+Let's review the examples of \secref{example:xforms} in that light.
+
+\begin{itemize}
+\item
+Logic $\bigwedge_i x_i=k_i$.
+\begin{itemize}
+\item
+$i = 7 \lor \true \equiv \true$ (no loss of information)
+\item
+$i = 7 \lor i= 7 \equiv  i=7$ (no loss of information)
+\item
+$i = 7 \lor i = 8 \implies \true$ (loss of information)
+\end{itemize}
+Because there are only finitely many variables, we can say only
+finitely many things at each program point, and we're guaranteed to
+reach a fixed point.
+\item
+Example: induction-variable elimination.
+\begin{itemize}
+\item
+What is the proposition?
+\item
+Key point: be able to express the intermediate state where the
+invariant is temporarily violated (first add 1 to @i@, then add 4
+to~@p@).
+\end{itemize}
+\end{itemize}
+

@@ -1,0 +1,51 @@
+Ideas
+~~~~~
+"Optimization" encompasses:
+  - substitution informed by equational reasoning (about states)
+  - removal of redundant code, as justified by reasoning about
+    continuations
+
+"Code motion" is achieved by inserting redundant code,
+thereby making original code redundant, which in turn
+can be removed.
+
+Technique
+~~~~~~~~~
+No single technique; the secret sauce is how we combine things:
+  - Zipper CFG
+  - Disctinct representations for construction and analyis of CFGs
+  - Maximum use of polymorphism
+  - Type classes to make notation resemble prior art
+  - Transfer equations coded in dragon-book style
+  - Fixed points courtesy Lerner, Grove, and Chambers (2002)
+
+Contribution
+~~~~~~~~~~~~
+We make dataflow optimization easy to think about and easy to build:
+
+ * Ideas that reconcile the ad-hoc 'optimization zoo' found in the
+   dragon book with methods of reasoning long understood by functional
+   programmers.
+
+ * Design and implementation that make it not just possible but *easy*
+   to use dataflow techniques in your compiler.
+
+
+
+---------------------------------
+Working title: Dataflow Optimization Made Simple
+
+Note: By decomposing 'optimizations' into smaller units, we simplify.
+'induction-variable elimination' is *not* an atomic thing!
+
+
+---------------------------------
+Vague Outline
+1. Intro
+2. Short example
+3. Logical view of optimization
+4. Clients (examples, including type class declarations)
+5. Graphs
+6. Fixed-point computation; the dataflow monad
+7. Discussion
+
