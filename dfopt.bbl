@@ -6,7 +6,7 @@
      {}%
      {\expandafter\tempc\csname b@#2\csname
   @extra@b@citeb\endcsname\endcsname{#1}}}
-\begin{thebibliography}{13}
+\begin{thebibliography}{14}
 \expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
 \expandafter\ifx\csname url\endcsname\relax
   \def\url#1{{\tt #1}}\fi
@@ -25,6 +25,13 @@ Manuel~E. Benitez and Jack~W. Davidson.
 \newblock \emph{Proceedings of the ACM SIGPLAN '88 Conference on Programming
   Language Design and Implementation, {\em in} SIGPLAN Notices}, 23\penalty0
   (7):\penalty0 329--338.
+
+\bibitem[Click and Cooper(1995)]{click-cooper}
+Cliff Click and Keith~D. Cooper.
+\newblock 1995 (March).
+\newblock Combining analyses, combining optimizations.
+\newblock \emph{ACM Transactions on Programming Languages and Systems},
+  17\penalty0 (2):\penalty0 181--196.
 
 \bibitem[Dijkstra(1976)]{dijkstra:discipline}
 Edsger~W. Dijkstra.
@@ -75,15 +82,18 @@ Simon Peyton~Jones and Simon Marlow.
 \newblock \emph{Journal of Functional Programming}, 12\penalty0
   (4\&5):\penalty0 393--433.
 
-\bibitem[Peyton~Jones and Ramsey(1998)]{peyton-jones-ramsey:garbage-collection}
-Simon~L. Peyton~Jones and Norman Ramsey.
-\newblock 1998 (August).
-\newblock Machine-independent support for garbage~collection, debugging,
-  exception handling, and concurrency (draft).
-\newblock Technical Report CS-98-19, Department of Computer Science, University
-  of Virginia.
-[This entry is the first match for query
-  \texttt{peyton-jones-ramsey:garbage-collection}, which produced 2 matches.]
+\bibitem[Peyton~Jones, Ramsey, and
+  Reig(1999)]{peyton-jones-ramsey:garbage-collection:inproceedings}
+Simon~L. Peyton~Jones, Norman Ramsey, and Fermin Reig.
+\newblock 1999 (September).
+\newblock {\texttt{C{-}{-}}}: A portable assembly language that supports
+  garbage collection.
+\newblock In \emph{International Conference on Principles and Practice of
+  Declarative Programming}, \emph{LNCS} volume 1702, pages~\mbox{1--28}.
+  Springer Verlag.
+\newblock \ifx\position\undefined\def\gobbledot#1.{}\let\next\gobbledot \else
+  Invited paper\let\next\relax\fi
+  \ifx\invitedtrue\undefined\else\invitedtrue\fi \next.
 
 \bibitem[Ramsey and Dias(2005)]{dias-ramsey:applicative-flow-graph}
 Norman Ramsey and {Jo\~ao} Dias.
