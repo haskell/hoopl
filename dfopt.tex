@@ -133,8 +133,9 @@ between ``copy propagation'' and ``constant propagation,'' anyway?
 The typical taxonomic treatment obscures fundamental principles of
 code improvement and the relationships between them.
 
-The contribution of this paper is to elucidate a large body of work on code
-improvement; the body of work known as ``dataflow optimization.''
+%The contribution of this paper is to elucidate a large body of work on code
+%improvement; the body of work known as ``dataflow optimization.''
+This paper makes two contributions:
 \remark{Look up and see if ``dataflow optimization is a real term or
   if we want something else}
 \begin{itemize}
@@ -152,19 +153,29 @@ computed automatically, and they are
 We embody our ideas in an implementation that makes it not just
 possible but \emph{easy} to adapt imperative, dataflow-based
 code-improvement techniques to a purely functional compiler.
+We~write analyses and transformations in such a way that
+the code which is specific to a particular analysis is small, simple,
+and easy to get right.
+The complex part of dataflow optimization, which is difficult to get right, is
+written once and is shared by all analyses and transformations.
 \end{itemize}
 
+\hrule
 
-Our primary
-claim is that powerful, dataflow-based analyses and transformations can
-be understood and implemented simply.
+\secref{analysis-interface} explains how these ideas are realized in
+our implementation; \secref{example-analyses} presents detailed examples.
+
+\hrule
+
+
+
+\secref{example:xforms} shows transformations of two simple examples,
+showing how we think about and justify classical optimizations using
+Hoare logic and the substitution of equals for equals.
 \remark{Compiler writer creates dataflow pass of three parts:
 represent facts about the program, compute those facts, use the facts
 to transform the program.   Passes can be interleaved,
 leading to better results than a compiler that runs passes in sequence.}
-\secref{example:xforms} shows transformations of two simple examples,
-showing how we think about and justify classical optimizations using
-Hoare logic and the substitution of equals for equals.
 \secref{example:code} shows our implementations of some representative analyses
 and transformations.
 \remark{Forward refs need fixing}
@@ -400,72 +411,74 @@ sum_r("address" bits32 a, bits32 n) \lbr
 \rbr
 \end{alltt}
 
-\exampletransform{Spilling variables at calls}
-
-\seclabel{spill-reload-example}
-
-Our dataflow framework is used in the Glasgow Haskell Compiler~(GHC),
-which does not use callee-saves registers.
-It~is therefore necessary to ensure that at each call site, every live
-variable is saved on the stack.
-And~to keep register pressure down, we want to save each variable as
-early as possible (just after each reaching definition) and reload it
-as late as possible (just before each use).
-Here is a very contrived example:
-\begin{alltt}
-f (bits32 a) \lbr
-  bits32 x, y, z;  // local variables
-  x = a * a;
-  y = g(a + a);
-  z = y + y;
-  if (y > 0) \lbr
-    return z;
-  \rbr else \lbr
-    return z + x;
-  \rbr
-\rbr
-\end{alltt}
-If @R1@ is the first argument register and @R0@ is the result
-register, an intermediate form of this code looks like this:
-\newcommand\bigstrut{%
-  \leavevmode\vrule width 0pt height 11pt depth 6pt }
-\begin{alltt}
-f (bits32 a) \lbr
-  bits32 x, y, z;  // local variables
-  x = a * a;
-  \high{SPILL x;}
-  \bigstrut\high{R1 = a + a;} // no register pressure from x
-  \high{y = g(R1);} // call instruction
-  z = y + y;
-  if (y > 0) \lbr
-    return z;
-  \rbr else \lbr
-    \high{RELOAD x;}
-    return z + x;
-  \rbr
-\rbr
-\end{alltt}
-Although the @SPILL@ and @RELOAD@ operations are introduced because of
-the call to @g(a)@, they are moved as far from the call as possible:
-@x@~is spilled immediately after its last definition and is reloaded
-immediately before its first use.
-Sections \ref{sec:avail}~and~\ref{sec:sink-reloads} present some of
-the code we use to implement this transformation. 
   
-\section {How to make dataflow simple}
+\clearpage
 
-\seclabel{roadmap}
+\section {Making dataflow simple: The idea}
 
-We implement transformations like the ones shown above using a Haskell
-library we call \emph{the dataflow framework}.
-The dataflow framework blends many cooperating elements:
-\remark{This bit needs some forward references to sections}
+As shown above, the goal of dataflow optimization is to compute valid
+assertions, then use those assertions to justify code-improving
+transformations.\remark{We want this whole \S\ on page~2}
+
+%\begin{itemize}
+%\item
+Assertions about the program are written in a restricted
+language of \emph{dataflow facts}.
+The connection between dataflow facts and traditional program logic is
+elucidated in \secref{next-700}, but the most salient points are
+these:
 \begin{itemize}
-\item 
-A procedure is represented by a \emph{control-flow graph}.\footnote
-{The dataflow framework does only intraprocedural optimization;
+\item
+A dataflow fact is equivalent to an assertion about program state or
+about a continution.
+For example, in \secref{constant-propagation}, @x == 7@ is a dataflow
+fact. 
+\item
+Each analysis or transformation may use a different language of
+dataflow facts.
+\item
+Each language of dataflow facts forms a lattice.
+\end{itemize}
+
+
+Assertions hold at program points, which we represent as edges in
+a \emph{control-flow graph}.\footnote
+{We discuss only intraprocedural optimization here;
 interprocedural optimizations are the work of the GHC~inliner
 \cite{peyton-jones:secrets-inliner}.} 
+The edges connect nodes, each of which represents a label, an assignment, or
+a control transfer.
+
+To write a dataflow analysis, the compiler
+writer must 
+\begin{itemize}
+\item
+Choose a representation~$F$ of dataflow facts and a logical interpretation
+thereof
+\item
+Implement lattice operations over~$F$
+\item
+Write \emph{transfer functions} that relate dataflow facts before and
+after each type of node
+\end{itemize}
+Given the lattice operations and the transfer functions, our
+polymorphic, reusable \emph{dataflow engine} computes a
+set of dataflow facts, one for each edge in the control-flow graph.
+The set of facts is a fixed point of the transfer functions.
+
+
+
+
+
+
+
+
+\section{Making dataflow simple: The  implementation}
+
+\seclabel{analysis-interface}
+
+\begin{itemize} 
+\item
 A~control-flow graph is a collection of labelled \emph{basic blocks}.
 Each basic block is a sequence beginning with a \emph{first node},
 containing zero or more \emph{middle nodes},
@@ -481,25 +494,10 @@ a~typical last node is a conditional, unconditional, or indirect branch.
 \remark{Forward reference?}
 
 \item
-Assertions about the program may be written only in a restricted
-language of \emph{dataflow facts}.
-The connection between dataflow facts and traditional program logic is
-elucidated in \secref{next-700}, but the most salient points are
-these:
-\begin{itemize}
-\item
-A dataflow fact is equivalent to an assertion about program state or
-about a continution.
-For example, in \secref{constant-propagation} @x == 7@ is a dataflow
-fact. 
-\item
-Each particular analysis or transformation may use its own language of
-dataflow facts.
-Such a language forms a lattice.
-\item
-Dataflow facts before and after nodes are related by \emph{transfer
-functions}.
-\end{itemize}
+ for first, middle, and last nodes;
+if $F$~represents a logical assertion about program state, it is
+sufficient that the strongest postcondition imply the output of each
+transfer function.
 \item
 A~dataflow analysis or transformation is represented by a
 \emph{dataflow pass}.
@@ -537,6 +535,14 @@ graph  \cite{lerner-grove-chambers:2002}.
 %%%%\item
 %%%%The ease with which the framework can be used is determined by the
 %%%%\emph{interface} between the dataflow engine and the client passes.
+
+\item
+
+%\item
+Dataflow facts before and after nodes are related by \emph{transfer
+functions}.
+
+
 \end{itemize}
 The main contribution of this paper is to present an interface which
 enables many powerful program transformations based on dataflow
@@ -555,96 +561,6 @@ Parametricity ensures separation of concerns between the dataflow
 engine and the individual dataflow passes.
 
 
-%%\item The \emph{interface} between the clients and the library 
-%%(Section~\ref{s:interface}).
-%%This interface is one of the main contributions of the paper.
-%%We use polymorphism to make our dataflow library very general.
-%%In particular, the library specifies how a control-flow \emph{graph} is
-%%represented, but it is completely polymorphic in the \emph{nodes} that
-%%populate the graph.  
-
-
-%%  
-%%  The main are the \emph{clients} of the dataflow framework,
-%%  the \emph{interface} to the dataflow framework,
-%%  and the \emph{dataflow engine}, which the clients use to analyze and rewrite
-%%  control-flow graphs.
-%%  
-%%  \item The \emph{clients} of the library.  A client invokes one of
-%%  the library functions, supplying arguments that specialise the
-%%  dataflow framework to a particular problem.  We illustrate with two
-%%  particular clients, one that uses forward dataflow
-%%  (Section~\ref{s:fwd-client}), and one that uses backward dataflow
-%%  (Section~\ref{s:bwd-client}).
-
-
-
-%%  \item A \emph{graph} is a collection of \emph{blocks}, together
-%%  with a distinguished \emph{block-id} that identifies the entry
-%%  point. 
-%%  \item A \emph{block} is identified by a block-id, unique within
-%%  the procedure, and consists of a linear sequnce of
-%%  follows by a \emph{last node}.  A middle node never performs a
-%%  control transfer; a last node always does.
-%%  \end{itemize}
-%%  Although the dataflow library is deliberately oblivious to the
-%%  exact nature of middle and last nodes, it is helpful to have
-%%  in mind a typical client instantiation:
-%%  \begin{itemize}
-%%  \item A typical \emph{middle node} is either an \emph{assignment} to a local
-%%  variable, or a \emph{store} to a memory location.  A middle node
-%%  never performs a control transfer.
-%%  \item A typical \emph{last node} is an unconditional branch to
-%%  another block; or a conditional branch or switch to two or more blocks;
-%%  or a a call, specifying the block where control resumes.
-%%  \end{itemize}
-
-
-
-
-%%  Our framework is a Haskell library that provides functions which,
-%%  when given transfer functions for individual nodes,
-%%  will perform dataflow analyses and transformations on an entire control-flow graph.
-%%  For example, given the transfer functions that compute liveness
-%%  on an individual node,
-%%  \john{Are nodes defined yet?}
-%%  our framework provides a function to perform a backward analysis
-%%  on a procedure, returning a map from
-%%  @BlockID@s to the set of variables live at each basic block.
-%%  % \simon{I think we need a bit more or a road-map.  Beginning of suggestion}
-%%  % What is our ``framework''?  It is
-%%  % just a Haskell library, that provides functions like ``Given a
-%%  % specified transfer function for individual nodes, do a forward
-%%  % dataflow analysis on the entire graph, returning a mapping of BlockId
-%%  % to dataflow facts''. 
-%%  To describe the details of the framework, we must focus on three different players:
-%%  \begin{itemize}
-%%  \item The \emph{implementation} of the library (Section~\ref{sec:engine}).
-%%  \end{itemize}
-%%  
-%%  
-%%  
-%%  The rest of the paper \todo{does something wonderful}.
-
-
-%%  \section{The dataflow framework} 
-%%  
-%%  There are many moving parts in a dataflow optimization,
-%%  but most of those parts can be reused in any optimization.
-%%  Among the reusable parts are 
-%%  the storage of dataflow facts,
-%%  the iteration to a fixed point,
-%%  and the interleaving of analyses and transformations
-%%  \cite{lerner-grove-chambers:2002}. 
-%%  A good dataflow framework should provide all of this machinery
-%%  with a simple interface for clients.
-
-
-
-
-\section{Dataflow analysis} 
-
-\seclabel{analysis-interface}
 
 
 Like logical formulae, dataflow facts have a lattice structure.
@@ -838,23 +754,7 @@ for debugging.
 
 \seclabel{create-analysis}
 
-To write a dataflow pass that does a  forward analysis, the compiler
-writer must 
-\begin{itemize}
-\item
-Choose a representation $F$ of dataflow facts and a logical interpretation
-thereof.
-\item
-Write an implementation of type $@DataflowLattice@\;F$ which  is sound
-with respect to the logical interpretation of~$F$.
-\item
-Write sound transfer functions for first, middle, and last nodes;
-if $F$~represents a logical assertion about program state, it is
-sufficient that the strongest postcondition imply the output of each
-transfer function.
-\end{itemize}
-Given such a pass, the compiler writer can then use the
-dataflow-engine function @zdfSolveFwd@ to compute a solution:\seclabel{zdfSolveFwd}
+XXXXX details are here XXXX
 \begin{code}
   zdfSolveFwd 
     :: LastNode l             -- Constraint on last nodes
@@ -912,6 +812,8 @@ class DataflowSolverDirection
 
 
 \section{Example analysis passes}
+
+\seclabel{example-analyses}
 
 
 Our big claim is that using our data structures, algorithms, and
@@ -1055,6 +957,62 @@ immediately after the call to~@g@, but just before its use in the
 expression @z + x@;
 and on the control-flow path to @return z@, @x@~needn't be reloaded
 at all.
+
+%\subsection{Spilling variables at calls}
+
+\seclabel{spill-reload-example}
+
+\hrule
+
+Our dataflow framework is used in the Glasgow Haskell Compiler~(GHC),
+which does not use callee-saves registers.
+It~is therefore necessary to ensure that at each call site, every live
+variable is saved on the stack.
+And~to keep register pressure down, we want to save each variable as
+early as possible (just after each reaching definition) and reload it
+as late as possible (just before each use).
+Here is a very contrived example:
+\begin{alltt}
+f (bits32 a) \lbr
+  bits32 x, y, z;  // local variables
+  x = a * a;
+  y = g(a + a);
+  z = y + y;
+  if (y > 0) \lbr
+    return z;
+  \rbr else \lbr
+    return z + x;
+  \rbr
+\rbr
+\end{alltt}
+If @R1@ is the first argument register and @R0@ is the result
+register, an intermediate form of this code looks like this:
+\newcommand\bigstrut{%
+  \leavevmode\vrule width 0pt height 11pt depth 6pt }
+\begin{alltt}
+f (bits32 a) \lbr
+  bits32 x, y, z;  // local variables
+  x = a * a;
+  \high{SPILL x;}
+  \bigstrut\high{R1 = a + a;} // no register pressure from x
+  \high{y = g(R1);} // call instruction
+  z = y + y;
+  if (y > 0) \lbr
+    return z;
+  \rbr else \lbr
+    \high{RELOAD x;}
+    return z + x;
+  \rbr
+\rbr
+\end{alltt}
+Although the @SPILL@ and @RELOAD@ operations are introduced because of
+the call to @g(a)@, they are moved as far from the call as possible:
+@x@~is spilled immediately after its last definition and is reloaded
+immediately before its first use.
+Sections \ref{sec:avail}~and~\ref{sec:sink-reloads} present some of
+the code we use to implement this transformation. 
+
+\hrule
 
 Getting spills and reloads in the right places requires the
 composition of several dataflow passes:
@@ -1509,7 +1467,7 @@ transformations.
 When creating a transformation, the compiler writer uses
 the assertions represented by dataflow facts to ensure that the
 transformation preserves semantics.
-In~our framework, a transformation is implemented by a triple of
+We~write a transformation as a triple of
 \emph{rewrite functions};
 functions for both forward and backward transformations are shown in
 \figref{rewrites}. 
