@@ -158,6 +158,10 @@ code-improvement techniques to a purely functional compiler.
 Our primary
 claim is that powerful, dataflow-based analyses and transformations can
 be understood and implemented simply.
+\remark{Compiler writer creates dataflow pass of three parts:
+represent facts about the program, compute those facts, use the facts
+to transform the program.   Passes can be interleaved,
+leading to better results than a compiler that runs passes in sequence.}
 \secref{example:xforms} shows transformations of two simple examples,
 showing how we think about and justify classical optimizations using
 Hoare logic and the substitution of equals for equals.
@@ -169,6 +173,11 @@ our view of the logical foundations (\secref{logic}),
 our representations of control-flow graphs (\secref{zipcfg}),
 and our implementation of the optimization-combining framework of
 \citet{lerner-grove-chambers:2002} (\secref{dataflow}).
+\remark{Because our primary claim is that it is easy to implement and
+compose passes, we spend most of our space showing what dataflow
+passes do and how they are implemented, and less space sketching the
+implementation of the underlying engine, which executes the dataflow
+passes.} 
 %
 %%  \iftrue
 %%  So as not to overrun the space available or overtax the patience of
