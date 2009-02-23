@@ -423,7 +423,7 @@ transformations.\remark{We want this whole \S\ on page~2}
 
 %\begin{itemize}
 %\item
-Assertions about the program are written in a restricted
+Assertions are written in a restricted
 language of \emph{dataflow facts}.
 The connection between dataflow facts and traditional program logic is
 elucidated in \secref{next-700}, but the most salient points are
@@ -439,6 +439,9 @@ Each analysis or transformation may use a different language of
 dataflow facts.
 \item
 Each language of dataflow facts forms a lattice.
+To ensure that analysis terminates,
+it is enough if
+no fact has more than finitely many distinct facts above it.
 \end{itemize}
 
 
@@ -464,8 +467,8 @@ after each type of node
 \end{itemize}
 
 To write a transformation based on an analysis, the compiler writer
-must write a function that is presented with a flow-graph node and
-with the dataflow facts on the edges coming
+must create a \emph{rewrite function}, which is presented with a
+flow-graph node and with the dataflow facts on the edges coming
 into that node.
 The function either suggests that the node should be replaced with a
 fresh subgraph, or it leaves the node alone.
@@ -474,7 +477,7 @@ any proposed replacement preserves semantics.
 For example, in \secref{constant-propagation} the fact @x == 7@ is
 used to justify replacing @z = x + y@ with @z = 7 + y@.
 
-Given the lattice operations and the transfer functions, our
+Given lattice operations and transfer functions, our
 polymorphic, reusable \emph{dataflow engine} computes a
 set of dataflow facts, one for each edge in the control-flow graph.
 The set of facts is a fixed point of the transfer functions.
@@ -486,33 +489,21 @@ the dataflow engine implements a semantics-preserving transformation.
 \subsection{Dataflow lattices}
 
 
-Like logical formulae, dataflow facts have a lattice structure.
-In our first examples, we consider facts that correspond to assertions
-about program state.
-The bottom element of the lattice corresponds to \true, the weakest
-possible assertion;
-the join operation corresponds to disjunction.
-
-
-
 As an example lattice of dataflow facts, 
 we present a representation for facts about constant propagation.
 At any program point, a standard constant-propagation analyis
 computes exactly one of the following three
-things about a variable~$x$:
+assertions about a variable~$x$:
 \begin{itemize}
 \item
-The analyis shows that
+The analysis shows that
 $x = k$, where $k$~is a compile-time constant.
 \item
 The analysis shows that $x$~is \emph{not} a compile-time constant.
-We~notate this fact by writing $x = \top$.
+We~notate this assertion as $x = \top$.
 \item
-The analysis draws no conclusions about~$x$,\remark{bletch---lost
-parallel structure}, which we notate $x=\bot$.
+The analysis shows nothing about~$x$, which we notate $x=\bot$.
 \end{itemize}
-The lattice  used by the analysis is the Cartesian product of the
-lattices for all the local variables.
 The bottom element of the lattice is~$\bot$, and
 the join operation corresponds to disjunction.
 \emph{The logic implied by the
@@ -530,48 +521,66 @@ $i = 7 \lor i= 7 \equiv  i=7$ (no loss of information)
 \item
 $i = 7 \lor i = 8 \equiv i = \top$ (loss of information)
 \end{itemize}
+The lattice  used by the analysis is the Cartesian product of the
+lattices for all the local variables.
 Because in any one program there are only finitely many variables,
-only finitely many facts are computed at any program point, which
-guarantees that the dataflow engine can
+only finitely many facts are computed at any program point, 
+and any one fact can increase at most twice.
+Together, these properties
+guarantee that the dataflow engine will
 reach a fixed point.
-In~\emph{any} dataflow lattice, the compiler writer must ensure that 
-from any point in the lattice, the top is reached after finitely many joins.
 
 
 \begin{figure}
 \begin{code}
-newtype LastFacts a = LastFacts [(BlockId, a)] 
-data ForwardTransfers mid last a = ForwardTransfers
- {ft_first_out  :: BlockId -> a -> a,
-  ft_middle_out :: mid     -> a -> a,
-  ft_last_outs  :: last    -> a -> LastFacts a} 
-
-data BackTransfers mid last a = BackTransfers
- {bt_first_in  :: BlockId -> a              -> a,
-  bt_middle_in :: mid     -> a              -> a,
-  bt_last_in   :: last    -> (BlockId -> a) -> a} 
+data ChangeFlag = NoChange | SomeChange
+data TxRes a    = TxRes ChangeFlag a
+data DataflowLattice a = DataflowLattice
+ {fact_bot        :: a,
+  fact_add_to     :: a -> a -> TxRes a,
+  fact_name       :: String } -- for debugging
 \end{code}
-\caption{Transfer functions for forward and backward analyses.}
-\figlabel{transfers}
-%
-% elided: 
-%    ft_exit_out   ::            a -> a
-%
+\caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
 \end{figure}
 
+The dataflow engine uses the lattice join operation in a stylized way.
+Joins occur at labels.
+If~$f_{\mathit{id}}$ is the fact currently associated with the
+label~$\mathit{id}$, 
+and if a transfer function propagates a new fact~$f_{\mathit{new}}$
+into the label~$\mathit{id}$, 
+the dataflow engine replaces $f_{\mathit{id}}$ with
+the join  $f_{\mathit{new}} \join f_{\mathit{id}}$.
+Furthermore, the dataflow engine wants to know if
+  $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$,
+because if not, it has not reached a fixed point.
 
-\subsection{Transfer functions and representations of lattices}
+When computing a join, 
+it is typically very cheap to learn if the join
+is equal to one of the arguments.
+We therefore use the nonstandard representation of lattice operations
+shown in \figref{lattice}.
+The join operation~$\join$ and equality test~$=$ are represented by a
+single function called @fact_add_to@.
+The term $@fact_add_to@\;f_{\mathit{new}}\;f_{\mathit{id}}$ is equal to
+$@TxRes NoChange@\; f_{\mathit{id}}$ if $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$
+and is equal to
+$@TxRes SomeChange@\; (f_{\mathit{new}} \join f_{\mathit{id}})$ otherwise.
+The @fact_bot@ value is the bottom element of the
+lattice, 
+and @fact_name@  is used for debugging.
 
-A~dataflow analysis is presented with dataflow facts on edges coming
-into each node, and it computes the dataflow facts on outgoing edges;
-in other words, an analysis implements \emph{transfer functions}.
-\remark{(Maybe elsewhere?) Dataflow passes can be composed using
-higher-order functions. }
 
+
+\subsection{Transfer functions}
+
+A~transfer function is presented with dataflow facts on edges coming
+into a node, and it computes the dataflow facts on outgoing edges.
 To understand how transfer functions work, it helps to understand the
 \remark{REWRITE THIS PARAGRAPH!!!}
 invariants that constrain the number of predecessors and successors of
 each type of node in the control-flow graph.
+
 A~control-flow graph is a collection of labelled \emph{basic blocks}.
 Each basic block is a sequence beginning with a \emph{first node},
 containing zero or more \emph{middle nodes},
@@ -587,7 +596,9 @@ successor;
 a~middle node has exactly one predecessor and one successor;
 and a last node has exactly one predecessor and arbitrarily many
 successors. 
-These constraints determine the signatures of transfer functions,
+
+The constraints on the graph structure determine the signatures of
+transfer functions, 
 which are shown in \figref{transfers}.
 For each type of node (first, middle, last) and for each kind of
 analysis (forward, backward), there is a distinct transfer function.
@@ -595,6 +606,7 @@ Functions are grouped by kind of analysis, and each group is
 parameterized over a dataflow fact of type~@a@ and over the types
 @mid@ and @last@ of middle and last nodes.
 
+The type @BlockId@ represents a label.
 Because a fact in a forward analysis typically represents an assertion
 about program state, and because passing a label does not change
 program state, the transfer function @ft_first_out@ is typically 
@@ -610,8 +622,32 @@ For a last node, different postconditions may be propagated to
 different successors; for example, the true and false successors of a
 conditional branch may accumulate information implied by the truth or
 falsehood of the condition.
-The collection of (successor, fact) pairs is represented by a value of
-type @LastFacts a@.
+A~collection of (successor, fact) pairs is represented by a value of
+type @LastOuts a@.
+
+
+
+\begin{figure}
+\begin{code}
+newtype LastOuts a = LastOuts [(BlockId, a)] 
+data ForwardTransfers mid last a = ForwardTransfers
+ {ft_first_out  :: BlockId -> a -> a,
+  ft_middle_out :: mid     -> a -> a,
+  ft_last_outs  :: last    -> a -> LastOuts a} 
+
+data BackTransfers mid last a = BackTransfers
+ {bt_first_in  :: BlockId -> a              -> a,
+  bt_middle_in :: mid     -> a              -> a,
+  bt_last_in   :: last    -> (BlockId -> a) -> a} 
+\end{code}
+\caption{Transfer functions for forward and backward analyses.}
+\figlabel{transfers}
+%
+% elided: 
+%    ft_exit_out   ::            a -> a
+%
+\end{figure}
+
 
 In a forward analysis, the dataflow engine starts with the fact at the
 beginning of a block and applies transfer functions to the nodes in
@@ -625,49 +661,19 @@ For example, in the basic block
       goto L2;
 \end{verbatim}
 a forward analysis would propagate the fact 
-$f = @x == 7@ \land @y == 8@$ along the edge to~@L2@.
+$@x == 7@ \land @y == 8@$ (call it $f_{\mathit{new}}$) along the edge to~@L2@.
 \remark{Do we want an example that says 
 $@ft\_middle\_out@\;f = f \land @x == 7@$?}
 The dataflow engine then \emph{replaces} the current fact at~@L2@
-(call it $f_2$), with the lattice join $f \join f_2$.
-The dataflow engine iterates over the blocks repeatedly until
-$f \join f_2 = f_2$ at every block.
-When the facts associated with blocks no longer change, the dataflow
+(call it $f_{\mathtt{L2}}$), with the lattice join $f_{\mathit{new}} \join f_{\mathtt{L2}}$.
+The dataflow engine iterates over the blocks repeatedly, creating new
+facts~$f$ and joining them with facts $f_{\mathit{id}}$ until
+$f \join f_{\mathit{id}} = f_{\mathit{id}}$ at every label~$\mathit{id}$.
+When the facts associated with labels no longer change, the dataflow
 engine has reached a fixed point.
-\remark{Promissory note: compose this analysis with two
-transformations: constant propagation and constant folding}
+%\remark{Promissory note: compose this analysis with two
+%transformations: constant propagation and constant folding}
 
-
-\begin{figure}
-\begin{code}
-data ChangeFlag = NoChange | SomeChange
-data TxRes a    = TxRes ChangeFlag a
-data DataflowLattice a = DataflowLattice
- {fact_bot        :: a,
-  fact_add_to     :: a -> a -> TxRes a,
-  fact_name       :: String } -- for debugging
-\end{code}
-\caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
-\end{figure}
-
-We use a nonstandard representation of lattice operations,
-shown in \figref{lattice}.
-The @fact_bot@ value is the bottom element of the
-lattice, which in our constant-propagation example is an empty
-conjunction.
-The join operation~$\join$ and equality test~$=$ are represented by a
-single function called @fact_add_to@.
-The term $@fact_add_to@\;f\;f_2$ is equal to
-$@TxRes NoChange@\; (f \join f_2)$ if $f \join f_2 = f_2$
-and is equal to
-$@TxRes SomeChange@\; (f \join f_2)$ otherwise.
-We combine lattice join and equality test in a single function purely
-for efficiency;
-when computing a join, 
-it is typically very cheap to learn if the join
-is equal to the right argument.
-%
-The @fact_name@ element of a lattice record is used for debugging.
 
 
 \subsection{Running the dataflow engine}
@@ -690,26 +696,36 @@ dataflow-engine function @zdfSolveFwd@:
 \end{code}
 The engine is polymorphic in the types of middle and last nodes
 @m@~and~@l@ and in the type of the dataflow fact~@a@.
-The first three arguments characterize the pass.
-The next argument is the dataflow fact that holds on entry to the graph;
-a~rewriting pass uses the solver on a subgraph (\secref{recursive-solver}),
-so this fact
-is not always~$\bot$, and it must be passed in.
-The last argument is the graph, and the result is a 
+The first three arguments characterize the analysis.
+The next argument is the dataflow fact that holds on entry to the
+graph;
+because the analysis may be run on a graph returned by a rewrite
+function,\remark{forward ref, maybe}
+this fact
+is not always~$\bot$.
+For example, if a rewrite function proposes to replace 
+@z = x + y@ with @z = 7 + y@, an analysis will be run on the one-node
+graph @z = 7 + y@ with input fact
+$@x == 7@ \land @y == 8@$.
+The last argument to @zdfSolveFwd@ is the graph, and the result is a 
 fixed point.\footnote
-{The type of @zdfSolveFwd@ contains pedagogical lies;
+{The type of @zdfSolveFwd@ has pedagogical lies;
 truth is told in~\secref{engine-truth}.}\remark{One of the lies is
 that I've deliberately conflated the three representations of graphs.}
 
 The @ForwardFixedPoint@ data structure is a big bag
 of information about the solution.
-The significant results of an analysis are
+The most significant information includes
 a finite map from each block label to the dataflow fact that holds at
 the label, which is extracted using function @zdfFpFacts@;
 and
-a list of facts that hold on edges leaving the graph (nonempty only if
-the solution is for a subgraph), which is  
+a list of facts that hold on edges leaving the graph, which is  
  extracted using function @zdfFpLastOuts@.
+\iffalse %%% WRONG -- it's the @goto@ that does this...
+In the example above, when the subgraph
+@z = 7 + y@ is analyzed, @zdfFpLastOuts@ will contain
+the pair $(@L2@, @x == 7@ \land @y == 8@)$.
+\fi
 
 
 
@@ -853,9 +869,9 @@ middleAvail (MidAssign lhs _expr) avail =
 middleAvail (MidStore {})         avail = avail
 middleAvail (MidComment {})       avail = avail
 
-lastAvail :: Last -> AvailVars -> LastOutFacts AvailVars
-lastAvail (LastCall _ (Just k) _ _) _ = LastOutFacts [(k, AvailVars emptyVarSet)]
-lastAvail l avail = LastOutFacts $ map (\id -> (id, avail)) $ succs l
+lastAvail :: Last -> AvailVars -> LastOuts AvailVars
+lastAvail (LastCall _ (Just k) _ _) _ = LastOuts [(k, AvailVars emptyVarSet)]
+lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 \end{code}\B
 & Transfer \mbox{functions}\\
 \hline
@@ -1950,7 +1966,7 @@ forward dataflow pass may produce dataflow facts that flow to labelled
 blocks that are outside the current graph.
 These facts must be retained and propagated even if the current graph
 is abandoned; such facts are added with @addLastOutFact@ and recovered
-with @bareLastOutFacts@.
+with @bareLastOuts@.
 \item
 Finally, a foraward dataflow pass over a subgraph may propagate a fact forward by
 ``falling off the end;'' such a fact is set with @setExitFact@ and
@@ -2028,7 +2044,7 @@ It ignores its rewrite, depth, and fuel parameters.
 \item
 The internal @solve@ function is higher-order in the parameter
 @finish@, which extracts from the dataflow monad either the unique
-exit fact or the set of @LastOutFacts@, depending on context.
+exit fact or the set of @LastOuts@, depending on context.
 \item
 The function @set_or_save@ calls @setFact@ for @BlockId@s located
 within graph~@g@ and calls @addLastOutFact@ for @BlockId@s located
@@ -2397,9 +2413,9 @@ forward_sol squash rewrite name start_facts transfers rewrites = fixed_point
    solve_tail in' (G.ZLast l) fuel = 
      case squash fuel $ either_last rewrites in' l of
        Nothing -> case l of LastOther l -> return (ft_last_outs transfers l in', fuel)
-                            LastExit -> do { setExitFact in' ; return (LastOutFacts [], fuel) }
+                            LastExit -> do { setExitFact in' ; return (LastOuts [], fuel) }
        Just g -> do { g <- areturn g                                                  
-                    ; (last_outs :: LastOutFacts a, fuel) <- subAnalysis' $           
+                    ; (last_outs :: LastOuts a, fuel) <- subAnalysis' $           
                         case rewrite of                                               
                           RewriteDeep -> solve lastOutFacts in' g (oneLessFuel fuel)  
                           RewriteShallow -> do { los <- anal_f lastOutFacts in' g     
