@@ -10,7 +10,7 @@ bbl:V: bib
 %.bbl: %.aux
 	nbibtex $stem
 
-dfopt.dvi: logic.tex dfopt.bbl code.sty
+dfopt.dvi: dfopt.bbl code.sty
 
 $TGT.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-12 $prereq

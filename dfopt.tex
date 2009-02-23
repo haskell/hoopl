@@ -14,6 +14,7 @@
 
 \newcommand\arrow{\rightarrow}
 
+\newcommand\join{\sqcup}
 \newcommand\slotof[1]{\ensuremath{s_{#1}}}
 \newcommand\tempof[1]{\ensuremath{t_{#1}}}
 
@@ -414,7 +415,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
   
 \clearpage
 
-\section {Making dataflow simple: The idea}
+\section {Making dataflow simple}
 
 As shown above, the goal of dataflow optimization is to compute valid
 assertions, then use those assertions to justify code-improving
@@ -461,106 +462,28 @@ Implement lattice operations over~$F$
 Write \emph{transfer functions} that relate dataflow facts before and
 after each type of node
 \end{itemize}
+
+To write a transformation based on an analysis, the compiler writer
+must write a function that is presented with a flow-graph node and
+with the dataflow facts on the edges coming
+into that node.
+The function either suggests that the node should be replaced with a
+fresh subgraph, or it leaves the node alone.
+The rewrite function uses incoming facts to guarantee that
+any proposed replacement preserves semantics.
+For example, in \secref{constant-propagation} the fact @x == 7@ is
+used to justify replacing @z = x + y@ with @z = 7 + y@.
+
 Given the lattice operations and the transfer functions, our
 polymorphic, reusable \emph{dataflow engine} computes a
 set of dataflow facts, one for each edge in the control-flow graph.
 The set of facts is a fixed point of the transfer functions.
+Given, in addition, a rewrite function for each type of node,
+the dataflow engine implements a semantics-preserving transformation. 
 
 
 
-
-
-
-
-
-\section{Making dataflow simple: The  implementation}
-
-\seclabel{analysis-interface}
-
-\begin{itemize} 
-\item
-A~control-flow graph is a collection of labelled \emph{basic blocks}.
-Each basic block is a sequence beginning with a \emph{first node},
-containing zero or more \emph{middle nodes},
-and ending in a \emph{last node}.
-%%  
-%%  %
-A~first node is always and only a label;
-a~typical middle node assigns to a register or memory
-location;\remark
-{Shall we expunge @MidForeignCall@ (the fat machine instruction) from
-this paper?}
-a~typical last node is a conditional, unconditional, or indirect branch.
-\remark{Forward reference?}
-
-\item
- for first, middle, and last nodes;
-if $F$~represents a logical assertion about program state, it is
-sufficient that the strongest postcondition imply the output of each
-transfer function.
-\item
-A~dataflow analysis or transformation is represented by a
-\emph{dataflow pass}.
-\remark{Need to investigate and possibly invent a new term of art?
-Or that the very least explain that it \emph{is} a term of art and
-blame~UW.} 
-%
-An~analysis pass is presented with dataflow facts on edges coming
-into each node, and it computes the dataflow facts on outgoing edges;
-in other words, an analysis pass implements transfer functions.
-A~transformation pass is presented with dataflow facts on edges coming
-into each node, and it elects either to rewrite the node or to leave
-it alone.
-The transformation pass uses facts on incoming edges to guarantee that
-any proposed rewrite
-preserves semantics.
-For example, in \secref{constant-propagation} the fact @x == 7@ is
-used to justify rewriting @z = x + y@ to @z = 7 + y@.
-%
-\remark{(Maybe elsewhere?) Dataflow passes can be composed using
-higher-order functions. }
-\item
-The main part of the implementation of the dataflow framework is the
-\emph{dataflow engine}.
-The dataflow engine may be used with a analysis pass,
-in which case it sets up the recursion equations implied by the
-transfer functions and finds a solution by iterating to a fixed point.
-The solution is represented by a finite map giving the dataflow fact
-at each label; other facts can be reconstructed using the transfer functions.
-
-The dataflow engine may also be used to \emph{interleave} analysis
-with transformation, in which case
-it not only solves the dataflow equations but may also rewrite the
-graph  \cite{lerner-grove-chambers:2002}. 
-%%%%\item
-%%%%The ease with which the framework can be used is determined by the
-%%%%\emph{interface} between the dataflow engine and the client passes.
-
-\item
-
-%\item
-Dataflow facts before and after nodes are related by \emph{transfer
-functions}.
-
-
-\end{itemize}
-The main contribution of this paper is to present an interface which
-enables many powerful program transformations based on dataflow
-analysis while keeping the individual dataflow passes as simple as
-possible.
-We keep the \emph{concepts} simple by relating dataflow facts and
-transfer functions to classic work in program correctness, as
-discussed in \secref{next-700}.
-We keep the \emph{implementations of dataflow passes} simple by pushing
-as much work as
-possible into the dataflow engine, which is implemented just once.
-We have also made the dataflow engine and its interface polymorphic in
-the types of 
-the nodes that appear in the control-flow graph \secref{polymorphic-framework}.
-Parametricity ensures separation of concerns between the dataflow
-engine and the individual dataflow passes.
-
-
+\subsection{Dataflow lattices}
 
 
 Like logical formulae, dataflow facts have a lattice structure.
@@ -569,13 +492,6 @@ about program state.
 The bottom element of the lattice corresponds to \true, the weakest
 possible assertion;
 the join operation corresponds to disjunction.
-\remark{Let's reconsider this \S\ and the order in which material is presented}
-
-
-
-
-
-
 
 
 
@@ -644,22 +560,28 @@ data BackTransfers mid last a = BackTransfers
 \end{figure}
 
 
-The dataflow engine computes, for the beginning of each basic block,
-the strongest dataflow fact it can justify for that point in the
-control-flow graph.
-It~represents a set of facts about a graph as a finite map from block
-label to fact. 
-The engine works iteratively:
-Initially, it assigns the bottom dataflow fact to each block.
-It then propagates facts through nodes using \emph{transfer functions}.
-In~a forward dataflow analysis, facts flow in from predecessors and
-out to successors; in a backward analysis,
-facts flow in from successors and
-out to predecessors.
+\subsection{Transfer functions and representations of lattices}
+
+A~dataflow analysis is presented with dataflow facts on edges coming
+into each node, and it computes the dataflow facts on outgoing edges;
+in other words, an analysis implements \emph{transfer functions}.
+\remark{(Maybe elsewhere?) Dataflow passes can be composed using
+higher-order functions. }
 
 To understand how transfer functions work, it helps to understand the
+\remark{REWRITE THIS PARAGRAPH!!!}
 invariants that constrain the number of predecessors and successors of
 each type of node in the control-flow graph.
+A~control-flow graph is a collection of labelled \emph{basic blocks}.
+Each basic block is a sequence beginning with a \emph{first node},
+containing zero or more \emph{middle nodes},
+and ending in a \emph{last node}.
+A~first node is always a label;
+a~typical middle node assigns to a register or memory
+location;
+a~typical last node is a conditional, unconditional, or indirect branch.
+\remark{Forward reference?}
+%
 A~first node has arbitrarily many predecessors and exactly one
 successor;
 a~middle node has exactly one predecessor and one successor;
@@ -672,7 +594,6 @@ analysis (forward, backward), there is a distinct transfer function.
 Functions are grouped by kind of analysis, and each group is
 parameterized over a dataflow fact of type~@a@ and over the types
 @mid@ and @last@ of middle and last nodes.
-
 
 Because a fact in a forward analysis typically represents an assertion
 about program state, and because passing a label does not change
@@ -708,9 +629,9 @@ $f = @x == 7@ \land @y == 8@$ along the edge to~@L2@.
 \remark{Do we want an example that says 
 $@ft\_middle\_out@\;f = f \land @x == 7@$?}
 The dataflow engine then \emph{replaces} the current fact at~@L2@
-(call it $f_2$), with the lattice join $f \vee f_2$.
+(call it $f_2$), with the lattice join $f \join f_2$.
 The dataflow engine iterates over the blocks repeatedly until
-$f \vee f_2 = f_2$ at every block.
+$f \join f_2 = f_2$ at every block.
 When the facts associated with blocks no longer change, the dataflow
 engine has reached a fixed point.
 \remark{Promissory note: compose this analysis with two
@@ -724,46 +645,48 @@ data TxRes a    = TxRes ChangeFlag a
 data DataflowLattice a = DataflowLattice
  {fact_bot        :: a,
   fact_add_to     :: a -> a -> TxRes a,
-  fact_name       :: String, -- for debugging
-  fact_do_logging :: Bool}   -- also for debugging
+  fact_name       :: String } -- for debugging
 \end{code}
-\caption{The lattice type} \figlabel{lattice-type} \figlabel{lattice}
+\caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
 \end{figure}
 
-The lattice operations are shown in \figref{lattice}.
+We use a nonstandard representation of lattice operations,
+shown in \figref{lattice}.
 The @fact_bot@ value is the bottom element of the
 lattice, which in our constant-propagation example is an empty
 conjunction.
-The join operation~$\vee$ and equality test~$=$ are represented by a
+The join operation~$\join$ and equality test~$=$ are represented by a
 single function called @fact_add_to@.
 The term $@fact_add_to@\;f\;f_2$ is equal to
-$@TxRes NoChange@\; (f \vee f_2)$ if $f \vee f_2 = f_2$
+$@TxRes NoChange@\; (f \join f_2)$ if $f \join f_2 = f_2$
 and is equal to
-$@TxRes SomeChange@\; (f \vee f_2)$ otherwise.
+$@TxRes SomeChange@\; (f \join f_2)$ otherwise.
 We combine lattice join and equality test in a single function purely
-for reasons of efficiency;
-when computing a join, the marginal cost of learning whether the join
-is equal to the right argument is typically very low.
+for efficiency;
+when computing a join, 
+it is typically very cheap to learn if the join
+is equal to the right argument.
 %
-The remaining elements of a record of @DataflowLattice@ type,
-@fact_name@ 
-and @fact_do_logging@,
- are used
-for debugging.
+The @fact_name@ element of a lattice record is used for debugging.
 
+
+\subsection{Running the dataflow engine}
 
 \seclabel{create-analysis}
 
-XXXXX details are here XXXX
+Given lattice operations of type @DataflowLattice a@
+and transfer functions of type @ForwardTransfers m l a@,
+the compiler writer can run the analysis by calling the
+dataflow-engine function @zdfSolveFwd@:
 \begin{code}
-  zdfSolveFwd 
-    :: LastNode l             -- Constraint on last nodes
-    => PassName               -- Name of this analysis pass
-    -> DataflowLattice a      -- Lattice
-    -> ForwardTransfers m l a -- Transfer functions
-    -> a                      -- Input fact
-    -> Graph m l              -- Control-flow graph
-    -> ForwardFixedPoint m l a
+ zdfSolveFwd 
+  :: LastNode l             -- Constrains last nodes
+  => PassName               -- Name of this analysis
+  -> DataflowLattice a      -- Lattice
+  -> ForwardTransfers m l a -- Transfer functions
+  -> a                      -- Input fact
+  -> Graph m l              -- Control-flow graph
+  -> ForwardFixedPoint m l a
 \end{code}
 The engine is polymorphic in the types of middle and last nodes
 @m@~and~@l@ and in the type of the dataflow fact~@a@.
@@ -774,7 +697,7 @@ so this fact
 is not always~$\bot$, and it must be passed in.
 The last argument is the graph, and the result is a 
 fixed point.\footnote
-{The type of @zdfSolveFwd@ contains some pedagogical lies;
+{The type of @zdfSolveFwd@ contains pedagogical lies;
 truth is told in~\secref{engine-truth}.}\remark{One of the lies is
 that I've deliberately conflated the three representations of graphs.}
 
@@ -808,6 +731,62 @@ class DataflowSolverDirection
     -> DFMonad (fixedpt m l a ())
 \end{code}
 \fi
+
+
+
+%%  \subsection{Leftover junk}
+%%  
+%%  \begin{itemize} 
+%%  \item
+%%  
+%%  \item
+%%   for first, middle, and last nodes;
+%%  if $F$~represents a logical assertion about program state, it is
+%%  sufficient that the strongest postcondition imply the output of each
+%%  transfer function.
+%%  \item
+%%  \item
+%%  The main part of the implementation of the dataflow framework is the
+%%  \emph{dataflow engine}.
+%%  The dataflow engine may be used with a analysis pass,
+%%  in which case it sets up the recursion equations implied by the
+%%  transfer functions and finds a solution by iterating to a fixed point.
+%%  The solution is represented by a finite map giving the dataflow fact
+%%  at each label; other facts can be reconstructed using the transfer functions.
+%%  
+%%  The dataflow engine may also be used to \emph{interleave} analysis
+%%  with transformation, in which case
+%%  it not only solves the dataflow equations but may also rewrite the
+%%  graph  \cite{lerner-grove-chambers:2002}. 
+%%  %%%%\item
+%%  %%%%The ease with which the framework can be used is determined by the
+%%  %%%%\emph{interface} between the dataflow engine and the client passes.
+%%  
+%%  \item
+%%  
+%%  %\item
+%%  Dataflow facts before and after nodes are related by \emph{transfer
+%%  functions}.
+%%  
+%%  
+%%  \end{itemize}
+%%  The main contribution of this paper is to present an interface which
+%%  enables many powerful program transformations based on dataflow
+%%  analysis while keeping the individual dataflow passes as simple as
+%%  possible.
+%%  We keep the \emph{concepts} simple by relating dataflow facts and
+%%  transfer functions to classic work in program correctness, as
+%%  discussed in \secref{next-700}.
+%%  We keep the \emph{implementations of dataflow passes} simple by pushing
+%%  as much work as
+%%  possible into the dataflow engine, which is implemented just once.
+%%  We have also made the dataflow engine and its interface polymorphic in
+%%  the types of 
+%%  the nodes that appear in the control-flow graph \secref{polymorphic-framework}.
+%%  Parametricity ensures separation of concerns between the dataflow
+%%  engine and the individual dataflow passes.
+
+
 
 
 
@@ -871,7 +850,6 @@ middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail
                  | l `isStackSlotOf` x = extendAvail avail x
 middleAvail (MidAssign lhs _expr) avail = 
   foldVarsDefd delFromAvail avail lhs  -- remove variables defined in 'lhs'
-middleAvail (MidForeignCall {})   _    = AvailVars emptyVarSet
 middleAvail (MidStore {})         avail = avail
 middleAvail (MidComment {})       avail = avail
 
@@ -1085,7 +1063,7 @@ liveTransfers = BackwardTransfers (flip const) middleLiveness lastLiveness
 
 middleLiveness :: Middle -> Live -> Live
 lastLiveness   :: Last -> (BlockId -> Live) -> Live
-middleLiveness l = addUsed l . remDefd l   -- WHAT ABOUT MidForeignCall??? <===== <========
+middleLiveness l = addUsed l . remDefd l
 lastLiveness   l = addUsed l . remDefd l . lastLiveOut l 
 
 addUsed :: UserOfLocalVars    a => a -> Live -> Live
@@ -1215,8 +1193,6 @@ Function @foldVarsDefd@ is an overloaded function which, in this
 instance, calls @delFromAvail@ if @lhs@ is a local variable and does
 nothing if @lhs@ is a hardware register.
 \item 
-In the third case, a foreign call destroys the values of all local
-variables, so the set of available variables is empty.
 In the other cases, comments and stores to memory don't affect the set
 of available variables.
 \footnote
@@ -1749,73 +1725,75 @@ emphasize a significant refinement: the introduction of polymorphism.
 
 \subsection{Basic data structure}
 
-Our refined design uses no mutable pointers of any kind, which means
-there are no complicated pointer invariants to get wrong.
-Because control-flow edges can form a cycle, we need to use 
-indirection to represent at least one of the edges on a cycle.
-We adopt the simple and traditional solution, which is to use
-indirection for edges out of control-transfer instructions, and direct
-references otherwise.
-We therefore have three kinds of nodes:
-\begin{itemize}
-\item
-A~node that could be the target of a control transfer carries only
-a \emph{unique id} of type @Uniq@.
-Such a node serves only to mark a point in the
-program; it has no computational effect.
-\item
-A node that is reached only by its immediate predecessor and reaches
-only its immediate successor has its control flow represented
-directly. 
-When ``looking forward,'' we have a cons cell that refers to the node
-and its immediate successor;
-when ``looking backward,'' the cons cell refers to the node
-and its immediate predecessor.
-\item
-A~node that could be the source of a back edge or that could
-have multiple successors requires indirection;
-each of the node's
-successors is identified by its @Uniq@.
-\end{itemize}
-As noted in \secref{example2},
-we call such nodes \emph{first}, \emph{middle}, and \emph{last} nodes
-respectively.
-A~sequence beginning in a first node, containing zero or more middle
-nodes, and terminating in a last node is a basic block.
+A~basic block is a sequence beginning with a first node, continuing
+with zero or more middle nodes, and ending in a last node.
+A~first node contains only a unique identifier of type @BlockId@; the
+types of middle and last nodes are parameters.
+At~any given moment, the dataflow engine may \emph{focus} on a
+particular edge, in which case 
+it holds the source of that edge plus a
+list of its predecessors all the way back to the first node,
+and 
+it holds the sink of that edge plus a
+list of its successors all the way forward to the last node.
+These values have types @ZHead m@ and @ZTail m l@, where @m@~and~@l@
+are the types of middle and last nodes:
+\begin{code}
+data ZHead m   = ZFirst BlockId 
+               | ZHead (ZHead m) m
+data ZTail m l = ZLast (ZLast l) | ZTail m (ZTail m l)
+\end{code}
+The type @ZLast l@ extends~@l@ with an additional case, @LastExit@,
+which represents a subgraph that ends not in a control transfer but by
+``falling off the end.''
 
-A control-flow graph is a collection of nodes.
-A~graph has a single \emph{entry} and at most one \emph{default exit}.
-A~graph has a default exit, which we abbreviate just ``exit'', only if
-control can ``fall off the end.'' 
-A~graph has no exit if control leaves the graph only by an explicit
-procedure return or tail call;
-for example, the graph for a whole procedure  has no exit.
-The most common use of a single-entry, single-exit flow graph is as a
-replacement for a middle node during code improvement.
-
-Each control-flow graph is represented as a finite map from @Uniq@ to
-basic block, together with a distinguished @Uniq@ that marks the entry
-node.\footnote
-{The representation of @Uniq@ is carefully chosen so that not only is
-  it efficient to create an infinite supply of @Uniq@s, but finite
-  maps with @Uniq@ keys can be implemented using a Patricia tree,
-  which is even more efficient than a balanced binary tree
-  \cite{okasaki-gill:integer-map,adams:balancing-act}.} 
-When a graph is ``being modified'',
-we \emph{focus} on one internal edge of one basic block.
-The focus is represented by a pair.
-One element of the pair points to the
-source of the edge, which is linked to its predecessor, and so on up
-to the block's first node.
-The other element of the pair points to the
-sink of the edge, which is linked to its successor, and so on down
-to the block's last node.
-We~``modify'' the graph by creating a new focus; to ``insert'',
+We~``modify'' a block by creating a new head and tail; to ``insert'',
 ``remove'', or ``mutate'' a node typically requires a couple of
-allocations and produces a fresh graph
+allocations 
 \cite{dias-ramsey:applicative-flow-graph}. 
-With these operations it is easy to recase imperative graph-rewriting
+With these operations it is easy to recast imperative graph-rewriting
 code into a pure functional form.
+
+
+When we are not focusing on a particular edge, we represent a basic
+block by pairing its first node (a~@BlockId@ with a @ZTail@):
+\begin{code}
+data Block m l = Block BlockId (ZTail m l)
+\end{code}
+An entire graph is represented as a finite map from @BlockId@ to
+block, together with the ID of the entry node:\footnote
+{The representation of @BlockId@ is chosen so that not only is
+  it efficient to create an infinite supply of @BlockId@s, but finite
+  maps with @BlockId@ keys can be implemented using a Patricia tree,
+  which is even more efficient than a balanced binary tree
+  \cite{okasaki-gill:integer-map}.} 
+\begin{code}
+data Graph m l =
+   Graph { g_entry  :: BlockId
+         , g_blocks :: BlockEnv (Block m l) }
+\end{code}
+%%  
+%%  A~graph has a single \emph{entry} and at most one \emph{default exit}.
+%%  A~graph has a default exit, which we abbreviate just ``exit'', only if
+%%  control can ``fall off the end.'' 
+%%  A~graph has no exit if control leaves the graph only by an explicit
+%%  procedure return or tail call;
+%%  for example, the graph for a whole procedure  has no exit.
+%%  The most common use of a single-entry, single-exit flow graph is as a
+%%  replacement for a middle node during code improvement.
+
+%%  Each control-flow graph is represented as a finite map from @BlockId@ to
+%%  basic block, together with a distinguished @BlockId@ that marks the entry
+%%  node.
+%%  When a graph is ``being modified'',
+%%  we \emph{focus} on one internal edge of one basic block.
+%%  The focus is represented by a pair.
+%%  One element of the pair points to the
+%%  source of the edge, which is linked to its predecessor, and so on up
+%%  to the block's first node.
+%%  The other element of the pair points to the
+%%  sink of the edge, which is linked to its successor, and so on down
+%%  to the block's last node.
 
 \subsection{Realization in GHC}
 
@@ -1824,8 +1802,8 @@ used in Quick~{\PAL} \cite{dias-ramsey:applicative-flow-graph} and the
 refined version described in this paper are that the new version is
 polymorphic, and the new version stores properties in separate finite
 maps, not in mutable property lists.
-We use finite maps in order to avoid mutable reference cells, which
-require that computations be done in the @IO@~monad.
+%We use finite maps in order to avoid mutable reference cells, which
+%require that computations be done in the @IO@~monad.
 The change from propertly lists to finite maps is inconsequential,
 affecting the algorithms in only minor ways and the structure of the
 code not at all.
@@ -1836,13 +1814,13 @@ Types related to control flow graph are polymorphic in two parameters:
 the type of middle nodes and the type of last nodes.\footnote
 {We considered abstracting over types associated with first nodes as
   well, but we preferred to restrict first nodes so that a first node
-  carries a @Uniq@ and only a @Uniq@.
+  carries a @BlockId@ and only a @BlockId@.
   This design gives us fewer type parameters and
   therefore fewer higher-order functions associated with those
   parameters.
   Because we can always use a finite map to associate data with
   each first node, we don't lose any expressive power.}
-This design militates strongly toward a more modular implementation,
+This design militates toward a modular implementation,
 in which the implementation of the dataflow engine is 
 decoupled from the representation of computations at individual nodes.
 \begin{itemize}
@@ -1855,14 +1833,13 @@ without knowing the representation of a last node, @ZipCfg@ exports a
 Ths @LastNode@ type class expresses the minimum required of a type
 that claims to repesent a control transfer:
 it must be possible to
-create a last node that branches unconditionally to a given @Uniq@ (goto);
+create a last node that branches unconditionally to a given @BlockId@ (goto);
 to test to see if a last node is an unconditional branch, and if so, to
 what target;
-and to observe what @Uniqs@ designate possible successors of a last
+and to observe what @BlockIds@ designate possible successors of a last
 node.
 Operations that observe successors are extended to basic
-blocks.\remark{And to ``tails'', but not clear if that should be
-  mentioned}
+blocks of type @Block m l@ and to values of type @ZTail m l@.
 
 @ZipCfg@ exports a number of basic algorithms on graphs, including the
 splicing algorithms described by
@@ -1882,19 +1859,26 @@ nodes and find out what registers and stack slots are defined and
 used.
 \item
 The \emph{representation} exported by
-modules @ZipCfg@ and @ZipCfgCmmRep@ is useful primarily
+@ZipCfg@ and @ZipCfgCmmRep@ is useful primarily
 for \emph{analyzing} flow graphs.
 To~\emph{construct} a flow graph we use ``smart constructors'' which
 produce monadic functions from graphs to graphs.
-These constructors, which are inspired by Hughes's \citeyearpar{hughes:novel-lists}
-representation of lists, are purely functional and shield the clients
-from the need for a supply of @Uniq@ values.
-When a client \emph{wants} to use a @Uniq@, for example, to translate
-structured control flow into conditional and unconditional branches,
-the graph-construction interface provides a constructor with a type
-analogous to $(\mathtt{Uniq} \arrow \mathit{graph}) \arrow \mathit{graph}$.
-By means of this interface, GHC's front end creates large graphs by
+Using these constructors, GHC's front end creates large graphs by
 composing smaller ones.
+
+The smart constructors are inspired by Hughes's \citeyearpar{hughes:novel-lists}
+representation of lists.
+They are similar to the functions of type 
+@zgraph -> zgraph@ described by
+\citet{ramsey-dias:applicative-flow-graph}, 
+but in our Haskell implementation, the function type is monadic and is
+hidden from clients.
+A~monadic type is necessary in order to plumb through an infinite supply
+of @BlockId@ values.
+When a client \emph{wants} to use a @BlockId@, for example, to translate
+structured control flow into conditional and unconditional branches,
+the graph-construction interface provides a constructor of type
+analogous to $(\mathtt{BlockId} \arrow \mathit{graph}) \arrow \mathit{graph}$.
 %% , as described in the companion paper.
 %% \cite{dias-peyton:refactoring}. 
 \end{itemize}
@@ -2055,7 +2039,153 @@ outside graph~@g@.
 
 
 
-\input{logic} % let's try to avoid darcs conflicts, shall we?
+\section{The next 700 dataflow analyses}
+
+\seclabel{next-700}
+
+\simon{This section is utterly opaque at the moment.
+I suggest we put it at the *end* of the paper, when
+we have enough concrete examples to hang these reflections on.
+At the moment it's a big sand-bar between me and the payload.
+
+Agreed: When preceding and succeeding sections settle, I will
+intercalate a short section titled something like ``from
+transformations to data structures and algorithms'' and then move the
+``Next 700\ldots'' stuff to the end. ---NR
+}
+
+%%  \section{Logical view of optimization}
+%%  
+%%  Connection to Hoare logic:
+%%   - facts derived by forward analysis as assertions on state
+%%   - facts derived by backward analysis as assertions on continuation.
+%%  
+%%  Examples on board.
+
+\seclabel{logic}
+
+
+Our view of program analysis is grounded in the great work done by
+\citet{floyd:???},
+\citet{hoare:???},
+and
+\citet{dijkstra:discipline}
+on systematic program construction and
+axiomatic semantics of programming languages.
+We focus particularly on Hoare logic:
+if in every reachable program state, 
+ an assertion holds at a point in the program,
+the assertion can be used to justify changing the code at that point.
+
+We would like to elucidate a relationship between the formal methods a
+person uses to 
+\emph{construct} a new program with the formal methods a compiler uses
+to \emph{analyze} a program that already exists.
+Understanding this relationship is a bit tricky, because compilers and
+people typically work in opposite directions.
+The most highly developed
+methodology for constructing a procedure (Dijkstra's) starts with a
+given postcondition, then works backwards using weakest
+preconditions until the programmer reaches an assertion that is
+implied by a given precondition.
+A~compiler is given a program and typically starts with a precondition (usually the
+weakest possible precondition), then uses strongest postconditions to
+compute assertions that hold in various points throughout the program.
+
+Computing either strongest postconditions or weakest liberal
+preconditions is a simple matter of calculation---except for loops.
+\emph{[Let's consider the example in section 1.  At the start of the
+    loop, what do we know about~@i@?
+Well, if it's the first trip through the loop, $i=1$.
+Given this precondition, the strongest postcondition at the end of the
+body implies $i=2$.
+We therefore have to recompute based on a precondition of $i=1 \join
+i=2$.
+If the compiler can't prove the loop terminates, the fixed point is
+the limit of the sequence $\{P_n\}$, where $P_n = \bigwedge_k=1^n i =
+k$.
+It's easy for a person to see that the limit exists and is equivalent
+to $i \in \naturals$.
+It's not so easy for a compiler.
+]}
+
+Neither people nor compilers are especially good at solving recursion
+equations that require limits of infinite sequences.
+What people do is invent \emph{loop invariants}.
+In the classic situation, using weakest preconditions, a loop
+invariant~$I$ is an assertion that is \emph{stronger} than the weakest
+precondition and has these properties:
+\begin{itemize}
+\item
+Together with the loop-termination condition, the invariant~$I$ implies the weakest
+precondition of the code following the loop.
+\item
+The invariant~$I$ implies the weakest precondition of the loop body
+with respect to~$I$.
+In other words, $I$~is strong enought so that having $I$ hold at the
+beginning of the loop body is enough to
+imply that $I$~also holds at the end of the loop body.
+\end{itemize}
+To be useful, a loop invariant must be neither too strong nor too
+weak.
+Much like finding a useful induction hypothesis for a proof, 
+finding a loop invariant requires art and intuition.
+In~all but the simplest cases, it is beyond the capabilities of any
+compiler.
+
+Strongest postconditions also require a loop invariant, but with dual
+properties:
+\begin{itemize}
+\item
+The invariant~$I$ is weaker than the true strongest postcondition,
+but it is implied by the strongest postcondition of the code before
+the loop.
+\item
+Assuming invariant~$I$ holds on entry to the loop, the strongest
+postcondition of the loop body must imply~$I$.
+\item
+The strongest postcondition of the entire loop is deemed to be the
+conjunction of invariant~$I$ and the termination condition.
+\end{itemize}
+
+So if we can't find loop invariants automatically, what's a poor
+compiler writer to do?
+Our answer is that to write a new dataflow analysis, a compiler writer
+\emph{invents a new logic which is so inexpressive that a fixed point
+  can be reached in finitely many steps}.
+A~loop invariant is synthesized from a disjunction by finding the best
+approximation to the disjunction that a logic can express.
+Thus, the next 700 dataflow analyes will spring from 700 variations on
+predicate logic, each of which is inexpressive in a different way.
+Let's review the examples of \secref{example:xforms} in that light.
+
+\begin{itemize}
+\item
+Logic $\bigwedge_i x_i=k_i$.
+\begin{itemize}
+\item
+$i = 7 \join \true \equiv \true$ (no loss of information)
+\item
+$i = 7 \join i= 7 \equiv  i=7$ (no loss of information)
+\item
+$i = 7 \join i = 8 \implies \true$ (loss of information)
+\end{itemize}
+Because there are only finitely many variables, we can say only
+finitely many things at each program point, and we're guaranteed to
+reach a fixed point.
+\item
+Example: induction-variable elimination.
+\begin{itemize}
+\item
+What is the proposition?
+\item
+Key point: be able to express the intermediate state where the
+invariant is temporarily violated (first add 1 to @i@, then add 4
+to~@p@).
+\end{itemize}
+\end{itemize}
+
+
 
 \section{Conclusion}
 
