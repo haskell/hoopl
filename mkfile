@@ -1,4 +1,5 @@
 <./latex.mk
+<./spell.mk
 
 TGT=dfopt
 
