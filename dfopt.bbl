@@ -1,12 +1,4 @@
-\def\letbib#1#2{%
-  \def\tempb##1##2##3##4##5\ends{\csname
-  NAT@wrout\endcsname{##1}{##2}{##3}{##4}}%
-  \def\tempc##1{\expandafter\tempb##1{??}{??}{??}{??}{??}\ends}%
-  \csname @ifundefined\endcsname{b@#2\csname @extra@b@citeb\endcsname}%
-     {}%
-     {\expandafter\tempc\csname b@#2\csname
-  @extra@b@citeb\endcsname\endcsname{#1}}}
-\begin{thebibliography}{16}
+\begin{thebibliography}{15}
 \expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
 \expandafter\ifx\csname url\endcsname\relax
   \def\url#1{{\tt #1}}\fi
@@ -85,12 +77,6 @@ Sorin Lerner, David Grove, and Craig Chambers.
   Principles of Programming Languages, {\em in} SIGPLAN Notices}, 31\penalty0
   (1):\penalty0 270--282.
 
-\bibitem[Okasaki and Gill(1998)]{okasaki-gill:integer-map}
-Chris Okasaki and Andrew Gill.
-\newblock 1998 (September).
-\newblock Fast mergeable integer maps.
-\newblock In \emph{ACM SIGPLAN Workshop on ML}, pages~\mbox{77--86}.
-
 \bibitem[Peyton~Jones and Marlow(2002)]{peyton-jones:secrets-inliner}
 Simon Peyton~Jones and Simon Marlow.
 \newblock 2002 (July).
@@ -111,12 +97,11 @@ Simon~L. Peyton~Jones, Norman Ramsey, and Fermin Reig.
   Invited paper\let\next\relax\fi
   \ifx\invitedtrue\undefined\else\invitedtrue\fi \next.
 
-\bibitem[Ramsey and Dias(2005)]{dias-ramsey:applicative-flow-graph}
+\bibitem[Ramsey and Dias(2005)]{ramsey-dias:applicative-flow-graph}
 Norman Ramsey and {Jo\~ao} Dias.
 \newblock 2005 (September).
 \newblock An applicative control-flow graph based on {Huet}'s zipper.
 \newblock In \emph{ACM SIGPLAN Workshop on ML}, pages~101--122.
-\letbib{ramsey-dias:applicative-flow-graph}{dias-ramsey:applicative-flow-graph}
 
 \bibitem[Ramsey and {Peyton Jones}(2000)]{peyton-jones-ramsey:exceptions}
 Norman Ramsey and Simon~L. {Peyton Jones}.

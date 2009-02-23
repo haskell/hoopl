@@ -11,7 +11,7 @@ bbl:V: bib
 %.bbl: %.aux
 	nbibtex $stem
 
-dfopt.dvi: dfopt.bbl code.sty
+dfopt.dvi: dfopt.bbl code.sty engine.tex
 
 $TGT.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-12 $prereq

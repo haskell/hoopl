@@ -1,3 +1,5 @@
+\newif\ifseparateengine\separateenginetrue
+
 \newif\ifnotesinmargin \notesinmargintrue 
 \IfFileExists{notesinline.tex}{\notesinmarginfalse}{\relax}
 
@@ -1684,7 +1686,7 @@ NEED TO BE REWRITTEN, OR IN SOME CASES, WRITTEN}
 
 \hrule
 
-
+\ifseparateengine\else
 
 \section{Implementing graphs}
 \seclabel{graphs}
@@ -1870,10 +1872,12 @@ analogous to $(\mathtt{BlockId} \arrow \mathit{graph}) \arrow \mathit{graph}$.
 %% , as described in the companion paper.
 %% \cite{dias-peyton:refactoring}. 
 \end{itemize}
+\fi
 
 
-
-
+\ifseparateengine
+\input{engine}
+\else
 \section{The Dataflow Engine}
 \seclabel{engine}
 \seclabel{dfengine}
@@ -2024,7 +2028,7 @@ within graph~@g@ and calls @addLastOutFact@ for @BlockId@s located
 outside graph~@g@.
 \end{itemize}
 
-
+\fi
 
 
 
