@@ -1,4 +1,7 @@
-\newif\ifseparateengine\separateenginetrue
+\newif\ifgenkill\genkillfalse  % have a section on gen and kill
+
+\newif\ifseparateengine\separateenginetrue 
+   % use engine.tex instead of what's here
 
 \newif\ifnotesinmargin \notesinmargintrue 
 \IfFileExists{notesinline.tex}{\notesinmarginfalse}{\relax}
@@ -37,6 +40,7 @@
 \usepackage{natbib}
 \bibpunct();A{},
 \let\cite\citep
+\let\citeyearnopar=\citeyear
 \let\citeyear=\citeyearpar
 
 \usepackage[ps2pdf,bookmarksopen,breaklinks,pdftitle=dataflow-made-simple]{hyperref}
@@ -176,8 +180,7 @@ a compiler writer creates new dataflow analyses or transformations
 (\secref{making-simple}) and showing complete implementations of significant
 analyses (\secref{example-analyses}) and transformations
 (\secref{example-rewrites}) from the Glasgow Haskell compiler.
-We spend less space, in Sections
-\ref{sec:graphs}~and~\ref{sec:engine}, on the shared implementation.
+We spend less space, in \secref{engine}, on the shared implementation.
 
 
 \section{Dataflow analysis {\&} transformation by \rlap{example}}
@@ -1356,6 +1359,7 @@ should not be considered part of liveness analysis.)
 %%  \john{I've dropped some sanity checking code.}
 
 
+\ifgenkill
 \section{Writing transfer functions using \texttt{gen} and \texttt{kill}}
 
 \seclabel{gen-kill}
@@ -1385,11 +1389,30 @@ inline the type-specific instance of @foldVarsUsed@, which for the
 case of a local variable is the identity function, so @gen x avail@
 reduces to @extendAvail avail x@.
 
+\fi
 
 
 \section{Using dataflow facts to rewrite graphs, with examples}
 
 \seclabel{example-rewrites}
+
+\begin{figure}
+\begin{code}
+type Rewrite mid last = Maybe (Graph mid last)
+data ForwardRewrites mid last a = ForwardRewrites
+ {fr_first  :: BlockId -> a -> Rewrite mid last,
+  fr_middle :: mid     -> a -> Rewrite mid last,
+  fr_last   :: last    -> a -> Rewrite mid last} 
+
+data BackRewrites mid last a = BackRewrites
+ {br_first  :: BlockId  -> a  -> Rewrite mid last,
+  br_middle :: mid      -> a  -> Rewrite mid last,
+  br_last   :: last ->
+               (BlockId -> a) -> Rewrite mid last} 
+\end{code}
+\caption{Rewrite functions for forward and backward transformations.}
+\figlabel{rewrites}
+\end{figure}
 
 
 \begin{figure*}
@@ -1439,24 +1462,6 @@ A~rewrite function is given a dataflow fact and a node.
 It~may choose to replace the node with a new graph~$g$, in which case it
 returns $@Just@\;g$, or it may do nothing, in which case it returns @Nothing@.
 
-\begin{figure}
-\begin{code}
-type Rewrite mid last = Maybe (Graph mid last)
-data ForwardRewrites mid last a = ForwardRewrites
- {fr_first  :: BlockId -> a -> Rewrite mid last,
-  fr_middle :: mid     -> a -> Rewrite mid last,
-  fr_last   :: last    -> a -> Rewrite mid last} 
-
-data BackRewrites mid last a = BackRewrites
- {br_first  :: BlockId  -> a  -> Rewrite mid last,
-  br_middle :: mid      -> a  -> Rewrite mid last,
-  br_last   :: last ->
-               (BlockId -> a) -> Rewrite mid last} 
-\end{code}
-\caption{Rewrite functions for forward and backward transformations.}
-\figlabel{rewrites}
-\end{figure}
-
 
 To create a program transformation in our framework,
 the compiler writer must 
@@ -1475,9 +1480,9 @@ compiler writer can then use the
 dataflow-engine function @zdfRewriteFwd@ to compute a solution:
 \begin{code}
   zdfRewriteFwd 
-    :: LastNode l             -- Constraint on last nodes
+    :: LastNode l             -- Can get successors
     => RewritingDepth         -- Rewrite recursively?
-    -> PassName               -- Name of this rewriting pass
+    -> PassName               -- Name of this pass
     -> DataflowLattice a      -- Lattice
     -> ForwardTransfers m l a -- Transfer functions
     -> ForwardRewrites m l a  -- Rewrite functions
@@ -1669,22 +1674,11 @@ assignment to a dead variable.
 In~the bottom half of \figref{dead-elim}, we call @zdfRewriteBwd@, and
 that is all there is to it.
 \john{Need to run this version of the code in anger.}
-
+%
 \remark{In this space we should have some guff about
 composing transformations, which should refer to the example on
 eliminating the induction variable.}
 
-
-\bigskip
-\hrule
-\smallskip
-
-\textbf{SECTIONS \ref{sec:graphs}, \ref{sec:engine}, and~\ref{sec:next-700}
-NEED TO BE REWRITTEN, OR IN SOME CASES, WRITTEN}
-
-\smallskip
-
-\hrule
 
 \ifseparateengine\else
 
@@ -2184,6 +2178,7 @@ program logic, each of which is inexpressive in a different way.
 We make dataflow optimization simple not by using a single magic
 ingredient, but by blending proven ideas in a way that
 makes it possible to think simple thoughts about classical code improvements.
+\remark{This section needs a rewrite---John will have the first go.}
 \begin{itemize}
 \item
 We are concerned only with code improvements over low-level
@@ -2213,7 +2208,8 @@ strongest postconditions typically does not reach a fixed point in
 finitely many steps; hence the need for loop invariants
 \cite{hoare:axiomatic-basis,dijkstra:discipline,gries:science-programming}.
 In \secref{logic-reconciled}, we show that we can guarantee to reach a
-fixed point by limiting what we can express in the logic.
+fixed point by limiting what we can express in the logic.\remark{needs
+a fix}
 We~show that many classical analyses can be explained this way;
 the great diversity of classical analyses corresponds to a great
 diversity of inexpressive logics.
@@ -2290,7 +2286,7 @@ weakest precondition or strongest postcondition using the ``transfer
 equations'' that are familiar from compiler textbooks.
 If you like, you can even write overloaded @gen@ and @kill@ functions.
 The benefit is that it is easy to compare the actual code with the
-abstract treatments found in textbooks (\secref{gen-kill}).
+abstract treatments found in textbooks\ifgenkill \ (\secref{gen-kill})\fi.
 \item
 Finally, we use both polymorphism and type classes to implement a single,
 higher-order framework used to compose analyses and transformations

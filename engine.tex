@@ -1,43 +1,43 @@
 \begin{figure*}
 \begin{code}
-forward_sol :: LastNode l => (forall a . Fuel -> Maybe a -> Maybe a) -> RewritingDepth -> PassName 
-            -> BlockEnv a -> ForwardTransfers m l a -> ForwardRewrites m l a
-            -> a -> Graph m l -> Fuel
-            -> DFM a (ForwardFixedPoint m l a (), Fuel)
-forward_sol squash depth name start_facts transfers rewrites = fixed_point
- where fixed_point in_fact g fuel =
-         do { setAllFacts start_facts
-            ; (a, fuel) <- solve getExitFact in_fact g fuel
-            ; ...
-            ; return (... a ..., fuel)
-            }
+    forward_sol :: LastNode l => (forall a . Fuel -> Maybe a -> Maybe a) -> RewritingDepth -> PassName 
+                -> BlockEnv a -> ForwardTransfers m l a -> ForwardRewrites m l a
+                -> a -> Graph m l -> Fuel
+                -> DFM a (ForwardFixedPoint m l a (), Fuel)
+    forward_sol squash depth name start_facts transfers rewrites = fixed_point
+     where fixed_point in_fact g fuel =
+             do { setAllFacts start_facts
+                ; (a, fuel) <- solve getExitFact in_fact g fuel
+                ; ...
+                ; return (... a ..., fuel)
+                }
 
-       solve :: DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Fuel)
-       solve finish in_fact (Graph entry blockenv) fuel =
-         let blocks = G.postorder_dfs_from blockenv entry
-             set_successor_facts (Block id tail) fuel =
-               do { idfact <- getFact id
-                  ; (last_outs, fuel) <-
-                      ... solve_tail (ft_first_out transfers id idfact) tail fuel ...
-                  ; set_or_save last_outs
-                  ; return fuel }
+           solve :: DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Fuel)
+           solve finish in_fact g fuel =
+             let blocks = G.postorder_dfs g
+                 set_successor_facts (Block id tail) fuel =
+                   do { idfact <- getFact id
+                      ; (last_outs, fuel) <-
+                          ... solve_tail (ft_first_out transfers id idfact) tail fuel ...
+                      ; set_or_save last_outs
+                      ; return fuel }
 
-         in  do { fuel <- run "forward" name set_successor_facts blocks fuel
-                ; b <- finish
-                ; return (b, fuel) }
+             in  do { fuel <- run "forward" name set_successor_facts blocks fuel
+                    ; b <- finish
+                    ; return (b, fuel) }
 
-       solve_tail in' (G.ZTail m t) fuel =
-         case squash fuel $ fr_middle rewrites m in' of
-           Nothing -> solve_tail (ft_middle_out transfers m in') t fuel
-           Just g -> do { g <- areturn g
-                        ; (a, fuel) <- subAnalysis' $
-                             case depth of
-                               RewriteDeep -> solve getExitFact in' g (oneLessFuel fuel)
-                               RewriteShallow -> do { a <- anal_f getExitFact in' g
-                                                    ; return (a, oneLessFuel fuel) }
-                        ; solve_tail a t fuel
-                        }
-       ...
+           solve_tail in' (G.ZTail m t) fuel =
+             case squash fuel $ fr_middle rewrites m in' of
+               Nothing -> solve_tail (ft_middle_out transfers m in') t fuel
+               Just g -> do { g <- areturn g
+                            ; (a, fuel) <- subAnalysis' $
+                                 case depth of
+                                   RewriteDeep -> solve getExitFact in' g (oneLessFuel fuel)
+                                   RewriteShallow -> do { a <- anal_f getExitFact in' g
+                                                        ; return (a, oneLessFuel fuel) }
+                            ; solve_tail a t fuel
+                            }
+           ...
 \end{code}
 \caption{Excerpts from the forward solver}
 \figlabel{solver-excerpts}
@@ -147,17 +147,76 @@ performed.
 This phase is called the \emph{rewriter}.
 \end{itemize}
 
-In \citeyear{ramsey-dias:applicative-flow-graph}, two of us
-\citeauthor{ramsey-dias:applicative-flow-graph} presented
+
+
+\begin{figure*}
+%%  forward_rew
+%%          :: forall m l a . 
+%%             (DebugNodes m l, LastNode l, Outputable a)
+%%          => (forall a . Fuel -> Maybe a -> Maybe a)
+%%          -> RewritingDepth
+%%          -> BlockEnv a
+%%          -> PassName
+%%          -> ForwardTransfers m l a
+%%          -> ForwardRewrites m l a
+%%          -> a
+%%          -> Graph m l
+%%          -> Fuel
+%%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
+%%  forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
+%%    where
+%%      fixed_pt_and_fuel =
+%%          do { (a, g, fuel) <- rewrite xstart_facts getExitFact in_factx gx fuelx
+%%             ; facts <- getAllFacts
+%%             ; let fp = ... facts ... g ...
+%%             ; return (fp, fuel)
+%%             }
+%%  
+\begin{code}
+      ...
+    rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
+    rewrite start finish in_fact g fuel =
+      let Graph eid blockenv = g
+          blocks = G.postorder_dfs_from blockenv entry
+      in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
+            ; (rewritten, fuel) <- rewrite_blocks blocks emptyBlockEnv fuel
+            ; a <- finish
+            ; return (a, Graph eid rewritten, fuel)
+            }
+
+      ...
+
+    rewrite_blocks (Block id t : bs) rewritten fuel =
+      ... rew_tail h (ft_first_out transfers id a) t rewritten fuel ...
+    rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
+
+    rew_tail head in' (G.ZTail m t) rewritten fuel =
+      case squash fuel $ fr_middle rewrites m in' of
+        Nothing -> rew_tail (G.ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
+        Just g -> do { markGraphRewritten
+                     ; g <- areturn g
+                     ; (a, g, fuel) <- inner_rew getExitFact in' g fuel
+                     ; let (blocks, h) = G.splice_head' head g
+                     ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
+\end{code}
+\caption{Excerpts from the forward rewriter}
+\figlabel{rewriter-excerpts}
+\end{figure*}
+
+In \citeyearnopar{ramsey-dias:applicative-flow-graph}, two of us
+(\citeauthor{ramsey-dias:applicative-flow-graph}) presented
 implementations in Objective Caml of a backward solver and rewriter.
 Here, then, as a complement, we sketch implementations of the forward
 solver and rewriter used in~GHC.
 
 \figref{solver-excerpts} shows key excerpts from the forward solver 
-@forward_sol@, which is the key function used to implement
-@zdfSolveFwd@.
-It~takes a few parameters not shown in the type of
-@zdfRewriteFwd@.\remark{check spelling}
+@forward_sol@, which is the function used to implement
+@zdfSolveFwd@.\remark{check spelling}
+As~it is also used to solve subgraphs and to help the rewriter, it
+takes a few more parameters:
+\remark{If it can be done before submitting the paper, I really want
+  to write a version of ZipDataflow that operates on LGraphs, just so
+  I can be sure the code is right.}
 \begin{itemize}
 \item
 An analysis of a subgraph starts with known facts, not bottom facts.
@@ -187,16 +246,15 @@ the @finish@ parameter is @lastOutFacts@.
 Both @getExitFact@ and @lastOutFacts@ are operations in the dataflow
 monad.
 
-\emph{here explain graph rep: entry id and finite map from @BlockId@
-  to block}
-
-Function @solve@ begins with a postorder depth-first traversal of the
-graph, producing a list of blocks in~@blocks@.
+Function @solve@ takes a graph and does a postorder depth-first traversal 
+to get a list of reachable blocks in~@blocks@.
 It then applies the higher-order @run@ function, which repeatedly runs
 @set_successor_facts@ on @blocks@ in order until the internal facts
 stop changing.
 Using postorder depth-first order, forward dataflow analyses typically
 converge after at most a few iterations.
+
+
 
 To understand the rest of the solver, you must understand the
 representation of basic blocks.
@@ -245,19 +303,22 @@ If~that function returns @Nothing@, or if the value is squashed to
 In~that case @solve_tail@ simply calls the transfer function
 @ft_middle_out transfers@ and continues with the next node.
 
+
+
 The interesting case occurs when the rewrite function 
 @fr_middle rewrites@
 proposes a replacement graph~@g@.
 \begin{enumerate}
 \item
-The abstract graph~@g@ is given a supply of fresh labels and is
-converted to internal form, also called~@g@, using the monadic
-function @areturn@. 
+Using the monadic
+function @areturn@, the abstract graph~@g@ is given a supply of fresh
+labels and is 
+converted to internal form, also called~@g@. 
 \item
 If we are doing \emph{deep} rewriting, @g@~may be further rewritten,
 so we call @solve@ recursively after removing one unit of fuel.
 Graph~@g@ replaces a middle node, so we expect @g@ to fall off the
-end, and the fact we want @solve@ to extract is the exit fact.
+end, and therefore we want @solve@ to extract the exit fact.
 \item
 If we are doing \emph{shallow} rewriting,  new graph~@g@ must not be
 rewritten, but we must still find a fixed point of the transfer
@@ -265,7 +326,8 @@ equations.
 We compute that fixed point using @anal_f@, which  recursively calls
 @forward_sol@ using the @squash@ function
 @\ _ _ -> Nothing@, 
-thereby doin no rewriting and consuming no fuel.
+thereby doing no rewriting and consuming no fuel.\remark{Line number
+  to where squash is used}
 \end{enumerate}
 Whether rewriting is shallow or deep, the new graph~@g@ is analyzed as
 a ``sub-analysis'' in the dataflow monad, which means it has fresh
@@ -273,155 +335,145 @@ state for tracking facts and deciding whether analysis has reached a
 fixed point.
 State changes made in a sub-analysis cannot be observed by the outer
 analysis. 
+In~fact, after the sub-analysis all the new state \emph{and the new
+  graph} are discarded.
+All~that is kept is the new dataflow fact~@a@ and the diminished
+supply of fuel.
+Function @solve_tail@ continues tail-recursively solving~@t@.
+The only difference between rewriting \remark{line number} and not
+rewriting \remark{line number} is the
+\emph{fact} and the \emph{fuel} passed to the tail call.
+
+The full implementations of @solve@ and @solve_tail@, which are
+included in a supplement to this paper, contain similar code which may
+rewrite first nodes and last nodes and sub-analyze the replacement
+graphs. 
+
+
+%%\begin{itemize}
+%%\item
+%%\item
+%%The internal @solve@ function is higher-order in the parameter
+%%@finish@, which extracts from the dataflow monad either the unique
+%%exit fact or the set of @LastOuts@, depending on context.
+%%\item
+%%The function @set_or_save@ calls @setFact@ for @BlockId@s located
+%%within graph~@g@ and calls @addLastOutFact@ for @BlockId@s located
+%%outside graph~@g@.
+%%\end{itemize}
 
 
 
-\begin{itemize}
-\item
-\item
-The internal @solve@ function is higher-order in the parameter
-@finish@, which extracts from the dataflow monad either the unique
-exit fact or the set of @LastOuts@, depending on context.
-\item
-The function @set_or_save@ calls @setFact@ for @BlockId@s located
-within graph~@g@ and calls @addLastOutFact@ for @BlockId@s located
-outside graph~@g@.
-\end{itemize}
+\subsection{The forward rewriter}
 
-
-
-\subsection{The dataflow monad}
-
-The primary purpose of the dataflow monad is to keep track of 
-dataflow facts as the engine iterates.
-Dataflow facts are found in three places:
-\begin{itemize}
-\item
-There is a dataflow fact associated with every labelled basic block in
-the current graph;
-the dataflow monad maintains this association in a finite map.
-The functions @getFact@ and @setFact@ query and update this map.
-\item
-The current graph may be a subgraph of a larger graph, in which case a
-forward dataflow pass may produce dataflow facts that flow to labelled
-blocks that are outside the current graph.
-These facts must be retained and propagated even if the current graph
-is abandoned; such facts are added with @addLastOutFact@ and recovered
-with @bareLastOuts@.
-\item
-Finally, a foraward dataflow pass over a subgraph may propagate a fact forward by
-``falling off the end;'' such a fact is set with @setExitFact@ and
-recovered with @getExitFact@.
-\end{itemize}
-In addition to keeping track of facts, 
-the dataflow monad provides a number of other facilities to manage
-changes in state as graphs are rewritten and facts climb the dataflow
-lattice:
-\begin{itemize}
-\item
-The monad keeps track of whether any fact has changed.
-\item
-It provides a @subanalysis@ function which makes it possible to
- analyze a subgraph using the current set of facts, then discard any
- changes in state that may have resulted from the analysis of the
- subgraph.
-\item
-It provides a supply of fresh @BlockId@s, which are available for use
-by rewrite functions.
-\item
-It tracks the supply of \emph{optimization fuel}.
-As~shown below, when fuel runs out, the dataflow engine stops
-calling rewriting functions, effectively halting optimization.
-Binary search on the size of the fuel supply enables the compiler to
-identify unsound rewrites quickly \cite{whalley:isolation}.
-\end{itemize}
-
-
-\subsection{The dataflow engine}
-
-
-
-
-\begin{figure*}
-%%  forward_rew
-%%          :: forall m l a . 
-%%             (DebugNodes m l, LastNode l, Outputable a)
-%%          => (forall a . Fuel -> Maybe a -> Maybe a)
-%%          -> RewritingDepth
-%%          -> BlockEnv a
-%%          -> PassName
-%%          -> ForwardTransfers m l a
-%%          -> ForwardRewrites m l a
-%%          -> a
-%%          -> Graph m l
-%%          -> Fuel
-%%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
+The core of the rewriter is shown in \figref{rewriter-excerpts}.
+A~graph~@g@ to be rewritten is reprsented by a finite map from  @BlockId@
+  to basic block, together with the @BlockId@ of the entry block:
 \begin{code}
-forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
-  where
-    fixed_pt_and_fuel =
-        do { (a, g, fuel) <- rewrite xstart_facts getExitFact in_factx gx fuelx
-           ; facts <- getAllFacts
-           ; let fp = ... facts ... g ...
-           ; return (fp, fuel)
-           }
-    solve = forward_sol squash
-    rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
-    rewrite start finish in_fact g fuel =
-      let Graph entry blockenv = g
-          blocks = G.postorder_dfs_from blockenv entry
-      in do { solve depth name start transfers rewrites in_fact g fuel
-            ; eid <- freshBlockId "temporary entry id"
-            ; (rewritten, fuel) <- rew_tail (ZFirst eid emptyStackInfo) in_fact entry emptyBlockEnv fuel
-            ; (rewritten, fuel) <- rewrite_blocks blocks rewritten fuel
-            ; a <- finish
-            ; return (a, lgraphToGraph (LGraph eid 0 rewritten), fuel)
-            }
-    don't_rewrite facts finish in_fact g fuel =
-        do  { solve depth name facts transfers rewrites in_fact g fuel
-            ; a <- finish
-            ; return (a, g, fuel)
-            }
-    inner_rew :: DFM a f -> a -> Graph m l -> Fuel -> DFM a (f, Graph m l, Fuel)
-    inner_rew f i g fu = getAllFacts >>= \facts -> inner_rew' facts f i g fu
-        where inner_rew' = case depth of RewriteShallow -> don't_rewrite
-                                         RewriteDeep    -> rewrite
-    rewrite_blocks :: [Block m l] -> (BlockEnv (Block m l)) -> Fuel -> DFM a (BlockEnv (Block m l), Fuel)
-    rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
-    rewrite_blocks (G.Block id off t : bs) rewritten fuel =
-      do { let h = ZFirst id off
-         ; a <- getFact id
-         ; case squash fuel $ fr_first rewrites id a of
-             Nothing -> do { (rewritten, fuel) <- rew_tail h (ft_first_out transfers id a) t rewritten fuel
-                           ; rewrite_blocks bs rewritten fuel }
-             Just g  -> do { markGraphRewritten
-                           ; g <- areturn g
-                           ; (outfact, g, fuel) <- inner_rew getExitFact a g fuel
-                           ; let (blocks, h) = splice_head' h g
-                           ; (rewritten, fuel) <- rew_tail h outfact t (blocks `plusBlockEnv` rewritten) fuel
-                           ; rewrite_blocks bs rewritten fuel }
-         }
-
-    rew_tail head in' (G.ZTail m t) rewritten fuel =
-      case squash fuel $ fr_middle rewrites m in' of
-        Nothing -> rew_tail (G.ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
-        Just g -> do { markGraphRewritten
-                     ; g <- areturn g
-                     ; (a, g, fuel) <- inner_rew getExitFact in' g fuel
-                     ; let (blocks, h) = G.splice_head' head g
-                     ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
-    rew_tail h in' (G.ZLast l) rewritten fuel = 
-      case squash fuel $ either_last rewrites in' l of
-        Nothing -> return (insertBlock (zipht h (G.ZLast l)) rewritten, fuel)
-        Just g -> do { markGraphRewritten
-                     ; g <- areturn g
-                     ; ((), g, fuel) <- inner_rew (return ()) in' g fuel
-                     ; let g' = G.splice_head_only' h g
-                     ; return (G.lg_blocks g' `plusBlockEnv` rewritten, fuel) }
-    either_last rewrites in' (LastExit) = in'
-    either_last rewrites in' (LastOther l) = fr_last rewrites l in'
+data Graph m l = Graph BlockId (BlockEnv (Block m l))
 \end{code}
-\caption{The forward rewriter}
-\end{figure*}
+The function @rewrite@ first calls @forward_sol@ to iterate to a fixed
+point.
+At~this point, the facts stored in the dataflow monad can safely be
+used for rewriting.
+The work is done by @rewrite_blocks@; the monadic action @finish@
+extracts any value of interest; and that value is returned together
+with the rewritten graph and the remaining fuel.
+
+The actual rewriting is done by @rewrite_blocks@, whose second parameter is
+an accumulating parameter which carries a finite map containing those
+blocks which have been fully rewritten.
+As~above, we show only the code relevant to rewriting middle codes;
+code for first nodes and last nodes is similar.
+The @rew_tail@ function uses exactly the same test as in the solver:
+it scrutinizes
+\begin{verbatim}
+   squash fuel $ fr_middle rewrites m in'
+\end{verbatim}
+If there is no rewriting, the action taken is almost the same, but
+there is an additional accumulating parameter, @head@, which stores
+the fragment of the basic block leading up to the node~@m@ which is
+a candidate for rewriting.
+To~store this fragment, we use type @ZHead m@, which makes the
+nearest node the easiest to access; we append~@m@ to the
+fragment~@head@ by forming @ZHead head m@:
+\begin{verbatim} 
+data ZHead m = ZFirst BlockId | ZHead (ZHead m) m
+\end{verbatim}
+
+The interesting case is where the middle node~@m@ is rewritten into
+the replacement graph~@g@. \remark{line number}
+We~first mark the graph as rewritten, so that whatever called this
+pass may know that the graph has changed.
+As~before, we convert~@g@ by supplying it with fresh labels.
+We then call @inner_rew@, which calls @forward_sol@ when rewriting
+shallowly (i.e., not rewriting~@g@) and calls @rewrite@ recursively
+when rewriting deeply.
+Finally, the rewritten graph, newly rebound to the name~@g@, is
+spliced onto the head of the block, producing a new head~@h@ and a set
+of fully rewritten blocks~@blocks@.
+The splicing algorithm is described by
+\citet{ramsey-dias:applicative-control-flow}. 
+The new head~@h@ replaces @head@, and @blocks@ is added to the
+accumulating parameter @rewritten@.
+Function @rew_tail@ continues with the next node by making a tail call
+to rewrite~@t@.
+
+
+
+
+
+
+%%  \subsection{The dataflow monad}
+%%  
+%%  The primary purpose of the dataflow monad is to keep track of 
+%%  dataflow facts as the engine iterates.
+%%  Dataflow facts are found in three places:
+%%  \begin{itemize}
+%%  \item
+%%  There is a dataflow fact associated with every labelled basic block in
+%%  the current graph;
+%%  the dataflow monad maintains this association in a finite map.
+%%  The functions @getFact@ and @setFact@ query and update this map.
+%%  \item
+%%  The current graph may be a subgraph of a larger graph, in which case a
+%%  forward dataflow pass may produce dataflow facts that flow to labelled
+%%  blocks that are outside the current graph.
+%%  These facts must be retained and propagated even if the current graph
+%%  is abandoned; such facts are added with @addLastOutFact@ and recovered
+%%  with @bareLastOuts@.
+%%  \item
+%%  Finally, a foraward dataflow pass over a subgraph may propagate a fact forward by
+%%  ``falling off the end;'' such a fact is set with @setExitFact@ and
+%%  recovered with @getExitFact@.
+%%  \end{itemize}
+%%  In addition to keeping track of facts, 
+%%  the dataflow monad provides a number of other facilities to manage
+%%  changes in state as graphs are rewritten and facts climb the dataflow
+%%  lattice:
+%%  \begin{itemize}
+%%  \item
+%%  The monad keeps track of whether any fact has changed.
+%%  \item
+%%  It provides a @subanalysis@ function which makes it possible to
+%%   analyze a subgraph using the current set of facts, then discard any
+%%   changes in state that may have resulted from the analysis of the
+%%   subgraph.
+%%  \item
+%%  It provides a supply of fresh @BlockId@s, which are available for use
+%%  by rewrite functions.
+%%  \item
+%%  It tracks the supply of \emph{optimization fuel}.
+%%  As~shown below, when fuel runs out, the dataflow engine stops
+%%  calling rewriting functions, effectively halting optimization.
+%%  Binary search on the size of the fuel supply enables the compiler to
+%%  identify unsound rewrites quickly \cite{whalley:isolation}.
+%%  \end{itemize}
+
+
+
+
+
+
 
 
