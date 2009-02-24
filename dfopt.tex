@@ -1,4 +1,5 @@
 \newif\ifgenkill\genkillfalse  % have a section on gen and kill
+\genkilltrue
 
 \newif\ifseparateengine\separateenginetrue 
    % use engine.tex instead of what's here
@@ -169,6 +170,16 @@ and easy to get right.
 The complex part of dataflow optimization, which is difficult to get right, is
 written once and is shared by all analyses and transformations.
 \end{itemize}
+
+We consider code improvements only over low-level
+imperative codes, emcompassing both intermediate languages and machine
+languages.
+As \citet{benitez-davidson:portable-optimizer} have shown, all the
+classical scalar and loop optimizations can be performed over such
+codes.
+Moreover, any functional program compiled to native code must
+eventually translate to such a code.
+
 
 We introduce the subject by analyzing and transforming example code in
 \secref{example:xforms},
@@ -2172,79 +2183,83 @@ program logic, each of which is inexpressive in a different way.
 %%  \end{itemize}
 
 
+%\clearpage
 
 \section{Conclusion}
 
-We make dataflow optimization simple not by using a single magic
-ingredient, but by blending proven ideas in a way that
-makes it possible to think simple thoughts about classical code improvements.
-\remark{This section needs a rewrite---John will have the first go.}
+Compiler textbooks make dataflow analysis and optimization appear
+difficult and complicated.
+We make dataflow simple not by using a single magic
+ingredient, but by applying ideas that are well understood by functional
+programmers and others who reason formally about programs.
+These ideas
+make it possible to think simple thoughts about classical code improvements.
 \begin{itemize}
-\item
-We are concerned only with code improvements over low-level
-imperative codes, emcompassing both intermediate languages and machine
-languages.
-As \citet{benitez-davidson:portable-optimizer} have shown, all of the
-classical scalar and loop optimizations can be performed over such
-codes.
-Moreover, any functional program compiled to native code must
-eventually translate to such a code.
 \item
 We acknowledge only one program-analysis technique: the solution of
 recursion equations.
+Like our colleagues working in imperative languages, we solve
+recursion equations by iterating to a fixed point.
 Most equations relate
 properties of program states; some relate properties of continuations.
 \item
 When looking at properties of program states, we consider only two
-relations: weakest liberal precondition and strongest liberal
+relations: weakest liberal precondition and strongest 
 postcondition.
 In the compiler literature, these relations correspond respectively to
 ``backward dataflow problems'' and ``forward dataflow problems.''
+%%  \item
+%%  In a language that admits loops, iterating weakest preconditions or
+%%  strongest postconditions typically does not reach a fixed point in
+%%  finitely many steps; hence the need for loop invariants
+%%  \cite{hoare:axiomatic-basis,dijkstra:discipline,gries:science-programming}.
+%%  In \secref{logic-reconciled}, we show that we can guarantee to reach a
+%%  fixed point by limiting what we can express in the logic.\remark{needs
+%%  a fix}
+%%  We~show that many classical analyses can be explained this way;
+%%  the great diversity of classical analyses corresponds to a great
+%%  diversity of inexpressive logics.
+%%  This view leads us to a unifying principle:
+%%  \emph{To implement a code-improving transformation, find the least
+%%    expressive logic that can justify the transformation, then use that
+%%    logic to compute strongest postconditions, which justify the
+%%    transformation locally.}
 \item
-Like our colleagues working in imperative languages, we solve
-recursion equations by iterating to a fixed point.
-In a language that admits loops, iterating weakest preconditions or
-strongest postconditions typically does not reach a fixed point in
-finitely many steps; hence the need for loop invariants
-\cite{hoare:axiomatic-basis,dijkstra:discipline,gries:science-programming}.
-In \secref{logic-reconciled}, we show that we can guarantee to reach a
-fixed point by limiting what we can express in the logic.\remark{needs
-a fix}
-We~show that many classical analyses can be explained this way;
-the great diversity of classical analyses corresponds to a great
-diversity of inexpressive logics.
-This view leads us to a unifying principle:
-\emph{To implement a code-improving transformation, find the least
-  expressive logic that can justify the transformation, then use that
-  logic to compute strongest postconditions, which justify the
-  transformation locally.}
-\item
-We consider only two program transformation techniques:
-substutition of equals for equals, and removal of redundant
-assignments.
-Substitution of equals for equals may require reasoning about program
+We consider only three program transformation techniques:
+substitution of equals for equals, 
+insertion of assignments to unobserved variables, 
+and removal of assignments to unobserved variables.
+Substituting equals for equals may require reasoning about program
 states; for example, if we have a program point at which variable~$x$
-is always~7, we are justified in substituting 7 for~$x$.
+is always~7, we are justified in substituting~7 for~$x$.
 \remark{We can also justify substitution of \emph{labels} in goto
   statements by reasoning about continuations.  The introduction is
   probably not the place to mention this fact.}
-Removal of redundant assignments requires reasoning about program
-continuations; an assignment is redundant if its results are not used
-by its continuation.
+Inserting and removing assignments require reasoning about program
+continuations; an assignment may be inserted or removed if its results
+are not used by its continuation.
 
-Some compiler texts treat the removal of unreachable code as a
-code-improving transformation in its own right.
-In~our framework, unreachable code becomes unreachable in the
-garbage-collection sense, so no special effort is required to remove
-it.
+%%  Some compiler texts treat the removal of unreachable code as a
+%%  code-improving transformation in its own right.
+%%  In~our framework, unreachable code becomes unreachable in the
+%%  garbage-collection sense, so no special effort is required to remove
+%%  it.
 \item
-More complex code improvements are decomposed into simpler ones.
+These simple program transformations may be composed to form more
+complex tranformations.
 For example, both ``code motion'' and ``induction-variable
-elimination'' are implemented in three stages: introduce redundant
-code, substitute equals for equals, remove redundant code
+elimination'' are implemented in three stages: insert new assignments;
+substitute equals for equals; remove unneeded assignments
 (\secref{induction-var-elim}). 
-This technique also makes it easier to debug the optimizer
-\cite{whalley:isolation}. 
+
+One virtue of implementing complex transformations by composing simple
+transformations is that each simple transformation leaves the program
+in a consistent state.
+It~is therefore safe to use 
+``optimization fuel'' to limit the number of \emph{simple}
+transformations, which means that when we isolate a fault in the optimizer
+(\secref{vpoiso}), we have the luxury of debugging a simple
+ transformation, not a complex one.
 \end{itemize}
 
 We also blend proven implementation technqiues
@@ -2254,51 +2269,62 @@ write simple code
 to implement classical code improvements.
 \begin{itemize}
 \item
-To \emph{analyze} programs, we use a purely applicative representation of
+To {analyze} programs, we use a purely applicative representation of
 control-flow graphs, inspired by Huet's zipper
 \cite{huet:zipper,ramsey-dias:applicative-flow-graph}. 
-\item
-To \emph{construct} programs, we use a different representation of
-flow graphs, one which hides the complexity of the zipper and which
-provides a constant-time operation for joining flow graphs in
-sequence.
-It is inspired in part by Hughes's \citeyearpar{hughes:novel-lists}
-representation of lists, which supports a constant-time append operation.
+%
+% important, but no longer mentioned in this paper:
+%
+%%  \item
+%%  To \emph{construct} programs, we use a different representation of
+%%  flow graphs, one which hides the complexity of the zipper and which
+%%  provides a constant-time operation for joining flow graphs in
+%%  sequence.
+%%  It is inspired in part by Hughes's \citeyearpar{hughes:novel-lists}
+%%  representation of lists, which supports a constant-time append operation.
 \item
 Improving on our own prior work, we make all flow-graph
-representations fully polymorphic in the representations of
+types fully polymorphic in the representations of
 assignments and control-flow operations.
-Although our polymorphic representations have been instantiated only
-with the low-level intermediate code used by the Glasgow Haskell
-Compiler, they are intended eventually to be instantiated with
-machine-dependent representations of target-machine instructions, as
-part of a larger project of refactoring GHC's back ends.
-
+%%  Although our polymorphic representations have been instantiated only
+%%  with the low-level intermediate code used by the Glasgow Haskell
+%%  Compiler, they are intended eventually to be instantiated with
+%%  machine-dependent representations of target-machine instructions, as
+%%  part of a larger project of refactoring GHC's back ends.
+%
 Making the control-flow graph polymorphic seems obvious in retrospect,
 but we underestimated the degree to which polymorphism forces us to
 separate concerns.
 Even though at present the polymorphic types have but one instance
 apiece, introducing polymorphism has made the code far simpler, easier
 to understand, and easier to maintain.
-\item
-Judicious use of Haskell type classes makes is possible to write
-weakest precondition or strongest postcondition using the ``transfer
-equations'' that are familiar from compiler textbooks.
-If you like, you can even write overloaded @gen@ and @kill@ functions.
-The benefit is that it is easy to compare the actual code with the
-abstract treatments found in textbooks\ifgenkill \ (\secref{gen-kill})\fi.
+%
+% gen and kill are history
+%
+%%\item
+%%Judicious use of Haskell type classes makes is possible to write
+%%weakest precondition or strongest postcondition using the ``transfer
+%%equations'' that are familiar from compiler textbooks.
+%%If you like, you can even write overloaded @gen@ and @kill@ functions.
+%%The benefit is that it is easy to compare the actual code with the
+%%abstract treatments found in textbooks\ifgenkill \ (\secref{gen-kill})\fi.
 \item
 Finally, we use both polymorphism and type classes to implement a single,
-higher-order framework used to compose analyses and transformations
+polymorphic,
+higher-order ``dataflow engine,'' which composes analyses and transformations
 \cite{lerner-grove-chambers:2002}. 
-\todo{This framework holds all the complexity and hair.  Independent
-  tests considered useful?}
+By~putting the sophisticated algorithms in the dataflow engine, 
+we make it very easy to create a new analysis or transformation:
+create a lattice representation for the assertions that can be
+expressed in the logic;
+create transfer functions that approximate weakest preconditions or
+strongest postconditions;
+and 
+create rewrite functions that use the assertions to justify
+interesting program transformations.
 \end{itemize}
-When combined, these techniques give us a very powerful tool for
-analyzing and transforming low-level imperative code.
-In our code generator, 
-we use this ``big hammer'' not just for code improvement but wherever
-we can.
+These ideas and techniques form a powerful toolkit for
+analyzing and transforming imperative programs.
 
 
 \makeatother
