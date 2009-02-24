@@ -1,3 +1,5 @@
+\newif\ifnoauthornotes\noauthornotesfalse
+
 \newif\ifgenkill\genkillfalse  % have a section on gen and kill
 \genkilltrue
 
@@ -64,7 +66,7 @@
 
 
 
-% Change the defn of \authornote to suppress notes
+% Set \noauthornotestrue to suppress notes
 %\newcommand{\qed}{QED}
 \ifnotesinmargin
   \long\def\authornote#1{%
@@ -76,6 +78,10 @@
   % Simon: please set \notesinmargingfalse on the first line
   \newcommand{\authornote}[1]{{\em #1}}
 \fi
+\ifnoauthornotes
+  \def\authornote#1{\unskip\relax}
+\fi
+
 \newcommand{\simon}[1]{\authornote{SLPJ: #1}}
 \newcommand{\norman}[1]{\authornote{NR: #1}}
 \let\remark\norman
@@ -98,8 +104,8 @@
 \title{Dataflow Optimization Made Simple}
 %\subtitle{\today}
 
-\authorinfo{Jo\~ao Dias}{Tufts University}{dias@cs.tufts.edu}
 \authorinfo{Norman Ramsey}{Tufts University}{nr@cs.tufts.edu}
+\authorinfo{Jo\~ao Dias}{Tufts University}{dias@cs.tufts.edu}
 \authorinfo{Simon Peyton Jones}{Microsoft Research}{simonpj@microsoft.com}
 
 
