@@ -508,9 +508,12 @@ As an example lattice of dataflow facts,
 we present a representation for facts about constant propagation.
 At any program point, a standard constant-propagation analysis
 computes exactly one of the following three
-assertions about a variable~$x$ \simon{I'm hazy about when you
-want to say ``fact'' and when  you want to say ``assertion'', or indeed
-if you intend to distinguish the two at all.}:
+assertions about a variable~$x$:
+\remark{We're a bit careless about distinguishing
+ ``fact'' and ``assertion'', but the general idea is that an
+ ``assertion'' is God's truth in logic and a ``fact'' is an
+ approximation or representation of an assertion.
+Perhaps future revisions will clarify.}
 \begin{itemize}
 \item
 The analysis shows that
@@ -521,14 +524,12 @@ We~notate this assertion as $x = \top$.
 \item
 The analysis shows nothing about~$x$, which we notate $x=\bot$.
 \end{itemize}
-The bottom element of the lattice is~$\bot$, and
+The bottom element of the lattice is~$x=\bot$, and
 the join operation corresponds to disjunction.
 \emph{The logic implied by the
 representation of dataflow facts cannot represent disjunction
 exactly}; instead, a
-disjunction of two inconsistent facts is represented by~$\top$.
-\remark{At some point must talk about how the facts are
-\emph{represented}, e.g., finite map from variable to @Maybe Const@}
+disjunction of two inconsistent facts is represented by~$x=\top$.
 Here are some examples:
 \begin{itemize}
 \item
@@ -540,6 +541,12 @@ $i = 7 \lor i = 8 \equiv i = \top$ (loss of information)
 \end{itemize}
 The lattice  used by the analysis is the Cartesian product of the
 lattices for all the local variables.
+To~represent this lattice, a good choice is a finite map from variable
+to a value of type @Maybe Const@.
+If~a variable $x$ is not in the domain of the map then $x=\bot$;
+if $x$~maps to @Nothing@ then $x=\top$; if $x$~maps to $@Just@\;k$ then
+$x=k$.
+
 Because in any one program there are only finitely many variables,
 only finitely many facts are computed at any program point, 
 and any one fact can increase at most twice.
@@ -547,15 +554,7 @@ Together, these properties
 guarantee that the dataflow engine will
 reach a fixed point.
 
-The client must choose how to represent these assertions. In this
-case, remembering the the assertion at each edge is a conjunction of assertions
-about each in-scope variable, an appropraite choice might be a finite mapping
-\begin{code}
-  type CPFact = Data.Map Var (Maybe Const)
-\end{code}
-If the variable $x$ is not in the domain of the map, then $x=\bot$;
-if it maps to @Nothing@ then $x=\top$; if it maps to $(@Just@~k)$ then
-$x=k$.
+
 
 The dataflow engine uses the lattice join operation in a stylized way.
 Joins occur at labels.
@@ -633,7 +632,8 @@ a~middle node has exactly one predecessor and one successor;
 and a last node has exactly one predecessor and arbitrarily many
 successors. 
 
-The constraints on the graph structure determine the signatures of
+These constraints on number of predecessors and successors determine
+the signatures of 
 transfer functions, 
 which are shown in \figref{transfers}.
 For each type of node (first, middle, last) and for each kind of
@@ -641,10 +641,13 @@ analysis (forward, backward), there is a distinct transfer function.
 Functions are grouped by kind of analysis, and each group is
 parameterized over a dataflow fact of type~@a@ and over the types
 @mid@ and @last@ of middle and last nodes.  
-\simon{Notice that although the
-library fixes the \emph{structure} of the graph, it is the client that
-specifies the \emph{content} of middle and last nodes.}
-\norman{We are having trouble understanding SLPJ's obsession with distinguishing the ``client'' (an entity we wish not to name) from the ``library.''}
+The choice of  @mid@ and
+@last@ types is up to the compiler writer, and it is by means of this
+choice that the compiler writer determine's the intermediate
+representation used for optimization.
+\norman{We are having trouble understanding SLPJ's obsession with
+distinguishing the ``client'' (an entity we wish not to name) from the
+``library'' (another entity we wish not to name} 
 
 
 The type @BlockId@ represents a label.
@@ -685,9 +688,9 @@ For example, in the basic block
 a forward analysis would propagate the fact 
 $@x == 7@ \land @y == 8@$, which we will call $f_{\mathit{new}}$,
 along the edge to~@L2@. 
-\remark{Do we want an example that says 
-$@ft\_middle\_out@\;f = f \land @x == 7@$?}
-\simon{I don't think so.  What is $f$?}
+\remark{We've elected not to get to the level of detail where
+we show how propagating a fact~$f$ through \mbox{@x = 7;@} results in a new
+fact either $(f \setminus @x@) \land @x == 7@$.}
 The dataflow engine then \emph{replaces} the current fact
 at~@L2@~($f_{\mathtt{L2}}$) with the lattice join $f_{\mathit{new}}
 \join f_{\mathtt{L2}}$. 
