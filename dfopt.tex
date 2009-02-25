@@ -482,7 +482,8 @@ used to justify replacing @z = x + y@ with @z = 7 + y@.
 
 Given lattice operations and transfer functions, our
 polymorphic, reusable \emph{dataflow engine} computes a
-set of dataflow facts, one for each edge in the control-flow graph.
+set of dataflow facts, one for each edge in the control-flow graph 
+(\secref{zdfSolveFwd}).
 The set of facts is a fixed point of the transfer functions.
 Given, in addition, a rewrite function for each type of node,
 the dataflow engine implements a semantics-preserving transformation. 
@@ -507,7 +508,9 @@ As an example lattice of dataflow facts,
 we present a representation for facts about constant propagation.
 At any program point, a standard constant-propagation analysis
 computes exactly one of the following three
-assertions about a variable~$x$:
+assertions about a variable~$x$ \simon{I'm hazy about when you
+want to say ``fact'' and when  you want to say ``assertion'', or indeed
+if you intend to distinguish the two at all.}:
 \begin{itemize}
 \item
 The analysis shows that
@@ -544,7 +547,15 @@ Together, these properties
 guarantee that the dataflow engine will
 reach a fixed point.
 
-
+The client must choose how to represent these assertions. In this
+case, remembering the the assertion at each edge is a conjunction of assertions
+about each in-scope variable, an appropraite choice might be a finite mapping
+\begin{code}
+  type CPFact = Data.Map Var (Maybe Const)
+\end{code}
+If the variable $x$ is not in the domain of the map, then $x=\bot$;
+if it maps to @Nothing@ then $x=\top$; if it maps to $(@Just@~k)$ then
+$x=k$.
 
 The dataflow engine uses the lattice join operation in a stylized way.
 Joins occur at labels.
@@ -596,7 +607,7 @@ data BackTransfers mid last a = BackTransfers
 
 
 
-\subsection{Transfer functions}
+\subsection{Transfer functions} \seclabel{tffuns}
 
 A~transfer function is presented with dataflow facts on edges coming
 into a node, and it computes the dataflow facts on outgoing edges.
@@ -613,10 +624,10 @@ location;
 a~typical last node is a conditional, unconditional, or indirect branch.
 \remark{Forward reference?}
 
-Each type of node has its own invariant, which
-constrains the number of predecessors and the number of successors of
-that type of node in the control-flow graph.
-A~first node has arbitrarily many predecessors and exactly one
+First nodes are the only targets of control transfers;
+middle nodes never perform control transfers;
+and last nodes always perform control transfers.
+Hence, a~first node has arbitrarily many predecessors and exactly one
 successor;
 a~middle node has exactly one predecessor and one successor;
 and a last node has exactly one predecessor and arbitrarily many
@@ -629,7 +640,12 @@ For each type of node (first, middle, last) and for each kind of
 analysis (forward, backward), there is a distinct transfer function.
 Functions are grouped by kind of analysis, and each group is
 parameterized over a dataflow fact of type~@a@ and over the types
-@mid@ and @last@ of middle and last nodes.
+@mid@ and @last@ of middle and last nodes.  
+\simon{Notice that although the
+library fixes the \emph{structure} of the graph, it is the client that
+specifies the \emph{content} of middle and last nodes.}
+\norman{We are having trouble understanding SLPJ's obsession with distinguishing the ``client'' (an entity we wish not to name) from the ``library.''}
+
 
 The type @BlockId@ represents a label.
 Because a fact in a forward analysis typically represents an assertion
@@ -637,7 +653,9 @@ about program state, and because passing a label does not change
 program state, the transfer function @ft_first_out@ is typically 
 @flip const@---a variation on
 the
-identity function.
+identity function.\norman{It is not @flip const@ when we do the proc-point
+analysis, but I am not exactly sure how to work this information into
+the text.}  
 \remark{Somewhere we should explain what a fact in a backward analysis
 typically represents}
 For a middle node, the transfer function @ft_middle_out@ is given a
@@ -669,6 +687,7 @@ $@x == 7@ \land @y == 8@$, which we will call $f_{\mathit{new}}$,
 along the edge to~@L2@. 
 \remark{Do we want an example that says 
 $@ft\_middle\_out@\;f = f \land @x == 7@$?}
+\simon{I don't think so.  What is $f$?}
 The dataflow engine then \emph{replaces} the current fact
 at~@L2@~($f_{\mathtt{L2}}$) with the lattice join $f_{\mathit{new}}
 \join f_{\mathtt{L2}}$. 
