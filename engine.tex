@@ -308,6 +308,16 @@ In~that case @solve_tail@ simply calls the transfer function
 The interesting case occurs when the rewrite function 
 @fr_middle rewrites@
 proposes a replacement graph~@g@.
+\remark{Orphaned text:
+and
+a list of facts that hold on edges leaving the graph, which is  
+ extracted using function @zdfFpLastOuts@.
+\iffalse %%% WRONG -- it's the @goto@ that does this...
+In the example above, when the subgraph
+@z = 7 + y@ is analyzed, @zdfFpLastOuts@ will contain
+the pair $(@L2@, @x == 7@ \land @y == 8@)$.
+\fi
+}
 \begin{enumerate}
 \item
 Using the monadic

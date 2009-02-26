@@ -306,10 +306,10 @@ the invariant % line breaking
 so that @i >= n@ if and only if @p >= lim@.
 
 We implement the code improvement as a sequence of transformations.
-After each step, the observable behavior of the program is unchanged,
-and it is possible to generate code (see discussion in \secref{vpoiso}).
+After each transformation, the observable behavior of the program is unchanged,
+and it is possible to generate code (see \secref{vpoiso}).
 %
-Our first step is to declare @p@ and @lim@ and to insert suitable
+Our first transformation declares @p@ and @lim@ and inserts suitable
 assignments. 
 New code is \high{boxed}\,.
 \begin{alltt}
@@ -399,7 +399,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
 \end{alltt}
 
 After the insertion of assignments to @p@~and~@lim@, the substitution
-of equals for equals, the removal of newly redundant assignments
+of equals for equals, the removal of newly dead assignments
 to~@i@, we have ``eliminated the induction variable:''
 \begin{alltt}
 sum_r("address" bits32 a, bits32 n) \lbr
@@ -423,14 +423,16 @@ sum_r("address" bits32 a, bits32 n) \lbr
 
 The goal of dataflow optimization is to compute valid
 assertions, then use those assertions to justify code-improving
-transformations.\remark{We want this whole \S\ on page~2}
-
+transformations.
+%
 % only Don Knuth knows why, but the paragraph break gets us three
 % bullets on this page where a single paragraph gets only two!
-
+%
 Assertions are written in a restricted
 language of \emph{dataflow facts}.
-The connection between dataflow facts and traditional program logic is
+The connection between dataflow facts and
+\ifpagetuning\else traditional \fi
+program logic is
 elucidated in \secref{next-700}, but the most salient points are
 these:
 \begin{itemize}
@@ -729,14 +731,10 @@ The engine is polymorphic in the types of middle and last nodes
 The first three arguments characterize the analysis.
 The next argument is the dataflow fact that holds on entry to the
 graph;
-because the analysis may be run on a graph returned by a rewrite
-function,\remark{forward ref, maybe}
+because a procedure's caller may establish some facts about
+parameters or about the stack,
 this fact
 is not always~$\bot$.
-For example, if a rewrite function proposes to replace 
-@z = x + y@ with @z = 7 + y@, an analysis will be run on the one-node
-graph @z = 7 + y@ with input fact
-$@x == 7@ \land @y == 8@$.
 The last argument to @zdfSolveFwd@ is the graph, and the result is a 
 fixed point.\footnote
 {The type of @zdfSolveFwd@ has pedagogical lies;
@@ -745,17 +743,9 @@ that I've deliberately conflated the three representations of graphs.}
 
 The @ForwardFixedPoint@ data structure is a big bag
 of information about the solution.
-The most significant information includes
+The most significant information is
 a finite map from each block label to the dataflow fact that holds at
-the label, which is extracted using function @zdfFpFacts@;
-and
-a list of facts that hold on edges leaving the graph, which is  
- extracted using function @zdfFpLastOuts@.
-\iffalse %%% WRONG -- it's the @goto@ that does this...
-In the example above, when the subgraph
-@z = 7 + y@ is analyzed, @zdfFpLastOuts@ will contain
-the pair $(@L2@, @x == 7@ \land @y == 8@)$.
-\fi
+the label, which is extracted using function @zdfFpFacts@.
 
 
 
@@ -1398,6 +1388,14 @@ reduces to @extendAvail avail x@.
 
 
 \section{Using dataflow facts to rewrite graphs, with examples}
+
+\remark{Orphaned text:
+Analyzing a subgraph also uses a non-bottom entry fact.
+For example, if a rewrite function proposes to replace 
+@z = x + y@ with @z = 7 + y@, an analysis will be run on the one-node
+graph @z = 7 + y@ with input fact
+$@x == 7@ \land @y == 8@$.
+}
 
 \seclabel{example-rewrites}
 
