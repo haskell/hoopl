@@ -573,19 +573,34 @@ $i = 7 \lor i=\bot \equiv i=7$ (no loss of information)
 \item
 $i = 7 \lor i= 7 \equiv  i=7$ (no loss of information)
 \item
-$i = 7 \lor i = 8 \equiv i = \top$ (loss of information)
-\end{itemize}
-The compiler writer gets to choose how much information is lost;
-in a different analysis, it might be useful to 
-enable the compiler to say
-that the value of a variable is one of,
-say, at most three constants.
-\remark{This sentence is here to make Simon
-happy; if it does not do its job, out it goes!}
+$i = 7 \lor i = 8 \equiv i = \top$ (loss of information)\footnote
+{The compiler writer gets to choose how much information is lost.
+For example, if doing a similar analysis for a functional language,
+a~compiler writer might wish to track whether a value~$v$ is known to
+be the application of a value constructor~$C_i$.
+In this analysis, there's no need to limit the representation to a
+single constructor or to~$\top$;
+the compiler writer could choose to represent such facts as ``$v$~is
+the application of a constructor drawn from the set $\{C_1, C_2,
+C_4\}$.''
+Because every algebraic data structure has finitely many constructors,
+there are finitely many sets and therefore finitely many facts in the
+lattice, so a dataflow analysis over this lattice will always reach a
+fixed point.
+}
+%%  The compiler writer gets to choose how much information is lost;
+%%  in a different analysis, it might be useful to 
+%%  choose a lattice which can say
+%%  that the value of a variable is one of,
+%%  say, at most three constants.
 \simon{What is ``the compiler''?  The library or the client?
 Also the ``the logic implied by the representation of the dataflow facts cannot represent
 disjunction''.  So we have the compiler, the logic, and the representation all swirling
 about in my head.  I don't think we can fix my problem by a few words here; so out it goes.}
+\remark{We'll try to get our terminology sorted.
+Meanwhile, please let me know if the footnote adds anything.}
+
+\end{itemize}
 
 The lattice  used by the analysis is the Cartesian product of the
 lattices for all the local variables.
@@ -601,7 +616,6 @@ and any one fact can increase at most twice.
 Together, these properties
 guarantee that the dataflow engine will
 reach a fixed point.
-
 
 
 The dataflow engine uses the lattice join operation in a stylized way.
