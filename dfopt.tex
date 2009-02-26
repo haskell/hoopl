@@ -910,8 +910,10 @@ middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail
                  | l `isStackSlotOf` x = extendAvail avail x
 middleAvail (MidAssign lhs _expr) avail = 
   foldVarsDefd delFromAvail avail lhs  -- remove variables defined in 'lhs'
-middleAvail (MidStore {})         avail = avail
-middleAvail (MidComment {})       avail = avail
+middleAvail (MidStore l (CmmReg (CmmLocal r))) avail
+                 | l `isStackSlotOf` r = avail
+middleAvail (MidStore (CmmStackSlot (RegSlot r) _) _) avail = delFromAvail avail r
+middleAvail (MidStore {}) avail = avail
 
 lastAvail :: Last -> AvailVars -> LastOuts AvailVars
 lastAvail (LastCall _ (Just k) _ _) _ = LastOuts [(k, AvailVars emptyVarSet)]
@@ -1193,8 +1195,8 @@ The dataflow fact that corresponds to a conjunction of assertions of
 this form is a set of variables~$X$ such that \mbox{$\forall x \in X \mathrel
 : (\tempof x = \slotof x \wedge (\mathit{lastDef}(\tempof x) = \tempof x @=@ \slotof x))$}.
 The lattice-join operation is set intersection,\footnote
-{A variable $x = \slotof x$ at a label~@L@ if and
-only if $x = \slotof x$ on every control-flow edge coming into~@L@.}
+{A variable $\tempof x = \slotof x$ at a label~@L@ if and
+only if $\tempof x = \slotof x$ on every control-flow edge coming into~@L@.}
 and the bottom element
 is the universal set containing all variables.
 \simon{I'm puzzled about why you are treating this example so differently
@@ -1282,10 +1284,10 @@ add @(Case 1)@ and @(Case 2)@ to the code we have an unambiguous URL?}
 identifies an assignment that reloads local
 variable~@x@ from its stack slot.\remark{I propose the compiler be
 modified to use @isStackSlotOf@ as I've written. JD~approves.}
-After such an assignment $@x@ = \slotof{\mathtt{x}}$, and no other variable
-is affected, so @x@~is added to the set of available
-variables.\remark{I'm not sure @agen@ and 
-@akill@ are helping the exposition.}\simon{Comment out of date?}
+After such an assignment $\tempof x = \slotof x$,
+and the last definition of $tempof x$ is a reload,
+so @x@~is added to the set of available variables.
+% No other variable is affected.
 \item
 In the next case, an assignment to a local variable means that the
 variable is no longer necessarily equal to the value in its stack
@@ -1296,23 +1298,31 @@ is overloaded?  It's an unnecessary distraction.} function which, in this
 instance, calls @delFromAvail@ if @lhs@ is a local variable and does
 nothing if @lhs@ is a hardware register.
 \item 
-In the other cases, comments and stores to memory don't affect the set
-of available variables.
-\footnote
-{Although @MidStore@ may overwrite a stack slot \slotof x, GHC
-carefully arranges that all stores to \slotof x have the form
-$\slotof{\mathtt{x}}= @x@$.
-These stores could be used to extend the set of available variables,
-but it is not useful to do so.}\simon{Why not? asks the reader.  Perhaps
-because such saves immediately precede calls?}
-\remark{How do we know that @MidStore@ doesn't
-destroy a stack slot??  I've put in a footnote but it will probably be
-simpler to fix the code.}
-\simon{Ah, this harks backe to the start of this sub-section, where
-we say ``to understand the analysis, you must know that...''.  Another
-thing you must know is that $s_x$ is used exclusively for $x$.  That's
-all, I think.}
+There are three cases for @MidStore@ nodes.
+The first case matches a node that spills a variable $x$ to the stack.
+After such a node, $\tempOf x = \slotOf x$,
+but there is no guarantee that $\tempOf$ was defined by a reload instruction,
+so $x$ is not added to the set of available variables.
+
+
+
+% \footnote
+% {Although @MidStore@ may overwrite a stack slot \slotof x, GHC
+% carefully arranges that all stores to \slotof x have the form
+% $\slotof{\mathtt{x}}= @x@$.
+% These stores could be used to extend the set of available variables,
+% but it is not useful to do so.}
+% \simon{Why not? asks the reader.  Perhaps
+% because such saves immediately precede calls?}
+% \remark{How do we know that @MidStore@ doesn't
+% destroy a stack slot??  I've put in a footnote but it will probably be
+% simpler to fix the code.}
+% \simon{Ah, this harks backe to the start of this sub-section, where
+% we say ``to understand the analysis, you must know that...''.  Another
+% thing you must know is that $s_x$ is used exclusively for $x$.  That's
+% all, I think.}
 \end{itemize}
+\john{I've expunged MidComment from our example}
 
 
 The transfer function for a last node checks to see if the node is a
