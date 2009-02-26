@@ -1,3 +1,5 @@
+\newif\ifpagetuning \pagetuningtrue  % adjust page breaks
+
 \newif\ifnoauthornotes\noauthornotesfalse
 
 \newif\ifgenkill\genkillfalse  % have a section on gen and kill
@@ -112,12 +114,12 @@
 \maketitle
  
 \begin{abstract}
-We present an interface that makes it easy for compiler writers
+We present a design that makes it easy for compiler writers
 to implement program transformations based on dataflow analyses.
 The compiler writer must identify (a)~a family of logical assertions
 on which the transformation will be based;
 (b)~an \emph{approximate} representation of such assertions, which
-must be given a lattice structure such that every assertion can be increased at
+must have a lattice structure such that every assertion can be increased at
 most finitely many times;
 (c)~transfer functions that approximate weakest preconditions or
 strongest postconditions over the assertions; and
@@ -126,7 +128,7 @@ To~guide the compiler writer,
 we show how dataflow analyses are related to
 seminal work on program 
 correctness. 
-Finally, we have implemented our interface using the
+Finally, we have implemented our design using the
 algorithm of 
 \citet{lerner-grove-chambers:2002}, which enables the compiler writer to
 compose very simple analyses and transformations in a way that achieves
@@ -140,21 +142,22 @@ back end for the Glasgow Haskell Compiler.
 
 \section{Introduction}
 
-Anyone writing a compiler for an imperative language gets the benefit
-of over forty years' work on code improvement, also called
+Anyone writing a compiler for an imperative language benefits
+from over forty years' work on code improvement, also called
 ``optimization.''
-But the way this work is typically presented annoys us: 
-we see a large collection of apparently unrelated analyses and
-transformations, each with its own name---who remembers the difference
-between ``copy propagation'' and ``constant propagation,'' anyway?
-The typical treatment obscures fundamental principles of
+But the work is typically presented
+as a large collection of apparently unrelated analyses and
+transformations, each with its own name---and not everyone can easily
+remember the difference 
+between
+such names as
+``copy propagation'' and ``constant propagation.''
+Typical treatments obscure fundamental principles of
 code improvement.
 
 %The contribution of this paper is to elucidate a large body of work on code
 %improvement; the body of work known as ``dataflow optimization.''
 This paper makes two contributions:
-\remark{Look up and see if ``dataflow optimization is a real term or
-  if we want something else}
 \begin{itemize}
 \item
 We show that the ad-hoc ``optimization zoo'' consists mostly of special
@@ -163,41 +166,41 @@ by semanticists and functional programmers:
 assertions about states, assertions about continuations, and
 substitution of equals for equals (\secref{next-700}).
 What distinguishes dataflow optimization from classic formal reasoning
-about programs is that in dataflow optimization, the assertions are
+about programs is that in dataflow optimization, all assertions are
 computed automatically, and they are
 \emph{approximated}. 
 \item
 We embody our ideas in an implementation that makes it not just
 possible but \emph{easy} to adapt imperative, dataflow-based
 code-improvement techniques to a purely functional compiler.
-We~write analyses and transformations in such a way that
+We~write analyses and transformations so that
 the code which is specific to a particular analysis is small, simple,
 and easy to get right.
-The complex part of dataflow optimization, which is difficult to get right, is
+The complex part of dataflow optimization, which is hard to get right, is
 written once and is shared by all analyses and transformations.
 \end{itemize}
 
-We consider code improvements only over low-level
-imperative codes, emcompassing both intermediate languages and machine
+We consider code improvements over low-level
+imperative codes, including intermediate languages and machine
 languages.
 As \citet{benitez-davidson:portable-optimizer} have shown, all the
 classical scalar and loop optimizations can be performed over such
 codes.
-Moreover, any functional program compiled to native code must
-eventually translate to such a code.
+Moreover, any compiled functional program is
+translated to such a code.
 
 
 We introduce the subject by analyzing and transforming example code in
 \secref{example:xforms},
-showing how we think about and justify classical optimizations using
-Hoare logic and the substitution of equals for equals.
+thinking about and justifying classical optimizations using
+Hoare logic and substitution of equals for equals.
 To~support our claim that we make dataflow optimization easy, 
 we spend most of the paper explaining how
 a compiler writer creates new dataflow analyses or transformations
 (\secref{making-simple}) and showing complete implementations of significant
 analyses (\secref{example-analyses}) and transformations
 (\secref{example-rewrites}) from the Glasgow Haskell compiler.
-We spend less space, in \secref{engine}, on the shared implementation.
+We spend less space on the shared implementation (\secref{engine}).
 
 
 \section{Dataflow analysis {\&} transformation by \rlap{example}}
@@ -210,29 +213,26 @@ by assertions about the program;
 such assertions are typically computed using
 strongest postconditions or weakest liberal preconditions.
 The most typical transformations are
-insertion of redundant assignments,
-substitution of
-equals for equals, 
+insertion of assignments to unobserved variables,
+substitution of equals for equals, 
 and
-removal of redundandant assignments,
+removal of assignments to unobserved variables,
 all of which preserve semantics.
-(Insertion and removal are often composed to achieve the effect called
-``code motion,'' as done by \citet{knoop:lazy-code-motion}, for example.) 
+Insertion and removal are often composed to achieve the effect called
+``code motion,'' as done by \citet{knoop:lazy-code-motion}, for example.
 The examples below express classical code
 improvements by composing small analyses and transformations.
 
 
 
-\newcommand\exampletransform{\subsection}
-
-
-\exampletransform{Simple transformations}
+\subsection{Simple transformations}
 
 \seclabel{constant-propagation}
 
 Here is a sequence of three assignments separated by assertions.
 We compute the assertions by starting with the weakest possible
-assertion (@true@) and computing strongest postconditions.\footnote
+assertion (@true@) and computing strongest postconditions.
+% \footnote
 {Variables do not alias.}
 \begin{verbatim}
     { true }
@@ -251,17 +251,19 @@ equals, leaving the final assignment as
 \begin{verbatim}
   z = 15;
 \end{verbatim}
-This transformation, although another instance of substituting equals
+This transformation, although also an instance of substituting equals
 for equals, has a different name: ``constant folding.''
 
-\exampletransform{A complex transformation}
+\subsection{A complex transformation}
 
 \seclabel{induction-var-elim}
 
+\ifpagetuning \enlargethispage{-1\baselineskip} \fi
+
 The loop optimization known as ``induction-variable elimination'' is
 actually a collection of simple transformations.
-We begin by showing a simple loop written in the style of FORTRAN,
-although the code is~C code:
+We begin by showing a simple loop, FORTRAN style,
+although the code is~C:
 \begin{verbatim}
   struct pixel { double r, g, b; };
   double sum_r(struct pixel a[], int n) {
@@ -778,42 +780,6 @@ class DataflowSolverDirection
 
 
 
-%%  \subsection{Leftover junk}
-%%  
-%%  \begin{itemize} 
-%%  \item
-%%  
-%%  \item
-%%   for first, middle, and last nodes;
-%%  if $F$~represents a logical assertion about program state, it is
-%%  sufficient that the strongest postcondition imply the output of each
-%%  transfer function.
-%%  \item
-%%  \item
-%%  The main part of the implementation of the dataflow framework is the
-%%  \emph{dataflow engine}.
-%%  The dataflow engine may be used with a analysis pass,
-%%  in which case it sets up the recursion equations implied by the
-%%  transfer functions and finds a solution by iterating to a fixed point.
-%%  The solution is represented by a finite map giving the dataflow fact
-%%  at each label; other facts can be reconstructed using the transfer functions.
-%%  
-%%  The dataflow engine may also be used to \emph{interleave} analysis
-%%  with transformation, in which case
-%%  it not only solves the dataflow equations but may also rewrite the
-%%  graph  \cite{lerner-grove-chambers:2002}. 
-%%  %%%%\item
-%%  %%%%The ease with which the framework can be used is determined by the
-%%  %%%%\emph{interface} between the dataflow engine and the client passes.
-%%  
-%%  \item
-%%  
-%%  %\item
-%%  Dataflow facts before and after nodes are related by \emph{transfer
-%%  functions}.
-%%  
-%%  
-%%  \end{itemize}
 %%  The main contribution of this paper is to present an interface which
 %%  enables many powerful program transformations based on dataflow
 %%  analysis while keeping the individual dataflow passes as simple as
@@ -2353,7 +2319,9 @@ interesting program transformations.
 \end{itemize}
 These ideas and techniques form a powerful toolkit for
 analyzing and transforming imperative programs.
-
+With this toolkit, a compiler writer can quickly get to the real
+intellectual work of code improvement: identifying interesting
+transformations and the assertions that can justify them.
 
 \makeatother
 
