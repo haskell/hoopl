@@ -429,7 +429,7 @@ transformations.
 % bullets on this page where a single paragraph gets only two!
 %
 Assertions are written in a restricted
-language of \emph{dataflow facts}.
+language of \emph{dataflow facts}.\john{Almost sounds like we're restricting the language}
 The connection between dataflow facts and
 \ifpagetuning\else traditional \fi
 program logic is
@@ -437,10 +437,20 @@ elucidated in \secref{next-700}, but the most salient points are
 these:
 \begin{itemize}
 \item
-A dataflow fact is equivalent to an assertion about program state or
-about a continuation.
-For example, in \secref{constant-propagation}, @x == 7@ is a dataflow
-fact. 
+% A dataflow fact is equivalent to an assertion about program state or
+% about a continuation.
+% For example, in \secref{constant-propagation}, @x == 7@ is a dataflow
+% fact that describes the program state. 
+There are two kinds of dataflow facts.
+The first kind is an assertion about the paths from the procedure
+entry to a program point.
+An important special case is an assertion about program state,
+like the dataflow fact @x == 7@ in \secref{constant-propagation}.
+
+The other kind is an assertion about paths from the program point
+to the procedure exit.
+These dataflow facts are referred to as assertions on
+the \emph{continuation} of the procedure.
 \item
 Each analysis or transformation may use a different language of
 dataflow facts.
@@ -546,7 +556,7 @@ $i = 7 \lor i = 8 \equiv i = \top$ (loss of information)
 \end{itemize}
 The compiler writer gets to choose how much information is lost;
 in a different analysis, it might be useful to 
-\ifpagetuning{\vadjust{\break}}\fi
+% \ifpagetuning{\vadjust{\break}}\fi
 enable the compiler to say
 that the value of a variable is one of,
 say, at most three constants.
@@ -1254,7 +1264,7 @@ Except for the implementations of the set operations on @AvailVars@,
 
 The assertion computed by 
 a backward dataflow analysis typically applies to a
-\emph{continuation} at a program point, not to a state.
+\emph{continuation} at a program point, not to a state.\john{Why ``typically?''}
 The classic example is liveness analysis;
 the logical fact of interest is that at a particular program point,
 the answer produced by the continuation does not depend on
@@ -2218,6 +2228,7 @@ properties of program states; some relate properties of continuations.
 When looking at properties of program states, we consider only two
 relations: weakest liberal precondition and strongest 
 postcondition.
+\john{Why is this tied to program states only?}
 In the compiler literature, these relations correspond respectively to
 ``backward dataflow problems'' and ``forward dataflow problems.''
 %%  \item
