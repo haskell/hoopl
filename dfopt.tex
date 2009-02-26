@@ -443,14 +443,35 @@ these:
 % fact that describes the program state. 
 There are two kinds of dataflow facts.
 The first kind is an assertion about the paths from the procedure
-entry to a program point.
-An important special case is an assertion about program state,
+entry to a program point;
+these facts are computed by a forward dataflow analysis.
+An important special case is an assertion on the program state,
 like the dataflow fact @x == 7@ in \secref{constant-propagation}.
+An assertion on the program state is enough to justify
+most semantics-preserving transformations,
+but to decide whether a transformation will improve the code,
+we sometimes need an assertion that describes how the program
+state was established.\john{Maybe this goes later, in our example.}
 
-The other kind is an assertion about paths from the program point
-to the procedure exit.
+The second kind is an assertion about paths from the program point
+to the procedure exit;
+these facts are computed by a backward dataflow analysis.
 These dataflow facts are referred to as assertions on
 the \emph{continuation} of the procedure.
+\simon{Shall we mention that typically forward
+analysis use the former and backwards the latter?}
+\simon{Side remark (not for paper): I was wondering about the difference
+between ``state'' and ``continuation'', why so different?  Actually it
+is perhaps not so different.  In a backward analysis, an 
+assertion tells you something about what will happen from this 
+program point onwards; in a forward analysis the assertion tells you
+something about what has happened up to this point.
+In general, a forward analysis could compute more stuff than assertions
+about the program state at this moment in time; for example, you could
+approximate the number of times a variable x has been written so far, something
+that would not normally be considered part of the ``state'' of the program.
+Now the two look more dual.}
+\john{Indeed, this was a problem. I think we've addressed the latter comment now.}
 \item
 Each analysis or transformation may use a different language of
 dataflow facts.
@@ -562,6 +583,10 @@ that the value of a variable is one of,
 say, at most three constants.
 \remark{This sentence is here to make Simon
 happy; if it does not do its job, out it goes!}
+\simon{What is ``the compiler''?  The library or the client?
+Also the ``the logic implied by the representation of the dataflow facts cannot represent
+disjunction''.  So we have the compiler, the logic, and the representation all swirling
+about in my head.  I don't think we can fix my problem by a few words here; so out it goes.}
 
 The lattice  used by the analysis is the Cartesian product of the
 lattices for all the local variables.
@@ -768,13 +793,14 @@ fixed point.\footnote
 {The type of @zdfSolveFwd@ has pedagogical lies;
 truth is told in~\secref{engine-truth}.}\remark{One of the lies is
 that I've deliberately conflated the three representations of graphs.}
+\simon{We need to explain the @LastNode l@ type class.}
 
 The @ForwardFixedPoint@ data structure is a big bag
 of information about the solution.
 The most significant information is
 a finite map from each block label to the dataflow fact that holds at
 the label, which is extracted using function @zdfFpFacts@.
-
+\simon{I really want type signatures for these two.}
 
 
 
@@ -952,7 +978,9 @@ below.
 These analyses help solve a real problem in the Glasgow Haskell
 Compiler:
 there are no callee-saves registers, so at each call site, all live
-variables must be spilled to the stack.
+variables must be spilled to the stack. \simon{Perhaps, in GHC's defence, 
+we can remark that the absence of callee-saves is not mere stupidity; it's becuase
+tail calls are dominant, and callee-saves makes no sense in that case.}
 In order to reduce register pressure,
 such variables are spilled as early as possible and reloaded as late as possible.
 
@@ -1001,12 +1029,15 @@ expression @z + x@.
  On the control-flow path to @return z@, @x@~needn't be reloaded
 at all.
 
-Getting spills and reloads in the right places requires the
+Getting spills and reloads in the right places requires\simon{``Requires'' is too strong.
+This is simply how we have chosen to implement it.  You are making it sound
+ineluctable.} the
 composition of several dataflow passes:
 \begin{enumerate}
 \item
 A backward transformation inserts reloads immediately after each call
-site.
+site.\simon{It is backward because it is doing a live-variable analysis
+to identify which variables should be reloaded.}
 The same pass inserts spills not immediately before call sites, but
 rather immediately after the appropriate reaching definitions.
 \item
@@ -1014,7 +1045,13 @@ rather immediately after the appropriate reaching definitions.
 A second pass inserts redundant reloads immediately before the
 reloaded variables are used.
 By keeping variables on the stack longer, this pass reduces register
-pressure.
+pressure.\simon{Why is the second pass a second pass?  The first
+pass added spills and reloads in; could the first pass not have 
+added the reloads immediately before the
+reloaded variables are used as well?  Maybe the text can say?
+I think the answer is that this is a \emph{forwards} analysis, since
+it is propagating forward the information about which variables currently
+have an up-to-date stack slot.}
 \item
 \label{remove-dead-reloads}
 A final pass, dead-assignment elimination, removes redundant reloads.
@@ -1027,10 +1064,15 @@ pass~\ref{reload-duplication};
 pass~\ref{reload-duplication} itself is described in
 \secref{sink-reloads}, and 
 pass~\ref{remove-dead-reloads} is described in
-\secref{dead-code-elimination}.
+\secref{dead-code-elimination}. \simon{I would put the forward references
+to the sub-sections in the bullets themselves; they are more easy to find there.
+Do we describe pass 1 at all? If not, let's say that we don't.}
 
 
 \subsection{Available variables: a forward analysis} 
+\simon{I totally lose the flow here.  So passes 2 and 3 are described later in Section 6.
+So what is Section 4.1 doing?  Is it connected to passes 1,2,3 just described?
+The preceding text makes no mention of an ``available variables'' analysis.}
 
 \seclabel{avail}
 
@@ -1122,6 +1164,11 @@ GHC-ism, but there's a slippery slope here\ldots}
 If the stack slot is up to date, that is if $x = \slotof x$,
 then it is safe to insert a reload without changing the observable
 behavior of the program.
+\simon{How can the sltack slot be ``out of date''?  
+There are two ways:
+x might change, or the stack slot might change.  However, by keeping the
+stack slot live whenever x is, we arrange that only the former can happen,
+which simplifies the analysis.}
 The logical assertion of interest therefore takes the form $x = \slotof x$.
 The dataflow fact that corresponds to a conjunction of assertions of
 this form is a set of variables~$X$ such that $\forall x \in X \mathrel
@@ -1131,6 +1178,14 @@ The lattice-join operation is set intersection,\footnote
 only if $x = \slotof x$ on every control-flow edge coming into~@L@.}
 and the bottom element
 is the universal set containing all variables.
+\simon{I'm puzzled about why you are treating this example so differently
+to constant-prop in Section 3.1.  It looks almost identical to me.  We could
+keep a fact for every variable: $x=\bot$ means nothing is known; $x=s_x$ means
+x's stack slot is up to date; $x=\top$ means x's stack slot is out of date.
+Then keep a finite map as we do for constant prop.  If there is a difference
+that drives the rep you have here, let's say so. If the difference is
+purely accidental, we should eliminate it.  (Or maybe we don't have time, in
+which case we should remark that there is no diff.)}
 Because universal sets can be awkward to manipulate, we represent a
 set using one of two alternatives
 (see~\figref{avail-lattice}):
@@ -1159,6 +1214,16 @@ The bottom element is @UniverseMinus emptyVarSet@.
 %%  the early reload.
 
 To manipulate sets of variables, we provide these functions:
+\simon{Whoa!  We've moved from sets of \emph{assertions} to 
+sets of \emph{variables}. I see what you are doing, but it's a bit slippery.
+How about saying this: 
+(a) the dataflow fact on an edge is the set of
+variables whose stack slots are up to date; 
+(b) the interpretation of such set S is that $x=s_x$ for each $x\in S$.
+(I'm not sure the ``interpretation'' makes it clearer; I'd be happy with (a).)}
+\simon{Under my, perhaps defective, understanding of the preceding note,
+I'm now confused why it's right to start with the (dangerous) assumption that
+every variable has an up-to-date stack slot (the bottom element).}
 \begin{itemize}
 \item \texttt{extendAvail~~s~x}: Add variable @x@ to the set~@s@
 \item \texttt{delFromAvail~s~x}: Remove variable @x@ from the set~@s@
@@ -1167,6 +1232,10 @@ To manipulate sets of variables, we provide these functions:
 \item \texttt{smallerAvail~s s'}: Check if set~@s@ is smaller than @s'@
 \end{itemize}
 The implementations use analogous operations on @VarSet@s.
+\simon{On my second pass I noticed for the first time that the
+types of thes operations are given in Fig 3.  Let's say so!  
+Indeed, there is no need to repeat them all here: just add 
+brief comments to the type signatures.}
 
 %%In~the lattice of available reloads (\figref{avail-lattice}),
 %%the~join is computed by taking the intersection of two sets
@@ -1184,21 +1253,27 @@ The implementations use analogous operations on @VarSet@s.
 
 The most interesting part of the pass is the @middleAvail@ transfer
 function in \figref{avail-transfers}.
+\simon{Hang on!  We have not discussed the data type for middle or last nodes, 
+yet they are essential to understand the code. This is a tough
+one, because there is a fair amoutn to say.}
 \begin{itemize}
 \item
-The first case identifies an assignment that reloads local
+The first case \simon{``first case''/``second case'' is easier when writing than reading.  Could we
+add @(Case 1)@ and @(Case 2)@ to the code we have an unambiguous URL?} 
+identifies an assignment that reloads local
 variable~@x@ from its stack slot.\remark{I propose the compiler be
 modified to use @isStackSlotOf@ as I've written. JD~approves.}
 After such an assignment $@x@ = \slotof{\mathtt{x}}$, and no other variable
 is affected, so @x@~is added to the set of available
 variables.\remark{I'm not sure @agen@ and 
-@akill@ are helping the exposition.}
+@akill@ are helping the exposition.}\simon{Comment out of date?}
 \item
 In the next case, an assignment to a local variable means that the
 variable is no longer necessarily equal to the value in its stack
 slot, so if @lhs@ is a local variable, it is removed from the set of
 available variables.
-Function @foldVarsDefd@ is an overloaded function which, in this
+Function @foldVarsDefd@ is an overloaded \simon{Do we have to say that it
+is overloaded?  It's an unnecessary distraction.} function which, in this
 instance, calls @delFromAvail@ if @lhs@ is a local variable and does
 nothing if @lhs@ is a hardware register.
 \item 
@@ -1209,15 +1284,21 @@ of available variables.
 carefully arranges that all stores to \slotof x have the form
 $\slotof{\mathtt{x}}= @x@$.
 These stores could be used to extend the set of available variables,
-but it is not useful to do so.}
+but it is not useful to do so.}\simon{Why not? asks the reader.  Perhaps
+because such saves immediately precede calls?}
 \remark{How do we know that @MidStore@ doesn't
 destroy a stack slot??  I've put in a footnote but it will probably be
 simpler to fix the code.}
+\simon{Ah, this harks backe to the start of this sub-section, where
+we say ``to understand the analysis, you must know that...''.  Another
+thing you must know is that $s_x$ is used exclusively for $x$.  That's
+all, I think.}
 \end{itemize}
 
 
 The transfer function for a last node checks to see if the node is a
-function call; if so, as for the foreign call, the set of
+function call; if so, as for the foreign call \simon{Implies that we have 
+discussed foreign calls, which we have not.}, the set of
 available variables is empty on every outgoing control-flow edge.
 Other last nodes do not change values of variables or stack slots, 
 so the set of available variables remains unchanged.
@@ -1256,9 +1337,14 @@ a finite map from basic-block IDs to the set of available reloads
 at the beginning of each block.
 Except for the implementations of the set operations on @AvailVars@,
 \figref{avail} shows the \emph{entire} analysis.
-
+\simon{First mention of @BlockEnv@; it would be easier if
+we'd earlier given the type signature for @zdfFpFacts@.}
 
 \subsection{Liveness: a backward analysis} 
+\simon{To my mind 4.2 is easier to understand than 4.1. It's a totally
+well-known analysis.  Can we re-order to put it first?}
+\simon{Same question as in current 4.1: what is the connection to
+passes 1,2,3?}
 
 \seclabel{liveness}
 
@@ -1289,10 +1375,18 @@ live variables.
 The bottom element of the lattice is the empty set, and the join
 operation is set union (\figref{live-lattice});
 a~variable is deemed live if it is live on \emph{any} edge leaving a
-node.
+node. \simon{You mean ``deemed live after the node if it is live on any edge...''.
+You don't mean ``deemed live on entry to the node..'' (think of assignments).
+It's a bit tricky to state this clearly I grant you.}
 
 The transfer functions for liveness rely on two auxiliary functions
-@addUsed@ and @remDefd@.
+@addUsed@ and @remDefd@ \simon{...whose type signatures (but not implementations)
+are given in Figure xx.}.
+\simon{I suggest that we give more explicit
+references into the code, mentioning the functions @middleLiveness@, and 
+using @(1)@ etc as URLs.  Also the ``@l@'' in @middleLiveness@ should surely
+be an ``@m@''!  Even then it's a bit confusing becuase we have last-nodes and liveness,
+both of which start with ``@l@''.  Oh well.}
 A~transfer function is given a set of variables live on the edges
 going out of the node, and it removes from that set any variable
 defined by the node, then adds to the set any variable used by the
@@ -1340,6 +1434,9 @@ at the beginning of each block.
 (The overloaded functions
 @foldVarsUsed@ and @foldVarsDefd@ are used throughout the back end and
 should not be considered part of liveness analysis.)
+\simon{Please let us give their types somewhere!  Every function
+should have either a type signature, or a tpye and an implementation. Otherwise
+the code becomes opaque.}
 
 %%  Each transfer function takes an instruction and
 %%  the set of live registers in the instruction's continuation (the \liveout\ set);
@@ -1384,6 +1481,13 @@ should not be considered part of liveness analysis.)
 
 \ifgenkill
 \section{Writing transfer functions using \texttt{gen} and \texttt{kill}}
+\simon{I totally misunderstood this section.  When talking to
+Norman I gained new understanding, as follows.  Instead of writing transfer
+functions, you can write gen and kill; from gen and kill we can derive
+the transfer functions in a standard way (ie library code).  So, if you 
+like (and dragon bookers may) you can write gen and kill instead of
+transfer functions.  (The title of the section is fine; it's the content
+that I did not understand.}
 
 \seclabel{gen-kill}
 
@@ -1399,7 +1503,10 @@ In~fact the functions @addUsed@ and @remDefd@ in \figref{liveness}'s
 liveness analysis correspond directly to the traditional @gen@ and
 @kill@ functions.
 In the available-variables analysis of \figref{avail}, @gen@ and
-@kill@ can be defined as follows:
+@kill@ can be defined as follows: \simon{The @smallcode@ is affecting
+line spacing in the previous para.  I fixed this but you undid my change.
+Do you really intend this?  As I recall, the trick is to use @\par{ ...}\par@
+aroud the block}.
 \begin{smallcode}
 gen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
 kill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
@@ -1413,7 +1520,6 @@ case of a local variable is the identity function, so @gen x avail@
 reduces to @extendAvail avail x@.
 
 \fi
-
 
 \section{Using dataflow facts to rewrite graphs, with examples}
 
@@ -1539,6 +1645,36 @@ dataflow-engine function @zdfRewriteFwd@ to compute a solution:
 %%      -> DFMonad (fixedpt m l a (Graph m l))
 %%
 %%
+\simon{But what does it DO?  Something like this, for a forward
+write.  The engine traverses each block in a forward direction,
+using the transfer functions to propagate facts forward.
+At each node the engine applies the rewrite function,
+passing to the latter the fact at the entry (in the forward case)
+to the node.  If the rewrite function asks for a rewrite (by returning
+$@Just@~g$), the node is replaced by $g$ and (in the case of deep rewriting),
+the process continues with $g$.  (In the case of shallow, we skip $g$; oh
+we have to apply the transfer functions I guess.)
+
+But do we apply rewrites even before the analysis reaches a fixed point?
+If so, what property do the rewrites have to satisfy to ensure soundness?
+If not, even a single rewrite might destroy the fixed-point property of the
+current facts.  Or perhaps we iterate the analysis to a fixpoint, and only \emph{then}
+do rewriting? If so, do we need the transfer functions at that stage?
+
+Also the fixed-point of the analysis relies on upward chains. What if
+the rewrite pushed it downward?  Or is it the case that a rewrite must
+change a node $n$ into a graph $g$ so 
+that $\mathit{fwdtrans}(n) \leq \mathit{fwdtrans}(g)$?
+
+Also the fixpoint calculation requires multiple passses; do the 
+rewrites then apply multiple times?
+
+I'm deliberately playing the role of the reader here, and not peeking at
+the code.  I don't think it's enough to say ``go look at Chambers paper''; 
+I suggest we say enough (half a column would do it) to address the obvious
+questions and point to Chambers for details.
+}
+
 The rewriting function is like the @zdfSolveFwd@ function in
 \secref{zdfSolveFwd}, but it uses and produces extra
 information.\seclabel{engine-truth} 
@@ -1565,13 +1701,17 @@ type @ForwardFixedPoint m l fact a -> a@.
 Here the type parameter~@a@ is instantiated so that the fixed point
 contains the rewritten graph;
 in the solver, @a@~is instantiated with
-the unit type~@()@.
+the unit type~@()@. \simon{I'm afraid I do not understand this bullet
+at all.}
+\simon{Minor point worth fixing: I think the @fact@ parameter here
+is the @a@ parameter used in the earlier lies.  Better to use 
+consistent nomenclature.}
 \item
 The computation is monadic in the \emph{dataflow monad}, written
 @DFMonad@.
 This monad provides a supply of fresh labels, and it
 also helps implement the fault-isolation strategy invented by
-\citet{whalley:isolation}.
+\citet{whalley:isolation}. \simon{add forward ref to 7.1}
 Because they share substantial implementation in common, the truth
 about the solver is that it also returns a value of monadic type.
 \end{itemize}
@@ -1648,6 +1788,18 @@ removeDeadAssignments g = liftM zdfFpContents result
 
 
 \subsection{Sinking reloads: a forward transformation}
+\simon{Backward reference needed to ``Pass 2 of the algorithm described
+in the preamble to Section 4''}
+
+\simon{I believe that in fact we never make the call to @zdfSolveFwd@ given 
+in Figure 3?  Instead we pass the transfer functions @avails\_reloads\_transfer@
+to @zdfRewriteFwd@?  Whose call is not given in Figure 6. Perhpas we should give
+the latter call, and point out that the call in Figure 3 is illustrative and
+is not in fact used?}
+
+\simon{Fig 6 mentions @fr\_exit@ which is gone from Fig 5.  
+Incidentally, I wonder if we should
+use record notation when constructing @ForwardRewrites@?}
 
 \seclabel{sink-reloads}
 
@@ -1672,6 +1824,8 @@ mkMiddle ::               m -> Graph m l
 mkLast   :: LastNode l => l -> Graph m l
 (<*>)    :: Graph m l -> Graph m l -> Graph m l
 \end{code}
+\simon{Does @mkLast@ really have a @LastNode l@ context? How does it use it?}
+\simon{Aha!  Here is where we lie by pretending that @Graph@ = @AGraph@.  Ok.}
 The infix @<*>@ function is graph concatenation.
 
 The transformation is implemented by the call to @zdfRewriteFwd@
@@ -1685,6 +1839,8 @@ following the call site are dead, and they can be eliminated by our
 next transformation, dead-assignment elimination.
 
 \subsection{Dead-assignment elimination: a backward \rlap{transformation}}
+\simon{Backward reference needed to ``Pass 3 of the algorithm described
+in the preamble to Section 4''}
 
 \seclabel{dead-code-elimination}
 \seclabel{dead-code-elim}
@@ -1908,6 +2064,9 @@ analogous to $(\mathtt{BlockId} \arrow \mathit{graph}) \arrow \mathit{graph}$.
 \section{The Dataflow Engine}
 \seclabel{engine}
 \seclabel{dfengine}
+\simon{Need a linking sentence like ``So far we have discussed clients of 
+our library.  Now we turn our attention to the implementation of the
+library itself.''  Yes, you'll want to use different vocabulary!}
 
 The dataflow engine is implemented in two layers.
 The lower layer is the \emph{dataflow monad}.
@@ -2024,7 +2183,7 @@ a different replacement or even no replacement at all.
 This phase is called the \emph{solver}.
 The solve computes a fixed point of the dataflow analysis
 \emph{as if} nodes were replaced, while avoiding ever replacing a node
-unsafely.
+unsafely. 
 \item
 Once the solver is complete, the resulting fixed point is sound,
 and the facts in the fixed point are used by the second phase in which
@@ -2037,7 +2196,10 @@ In \citeyear{ramsey-dias:applicative-flow-graph}, two of us
 \citeauthor{ramsey-dias:applicative-flow-graph} presented
 implementations in Objective Caml of a backward solver and rewriter.
 Here, then, as a complement, we sketch implementations of the forward
-solver and rewriter used in~GHC.
+solver and rewriter used in~GHC. \simon{Oh!  thinks the reader... so this
+paper is just a rehash in Haskell of your earlier work?  Can we 
+say somethign like ``See Related work for the substantial differences
+between this paper and our ealier work''?}
 
 
 \begin{itemize}
@@ -2062,6 +2224,22 @@ outside graph~@g@.
 \section{The next 700 dataflow analyses}
 
 \seclabel{next-700}
+\simon{I know that this section is Dear to the Ramsey Heart, but
+I still can't figure out what it is trying to say to the reader.
+
+Let me try one stab at what I think you might be trying to say.
+In this paper we have described a re-usable, polymorphic 
+framework (concretely, a library)
+for the analysis and transformation of control flow graphs.
+This is not a specialised tool; on the contrary we claim that
+a huge variety of optimisations can be viewed through the lens of
+dataflow optimisation.
+
+If that's the thrust, then the generalities of ths section would
+be stronger if they were supported with a list of dragon-book stuff
+that are all special cases. 
+
+But I may have misunderstood.}
 
 
 %%  \section{Logical view of optimization}
@@ -2231,6 +2409,8 @@ postcondition.
 \john{Why is this tied to program states only?}
 In the compiler literature, these relations correspond respectively to
 ``backward dataflow problems'' and ``forward dataflow problems.''
+\simon{Can we give an exmple of a property of program states which is
+neither, just by way of contrast; ie this we cannot do.}
 %%  \item
 %%  In a language that admits loops, iterating weakest preconditions or
 %%  strongest postconditions typically does not reach a fixed point in
@@ -2251,7 +2431,9 @@ In the compiler literature, these relations correspond respectively to
 We consider only three program transformation techniques:
 substitution of equals for equals, 
 insertion of assignments to unobserved variables, 
-and removal of assignments to unobserved variables.
+and removal of assignments to unobserved variables. \simon{No such
+restrictions were placed on the functions in @ForwardRewrites@.
+If we expect such restrictions to be observed we should say so!}
 Substituting equals for equals may require reasoning about program
 states; for example, if we have a program point at which variable~$x$
 is always~7, we are justified in substituting~7 for~$x$.
@@ -2275,9 +2457,18 @@ elimination'' are implemented in three stages: insert new assignments;
 substitute equals for equals; remove unneeded assignments
 (\secref{induction-var-elim}). 
 
+\simon{I'd make these two bullet.  There are two things going
+on.  First, a big transformation can be done by composing phases
+(pass 1, 2, 3).  Benefit: modularity, plug and play.
+
+Second each phase consists of lots of individual
+rewrites, and it's OK to apply only some of these individual rewrites.
+Hence we can isolate bugs to a very fine granularity.}
+
 One virtue of implementing complex transformations by composing simple
 transformations is that each simple transformation leaves the program
-in a consistent state.
+in a consistent state. \simon{Is that the same as ``leaves the semantics
+of the program unchanged''?}
 It~is therefore safe to use 
 ``optimization fuel'' to limit the number of \emph{simple}
 transformations, which means that when we isolate a fault in the optimizer
@@ -2320,7 +2511,8 @@ but we underestimated the degree to which polymorphism forces us to
 separate concerns.
 Even though at present the polymorphic types have but one instance
 apiece, introducing polymorphism has made the code far simpler, easier
-to understand, and easier to maintain.
+to understand, and easier to maintain. \simon{Is it possible to substantiate
+this claim by examples?}
 %
 % gen and kill are history
 %
@@ -2344,7 +2536,9 @@ create transfer functions that approximate weakest preconditions or
 strongest postconditions;
 and 
 create rewrite functions that use the assertions to justify
-interesting program transformations.
+interesting program transformations.  \simon{Isn't this
+re-usability what Chambers was on about in his original paper?
+In what way is it easier for us to create new analyses than it is for him?}
 \end{itemize}
 These ideas and techniques form a powerful toolkit for
 analyzing and transforming imperative programs.
