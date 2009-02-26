@@ -1,4 +1,4 @@
-\newif\ifpagetuning \pagetuningtrue  % adjust page breaks
+\newif\ifpagetuning \pagetuningfalse  % adjust page breaks
 
 \newif\ifnoauthornotes\noauthornotesfalse
 
@@ -577,7 +577,6 @@ $i = 7 \lor i = 8 \equiv i = \top$ (loss of information)
 \end{itemize}
 The compiler writer gets to choose how much information is lost;
 in a different analysis, it might be useful to 
-% \ifpagetuning{\vadjust{\break}}\fi
 enable the compiler to say
 that the value of a variable is one of,
 say, at most three constants.
