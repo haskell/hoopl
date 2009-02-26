@@ -1028,42 +1028,43 @@ expression @z + x@.
  On the control-flow path to @return z@, @x@~needn't be reloaded
 at all.
 
-Getting spills and reloads in the right places requires\simon{``Requires'' is too strong.
-This is simply how we have chosen to implement it.  You are making it sound
-ineluctable.} the
-composition of several dataflow passes:
+The spills and reloads are inserted in the right places
+by a sequence of three dataflow passes:
 \begin{enumerate}
 \item
-A backward transformation inserts reloads immediately after each call
-site.\simon{It is backward because it is doing a live-variable analysis
-to identify which variables should be reloaded.}
-The same pass inserts spills not immediately before call sites, but
+A backward analysis computes liveness
+to identify the variables that should be spilled at call sites.
+An accompanying transformation inserts reloads immediately after each call
+site and inserts spills not immediately before call sites, but
 rather immediately after the appropriate reaching definitions.
 \item
 \label{reload-duplication}
-A second pass inserts redundant reloads immediately before the
-reloaded variables are used.
-By keeping variables on the stack longer, this pass reduces register
-pressure.\simon{Why is the second pass a second pass?  The first
-pass added spills and reloads in; could the first pass not have 
-added the reloads immediately before the
-reloaded variables are used as well?  Maybe the text can say?
-I think the answer is that this is a \emph{forwards} analysis, since
-it is propagating forward the information about which variables currently
-have an up-to-date stack slot.}
+A forward analysis finds uses of variables that have been reloaded
+from the stack, and an accompanying transformation
+inserts redundant reloads before the uses.
+By keeping variables on the stack longer, this pass reduces register pressure.
+% \simon{Why is the second pass a second pass?  The first
+% pass added spills and reloads in; could the first pass not have 
+% added the reloads immediately before the
+% reloaded variables are used as well?  Maybe the text can say?
+% I think the answer is that this is a \emph{forwards} analysis, since
+% it is propagating forward the information about which variables currently
+% have an up-to-date stack slot.}
 \item
 \label{remove-dead-reloads}
-A final pass, dead-assignment elimination, removes redundant reloads.
+A backward analysis computes liveness,
+and an accompanying transformation, dead-assignment elimination,
+removes redundant reloads.
 \end{enumerate}
 The combined effect of passes
 \ref{reload-duplication}~and~\ref{remove-dead-reloads} is to ``sink''
 the reloads as far as possible from the call site.
-In the next subsection we describe an analysis that supports
-pass~\ref{reload-duplication}; 
-pass~\ref{reload-duplication} itself is described in
-\secref{sink-reloads}, and 
-pass~\ref{remove-dead-reloads} is described in
-\secref{dead-code-elimination}. \simon{I would put the forward references
+In the following subsections, we describe the analyses that support
+passes~\ref{reload-duplication}~and~\ref{remove-dead-reloads}; 
+the transformations are described in
+\secref{sink-reloads} and 
+\secref{dead-code-elimination}, respectively.
+\simon{I would put the forward references
 to the sub-sections in the bullets themselves; they are more easy to find there.
 Do we describe pass 1 at all? If not, let's say that we don't.}
 
@@ -1160,18 +1161,23 @@ which is used only to hold the value of~$x$.
 ``variable'' makes the example easier to understand and hides a
 GHC-ism, but there's a slippery slope here\ldots}
 %
-If the stack slot is up to date, that is if $x = \slotof x$,
+If the pseudoregister and the stack slot hold the same value,
+that is if $\tempof x = \slotof x$,
 then it is safe to insert a reload without changing the observable
 behavior of the program.
-\simon{How can the sltack slot be ``out of date''?  
-There are two ways:
-x might change, or the stack slot might change.  However, by keeping the
-stack slot live whenever x is, we arrange that only the former can happen,
-which simplifies the analysis.}
-The logical assertion of interest therefore takes the form $x = \slotof x$.
+But is it profitable?
+We do not want to end up with an extra reload instruction on any
+execution of the procedure; therefore, we should 
+we should insert a \emph{redundant} reload at a program point
+only if, on every path to the program point, the most recent definition of
+$\tempof x$ was a reload from $\slotof x$.
+
+The logical assertion of interest therefore takes the form
+\mbox{$(\tempof x = \slotof x) \wedge
+       (\mathit{lastDef}(\tempof x) = \tempof x @=@ \slotof x)$}.
 The dataflow fact that corresponds to a conjunction of assertions of
-this form is a set of variables~$X$ such that $\forall x \in X \mathrel
-: x = \slotof x$.
+this form is a set of variables~$X$ such that \mbox{$\forall x \in X \mathrel
+: (\tempof x = \slotof x \wedge (\mathit{lastDef}(\tempof x) = \tempof x @=@ \slotof x))$}.
 The lattice-join operation is set intersection,\footnote
 {A variable $x = \slotof x$ at a label~@L@ if and
 only if $x = \slotof x$ on every control-flow edge coming into~@L@.}
