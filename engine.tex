@@ -288,7 +288,10 @@ Both @getExitFact@ and @lastOutFacts@ are operations in the dataflow
 monad.
 
 Function @solve@ takes a graph and does a postorder depth-first traversal 
-to get a list of reachable blocks in~@blocks@.  \simon{The only reader
+to get a list of reachable blocks in~@blocks@.  
+\remark{It's the @LastNode l@ constraint that makes it possible to
+  find the successors of the last nodes and thereby to do the graph traversal.}
+\simon{The only reason
 to use postorder is to improve the speed of convergence.  Any enumeration
 of the blocks will do for correctness.}
 It then applies the higher-order @run@ function \simon{There must be

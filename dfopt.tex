@@ -30,6 +30,8 @@
 \newcommand\join{\sqcup}
 \newcommand\slotof[1]{\ensuremath{s_{#1}}}
 \newcommand\tempof[1]{\ensuremath{t_{#1}}}
+\let\tempOf=\tempof
+\let\slotOf=\slotof
 
 \makeatletter
 \newcommand{\nrmono}[1]{%
@@ -91,6 +93,7 @@
 \newcommand{\todo}[1]{\textbf{To~do:} \emph{#1}}
 
 \newcommand\secref[1]{Section~\ref{sec:#1}}
+\newcommand\secreftwo[2]{Sections \ref{sec:#1}~and~\ref{sec:#2}}
 \newcommand\seclabel[1]{\label{sec:#1}}
 
 \newcommand\figref[1]{Figure~\ref{fig:#1}}
@@ -631,7 +634,7 @@ Furthermore, the dataflow engine wants to know if
 because if not, it has not reached a fixed point.
 
 When computing a join, 
-it is typically very cheap to learn if the join
+it is typically cheap to learn if the join
 is equal to one of the arguments.
 We therefore use the nonstandard representation of lattice operations
 shown in \figref{lattice}.
@@ -641,8 +644,7 @@ The term $@fact_add_to@\;f_{\mathit{new}}\;f_{\mathit{id}}$ is equal to
 $@TxRes NoChange@\; f_{\mathit{id}}$ if $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$
 and is equal to
 $@TxRes SomeChange@\; (f_{\mathit{new}} \join f_{\mathit{id}})$ otherwise.
-The @fact_bot@ value is the bottom element of the
-lattice, 
+The @fact_bot@ value is the bottom element, 
 and @fact_name@  is used for debugging.
 
 \begin{figure}
@@ -672,7 +674,7 @@ data BackTransfers mid last a = BackTransfers
 
 A~transfer function is presented with dataflow facts on edges coming
 into a node, and it computes the dataflow facts on outgoing edges.
-To~understand the types of transfer functions, we must first
+To~understand transfer functions, we must first
 understand how the nodes and edges of a control-flow graph are organized.
 
 A~control-flow graph is a collection of labelled \emph{basic blocks}.
@@ -687,7 +689,8 @@ a~typical last node is a conditional, unconditional, or indirect branch.
 
 First nodes are the only targets of control transfers;
 middle nodes never perform control transfers;
-and last nodes always perform control transfers.
+and
+last nodes always perform control transfers.
 Hence, a~first node has arbitrarily many predecessors and exactly one
 successor;
 a~middle node has exactly one predecessor and one successor;
@@ -704,8 +707,8 @@ Functions are grouped by kind of analysis, and each group is
 parameterized over a dataflow fact of type~@a@ and over the types
 @mid@ and @last@ of middle and last nodes.  
 The choice of  @mid@ and
-@last@ types is up to the compiler writer, and it is by means of this
-choice that the compiler writer determine's the intermediate
+@last@ types is up to the compiler writer; it is by means of this
+choice that the compiler writer determines the intermediate
 representation used for optimization.
 \norman{We are having trouble understanding SLPJ's obsession with
 distinguishing the ``client'' (an entity we wish not to name) from the
@@ -723,12 +726,12 @@ program state, the transfer function @ft_first_out@ is typically
 @flip const@---a variation on
 the
 identity function.\footnote
-{One~case in which @ft\_first\_out@ is \emph{not} @flip const@ is an
- analysis used to convert {\PAL} to continuation-passing style without
+{A~case in which @ft\_first\_out@ is \emph{not} @flip const@ is an
+ analysis we use to help convert {\PAL} to continuation-passing style
+ \emph{without} 
  duplicating code that is common to multiple continuations.
-In~this case the fact represents not an assertion about program state
- but rather an assertion about all paths reaching
- a point.}
+This analysis tracks the continuation to which each basic block should belong.
+}
 \remark{Somewhere we should explain what a fact in a backward analysis
 typically represents}
 For a middle node, the transfer function @ft_middle_out@ is given a
@@ -758,9 +761,9 @@ For example, in the basic block
 a forward analysis would propagate the fact 
 $@x == 7@ \land @y == 8@$, which we will call $f_{\mathit{new}}$,
 along the edge to~@L2@. 
-\remark{We've elected not to get to the level of detail where
-we show how propagating a fact~$f$ through \mbox{@x = 7;@} results in a new
-fact either $(f \setminus @x@) \land @x == 7@$.}
+%%  \remark{We've elected not to get to the level of detail where
+%%  we show how propagating a fact~$f$ through \mbox{@x = 7;@} results in a new
+%%  fact either $(f \setminus @x@) \land @x == 7@$.}
 The dataflow engine then \emph{replaces} the current fact
 at~@L2@~($f_{\mathtt{L2}}$) with the lattice join $f_{\mathit{new}}
 \join f_{\mathtt{L2}}$. 
@@ -804,16 +807,21 @@ is not always~$\bot$.
 The last argument to @zdfSolveFwd@ is the graph, and the result is a 
 fixed point.\footnote
 {The type of @zdfSolveFwd@ has pedagogical lies;
-truth is told in~\secref{engine-truth}.}\remark{One of the lies is
-that I've deliberately conflated the three representations of graphs.}
-\simon{We need to explain the @LastNode l@ type class.}
+truth is told in~\secref{engine-truth}.}
+%%  \remark{One of the lies is
+%%  that I've deliberately conflated the three representations of graphs.}
 
 The @ForwardFixedPoint@ data structure is a big bag
 of information about the solution.
 The most significant information is
 a finite map from each block label to the dataflow fact that holds at
-the label, which is extracted using function @zdfFpFacts@.
-\simon{I really want type signatures for these two.}
+the label, which is extracted using function @zdfFpFacts@:
+% Simon really wants these type signatures!
+\begin{verbatim}
+type BlockEnv a = Data.Map BlockId a
+zdfFpFacts :: ForwardFixedPoint m l a -> BlockEnv a
+\end{verbatim}
+
 
 
 
@@ -992,10 +1000,10 @@ related program transformations appear in \secref{example-rewrites}
 below. 
 These analyses help solve a real problem in the Glasgow Haskell
 Compiler:
-there are no callee-saves registers, so at each call site, all live
-variables must be spilled to the stack. \simon{Perhaps, in GHC's defence, 
-we can remark that the absence of callee-saves is not mere stupidity; it's becuase
-tail calls are dominant, and callee-saves makes no sense in that case.}
+because most calls are tail calls, GHC uses no 
+callee-saves registers.
+This means at each (rare) non-tail call, all live
+variables must be spilled to the stack.
 In order to reduce register pressure,
 such variables are spilled as early as possible and reloaded as late as possible.
 
@@ -1003,9 +1011,10 @@ To illustrate the results of the analyses and their associated transformations,
 here is a contrived example program in the style of \secref{example:xforms}:
 \begin{alltt}
 f (bits32 a) \lbr
-  bits32 x, y, z;  // local variables
+  bits32 w, x, y, z;  // local variables
   x = a * a;
-  y = g(a + a);
+  w = a + a + a;
+  y = g(w);
   z = y + y;
   if (y > 0) \lbr
     return z;
@@ -1014,18 +1023,17 @@ f (bits32 a) \lbr
   \rbr
 \rbr
 \end{alltt}
-If @R1@ is the first argument register and @R0@ is the result
-register, spills and reloads should be inserted as follows:%
+Spills and reloads should be inserted as follows:%
 \seclabel{spill-reload-example} % space is deliberate
 \newcommand\bigstrut{%
   \leavevmode\vrule width 0pt height 11pt depth 6pt }
 \begin{alltt}
 f (bits32 a) \lbr
-  bits32 x, y, z;  // local variables
+  bits32 w, x, y, z;  // local variables
   x = a * a;
   \high{SPILL x;}
-  \bigstrut\high{R1 = a + a;} // no register pressure from x
-  \high{y = g(R1);} // call instruction
+  \bigstrut\high{w = a + a + a;} // no register pressure from x
+  \high{y = g(w);} // call instruction
   z = y + y;
   if (y > 0) \lbr
     return z;
@@ -1044,10 +1052,11 @@ expression @z + x@.
  On the control-flow path to @return z@, @x@~needn't be reloaded
 at all.
 
-The spills and reloads are inserted in the right places
+Spills and reloads are inserted in the right places
 by a sequence of three dataflow passes:
 \begin{enumerate}
 \item
+\label{insert-spills}
 A backward analysis computes liveness
 to identify the variables that should be spilled at call sites.
 An accompanying transformation inserts reloads immediately after each call
@@ -1072,23 +1081,24 @@ A backward analysis computes liveness,
 and an accompanying transformation, dead-assignment elimination,
 removes redundant reloads.
 \end{enumerate}
-The combined effect of passes
-\ref{reload-duplication}~and~\ref{remove-dead-reloads} is to ``sink''
+Pass~\ref{insert-spills} is not shown in this paper.
+Passes
+\ref{reload-duplication}~and~\ref{remove-dead-reloads} cooperate to ``sink''
 the reloads as far as possible from the call site.
-In the following subsections, we describe the analyses that support
-passes~\ref{reload-duplication}~and~\ref{remove-dead-reloads}; 
+The analyses used in
+passes~\ref{reload-duplication}~and~\ref{remove-dead-reloads}
+are described in \secreftwo{avail}{liveness} below;
 the transformations are described in
-\secref{sink-reloads} and 
-\secref{dead-code-elimination}, respectively.
-\simon{I would put the forward references
-to the sub-sections in the bullets themselves; they are more easy to find there.
-Do we describe pass 1 at all? If not, let's say that we don't.}
+\secreftwo{sink-reloads}{dead-code-elimination}.
+%\simon{I would put the forward references
+%to the sub-sections in the bullets themselves; they are more easy to
+%find there.
+%  No room, and not worthy of a bullet! ---NR}
+
+
 
 
 \subsection{Available variables: a forward analysis} 
-\simon{I totally lose the flow here.  So passes 2 and 3 are described later in Section 6.
-So what is Section 4.1 doing?  Is it connected to passes 1,2,3 just described?
-The preceding text makes no mention of an ``available variables'' analysis.}
 
 \seclabel{avail}
 
@@ -1175,7 +1185,7 @@ which is used only to hold the value of~$x$.
 %
 \remark{Changing ``register'' to
 ``variable'' makes the example easier to understand and hides a
-GHC-ism, but there's a slippery slope here\ldots}
+GHC-ism, but there's a slippery slope here.}
 %
 If the pseudoregister and the stack slot hold the same value,
 that is if $\tempof x = \slotof x$,
@@ -1215,6 +1225,10 @@ set using one of two alternatives
 \item \texttt{AvailVars~~~~~s}: The variables in the set~@s@
 \end{itemize}
 The bottom element is @UniverseMinus emptyVarSet@.
+It is optimistic to assume that MUMBLE,\remark{fix me}
+but this optimistic assumption is what enables us to improve the
+code---and if the assumption is not justified, it will be corrected by
+the transfer functions.
 
 
 
@@ -1242,9 +1256,6 @@ How about saying this:
 variables whose stack slots are up to date; 
 (b) the interpretation of such set S is that $x=s_x$ for each $x\in S$.
 (I'm not sure the ``interpretation'' makes it clearer; I'd be happy with (a).)}
-\simon{Under my, perhaps defective, understanding of the preceding note,
-I'm now confused why it's right to start with the (dangerous) assumption that
-every variable has an up-to-date stack slot (the bottom element).}
 \begin{itemize}
 \item \texttt{extendAvail~~s~x}: Add variable @x@ to the set~@s@
 \item \texttt{delFromAvail~s~x}: Remove variable @x@ from the set~@s@
@@ -1301,7 +1312,7 @@ nothing if @lhs@ is a hardware register.
 There are three cases for @MidStore@ nodes.
 The first case matches a node that spills a variable $x$ to the stack.
 After such a node, $\tempOf x = \slotOf x$,
-but there is no guarantee that $\tempOf$ was defined by a reload instruction,
+but there is no guarantee that $\tempOf x$ was defined by a reload instruction,
 so $x$ is not added to the set of available variables.
 
 
@@ -1648,8 +1659,7 @@ compiler writer can then use the
 dataflow-engine function @zdfRewriteFwd@ to compute a solution:
 \begin{code}
   zdfRewriteFwd 
-    :: LastNode l             -- Can get successors
-    => RewritingDepth         -- Rewrite recursively?
+    :: RewritingDepth         -- Rewrite recursively?
     -> PassName               -- Name of this pass
     -> DataflowLattice a      -- Lattice
     -> ForwardTransfers m l a -- Transfer functions
