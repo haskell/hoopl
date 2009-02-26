@@ -464,13 +464,13 @@ To write a dataflow analysis, the compiler
 writer must 
 \begin{itemize}
 \item
-Choose a representation~$F$ of dataflow facts and a logical interpretation
+Choose a representation~$F$ of dataflow facts and a logical interpretation.
 thereof
 \item
-Implement lattice operations over~$F$
+Implement lattice operations over~$F$.
 \item
 Write \emph{transfer functions} that relate dataflow facts before and
-after each type of node
+after each type of node.
 \end{itemize}
 
 To write a transformation based on an analysis, the compiler writer
@@ -490,7 +490,8 @@ set of dataflow facts, one for each edge in the control-flow graph
 (\secref{zdfSolveFwd}).
 The set of facts is a fixed point of the transfer functions.
 Given, in addition, a rewrite function for each type of node,
-the dataflow engine implements a semantics-preserving transformation. 
+the dataflow engine implements a semantics-preserving transformation
+(\secref{rewrites}). 
 
 \begin{figure}
 \begin{code}
@@ -512,7 +513,7 @@ As an example lattice of dataflow facts,
 we present a representation for facts about constant propagation.
 At any program point, a standard constant-propagation analysis
 computes exactly one of the following three
-assertions about a variable~$x$:
+facts about a variable~$x$:
 \remark{We're a bit careless about distinguishing
  ``fact'' and ``assertion'', but the general idea is that an
  ``assertion'' is God's truth in logic and a ``fact'' is an
@@ -521,10 +522,10 @@ Perhaps future revisions will clarify.}
 \begin{itemize}
 \item
 The analysis shows that
-$x = k$, where $k$~is a compile-time constant.
+$x = k$, where $k$~is a compile-time constant of type @Const@.
 \item
 The analysis shows that $x$~is \emph{not} a compile-time constant.
-We~notate this assertion as $x = \top$.
+We~notate this fact as $x = \top$.
 \item
 The analysis shows nothing about~$x$, which we notate $x=\bot$.
 \end{itemize}
@@ -543,6 +544,15 @@ $i = 7 \lor i= 7 \equiv  i=7$ (no loss of information)
 \item
 $i = 7 \lor i = 8 \equiv i = \top$ (loss of information)
 \end{itemize}
+The compiler writer gets to choose how much information is lost;
+in a different analysis, it might be useful to 
+\ifpagetuning{\vadjust{\break}}\fi
+enable the compiler to say
+that the value of a variable is one of,
+say, at most three constants.
+\remark{This sentence is here to make Simon
+happy; if it does not do its job, out it goes!}
+
 The lattice  used by the analysis is the Cartesian product of the
 lattices for all the local variables.
 To~represent this lattice, a good choice is a finite map from variable
@@ -656,13 +666,21 @@ distinguishing the ``client'' (an entity we wish not to name) from the
 
 The type @BlockId@ represents a label.
 Because a fact in a forward analysis typically represents an assertion
-about program state, and because passing a label does not change
+about program state,
+\remark{Somewhere we need an alert that a fact in a forward analysis
+might also represent an assertion about all paths reaching a
+ state---maybe a footnote here?}
+ and because passing a label does not change
 program state, the transfer function @ft_first_out@ is typically 
 @flip const@---a variation on
 the
-identity function.\norman{It is not @flip const@ when we do the proc-point
-analysis, but I am not exactly sure how to work this information into
-the text.}  
+identity function.\footnote
+{One~case in which @ft\_first\_out@ is \emph{not} @flip const@ is an
+ analysis used to convert {\PAL} to continuation-passing style without
+ duplicating code that is common to multiple continuations.
+In~this case the fact represents not an assertion about program state
+ but rather an assertion about all paths reaching
+ a point.}
 \remark{Somewhere we should explain what a fact in a backward analysis
 typically represents}
 For a middle node, the transfer function @ft_middle_out@ is given a
@@ -1388,6 +1406,8 @@ reduces to @extendAvail avail x@.
 
 
 \section{Using dataflow facts to rewrite graphs, with examples}
+
+\seclabel{rewrites}
 
 \remark{Orphaned text:
 Analyzing a subgraph also uses a non-bottom entry fact.
