@@ -1725,17 +1725,62 @@ dataflow-engine function @zdfRewriteFwd@ to compute a solution:
 %%      -> DFMonad (fixedpt m l a (Graph m l))
 %%
 %%
-\simon{But what does it DO?  Something like this, for a forward
-write.  The engine traverses each block in a forward direction,
-using the transfer functions to propagate facts forward.
-At each node the engine applies the rewrite function,
-passing to the latter the fact at the entry (in the forward case)
-to the node.  If the rewrite function asks for a rewrite (by returning
-$@Just@~g$), the node is replaced by $g$ and (in the case of deep rewriting),
-the process continues with $g$.  (In the case of shallow, we skip $g$; oh
-we have to apply the transfer functions I guess.)
+As explained by \citet{lerner-grove-chambers:2002}, 
+@zdfRewriteForward@ implements
+the transformation
+and its supporting
+analysis in two phases:
+\begin{itemize}
+\item
+In the first phase, when a rewrite function proposes to replace a
+node, the replacement graph is analyzed recursively, and the results
+of that analysis are used as the new dataflow
+fact(s) flowing out of the original node.
+But \emph{the original node is not replaced}; indeed, the replacement
+graph is abandoned, and only the facts remain.
+If,~during iteration, the original node is analyzed again, perhaps
+with a more conservative input fact, the rewrite function may propose
+a different replacement or even no replacement at all.
+This phase is called the \emph{solver}.
+The solver computes a fixed point of the dataflow analysis
+\emph{as if} nodes were replaced, while avoiding ever replacing a node
+unsafely.
+\simon{The rewrite functions must presumably satisfy
+some monotonicity property.  Something like: given a more informative
+fact, the rewrite function will rewrite a node to a more informative graph
+(in the fact lattice.).
+\textbf{NR}: actually the only obligation of the rewrite function is
+to preserve observable behavior.  There's no requirement that it be
+monotonic or indeed that it do anything useful.  It just has to
+preserve semantics (and be a pure function of course).
+\textbf{SLPJ} In that case I think I could cook up a program that
+would never reach a fixpoint. Imagine a liveness analysis with a loop;
+x is initially unused anywhere.
+At some assignment node inside the loop, the rewriter behaves as follows: 
+if (and only if) x is dead downstream, 
+make it alive by rewriting the assignment to mention x.
+Now in each successive iteration x will go live/dead/live/dead etc.  I
+maintain my claim that rewrite functions must satisfy some
+monotonicity property.
+\textbf{JD}: in the example you cite, monotonicity of facts at labels
+means x cannot go live/dead/live/dead etc.  The only way we can think
+of not to terminate is infinite ``deep rewriting.''
+}
+\item
+Once the solver is complete, the resulting fixed point is sound,
+and the facts in the fixed point are used by the second phase, in which
+no dataflow facts change, but
+each replacement proposed by a rewriting function is actually
+performed.
+This phase is called the \emph{rewriter}.
+\end{itemize}
 
-But do we apply rewrites even before the analysis reaches a fixed point?
+
+\emph{[When you analyze a written graph, you could get a fact that's lower,
+but when you reach a join point, you take the join, and the fact
+doesn't get smaller.  So things terminate.]}
+
+\simon{But do we apply rewrites even before the analysis reaches a fixed point?
 If so, what property do the rewrites have to satisfy to ensure soundness?
 If not, even a single rewrite might destroy the fixed-point property of the
 current facts.  Or perhaps we iterate the analysis to a fixpoint, and only \emph{then}
