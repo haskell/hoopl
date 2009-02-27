@@ -135,6 +135,13 @@ which would give more space (and time!) for clarifying remarks earlier.
 There are quite a few Simon comments in what follows, but I gave it
 much less time per line than earlier stuff.}
 
+\remark{It's dramatically simpler than Chambers's stuff because it's
+  purely functional and it's polymorphic.  For the OCaml stuff I'd
+  have to compare more carefully.
+I'd like John to weigh in here---I~understood him to say that if we
+  don't deliver the implementation of the dataflow engine, we're
+  omitting a critical part of our design.}
+
 In implementing the dataflow engine, our primary tactic has been to
 minimize duplicate and near-duplicate code.
 To~that end, \emph{the dataflow engine implements only composed
@@ -159,24 +166,29 @@ The solve computes a fixed point of the dataflow analysis
 \emph{as if} nodes were replaced, while avoiding ever replacing a node
 unsafely.
 \simon{There rewrite functions must presumably satisfy
-some moonotonicity property.  Something like: given a more informative
+some monotonicity property.  Something like: given a more informative
 fact, the rewrite function will rewrite a node to a more informative graph
-(in the fact lattice.).}
+(in the fact lattice.).
+\textbf{NR}: actually the only obligation of the rewrite function is
+to preserve observable behavior.  There's no requirement that it be
+monotonic or indeed that it do anything useful.  It just has to
+preserve semantics (and be a pure function of course).
+}
 \item
 Once the solver is complete, the resulting fixed point is sound,
-and the facts in the fixed point are used by the second phase in which
+and the facts in the fixed point are used by the second phase, in which
+no dataflow facts change, but
 each replacement proposed by a rewriting function is actually
 performed.
 This phase is called the \emph{rewriter}.
-\simon{In this phase
-it's guaranteed that no dataflow facts will change.}
 \end{itemize}
 \simon{These bullets address a chunk of my earlier questions in 
 Section 6. But they are absolutely necessary to understand the \emph{specification}
 of the analysis+rewrited function, are they not?  
 If it's possible to specify the analysis+rewrite function more abstractly,
 then let's do that; if this IS the spec, then we might consider putting it earlier.
-This is the implementation section.}
+\textbf{NR}: I think this is the spec, and I~agree it would be good to
+have earlier.}
 
 
 
@@ -256,8 +268,15 @@ These facts are stored in parameter
 \item
 The parameter @squash@ is used to suppress rewriting, either because
 the solver is implementing a pure analysis, or because the optimizer
-is out of fuel. \simon{Or because the analysis has not yet reached a fixpoint,
-so we discard?}
+is out of fuel. 
+\simon{Or because the analysis has not yet reached a fixpoint,
+so we discard?
+\textbf{NR}:
+ Nope, no fixed points here. The rewritten graph (Just g) is 
+\emph{always} discarded after computing the new fact.
+I~would say this is obvious from the code except nothing about the
+code is obvious.
+Need anything be said in the text?}
 The @fuel@ parameter represents the amount of fuel remaining.
 It~is last because the fuel abstraction works with functions of type
 @Fuel -> (a, Fuel)@.
@@ -267,7 +286,13 @@ A~fixed point is computed by initializing the facts using
 \simon{I think it would help to list the operations of the monad. 
 E.g. How should I think of @setAllFacts@ for example? Perhaps it's a state monad, whose
 state includes a mapping from @BlockId@ to fact, and @setAllFacts@ initialises this
-mapping?}
+mapping?
+\textbf{NR}:
+I~had written a whole section on the monad, which was interminable
+and seemed peripheral to the main point.  If we had the space I would
+definitely go for a figure giving the operations mentioned here. 
+I'm not sure we want to use our space that way, however.  It's a conundrum.
+}
 Function @solve@, also sketched in \figref{solver-excerpts}, finds a
 fixed point and returns a pair containing the exit fact and the
 remaining fuel supply.
@@ -275,7 +300,12 @@ This fact, plus other state extracted from the dataflow monad, are
 used to create a fixed point.
 
 \simon{@solve@ transforms the @Fuel@.  But isn't @Fuel@ part of the dataflow monad?
-Is @DFMonad@ in the type of @zdfRewriteFwd@ the same as @DFM@ in this figure?}
+Is @DFMonad@ in the type of @zdfRewriteFwd@ the same as @DFM@ in this
+figure?
+\textbf{NR}:  Sadly not.  Is @DFMonad@ in the type of @zdfRewriteFwd@
+is the composition of @DFM@ with @Fuel -> (a, Fuel)@.
+I~fear we are trying to cram 10~pounds of information into a 5-pound sack.
+}
  
 Function @solve@ is higher-order: 
 when solving a graph that ``falls through,'' 
@@ -283,7 +313,12 @@ the @finish@ parameter is @getExitFact@;
 when solving a graph that ends in a control transfer,
 the @finish@ parameter is @lastOutFacts@. \simon{This is the first mention
 of the possiblity of a graph that ``falls through''.  After all this time,
-I'm still not sure what it means, and the reader may be in a similar state.}
+I'm still not sure what it means, and the reader may be in a similar
+state.
+\textbf{NR}: Here's an operational approximation: a graph ``falls
+through'' if it can be written @g <*> mkMiddle m@.  Does this help
+you, at least?
+}
 Both @getExitFact@ and @lastOutFacts@ are operations in the dataflow
 monad.
 
@@ -291,15 +326,16 @@ Function @solve@ takes a graph and does a postorder depth-first traversal
 to get a list of reachable blocks in~@blocks@.  
 \remark{It's the @LastNode l@ constraint that makes it possible to
   find the successors of the last nodes and thereby to do the graph traversal.}
-\simon{The only reason
-to use postorder is to improve the speed of convergence.  Any enumeration
-of the blocks will do for correctness.}
-It then applies the higher-order @run@ function \simon{There must be
-a bug here: @run@ is not bound.}, which repeatedly runs
+It then applies a higher-order @run@ function,
+not shown here,
+% And don't you dare ask for its type.  The type of run would make you
+% vomit.  ---NR
+which repeatedly runs
 @set_successor_facts@ on @blocks@ in order until the internal facts
 stop changing.
-Using postorder depth-first order, forward dataflow analyses typically
-converge after at most a few iterations.
+Although any order will result in a correct fixed point,
+postorder depth-first order hastens convergence of forward dataflow
+analyses---often just a few iterations suffice.
 
 
 

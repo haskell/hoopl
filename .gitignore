@@ -1,3 +1,6 @@
+.*.swp
+*.bak
+*.bbl.old*
 odfopt.tex
 oodfopt.tex
 nrbib.tex

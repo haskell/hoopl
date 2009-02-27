@@ -23,7 +23,7 @@
 \widowpenalty=10000
 
 \usepackage{verbatim} % allows to define \begin{smallcode}
-\newenvironment{smallcode}{\small\verbatim}{\endverbatim}
+\newenvironment{smallcode}{\par\unskip\small\verbatim}{\endverbatim}
 
 \newcommand\arrow{\rightarrow}
 
@@ -74,10 +74,16 @@
 %\newcommand{\qed}{QED}
 \ifnotesinmargin
   \long\def\authornote#1{%
-          \leavevmode\unskip\raisebox{-3.5pt}{\rlap{$\scriptstyle\diamond$}}%
+      \ifvmode
+         \marginpar{\raggedright\hbadness=10000
+         \def\baselinestretch{0.8}\tiny
+         \it #1\par}%
+      \else
+          \unskip\raisebox{-3.5pt}{\rlap{$\scriptstyle\diamond$}}%
           \marginpar{\raggedright\hbadness=10000
          \def\baselinestretch{0.8}\tiny
-         \it #1\par}}
+         \it #1\par}%
+      \fi}
 \else
   % Simon: please set \notesinmargingfalse on the first line
   \newcommand{\authornote}[1]{{\em #1}}
@@ -89,6 +95,8 @@
 \newcommand{\simon}[1]{\authornote{SLPJ: #1}}
 \newcommand{\norman}[1]{\authornote{NR: #1}}
 \let\remark\norman
+\def\finalremark#1{\relax}
+% \let \finalremark \remark % uncomment after submission
 \newcommand{\john}[1]{\authornote{JD: #1}}
 \newcommand{\todo}[1]{\textbf{To~do:} \emph{#1}}
 
@@ -1144,7 +1152,7 @@ liveTransfers = BackwardTransfers (flip const) middleLiveness lastLiveness
 
 middleLiveness :: Middle -> Live -> Live
 lastLiveness   :: Last -> (BlockId -> Live) -> Live
-middleLiveness l = addUsed l . remDefd l
+middleLiveness m = addUsed m . remDefd m
 lastLiveness   l = addUsed l . remDefd l . lastLiveOut l 
 
 addUsed :: UserOfLocalVars    a => a -> Live -> Live
@@ -1275,7 +1283,7 @@ The implementations use analogous operations on @VarSet@s.
 \simon{On my second pass I noticed for the first time that the
 types of thes operations are given in Fig 3.  Let's say so!  
 Indeed, there is no need to repeat them all here: just add 
-brief comments to the type signatures.}
+brief comments to the type signatures.   \textbf{NR}: I~second this proposal.}
 
 %%In~the lattice of available reloads (\figref{avail-lattice}),
 %%the~join is computed by taking the intersection of two sets
@@ -1299,9 +1307,11 @@ one, because there is a fair amoutn to say.}
 \begin{itemize}
 \item
 The first case \simon{``first case''/``second case'' is easier when writing than reading.  Could we
-add @(Case 1)@ and @(Case 2)@ to the code we have an unambiguous URL?} 
+add @(Case 1)@ and @(Case 2)@ to the code we have an unambiguous URL?
+\textbf{NR}: If we have time, we want line numbers in the code
+figures.  John says it will be quick.} 
 identifies an assignment that reloads local
-variable~@x@ from its stack slot.\remark{I propose the compiler be
+variable~@x@ from its stack slot.\finalremark{I propose the compiler be
 modified to use @isStackSlotOf@ as I've written. JD~approves.}
 After such an assignment, $x = \slotof x$,
 and the last definition of $x$ is a reload,
@@ -1312,10 +1322,12 @@ In the next case, an assignment to a local variable means that the
 variable is no longer necessarily equal to the value in its stack
 slot, so if @lhs@ is a local variable, it is removed from the set of
 available variables.
-Function @foldVarsDefd@ is an overloaded \simon{Do we have to say that it
-is overloaded?  It's an unnecessary distraction.} function which, in this
+Function @foldVarsDefd@ is a function which, in this
 instance, calls @delFromAvail@ if @lhs@ is a local variable and does
 nothing if @lhs@ is a hardware register.
+\remark{To Simon and John: I've removed ``overloaded but am a bit nervous
+because @foldVarsDef@ shows up as overloaded later in the paper, and I
+had thought to signpost it here.  Your thoughts?}
 \item 
 There are three cases for @MidStore@ nodes.
 The first case matches a node that spills a variable $x$ to the stack.
@@ -1326,7 +1338,6 @@ The second case matches a node that spills a variable to the stack,
 which neither establishes nor invalidates an available variable.
 The final case matches any other store to a stack slot $\slotof x$,
 which may invalidate any assertion of the form $x = \slotof x$.
-
 
 
 
@@ -1346,12 +1357,11 @@ which may invalidate any assertion of the form $x = \slotof x$.
 % thing you must know is that $s_x$ is used exclusively for $x$.  That's
 % all, I think.}
 \end{itemize}
-\john{I've expunged MidComment from our example}
+%% \john{I've expunged MidComment from our example} % well done ----NR
 
 
 The transfer function for a last node checks to see if the node is a
-function call; if so, as for the foreign call \simon{Implies that we have 
-discussed foreign calls, which we have not.}, the set of
+function call; if so, the set of
 available variables is empty on every outgoing control-flow edge.
 Other last nodes do not change values of variables or stack slots, 
 so the set of available variables remains unchanged.
@@ -1390,14 +1400,13 @@ a finite map from basic-block IDs to the set of available reloads
 at the beginning of each block.
 Except for the implementations of the set operations on @AvailVars@,
 \figref{avail} shows the \emph{entire} analysis.
-\simon{First mention of @BlockEnv@; it would be easier if
-we'd earlier given the type signature for @zdfFpFacts@.}
 
 \subsection{Liveness: a backward analysis} 
 \simon{To my mind 4.2 is easier to understand than 4.1. It's a totally
-well-known analysis.  Can we re-order to put it first?}
+well-known analysis.  Can we re-order to put it first?
+Fine by me ---NR}
 \simon{Same question as in current 4.1: what is the connection to
-passes 1,2,3?}
+passes 1,2,3?  Irrelevant: the analysis should stand on its own ---NR}
 
 \seclabel{liveness}
 
@@ -1433,12 +1442,11 @@ You don't mean ``deemed live on entry to the node..'' (think of assignments).
 It's a bit tricky to state this clearly I grant you.}
 
 The transfer functions for liveness rely on two auxiliary functions
-@addUsed@ and @remDefd@ \simon{...whose type signatures (but not implementations)
-are given in Figure xx.}.
+@addUsed@ and @remDefd@, which are shown in \figref{liveness}.
 \simon{I suggest that we give more explicit
 references into the code, mentioning the functions @middleLiveness@, and 
-using @(1)@ etc as URLs.  Also the ``@l@'' in @middleLiveness@ should surely
-be an ``@m@''!  Even then it's a bit confusing becuase we have last-nodes and liveness,
+using @(1)@ etc as URLs. [NR: we want line numbers]  Even then it's a bit confusing becuase we
+have last-nodes and liveness, 
 both of which start with ``@l@''.  Oh well.}
 A~transfer function is given a set of variables live on the edges
 going out of the node, and it removes from that set any variable
@@ -1488,8 +1496,8 @@ at the beginning of each block.
 @foldVarsUsed@ and @foldVarsDefd@ are used throughout the back end and
 should not be considered part of liveness analysis.)
 \simon{Please let us give their types somewhere!  Every function
-should have either a type signature, or a tpye and an implementation. Otherwise
-the code becomes opaque.}
+ should have either a type signature, or a type and an implementation. Otherwise
+the code becomes opaque.  \textbf{NR}: Where do you suggest we put the types?}
 
 %%  Each transfer function takes an instruction and
 %%  the set of live registers in the instruction's continuation (the \liveout\ set);
@@ -1534,32 +1542,34 @@ the code becomes opaque.}
 
 \ifgenkill
 \section{Writing transfer functions using \texttt{gen} and \texttt{kill}}
-\simon{I totally misunderstood this section.  When talking to
-Norman I gained new understanding, as follows.  Instead of writing transfer
-functions, you can write gen and kill; from gen and kill we can derive
-the transfer functions in a standard way (ie library code).  So, if you 
-like (and dragon bookers may) you can write gen and kill instead of
-transfer functions.  (The title of the section is fine; it's the content
-that I did not understand.}
+
+\remark{I've tried to rewrite this section without the abstract guff;
+Simon, can you let us know what you think?}
+
 
 \seclabel{gen-kill}
 
-In the professional literature on optimization, it is common to specify
-transfer functions by saying what dataflow facts are ``generated'' and
+If you pick up a compiler textbook, you might see dataflow
+optimization explained in terms of functions \texttt{gen} and \texttt{kill},
+which say what dataflow facts are ``generated'' and
 ``killed'' by each node.
-In~a forward analysis, for example an assignment might establish an
-assertion (\texttt{gen}), or it might change state in such a way that an
-assertion no longer holds (@kill@), or both.
-If~you want to transliterate specifications that use @gen@ and @kill@,
-it's easy.
-In~fact the functions @addUsed@ and @remDefd@ in \figref{liveness}'s
+Our design is compatible with explanations based on \texttt{gen} and
+\texttt{kill};
+first you define functions \texttt{gen} and \texttt{kill}, then you
+use them to write the transfer functions.
+%%  Using our design, you can stillIt's~possible to write transfer functions i thi
+%%  In~a forward analysis, for example an assignment might establish an
+%%  assertion (\texttt{gen}), or it might change state in such a way that an
+%%  assertion no longer holds (@kill@), or both.
+%%  If~you want to transliterate specifications that use @gen@ and @kill@,
+%%  it's easy.
+\remark{I tried to repair @smallcode@ so as not to affect
+line spacing in the previous~\P.}
+For example, the functions @addUsed@ and @remDefd@ in \figref{liveness}'s
 liveness analysis correspond directly to the traditional @gen@ and
 @kill@ functions.
 In the available-variables analysis of \figref{avail}, @gen@ and
-@kill@ can be defined as follows: \simon{The @smallcode@ is affecting
-line spacing in the previous para.  I fixed this but you undid my change.
-Do you really intend this?  As I recall, the trick is to use @\par{ ...}\par@
-aroud the block}.
+@kill@ can be defined as follows:
 \begin{smallcode}
 gen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
 kill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
@@ -1611,11 +1621,10 @@ data BackRewrites mid last a = BackRewrites
 \begin{codetable}
 \T\begin{code}
 availRewrites :: ForwardRewrites Middle Last AvailVars
-availRewrites = ForwardRewrites first middle last exit
+availRewrites = ForwardRewrites first middle last
   where first _ _ = Nothing
         middle m avail = maybe_reload_before avail m (mkMiddle m)
         last   l avail = maybe_reload_before avail l (mkLast l)
-        exit _ = Nothing
         maybe_reload_before avail node tail =
             let used = filterVarsUsed (elemAvail avail) node
             in  if isEmptyVarSet used then Nothing
@@ -1725,7 +1734,9 @@ I'm deliberately playing the role of the reader here, and not peeking at
 the code.  I don't think it's enough to say ``go look at Chambers paper''; 
 I suggest we say enough (half a column would do it) to address the obvious
 questions and point to Chambers for details.
-}
+
+
+\textbf{NR}: Good questions, but let's have a forward reference to \secref{dfengine}}
 
 The rewriting function is like the @zdfSolveFwd@ function in
 \secref{zdfSolveFwd}, but it uses and produces extra
@@ -1749,21 +1760,18 @@ type parameter,\footnote
 {We lied to you earlier.}
 which is a value contained in the fixed point.
 The~value can be extracted using function @zdfFpContents@, which has
-type @ForwardFixedPoint m l fact a -> a@.
-Here the type parameter~@a@ is instantiated so that the fixed point
-contains the rewritten graph;
-in the solver, @a@~is instantiated with
+type @ForwardFixedPoint m l a b -> b@.
+Here the type parameter~@b@ is instantiated to @Graph m l@: the fixed point
+contains the rewritten graph.
+In the solver, @b@~is instantiated with
 the unit type~@()@. \simon{I'm afraid I do not understand this bullet
 at all.}
-\simon{Minor point worth fixing: I think the @fact@ parameter here
-is the @a@ parameter used in the earlier lies.  Better to use 
-consistent nomenclature.}
 \item
 The computation is monadic in the \emph{dataflow monad}, written
 @DFMonad@.
 This monad provides a supply of fresh labels, and it
 also helps implement the fault-isolation strategy invented by
-\citet{whalley:isolation}. \simon{add forward ref to 7.1}
+\citet{whalley:isolation} (\secref{vpoiso}).
 Because they share substantial implementation in common, the truth
 about the solver is that it also returns a value of monadic type.
 \end{itemize}
@@ -1849,8 +1857,7 @@ to @zdfRewriteFwd@?  Whose call is not given in Figure 6. Perhpas we should give
 the latter call, and point out that the call in Figure 3 is illustrative and
 is not in fact used?}
 
-\simon{Fig 6 mentions @fr\_exit@ which is gone from Fig 5.  
-Incidentally, I wonder if we should
+\simon{Incidentally, I wonder if we should
 use record notation when constructing @ForwardRewrites@?}
 
 \seclabel{sink-reloads}
@@ -1872,12 +1879,15 @@ preceded by a (redundant) reload for each variable in the set~@used@.
 To do the rewriting, the code uses several functions that create
 graphs:
 \begin{code}
-mkMiddle ::               m -> Graph m l
-mkLast   :: LastNode l => l -> Graph m l
+mkMiddle :: m -> Graph m l
+mkLast   :: l -> Graph m l
 (<*>)    :: Graph m l -> Graph m l -> Graph m l
 \end{code}
-\simon{Does @mkLast@ really have a @LastNode l@ context? How does it use it?}
-\simon{Aha!  Here is where we lie by pretending that @Graph@ = @AGraph@.  Ok.}
+%% \simon{Aha!  Here is where we lie by pretending that @Graph@ = @AGraph@.  Ok.}
+%% \simon{Does @mkLast@ really have a @LastNode l@ context? How does it use it?}
+%%        Yes, it really does, but it's used only for prettyprinting
+%%        the graph (for debugging).  So I've expunged it from the
+%%        paper. ---NR
 The infix @<*>@ function is graph concatenation.
 
 The transformation is implemented by the call to @zdfRewriteFwd@
@@ -2292,6 +2302,16 @@ be stronger if they were supported with a list of dragon-book stuff
 that are all special cases. 
 
 But I may have misunderstood.}
+
+\remark{Here's what I'm trying to say: Gentle Reader,
+Bad people may have told you that dataflow analysis is new,
+special, difficult, and intimidating.  But it's not really---it's
+stuff you knew about all along.  Why, if you already understand the
+classic material on program correctness, you know how to write a new
+dataflow analysis---just invent an approximation of logic that has no
+infinite ascending chains.
+
+I could indeed go through the dragon book, but there's no time.}
 
 
 %%  \section{Logical view of optimization}
