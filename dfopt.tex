@@ -1717,7 +1717,7 @@ As explained by \citet{lerner-grove-chambers:2002},
 @zdfRewriteForward@ implements
 the transformation
 and its supporting
-analysis in two phases:
+analysis in two phases:\seclabel{solver-phase}
 \begin{itemize}
 \item
 In the first phase, when a rewrite function proposes to replace a
@@ -1991,39 +1991,31 @@ eliminating the induction variable.}
                 -> BlockEnv a -> ForwardTransfers m l a -> ForwardRewrites m l a
                 -> a -> Graph m l -> Fuel
                 -> DFM a (ForwardFixedPoint m l a (), Fuel)
-    forward_sol squash depth name start_facts transfers rewrites = fixed_point
-     where fixed_point in_fact g fuel =
-             do { setAllFacts start_facts
-                ; (a, fuel) <- solve getExitFact in_fact g fuel
-                ; ...
-                ; return (... a ..., fuel)
-                }
+    forward_sol squash depth name start_facts transfers rewrites = ...
+      where solve :: a -> Graph m l -> Fuel -> DFM a (a, Fuel)
+            solve in_fact g fuel =
+                  do { fuel <- run "forward" name set_successor_facts blocks fuel
+                     ; b <- getExitFact
+                     ; return (b, fuel) }
+              where blocks = G.postorder_dfs g
+                    set_successor_facts (Block id tail) fuel =
+                      do { idfact <- getFact id
+                         ; (last_outs, fuel) <-
+                             ... solve_tail (ft_first_out transfers id idfact) tail fuel ...
+                         ; set_or_save last_outs
+                         ; return fuel }
 
-           solve :: DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Fuel)
-           solve finish in_fact g fuel =
-             let blocks = G.postorder_dfs g
-                 set_successor_facts (Block id tail) fuel =
-                   do { idfact <- getFact id
-                      ; (last_outs, fuel) <-
-                          ... solve_tail (ft_first_out transfers id idfact) tail fuel ...
-                      ; set_or_save last_outs
-                      ; return fuel }
-
-             in  do { fuel <- run "forward" name set_successor_facts blocks fuel
-                    ; b <- finish
-                    ; return (b, fuel) }
-
-           solve_tail in' (G.ZTail m t) fuel =
-             case squash fuel $ fr_middle rewrites m in' of
-               Nothing -> solve_tail (ft_middle_out transfers m in') t fuel
-               Just g -> do { (a, fuel) <- subAnalysis' $
-                                 case depth of
-                                   RewriteDeep -> solve getExitFact in' g (oneLessFuel fuel)
-                                   RewriteShallow -> do { a <- anal_f getExitFact in' g
-                                                        ; return (a, oneLessFuel fuel) }
-                            ; solve_tail a t fuel
-                            }
-           ...
+            solve_tail in' (G.ZTail m t) fuel =
+              case squash fuel $ fr_middle rewrites m in' of
+                Nothing -> solve_tail (ft_middle_out transfers m in') t fuel
+                Just g -> do { (a, fuel) <- subAnalysis' $
+                                  case depth of
+                                    RewriteDeep -> solve in' g (oneLessFuel fuel)
+                                    RewriteShallow -> do { a <- anal_f getExitFact in' g
+                                                         ; return (a, oneLessFuel fuel) }
+                             ; solve_tail a t fuel
+                             }
+            ...
 \end{code}
 \caption{Excerpts from the forward solver}
 \figlabel{solver-excerpts}
@@ -2204,7 +2196,7 @@ mutable cells.
     fuel]}\remark{fix me}
 
 
-\figref{solver-excerpts} shows key excerpts from the forward solver 
+\figref{solver-excerpts} shows excerpts from the forward solver 
 @forward_sol@, which is the function used to implement
 @zdfSolveFwd@.
 As~it is also used to solve subgraphs and to help the rewriter, it
@@ -2213,30 +2205,21 @@ takes a few more parameters than @zdfSolveFwd@.
 \item
 An analysis of a subgraph starts with known facts, not bottom facts.
 These facts are stored in parameter
-@start_facts@.\remark{bletch---no parallel structure}
+@start_facts@.
 \item
-The parameter @squash@ is used to suppress rewriting, either because
+In the solver phase described in \secref{solver-phase},
+a node can be rewritten, the replacement graph is used to compute new
+dataflow facts, and then the replacement graph is abandoned.
+But sometimes we want to prevent a node from being rewritten at all,
+either because
 the solver is implementing a pure analysis, or because the optimizer
 is out of fuel. 
-\simon{Or because the analysis has not yet reached a fixpoint,
-so we discard?
-\textbf{NR}:
- Nope, no fixed points here. The rewritten graph (Just g) is 
-\emph{always} discarded after computing the new fact.
-I~would say this is obvious from the code except nothing about the
-code is obvious.
-Need anything be said in the text?
-\textbf{SLPJ}: well we earlier say ``In the first phase, 
-when a rewrite function proposes to replace a
-node, ...the original node is not replaced'', which sounds like squashing
-to me.  Maybe just rephrase that earlier bullet to nuke the remarks
-about ``node not replaced'' and instead say that after
-each iteration that does \emph{not} reach a fixpoint, the entire rewritten
-graph is discarded.
-}
-The @fuel@ parameter represents the amount of fuel remaining.
-It~is last because the fuel abstraction works with functions of type
-@Fuel -> (a, Fuel)@.
+We~do so using parameter @squash@.
+\item
+We track the amount of fuel remaining using
+parameter @fuel@.
+Parameter @fuel@ comes last because the fuel abstraction works with
+functions of type @Fuel -> (a, Fuel)@.
 \end{itemize}
 A~fixed point is computed by initializing the facts using
 @setAllFacts@, which is an operation in the dataflow monad.
@@ -2264,39 +2247,28 @@ is the composition of @DFM@ with @Fuel -> (a, Fuel)@.
 I~fear we are trying to cram 10~pounds of information into a 5-pound sack.
 }
  
-Function @solve@ is higher-order: 
-when solving a graph that ``falls through,'' 
-the @finish@ parameter is @getExitFact@;
-when solving a graph that ends in a control transfer,
-the @finish@ parameter is @lastOutFacts@. \simon{This is the first mention
-of the possiblity of a graph that ``falls through''.  After all this time,
-I'm still not sure what it means, and the reader may be in a similar
-state.
-\textbf{NR}: Here's an operational approximation: a graph ``falls
-through'' if it can be written @g <*> mkMiddle m@.  Does this help
-you, at least?
-}
-Both @getExitFact@ and @lastOutFacts@ are operations in the dataflow
-monad.
-
-Function @solve@ takes a graph and does a postorder depth-first traversal 
-to get a list of reachable blocks in~@blocks@.  
-\remark{It's the @LastNode l@ constraint that makes it possible to
-  find the successors of the last nodes and thereby to do the graph traversal.}
-It then applies a higher-order @run@ function,
+Function @solve@ takes a graph
+and applies a higher-order @run@ function,
 not shown here,
 % And don't you dare ask for its type.  The type of run would make you
 % vomit.  ---NR
 which repeatedly runs
-@set_successor_facts@ on @blocks@ in order until the internal facts
+@set_successor_facts@ each block in the graph, until the internal facts
 stop changing.
+Each block comes from  the list of reachable blocks in~@blocks@,
+which is computed by postorder depth-first traversal of the graph.
 Although any order will result in a correct fixed point,
 postorder depth-first order hastens convergence of forward dataflow
 analyses---often just a few iterations suffice.
+(The @LastNode l@ constraint in the type of @forward_sol@
+guarantees that we can
+  find the successors of last nodes and so do the traversal.)
+Once @run@ reaches a fixed point, @solve@ returns the exit fact and
+the remaining fuel.
+(Computation @getExitFact :: DFM a a@ is an operation in the dataflow
+monad.)
 
-
-
-To understand the rest of the solver, you must understand the
+To understand @set_successor_facts@, you must understand the
 representation of basic blocks.
 A~basic block is a sequence beginning with a first node, continuing
 with zero or more middle nodes, and ending in a last node.
