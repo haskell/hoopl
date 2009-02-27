@@ -902,11 +902,11 @@ class DataflowSolverDirection
 \T\begin{code}
 data AvailVars = UniverseMinus VarSet
                | AvailVars     VarSet
-extendAvail  :: AvailVars -> LocalVar  -> AvailVars
-delFromAvail :: AvailVars -> LocalVar  -> AvailVars
-elemAvail    :: AvailVars -> LocalVar  -> Bool
-interAvail   :: AvailVars -> AvailVars -> AvailVars
-smallerAvail :: AvailVars -> AvailVars -> Bool
+extendAvail  :: AvailVars -> LocalVar  -> AvailVars  -- add var to set
+delFromAvail :: AvailVars -> LocalVar  -> AvailVars  -- remove var from set
+elemAvail    :: AvailVars -> LocalVar  -> Bool       -- set membership
+interAvail   :: AvailVars -> AvailVars -> AvailVars  -- set intersection
+smallerAvail :: AvailVars -> AvailVars -> Bool       -- compare sizes
 \end{code}\B
 & Dataflow fact and operations\\
 \hline
@@ -1273,7 +1273,8 @@ the analysis reaches a fixed point.
 %%  Then, we rely on a dead-code elimination to~remove
 %%  the early reload.
 
-To manipulate sets of variables, we provide these functions:
+To manipulate sets of variables, we provide the functions shown at the
+top of \figref{avail}.
 \simon{Whoa!  We've moved from sets of \emph{assertions} to 
 sets of \emph{variables}. I see what you are doing, but it's a bit slippery.
 How about saying this: 
@@ -1281,18 +1282,7 @@ How about saying this:
 variables whose stack slots are up to date; 
 (b) the interpretation of such set S is that $x=s_x$ for each $x\in S$.
 (I'm not sure the ``interpretation'' makes it clearer; I'd be happy with (a).)}
-\begin{itemize}
-\item \texttt{extendAvail~~s~x}: Add variable @x@ to the set~@s@
-\item \texttt{delFromAvail~s~x}: Remove variable @x@ from the set~@s@
-\item \texttt{elemAvail~~~~s~x}: Check if variable @x@ is in the set~@s@
-\item \texttt{interAvail~~~s s'}: Intersect sets @s@ and @s'@
-\item \texttt{smallerAvail~s s'}: Check if set~@s@ is smaller than @s'@
-\end{itemize}
 The implementations use analogous operations on @VarSet@s.
-\simon{On my second pass I noticed for the first time that the
-types of thes operations are given in Fig 3.  Let's say so!  
-Indeed, there is no need to repeat them all here: just add 
-brief comments to the type signatures.   \textbf{NR}: I~second this proposal.}
 
 %%In~the lattice of available reloads (\figref{avail-lattice}),
 %%the~join is computed by taking the intersection of two sets
