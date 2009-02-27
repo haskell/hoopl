@@ -266,6 +266,12 @@ This transformation, although also an instance of substituting equals
 for equals, has a different name: ``constant folding.''
 
 \subsection{A complex transformation}
+\simon{It's a pity that this transformation occupies nearly the entire second page, 
+and then plays no subsequent role in the paper whatsoever.
+One possibility: move it to ``the next 700'' section, as a substantiating example
+to the claims made there.
+But then we'd need another example here... well the sink/reload example of
+Section 4 might be perfect.}
 
 \seclabel{induction-var-elim}
 
@@ -441,6 +447,7 @@ transformations.
 %
 Assertions are written in a restricted
 language of \emph{dataflow facts}.\john{Almost sounds like we're restricting the language}
+\simon{Exactly!  That was one reason I rewrote this stuff on Weds.}
 The connection between dataflow facts and
 \ifpagetuning\else traditional \fi
 program logic is
@@ -486,6 +493,7 @@ approximate the number of times a variable x has been written so far, something
 that would not normally be considered part of the ``state'' of the program.
 Now the two look more dual.}
 \john{Indeed, this was a problem. I think we've addressed the latter comment now.}
+\simon{Yes, better.}
 \item
 Each analysis or transformation may use a different language of
 dataflow facts.
@@ -580,6 +588,9 @@ the join operation corresponds to disjunction.
 representation of dataflow facts cannot represent disjunction
 exactly}; instead, a
 disjunction of two inconsistent facts is represented by~$x=\top$.
+\simon{At this point it's very unclear why one should focus on 
+disjunction here.  Why not conjunction, or something else?
+I tried to fix that in my rewrite.}
 Here are some examples:
 \begin{itemize}
 \item
@@ -612,7 +623,8 @@ Also the ``the logic implied by the representation of the dataflow facts cannot 
 disjunction''.  So we have the compiler, the logic, and the representation all swirling
 about in my head.  I don't think we can fix my problem by a few words here; so out it goes.}
 \remark{We'll try to get our terminology sorted.
-Meanwhile, please let me know if the footnote adds anything.}
+Meanwhile, please let me know if the footnote adds anything. }
+\simon{It's an improvement.}
 
 \end{itemize}
 
@@ -1405,7 +1417,12 @@ Except for the implementations of the set operations on @AvailVars@,
 well-known analysis.  Can we re-order to put it first?
 Fine by me ---NR}
 \simon{Same question as in current 4.1: what is the connection to
-passes 1,2,3?  Irrelevant: the analysis should stand on its own ---NR}
+passes 1,2,3?  Irrelevant: the analysis should stand on its own ---NR.
+SLPJ responds: Not irrelevant to the reader!  I expect 4.2 to follow in some way
+from 4.0 (the bit before 4.1).  
+Indeed we say (start of 4) ``In~this section we provide evidence for that claim by showing
+implementations of two analyses...that help solve a real problem in GHC''.
+So presumably this analysis is somehow connected to 4.0.}
 
 \seclabel{liveness}
 
@@ -1496,7 +1513,10 @@ at the beginning of each block.
 should not be considered part of liveness analysis.)
 \simon{Please let us give their types somewhere!  Every function
  should have either a type signature, or a type and an implementation. Otherwise
-the code becomes opaque.  \textbf{NR}: Where do you suggest we put the types?}
+the code becomes opaque.  \textbf{NR}: Where do you suggest we put the types?
+\textbf{SLPJ} I don't think it matters much.  Perhpas in a Figure
+that collects the signatures of otherwise less-important functions, or in Figure
+3 itself (but it's so wide it wastes space to put a type sig in!}
 
 %%  Each transfer function takes an instruction and
 %%  the set of live registers in the instruction's continuation (the \liveout\ set);
@@ -2311,6 +2331,9 @@ dataflow analysis---just invent an approximation of logic that has no
 infinite ascending chains.
 
 I could indeed go through the dragon book, but there's no time.}
+\simon{Well that is certainly better. Why not say that?  It's much 
+shorter too!  Evidence of the claim that data flow analysis is presented
+as special difficult intimidating might be good.}
 
 
 %%  \section{Logical view of optimization}
