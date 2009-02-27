@@ -23,6 +23,51 @@
 \usepackage{verbatim} % allows to define \begin{smallcode}
 \newenvironment{smallcode}{\par\unskip\small\verbatim}{\endverbatim}
 
+\newcommand\lineref[1]{line~\ref{line:#1}}
+
+\makeatletter
+
+\newcommand\setlabel[1]{%
+  \setlabel@#1!!\@endsetlabel
+}
+\def\setlabel@#1!#2!#3\@endsetlabel{%
+  \ifx*#1*% line begins with label or is empty
+     \ifx*#2*% line is empty
+        \verbatim@line{}%
+     \else
+       \@stripbangs#3\@endsetlabel%
+       \label{line:#2}%
+     \fi
+  \else
+     \@stripbangs#1!#2!#3\@endsetlabel%
+  \fi
+}
+\def\@stripbangs#1!!\@endsetlabel{%
+  \verbatim@line{#1}%
+}
+
+
+\verbatim@line{hello mama}
+
+\newcounter{codeline}
+\newenvironment{numberedcode}
+  {\endgraf
+     \def\verbatim@processline{%
+        \noindent
+        \expandafter\ifx\expandafter+\the\verbatim@line+  % blank line
+               {\small\textit{\phantom{00}\phantom{: }}}%
+            \else
+               \refstepcounter{codeline}%
+               {\small\textit{\phantom{00}\llap{\arabic{codeline}}: }}%
+            \fi
+        \expandafter\setlabel\expandafter{\the\verbatim@line}%
+        \the\verbatim@line\par}%
+   \verbatim
+   }
+   {\endverbatim}
+
+\makeatother
+
 \newcommand\arrow{\rightarrow}
 
 \newcommand\join{\sqcup}
@@ -883,9 +928,6 @@ class DataflowSolverDirection
 %%  engine and the individual dataflow passes.
 
 
-
-
-
 \section{Example analysis passes}
 
 \seclabel{example-analyses}
@@ -895,11 +937,18 @@ class DataflowSolverDirection
 \newcommand\B{\rule[-0.05ex]{0pt}{0pt}}
 \newcolumntype{C}{>{\begin{minipage}{5.35in}}l<{\end{minipage}}} % code
 \newcolumntype{L}{>{\Large\bfseries}m{1.3in}<{\centering}}       % label
-\newenvironment{codetable}{\begin{tabular}{CL}}{\end{tabular}}
+\newenvironment{codetable}
+  {\setcounter{codeline}{0}%
+   \let\code=\numberedcode
+   \let\endcode=\endnumberedcode
+   \begin{tabular}{CL}%
+  }
+  {\end{tabular}}
 
 \begin{figure*}
+\setcounter{codeline}{0}
 \begin{codetable}
-\T\begin{code}
+\T\begin{numberedcode}
 data AvailVars = UniverseMinus VarSet
                | AvailVars     VarSet
 extendAvail  :: AvailVars -> LocalVar  -> AvailVars  -- add var to set
@@ -907,7 +956,8 @@ delFromAvail :: AvailVars -> LocalVar  -> AvailVars  -- remove var from set
 elemAvail    :: AvailVars -> LocalVar  -> Bool       -- set membership
 interAvail   :: AvailVars -> AvailVars -> AvailVars  -- set intersection
 smallerAvail :: AvailVars -> AvailVars -> Bool       -- compare sizes
-\end{code}\B
+\end{numberedcode}%
+\B
 & Dataflow fact and operations\\
 \hline
 
@@ -917,7 +967,8 @@ availVarsLattice = DataflowLattice "reloaded registers" empty add False
     where empty = UniverseMinus emptyVarSet
           add new old = let join = interAvail new old in
                         if join `smallerAvail` old then aTx join else noTx join
-\end{code}\B
+\end{code}%
+\B
 & Lattice\\
 \hline
 
@@ -947,7 +998,8 @@ middleAvail (MidStore {}) avail = avail
 lastAvail :: Last -> AvailVars -> LastOuts AvailVars
 lastAvail (LastCall _ (Just k) _ _) _ = LastOuts [(k, AvailVars emptyVarSet)]
 lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
-\end{code}\B
+\end{code}%
+\B
 & Transfer \mbox{functions}\\
 \hline
 
@@ -956,7 +1008,8 @@ cmmAvailableReloads :: Graph Middle Last -> BlockEnv AvailVars
 cmmAvailableReloads g = zdfFpFacts soln
   where soln = zdfSolveFwd "available reloads" availVarsLattice 
                avail_reloads_transfer (fact_bot availVarsLattice) g
-\end{code}\B
+\end{code}%
+\B
 & Available-reloads analysis\\
 %\hline
 
@@ -1132,7 +1185,8 @@ the transformations are described in
 \begin{codetable}
 \T\begin{code}
 type Live = VarSet
-\end{code}\B
+\end{code}%
+\B
 & Dataflow fact\\
 \hline
 
@@ -1142,7 +1196,8 @@ liveLattice = DataflowLattice "live LocalReg's" emptyVarSet add False
   where add new old =
           let join = unionVarSets new old in
           (if sizeVarSet join > sizeVarSet old then aTx else noTx) join
-\end{code}\B
+\end{code}%
+\B
 & Lattice\\
 \hline
 
@@ -1166,7 +1221,7 @@ lastLiveness   l = addUsed l . remDefd l . lastLiveOut l
 
 addUsed :: UserOfLocalVars    a => a -> Live -> Live
 remDefd :: DefinerOfLocalVars a => a -> Live -> Live 
-addUsed a live = foldVarsUsed extendVarSet  live a
+!addUsed!addUsed a live = foldVarsUsed extendVarSet  live a
 remDefd a live = foldVarsDefd delFromVarSet live a
 
 lastLiveOut :: Last -> (BlockId -> Live) -> Live
@@ -1176,7 +1231,8 @@ lastLiveOut l env = last l
     last (LastCondBranch _ t f) = unionVarSets (env t) (env f)
     last (LastSwitch _ tbl)     = unionManyVarSets $ map env (catMaybes tbl)
     last (LastCall { })         = emptyVarSet
-\end{code}\B
+\end{code}%
+\B
 & Transfer \mbox{functions}\\
 \hline
 
@@ -1184,7 +1240,8 @@ lastLiveOut l env = last l
 cmmLiveness :: Graph Middle Last -> BlockEnv Live
 cmmLiveness g = zdfFpFacts soln
     where res = zdfSolveBwd "liveness analysis" liveLattice liveTransfers emptyVarSet g
-\end{code}\B
+\end{code}%
+\B
 & Liveness \mbox{analysis}\\
 \end{codetable}
 \caption{Liveness analysis}
@@ -1254,6 +1311,8 @@ It is optimistic to assume that a variable can be redundantly reloaded from the 
 but this optimistic assumption is what enables us to improve the
 code---and if the assumption is not justified, it will be corrected before
 the analysis reaches a fixed point.
+
+@addUsed@ is defined on \lineref{addUsed}
 
 
 
@@ -1638,7 +1697,8 @@ availRewrites = ForwardRewrites first middle last
                 else Just $ reloadTail used tail
         reloadTail vars t = foldl rel t $ varSetToList vars
           where rel t r = mkMiddle (reload r) <*> t
-\end{code}\B
+\end{code}%
+\B
 & Rewrite \mbox{functions}\\
 \hline
 
@@ -1717,7 +1777,7 @@ As explained by \citet{lerner-grove-chambers:2002},
 @zdfRewriteForward@ implements
 the transformation
 and its supporting
-analysis in two phases:
+analysis in two phases:\seclabel{solver-phase}
 \begin{itemize}
 \item
 In the first phase, when a rewrite function proposes to replace a
@@ -1905,7 +1965,8 @@ middleRemoveDeads :: Middle -> CmmLive -> Maybe (Graph Middle Last)
 middleRemoveDeads (MidAssign (CmmLocal x) _) live
     | not (x `elemVarSet` live) = Just emptyGraph
 middleRemoveDeads _ _ = Nothing
-\end{code}\B
+\end{code}%
+\B
 & Rewrite \mbox{functions}\\
 \hline
 
@@ -2010,45 +2071,38 @@ eliminating the induction variable.}
 
 
 \begin{figure*}
-\begin{code}
+\setcounter{codeline}{0}
+\begin{numberedcode}
     forward_sol :: LastNode l => (forall a . Fuel -> Maybe a -> Maybe a) -> RewritingDepth -> PassName 
                 -> BlockEnv a -> ForwardTransfers m l a -> ForwardRewrites m l a
                 -> a -> Graph m l -> Fuel
                 -> DFM a (ForwardFixedPoint m l a (), Fuel)
-    forward_sol squash depth name start_facts transfers rewrites = fixed_point
-     where fixed_point in_fact g fuel =
-             do { setAllFacts start_facts
-                ; (a, fuel) <- solve getExitFact in_fact g fuel
-                ; ...
-                ; return (... a ..., fuel)
-                }
+    forward_sol squash depth name start_facts transfers rewrites = ...
+      where solve :: a -> Graph m l -> Fuel -> DFM a (a, Fuel)
+            solve in_fact g fuel =
+                  do { fuel <- run "forward" name set_successor_facts blocks fuel
+                     ; b <- getExitFact
+                     ; return (b, fuel) }
+              where blocks = G.postorder_dfs g
+                    set_successor_facts (Block id tail) fuel =
+                      do { idfact <- getFact id
+                         ; (last_outs, fuel) <-
+                             ... solve_tail (ft_first_out transfers id idfact) tail fuel ...
+                         ; set_or_save last_outs
+                         ; return fuel }
 
-           solve :: DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Fuel)
-           solve finish in_fact g fuel =
-             let blocks = G.postorder_dfs g
-                 set_successor_facts (Block id tail) fuel =
-                   do { idfact <- getFact id
-                      ; (last_outs, fuel) <-
-                          ... solve_tail (ft_first_out transfers id idfact) tail fuel ...
-                      ; set_or_save last_outs
-                      ; return fuel }
-
-             in  do { fuel <- run "forward" name set_successor_facts blocks fuel
-                    ; b <- finish
-                    ; return (b, fuel) }
-
-           solve_tail in' (G.ZTail m t) fuel =
-             case squash fuel $ fr_middle rewrites m in' of
-               Nothing -> solve_tail (ft_middle_out transfers m in') t fuel
-               Just g -> do { (a, fuel) <- subAnalysis' $
-                                 case depth of
-                                   RewriteDeep -> solve getExitFact in' g (oneLessFuel fuel)
-                                   RewriteShallow -> do { a <- anal_f getExitFact in' g
-                                                        ; return (a, oneLessFuel fuel) }
-                            ; solve_tail a t fuel
-                            }
-           ...
-\end{code}
+            solve_tail in' (G.ZTail m t) fuel =
+              case squash fuel $ fr_middle rewrites m in' of
+                Nothing -> solve_tail (ft_middle_out transfers m in') t fuel
+                Just g -> do { (a, fuel) <- subAnalysis' $
+                                  case depth of
+                                    RewriteDeep -> solve in' g (oneLessFuel fuel)
+                                    RewriteShallow -> do { a <- anal_f getExitFact in' g
+                                                         ; return (a, oneLessFuel fuel) }
+                             ; solve_tail a t fuel
+                             }
+            ...
+\end{numberedcode}
 \caption{Excerpts from the forward solver}
 \figlabel{solver-excerpts}
 \end{figure*}
@@ -2191,7 +2245,8 @@ ever rewritten.
 %%             ; return (fp, fuel)
 %%             }
 %%  
-\begin{code}
+\setcounter{codeline}{0}
+\begin{numberedcode}
       ...
     rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
     rewrite start finish in_fact g fuel =
@@ -2216,7 +2271,7 @@ ever rewritten.
                      ; (a, g, fuel) <- inner_rew getExitFact in' g fuel
                      ; let (blocks, h) = G.splice_head' head g
                      ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
-\end{code}
+\end{numberedcode}
 \caption{Excerpts from the forward rewriter}
 \figlabel{rewriter-excerpts}
 \end{figure*}
@@ -2228,7 +2283,7 @@ mutable cells.
     fuel]}\remark{fix me}
 
 
-\figref{solver-excerpts} shows key excerpts from the forward solver 
+\figref{solver-excerpts} shows excerpts from the forward solver 
 @forward_sol@, which is the function used to implement
 @zdfSolveFwd@.
 As~it is also used to solve subgraphs and to help the rewriter, it
@@ -2237,30 +2292,21 @@ takes a few more parameters than @zdfSolveFwd@.
 \item
 An analysis of a subgraph starts with known facts, not bottom facts.
 These facts are stored in parameter
-@start_facts@.\remark{bletch---no parallel structure}
+@start_facts@.
 \item
-The parameter @squash@ is used to suppress rewriting, either because
+In the solver phase described in \secref{solver-phase},
+a node can be rewritten, the replacement graph is used to compute new
+dataflow facts, and then the replacement graph is abandoned.
+But sometimes we want to prevent a node from being rewritten at all,
+either because
 the solver is implementing a pure analysis, or because the optimizer
 is out of fuel. 
-\simon{Or because the analysis has not yet reached a fixpoint,
-so we discard?
-\textbf{NR}:
- Nope, no fixed points here. The rewritten graph (Just g) is 
-\emph{always} discarded after computing the new fact.
-I~would say this is obvious from the code except nothing about the
-code is obvious.
-Need anything be said in the text?
-\textbf{SLPJ}: well we earlier say ``In the first phase, 
-when a rewrite function proposes to replace a
-node, ...the original node is not replaced'', which sounds like squashing
-to me.  Maybe just rephrase that earlier bullet to nuke the remarks
-about ``node not replaced'' and instead say that after
-each iteration that does \emph{not} reach a fixpoint, the entire rewritten
-graph is discarded.
-}
-The @fuel@ parameter represents the amount of fuel remaining.
-It~is last because the fuel abstraction works with functions of type
-@Fuel -> (a, Fuel)@.
+We~do so using parameter @squash@.
+\item
+We track the amount of fuel remaining using
+parameter @fuel@.
+Parameter @fuel@ comes last because the fuel abstraction works with
+functions of type @Fuel -> (a, Fuel)@.
 \end{itemize}
 A~fixed point is computed by initializing the facts using
 @setAllFacts@, which is an operation in the dataflow monad.
@@ -2288,39 +2334,28 @@ is the composition of @DFM@ with @Fuel -> (a, Fuel)@.
 I~fear we are trying to cram 10~pounds of information into a 5-pound sack.
 }
  
-Function @solve@ is higher-order: 
-when solving a graph that ``falls through,'' 
-the @finish@ parameter is @getExitFact@;
-when solving a graph that ends in a control transfer,
-the @finish@ parameter is @lastOutFacts@. \simon{This is the first mention
-of the possiblity of a graph that ``falls through''.  After all this time,
-I'm still not sure what it means, and the reader may be in a similar
-state.
-\textbf{NR}: Here's an operational approximation: a graph ``falls
-through'' if it can be written @g <*> mkMiddle m@.  Does this help
-you, at least?
-}
-Both @getExitFact@ and @lastOutFacts@ are operations in the dataflow
-monad.
-
-Function @solve@ takes a graph and does a postorder depth-first traversal 
-to get a list of reachable blocks in~@blocks@.  
-\remark{It's the @LastNode l@ constraint that makes it possible to
-  find the successors of the last nodes and thereby to do the graph traversal.}
-It then applies a higher-order @run@ function,
+Function @solve@ takes a graph
+and applies a higher-order @run@ function,
 not shown here,
 % And don't you dare ask for its type.  The type of run would make you
 % vomit.  ---NR
 which repeatedly runs
-@set_successor_facts@ on @blocks@ in order until the internal facts
+@set_successor_facts@ each block in the graph, until the internal facts
 stop changing.
+Each block comes from  the list of reachable blocks in~@blocks@,
+which is computed by postorder depth-first traversal of the graph.
 Although any order will result in a correct fixed point,
 postorder depth-first order hastens convergence of forward dataflow
 analyses---often just a few iterations suffice.
+(The @LastNode l@ constraint in the type of @forward_sol@
+guarantees that we can
+  find the successors of last nodes and so do the traversal.)
+Once @run@ reaches a fixed point, @solve@ returns the exit fact and
+the remaining fuel.
+(Computation @getExitFact :: DFM a a@ is an operation in the dataflow
+monad.)
 
-
-
-To understand the rest of the solver, you must understand the
+To understand @set_successor_facts@, you must understand the
 representation of basic blocks.
 A~basic block is a sequence beginning with a first node, continuing
 with zero or more middle nodes, and ending in a last node.
@@ -2552,35 +2587,61 @@ to rewrite~@t@.
 \section{The next 700 dataflow analyses}
 
 \seclabel{next-700}
-\simon{I know that this section is Dear to the Ramsey Heart, but
-I still can't figure out what it is trying to say to the reader.
+%%  \simon{I know that this section is Dear to the Ramsey Heart, but
+%%  I still can't figure out what it is trying to say to the reader.
+%%  
+%%  Let me try one stab at what I think you might be trying to say.
+%%  In this paper we have described a re-usable, polymorphic 
+%%  framework (concretely, a library)
+%%  for the analysis and transformation of control flow graphs.
+%%  This is not a specialised tool; on the contrary we claim that
+%%  a huge variety of optimisations can be viewed through the lens of
+%%  dataflow optimisation.
+%%  
+%%  If that's the thrust, then the generalities of ths section would
+%%  be stronger if they were supported with a list of dragon-book stuff
+%%  that are all special cases. 
+%%  
+%%  But I may have misunderstood.}
+%%  
+%%  \remark{Here's what I'm trying to say: Gentle Reader,
+%%  Bad people may have told you that dataflow analysis is new,
+%%  special, difficult, and intimidating.  But it's not really---it's
+%%  stuff you knew about all along.  Why, if you already understand the
+%%  classic material on program correctness, you know how to write a new
+%%  dataflow analysis---just invent an approximation of logic that has no
+%%  infinite ascending chains.
+%%  
+%%  I could indeed go through the dragon book, but there's no time.}
+%%  \simon{Well that is certainly better. Why not say that?  It's much 
+%%  shorter too!  Evidence of the claim that data flow analysis is presented
+%%  as special difficult intimidating might be good.}
 
-Let me try one stab at what I think you might be trying to say.
-In this paper we have described a re-usable, polymorphic 
-framework (concretely, a library)
-for the analysis and transformation of control flow graphs.
-This is not a specialised tool; on the contrary we claim that
-a huge variety of optimisations can be viewed through the lens of
-dataflow optimisation.
 
-If that's the thrust, then the generalities of ths section would
-be stronger if they were supported with a list of dragon-book stuff
-that are all special cases. 
+Most of this paper is devoted to the implementation of dataflow
+analysis and their associated transformations.
+But we also promised you ideas.
+The~main idea is that dataflow analysis is not really special,
+difficult, or intimidating---it's a special case of work you may
+already know about:
+the seminal work of
+\citet{floyd:assigning-meanings},
+\citet{hoare:axiomatic-basis},
+and
+\citet{dijkstra:discipline}
+on semantics of programming languages and
+ formal methods of program construction.
+If~you like this classic material, you are ready to invent a new
+dataflow analysis: just invent an approximation of program logic 
+such that the approximation has no infinite ascending chains.
 
-But I may have misunderstood.}
-
-\remark{Here's what I'm trying to say: Gentle Reader,
-Bad people may have told you that dataflow analysis is new,
-special, difficult, and intimidating.  But it's not really---it's
-stuff you knew about all along.  Why, if you already understand the
-classic material on program correctness, you know how to write a new
-dataflow analysis---just invent an approximation of logic that has no
-infinite ascending chains.
-
-I could indeed go through the dragon book, but there's no time.}
-\simon{Well that is certainly better. Why not say that?  It's much 
-shorter too!  Evidence of the claim that data flow analysis is presented
-as special difficult intimidating might be good.}
+In this section we compare the formal methods a
+person uses to 
+\emph{construct} a new program with the formal methods a compiler uses
+to \emph{analyze} a program that already exists.
+The comparison is a bit tricky,
+because compilers and
+people typically work in opposite directions.
 
 
 %%  \section{Logical view of optimization}
@@ -2594,20 +2655,7 @@ as special difficult intimidating might be good.}
 \seclabel{logic}
 
 
-Dataflow analysis is closely related to the seminal work done by
-\citet{floyd:assigning-meanings},
-\citet{hoare:axiomatic-basis},
-and
-\citet{dijkstra:discipline}
-on semantics of programming languages and
- formal methods of program construction.
-%
-We would like to elucidate the relationship between the formal methods a
-person uses to 
-\emph{construct} a new program with the formal methods a compiler uses
-to \emph{analyze} a program that already exists.
-Understanding the relationship is a bit tricky, because compilers and
-people typically work in opposite directions.
+
 
 The most highly developed
 methodology for constructing a procedure (Dijkstra's) starts with a
@@ -2918,7 +2966,8 @@ transformations and the assertions that can justify them.
 %%          -> Graph m l
 %%          -> Fuel
 %%          -> DFM a (ForwardFixedPoint m l a (), Fuel)
-\begin{code}
+\setcounter{codeline}{0}
+\begin{numberedcode}
 forward_sol squash rewrite name start_facts transfers rewrites = fixed_point
  where 
    fixed_point in_fact g fuel =
@@ -2982,7 +3031,7 @@ forward_sol squash rewrite name start_facts transfers rewrites = fixed_point
    anal_f finish in' g = do { fwd_pure_anal name emptyBlockEnv transfers in' g; finish }
    either_last rewrites in' (LastExit) = in'
    either_last rewrites in' (LastOther l) = fr_last rewrites l in'
-\end{code}
+\end{numberedcode}
 \caption{The forward solver}
 \end{figure*}
 
@@ -3000,7 +3049,8 @@ forward_sol squash rewrite name start_facts transfers rewrites = fixed_point
 %%          -> Graph m l
 %%          -> Fuel
 %%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
-\begin{code}
+\setcounter{codeline}{0}
+\begin{numberedcode}
 forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
   where
     fixed_pt_and_fuel =
@@ -3061,7 +3111,7 @@ forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx 
                      ; return (G.lg_blocks g' `plusBlockEnv` rewritten, fuel) }
     either_last rewrites in' (LastExit) = in'
     either_last rewrites in' (LastOther l) = fr_last rewrites l in'
-\end{code}
+\end{numberedcode}
 \caption{The forward rewriter}
 \end{figure*}
 
