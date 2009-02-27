@@ -986,8 +986,8 @@ avail_reloads_transfer :: ForwardTransfers Middle Last AvailVars
 avail_reloads_transfer = ForwardTransfers (flip const) middleAvail lastAvail
 
 middleAvail :: Middle -> AvailVars -> AvailVars
-middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail
-                 | l `isStackSlotOf` x = extendAvail avail x
+!reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail
+!reload2!                 | l `isStackSlotOf` x = extendAvail avail x
 middleAvail (MidAssign lhs _expr) avail = 
   foldVarsDefd delFromAvail avail lhs  -- remove variables defined in 'lhs'
 middleAvail (MidStore l (CmmReg (CmmLocal r))) avail
@@ -1221,7 +1221,7 @@ lastLiveness   l = addUsed l . remDefd l . lastLiveOut l
 
 addUsed :: UserOfLocalVars    a => a -> Live -> Live
 remDefd :: DefinerOfLocalVars a => a -> Live -> Live 
-!addUsed!addUsed a live = foldVarsUsed extendVarSet  live a
+addUsed a live = foldVarsUsed extendVarSet  live a
 remDefd a live = foldVarsDefd delFromVarSet live a
 
 lastLiveOut :: Last -> (BlockId -> Live) -> Live
@@ -1312,9 +1312,6 @@ but this optimistic assumption is what enables us to improve the
 code---and if the assumption is not justified, it will be corrected before
 the analysis reaches a fixed point.
 
-@addUsed@ is defined on \lineref{addUsed}
-
-
 
 
 %%  Among many other uses, an available-expressions analysis can be~used
@@ -1364,11 +1361,8 @@ yet they are essential to understand the code. This is a tough
 one, because there is a fair amoutn to say.}
 \begin{itemize}
 \item
-The first case \simon{``first case''/``second case'' is easier when writing than reading.  Could we
-add @(Case 1)@ and @(Case 2)@ to the code we have an unambiguous URL?
-\textbf{NR}: If we have time, we want line numbers in the code
-figures.  John says it will be quick.} 
-identifies an assignment that reloads local
+Lines \ref{line:reload1} and \ref{line:reload2}
+identify an assignment that reloads local
 variable~@x@ from its stack slot.\finalremark{I propose the compiler be
 modified to use @isStackSlotOf@ as I've written. JD~approves.}
 After such an assignment, $x = \slotof x$,
