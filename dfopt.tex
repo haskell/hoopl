@@ -456,8 +456,8 @@ There are two kinds of dataflow facts.
 The first kind is an assertion about the paths from the procedure
 entry to a program point;
 these facts are computed by a forward dataflow analysis.
-A special case is an assertion about the state at a program point,
-which is established by the paths leading from the entry to the program point.
+A common special case is an assertion about state at a program point,
+such as the assertion @x == 7@ in \secref{constant-propagation}.
 % Assertions about program state are usually sufficient to show that
 % a transformation preserves semantics,
 % but to decide whether a transformation will improve the code,
@@ -470,8 +470,7 @@ these facts are computed by a backward dataflow analysis.
 In the parlance of functional programmers, these dataflow facts are assertions on
 \emph{continuations}.
 
-Assertions about state are easy to formalize (e.g. the assertion @x == 7@ 
-in \secref{constant-propagation}), but path properties are harder;
+Assertions about state are easy to formalize, but path properties are harder;
 we describe path properties informally in our assertions.
 \simon{Shall we mention that typically forward
 analysis use the former and backwards the latter?}
@@ -661,7 +660,7 @@ and @fact_name@  is used for debugging.
 
 \begin{figure}
 \begin{code}
-newtype LastOuts a = LastOuts [(BlockId, a)] 
+newtype LastOuts a = LastOuts [(BlockId, a)]
 data ForwardTransfers mid last a = ForwardTransfers
  {ft_first_out  :: BlockId -> a -> a,
   ft_middle_out :: mid     -> a -> a,
@@ -1241,10 +1240,10 @@ set using one of two alternatives
 \item \texttt{AvailVars~~~~~s}: The variables in the set~@s@
 \end{itemize}
 The bottom element is @UniverseMinus emptyVarSet@.
-It is optimistic to assume that MUMBLE,\remark{fix me}
+It is optimistic to assume that a variable can be redundantly reloaded from the stack,
 but this optimistic assumption is what enables us to improve the
-code---and if the assumption is not justified, it will be corrected by
-the transfer functions.
+code---and if the assumption is not justified, it will be corrected before
+the analysis reaches a fixed point.
 
 
 
