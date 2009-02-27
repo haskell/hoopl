@@ -23,7 +23,31 @@
 \usepackage{verbatim} % allows to define \begin{smallcode}
 \newenvironment{smallcode}{\par\unskip\small\verbatim}{\endverbatim}
 
+\newcommand\lineref[1]{line~\ref{line:#1}}
+
 \makeatletter
+
+\newcommand\setlabel[1]{%
+  \setlabel@#1!!\@endsetlabel
+}
+\def\setlabel@#1!#2!#3\@endsetlabel{%
+  \ifx*#1*% line begins with label or is empty
+     \ifx*#2*% line is empty
+        \verbatim@line{}%
+     \else
+       \@stripbangs#3\@endsetlabel%
+       \label{line:#2}%
+     \fi
+  \else
+     \@stripbangs#1!#2!#3\@endsetlabel%
+  \fi
+}
+\def\@stripbangs#1!!\@endsetlabel{%
+  \verbatim@line{#1}%
+}
+
+
+\verbatim@line{hello mama}
 
 \newcounter{codeline}
 \newenvironment{numberedcode}
@@ -36,6 +60,7 @@
                \refstepcounter{codeline}%
                {\small\textit{\phantom{00}\llap{\arabic{codeline}}: }}%
             \fi
+        \expandafter\setlabel\expandafter{\the\verbatim@line}%
         \the\verbatim@line\par}%
    \verbatim
    }
@@ -1196,7 +1221,7 @@ lastLiveness   l = addUsed l . remDefd l . lastLiveOut l
 
 addUsed :: UserOfLocalVars    a => a -> Live -> Live
 remDefd :: DefinerOfLocalVars a => a -> Live -> Live 
-addUsed a live = foldVarsUsed extendVarSet  live a
+!addUsed!addUsed a live = foldVarsUsed extendVarSet  live a
 remDefd a live = foldVarsDefd delFromVarSet live a
 
 lastLiveOut :: Last -> (BlockId -> Live) -> Live
@@ -1286,6 +1311,8 @@ It is optimistic to assume that a variable can be redundantly reloaded from the 
 but this optimistic assumption is what enables us to improve the
 code---and if the assumption is not justified, it will be corrected before
 the analysis reaches a fixed point.
+
+@addUsed@ is defined on \lineref{addUsed}
 
 
 
