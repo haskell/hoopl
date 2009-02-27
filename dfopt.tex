@@ -448,19 +448,23 @@ There are two kinds of dataflow facts.
 The first kind is an assertion about the paths from the procedure
 entry to a program point;
 these facts are computed by a forward dataflow analysis.
-An important special case is an assertion on the program state,
-like the dataflow fact @x == 7@ in \secref{constant-propagation}.
-An assertion on the program state is enough to justify
-most semantics-preserving transformations,
-but to decide whether a transformation will improve the code,
-we sometimes need an assertion that describes how the program
-state was established.\john{Maybe this goes later, in our example.}
+A special case is an assertion about the state at a program point,
+which is established by the paths leading from the entry to the program point.
+% Assertions about program state are usually sufficient to show that
+% a transformation preserves semantics,
+% but to decide whether a transformation will improve the code,
+% we sometimes need an assertion that describes how the program
+% state was established.
 
-The second kind is an assertion about paths from the program point
+The second kind of dataflow fact is an assertion about paths from the program point
 to the procedure exit;
 these facts are computed by a backward dataflow analysis.
-These dataflow facts are referred to as assertions on
-the \emph{continuation} of the procedure.
+In the parlance of functional programmers, these dataflow facts are assertions on
+\emph{continuations}.
+
+Assertions about state are easy to formalize (e.g. the assertion @x == 7@ 
+in \secref{constant-propagation}), but path properties are harder;
+we describe path properties informally in our assertions.
 \simon{Shall we mention that typically forward
 analysis use the former and backwards the latter?}
 \simon{Side remark (not for paper): I was wondering about the difference
@@ -1180,33 +1184,37 @@ cmmLiveness g = zdfFpFacts soln
 
 
 To~understand the analysis, you must know that for each variable~$x$,
-there is a compiler pseudoregister~\tempof x and a stack slot~\slotof x, each of
-which is used only to hold the value of~$x$.
+there is a stack slot~\slotof x that is used to save the value of~$x$.
 %
 \remark{Changing ``register'' to
 ``variable'' makes the example easier to understand and hides a
 GHC-ism, but there's a slippery slope here.}
 %
-If the pseudoregister and the stack slot hold the same value,
-that is if $\tempof x = \slotof x$,
+If the variable and the stack slot hold the same value,
+that is if $x = \slotof x$,
 then it is safe to insert a reload without changing the observable
 behavior of the program.
-But is it profitable?
-We do not want to end up with an extra reload instruction on any
-execution of the procedure; therefore, we should 
-we should insert a \emph{redundant} reload at a program point
-only if, on every path to the program point, the most recent definition of
-$\tempof x$ was a reload from $\slotof x$.
 
-The logical assertion of interest therefore takes the form
-\mbox{$(\tempof x = \slotof x) \wedge
-       (\mathit{lastDef}(\tempof x) = \tempof x @=@ \slotof x)$}.
-The dataflow fact that corresponds to a conjunction of assertions of
-this form is a set of variables~$X$ such that \mbox{$\forall x \in X \mathrel
-: (\tempof x = \slotof x \wedge (\mathit{lastDef}(\tempof x) = \tempof x @=@ \slotof x))$}.
+To sink a reload of a variable $x$, we insert redundant reloads immediately
+before a use of $x$.
+We use an analysis that identifies not only when it is safe to insert
+such a reload, but when the inserted reload will make an earlier reload redundant.
+Specifically, we should insert a reload before a node that uses $x$ only if,
+on every path to the node, the most recent definition of $x$ was a reload from
+$\slotof x$; we assert this property with the informal notation
+$\mathit{lastDef}(x) = x @=@ \slotof x$.
+
+For a single variable, the logical assertion takes the form
+\mbox{$(x = \slotof x) \wedge
+       (\mathit{lastDef}(x) = x @=@ \slotof x)$}.
+For multiple variables, the logical assertion is a conjunction of assertions
+on single variables.
+To represent this assertion, our analysis uses a 
+set of variables~$X$ such that \mbox{$\forall x \in X \mathrel
+: (x = \slotof x \wedge (\mathit{lastDef}(x) = x @=@ \slotof x))$}.
 The lattice-join operation is set intersection,\footnote
-{A variable $\tempof x = \slotof x$ at a label~@L@ if and
-only if $\tempof x = \slotof x$ on every control-flow edge coming into~@L@.}
+{A variable $x = \slotof x$ at a label~@L@ if and
+only if $x = \slotof x$ on every control-flow edge coming into~@L@.}
 and the bottom element
 is the universal set containing all variables.
 \simon{I'm puzzled about why you are treating this example so differently
@@ -1295,8 +1303,8 @@ add @(Case 1)@ and @(Case 2)@ to the code we have an unambiguous URL?}
 identifies an assignment that reloads local
 variable~@x@ from its stack slot.\remark{I propose the compiler be
 modified to use @isStackSlotOf@ as I've written. JD~approves.}
-After such an assignment $\tempof x = \slotof x$,
-and the last definition of $tempof x$ is a reload,
+After such an assignment, $x = \slotof x$,
+and the last definition of $x$ is a reload,
 so @x@~is added to the set of available variables.
 % No other variable is affected.
 \item
@@ -1311,9 +1319,14 @@ nothing if @lhs@ is a hardware register.
 \item 
 There are three cases for @MidStore@ nodes.
 The first case matches a node that spills a variable $x$ to the stack.
-After such a node, $\tempOf x = \slotOf x$,
-but there is no guarantee that $\tempOf x$ was defined by a reload instruction,
+After such a node, $x = \slotOf x$,
+but there is no guarantee that $x$ was defined by a reload instruction,
 so $x$ is not added to the set of available variables.
+The second case matches a node that spills a variable to the stack,
+which neither establishes nor invalidates an available variable.
+The final case matches any other store to a stack slot $\slotof x$,
+which may invalidate any assertion of the form $x = \slotof x$.
+
 
 
 
