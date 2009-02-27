@@ -2500,35 +2500,61 @@ to rewrite~@t@.
 \section{The next 700 dataflow analyses}
 
 \seclabel{next-700}
-\simon{I know that this section is Dear to the Ramsey Heart, but
-I still can't figure out what it is trying to say to the reader.
+%%  \simon{I know that this section is Dear to the Ramsey Heart, but
+%%  I still can't figure out what it is trying to say to the reader.
+%%  
+%%  Let me try one stab at what I think you might be trying to say.
+%%  In this paper we have described a re-usable, polymorphic 
+%%  framework (concretely, a library)
+%%  for the analysis and transformation of control flow graphs.
+%%  This is not a specialised tool; on the contrary we claim that
+%%  a huge variety of optimisations can be viewed through the lens of
+%%  dataflow optimisation.
+%%  
+%%  If that's the thrust, then the generalities of ths section would
+%%  be stronger if they were supported with a list of dragon-book stuff
+%%  that are all special cases. 
+%%  
+%%  But I may have misunderstood.}
+%%  
+%%  \remark{Here's what I'm trying to say: Gentle Reader,
+%%  Bad people may have told you that dataflow analysis is new,
+%%  special, difficult, and intimidating.  But it's not really---it's
+%%  stuff you knew about all along.  Why, if you already understand the
+%%  classic material on program correctness, you know how to write a new
+%%  dataflow analysis---just invent an approximation of logic that has no
+%%  infinite ascending chains.
+%%  
+%%  I could indeed go through the dragon book, but there's no time.}
+%%  \simon{Well that is certainly better. Why not say that?  It's much 
+%%  shorter too!  Evidence of the claim that data flow analysis is presented
+%%  as special difficult intimidating might be good.}
 
-Let me try one stab at what I think you might be trying to say.
-In this paper we have described a re-usable, polymorphic 
-framework (concretely, a library)
-for the analysis and transformation of control flow graphs.
-This is not a specialised tool; on the contrary we claim that
-a huge variety of optimisations can be viewed through the lens of
-dataflow optimisation.
 
-If that's the thrust, then the generalities of ths section would
-be stronger if they were supported with a list of dragon-book stuff
-that are all special cases. 
+Most of this paper is devoted to the implementation of dataflow
+analysis and their associated transformations.
+But we also promised you ideas.
+The~main idea is that dataflow analysis is not really special,
+difficult, or intimidating---it's a special case of work you may
+already know about:
+the seminal work of
+\citet{floyd:assigning-meanings},
+\citet{hoare:axiomatic-basis},
+and
+\citet{dijkstra:discipline}
+on semantics of programming languages and
+ formal methods of program construction.
+If~you like this classic material, you are ready to invent a new
+dataflow analysis: just invent an approximation of program logic 
+such that the approximation has no infinite ascending chains.
 
-But I may have misunderstood.}
-
-\remark{Here's what I'm trying to say: Gentle Reader,
-Bad people may have told you that dataflow analysis is new,
-special, difficult, and intimidating.  But it's not really---it's
-stuff you knew about all along.  Why, if you already understand the
-classic material on program correctness, you know how to write a new
-dataflow analysis---just invent an approximation of logic that has no
-infinite ascending chains.
-
-I could indeed go through the dragon book, but there's no time.}
-\simon{Well that is certainly better. Why not say that?  It's much 
-shorter too!  Evidence of the claim that data flow analysis is presented
-as special difficult intimidating might be good.}
+In this section we compare the formal methods a
+person uses to 
+\emph{construct} a new program with the formal methods a compiler uses
+to \emph{analyze} a program that already exists.
+The comparison is a bit tricky,
+because compilers and
+people typically work in opposite directions.
 
 
 %%  \section{Logical view of optimization}
@@ -2542,20 +2568,7 @@ as special difficult intimidating might be good.}
 \seclabel{logic}
 
 
-Dataflow analysis is closely related to the seminal work done by
-\citet{floyd:assigning-meanings},
-\citet{hoare:axiomatic-basis},
-and
-\citet{dijkstra:discipline}
-on semantics of programming languages and
- formal methods of program construction.
-%
-We would like to elucidate the relationship between the formal methods a
-person uses to 
-\emph{construct} a new program with the formal methods a compiler uses
-to \emph{analyze} a program that already exists.
-Understanding the relationship is a bit tricky, because compilers and
-people typically work in opposite directions.
+
 
 The most highly developed
 methodology for constructing a procedure (Dijkstra's) starts with a
