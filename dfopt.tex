@@ -1679,9 +1679,9 @@ Create a dataflow lattice and transfer functions for the supporting
 analysis, as described in \secref{create-analysis}. 
 \item
 Create sound rewriting functions for first, middle, and last nodes;
-it is sufficient that given the dataflow fact(s) coming into the node,
+given the dataflow fact(s) coming into the node,
 the behavior of 
-any proposed replacement is not observably different from the original node.
+any proposed replacement must not be observably different from the original node.
 \end{itemize}
 Given the rewriting functions and the supporting analysis, the
 compiler writer can then use the 
@@ -1750,9 +1750,12 @@ make it alive by rewriting the assignment to mention x.
 Now in each successive iteration x will go live/dead/live/dead etc.  I
 maintain my claim that rewrite functions must satisfy some
 monotonicity property.
-\textbf{JD}: in the example you cite, monotonicity of facts at labels
-means x cannot go live/dead/live/dead etc.  The only way we can think
-of not to terminate is infinite ``deep rewriting.''
+\textbf{JD}: in your example, x cannot go dead/live/dead/live
+because facts are monotonic at labels
+(the join won't let a live variable go dead).
+And of course, we check for fixed point at labels.
+If the lattice has finite ascending chains, the only way we can
+think of not to terminate is infinite ``deep rewriting.''
 }
 \item
 Once the solver is complete, the resulting fixed point is sound,
@@ -1763,10 +1766,31 @@ performed.
 This phase is called the \emph{rewriter}.
 \end{itemize}
 
+The solver executes a complicated algorithm with complicated control-flow
+that depends on the lattice, transfer functions, and rewrite functions;
+but how do we know if the solver will terminate?
+There are two possible sources of non-termination:
+\begin{itemize}
+\item \emph{Recursive rewriting}:
+  If a rewrite function returns a new graph, the graph is analyzed
+  and possibly rewritten.
+  Therefore, to avoid divergence,
+  the rewrite functions are required to never return graphs that can be 
+  rewritten indefinitely.
+  If this requirement cannot be met,
+  the solver can be told not to rewrite graphs returned from a rewrite function
+  by using the @RewritingDepth@ parameter described below.
+\item \emph{Iteration to convergence}:
+  The solver iterates the analysis until the dataflow facts at all the
+  labels in the procedure have converged.
+  Because the new fact at a label is always joined with the old fact
+  at the label, the iteration must terminate if the lattice satisfies
+  the requirement that each point in the lattice can be increased at
+  most finitely many times.
+  This termination condition is completely independent of both
+  the transfer and rewriter functions.
+\end{itemize}
 
-\emph{[When you analyze a written graph, you could get a fact that's lower,
-but when you reach a join point, you take the join, and the fact
-doesn't get smaller.  So things terminate.]}
 
 \simon{But do we apply rewrites even before the analysis reaches a fixed point?
 If so, what property do the rewrites have to satisfy to ensure soundness?
@@ -1796,10 +1820,10 @@ information.\seclabel{engine-truth}
 \begin{itemize}
 \item
 The @RewritingDepth@ parameter controls recursive rewriting;
-if~a graph produced by a rewrite function cannot be further rewritten,
+if~a graph produced by a rewrite function should not be further rewritten,
 rewriting is \emph{shallow};
 if~a graph produced by a rewrite function can be rewritten \emph{ad
-infinitum}, rewriting is \emph{deep}.
+infinitum},\john{this phrasing evokes non-termination} rewriting is \emph{deep}.
 Deep rewriting is essential to achieve the results of
 \citet{lerner-grove-chambers:2002}, e.g., to remove the induction
 variable from the loop in the example in \secref{induction-var-elim}.
