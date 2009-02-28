@@ -488,67 +488,62 @@ transformations.
 % only Don Knuth knows why, but the paragraph break gets us three
 % bullets on this page where a single paragraph gets only two!
 %
-Assertions are written in a restricted
-language of \emph{dataflow facts}.\john{Almost sounds like we're restricting the language}
-\simon{Exactly!  That was one reason I rewrote this stuff on Weds.}
+Assertions are represented as
+\emph{dataflow facts}.
 The connection between dataflow facts and
-\ifpagetuning\else traditional \fi
+ traditional 
 program logic is
 elucidated in \secref{next-700}, but the most salient points are
 these:
 \begin{itemize}
 \item
-% A dataflow fact is equivalent to an assertion about program state or
-% about a continuation.
-% For example, in \secref{constant-propagation}, @x == 7@ is a dataflow
-% fact that describes the program state. 
-There are two kinds of dataflow facts.
-The first kind is an assertion about the paths from the procedure
-entry to a program point;
-these facts are computed by a forward dataflow analysis.
-A common special case is an assertion about state at a program point,
-such as the assertion @x == 7@ in \secref{constant-propagation}.
-% Assertions about program state are usually sufficient to show that
-% a transformation preserves semantics,
-% but to decide whether a transformation will improve the code,
-% we sometimes need an assertion that describes how the program
-% state was established.
+A dataflow fact is usually equivalent to an assertion about program state or
+about a continuation.
+For example, in \secref{constant-propagation}, @x == 7@ is a dataflow
+fact that describes the program state. 
 
-The second kind of dataflow fact is an assertion about paths from the program point
-to the procedure exit;
-these facts are computed by a backward dataflow analysis.
-In the parlance of functional programmers, these dataflow facts are assertions on
-\emph{continuations}.
 
-Assertions about state are easy to formalize, but path properties are harder;
-we describe path properties informally in our assertions.
-\simon{Shall we mention that typically forward
-analysis use the former and backwards the latter?}
-\simon{Side remark (not for paper): I was wondering about the difference
-between ``state'' and ``continuation'', why so different?  Actually it
-is perhaps not so different.  In a backward analysis, an 
-assertion tells you something about what will happen from this 
-program point onwards; in a forward analysis the assertion tells you
-something about what has happened up to this point.
-In general, a forward analysis could compute more stuff than assertions
-about the program state at this moment in time; for example, you could
-approximate the number of times a variable x has been written so far, something
-that would not normally be considered part of the ``state'' of the program.
-Now the two look more dual.}
-\john{Indeed, this was a problem. I think we've addressed the latter comment now.}
-\simon{Yes, better.}
+%%  There are two kinds of dataflow facts.
+%%  The first kind is an assertion about the paths from the procedure
+%%  entry to a program point;
+%%  these facts are computed by a forward dataflow analysis.
+%%  A common special case is an assertion about state at a program point,
+%%  such as the assertion @x == 7@ in \secref{constant-propagation}.
+%%  % Assertions about program state are usually sufficient to show that
+%%  % a transformation preserves semantics,
+%%  % but to decide whether a transformation will improve the code,
+%%  % we sometimes need an assertion that describes how the program
+%%  % state was established.
+%%  
+%%  The second kind of dataflow fact is an assertion about paths from the program point
+%%  to the procedure exit;
+%%  these facts are computed by a backward dataflow analysis.
+%%  In the parlance of functional programmers, these dataflow facts are assertions on
+%%  \emph{continuations}.
+%%  
+%%  Assertions about state are easy to formalize, but path properties are harder;
+%%  we describe path properties informally in our assertions.
 \item
-Each analysis or transformation may use a different language of
-dataflow facts.
-\item
-Each language of dataflow facts forms a lattice.
+A~set of dataflow facts forms a lattice.
 To ensure that analysis terminates,
 it is enough if
 no fact has more than finitely many distinct facts above it.
+\item
+Each analysis or transformation may use a different lattice of
+dataflow facts.
 \end{itemize}
 
+An assertion about a continuation is an assertion about paths from a program point
+to the procedure \emph{exit};
+such assertions are established by a \emph{backward dataflow analysis}.
+An assertion about the paths from the procedure
+\emph{entry} to a program point is established by a \emph{forward dataflow analysis}.
+In an important special case, such as @x == 7@ above,
+an assertion may say simply
+that all paths to a point establish a predicate~$P$ which is true of the program
+state at that point. 
 
-Assertions hold at program points, which we represent as edges in
+A~program point is represented as an edge in
 a \emph{control-flow graph}.\footnote
 {We discuss only intraprocedural optimization here;
 interprocedural optimizations are the work of the GHC~inliner
@@ -560,8 +555,8 @@ To write a dataflow analysis, the compiler
 writer must 
 \begin{itemize}
 \item
-Choose a representation~$F$ of dataflow facts and a logical interpretation.
-thereof
+Choose a representation~$F$ of dataflow facts and a logical interpretation
+thereof.
 \item
 Implement lattice operations over~$F$.
 \item
