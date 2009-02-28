@@ -318,7 +318,7 @@ Section 4 might be perfect.}
 
 \seclabel{induction-var-elim}
 
-\ifpagetuning \enlargethispage{-1\baselineskip} \fi
+%%%\ifpagetuning \enlargethispage{-1\baselineskip} \fi
 
 The loop optimization known as ``induction-variable elimination'' is
 actually a collection of simple transformations.
@@ -488,67 +488,62 @@ transformations.
 % only Don Knuth knows why, but the paragraph break gets us three
 % bullets on this page where a single paragraph gets only two!
 %
-Assertions are written in a restricted
-language of \emph{dataflow facts}.\john{Almost sounds like we're restricting the language}
-\simon{Exactly!  That was one reason I rewrote this stuff on Weds.}
+Assertions are represented as
+\emph{dataflow facts}.
 The connection between dataflow facts and
-\ifpagetuning\else traditional \fi
+ traditional 
 program logic is
 elucidated in \secref{next-700}, but the most salient points are
 these:
 \begin{itemize}
 \item
-% A dataflow fact is equivalent to an assertion about program state or
-% about a continuation.
-% For example, in \secref{constant-propagation}, @x == 7@ is a dataflow
-% fact that describes the program state. 
-There are two kinds of dataflow facts.
-The first kind is an assertion about the paths from the procedure
-entry to a program point;
-these facts are computed by a forward dataflow analysis.
-A common special case is an assertion about state at a program point,
-such as the assertion @x == 7@ in \secref{constant-propagation}.
-% Assertions about program state are usually sufficient to show that
-% a transformation preserves semantics,
-% but to decide whether a transformation will improve the code,
-% we sometimes need an assertion that describes how the program
-% state was established.
+A dataflow fact is usually equivalent to an assertion about program state or
+about a continuation.
+For example, in \secref{constant-propagation}, @x == 7@ is a dataflow
+fact that describes the program state. 
 
-The second kind of dataflow fact is an assertion about paths from the program point
-to the procedure exit;
-these facts are computed by a backward dataflow analysis.
-In the parlance of functional programmers, these dataflow facts are assertions on
-\emph{continuations}.
 
-Assertions about state are easy to formalize, but path properties are harder;
-we describe path properties informally in our assertions.
-\simon{Shall we mention that typically forward
-analysis use the former and backwards the latter?}
-\simon{Side remark (not for paper): I was wondering about the difference
-between ``state'' and ``continuation'', why so different?  Actually it
-is perhaps not so different.  In a backward analysis, an 
-assertion tells you something about what will happen from this 
-program point onwards; in a forward analysis the assertion tells you
-something about what has happened up to this point.
-In general, a forward analysis could compute more stuff than assertions
-about the program state at this moment in time; for example, you could
-approximate the number of times a variable x has been written so far, something
-that would not normally be considered part of the ``state'' of the program.
-Now the two look more dual.}
-\john{Indeed, this was a problem. I think we've addressed the latter comment now.}
-\simon{Yes, better.}
+%%  There are two kinds of dataflow facts.
+%%  The first kind is an assertion about the paths from the procedure
+%%  entry to a program point;
+%%  these facts are computed by a forward dataflow analysis.
+%%  A common special case is an assertion about state at a program point,
+%%  such as the assertion @x == 7@ in \secref{constant-propagation}.
+%%  % Assertions about program state are usually sufficient to show that
+%%  % a transformation preserves semantics,
+%%  % but to decide whether a transformation will improve the code,
+%%  % we sometimes need an assertion that describes how the program
+%%  % state was established.
+%%  
+%%  The second kind of dataflow fact is an assertion about paths from the program point
+%%  to the procedure exit;
+%%  these facts are computed by a backward dataflow analysis.
+%%  In the parlance of functional programmers, these dataflow facts are assertions on
+%%  \emph{continuations}.
+%%  
+%%  Assertions about state are easy to formalize, but path properties are harder;
+%%  we describe path properties informally in our assertions.
 \item
-Each analysis or transformation may use a different language of
-dataflow facts.
-\item
-Each language of dataflow facts forms a lattice.
+A~set of dataflow facts forms a lattice.
 To ensure that analysis terminates,
 it is enough if
 no fact has more than finitely many distinct facts above it.
+\item
+Each analysis or transformation may use a different lattice of
+dataflow facts.
 \end{itemize}
 
+An assertion about a continuation is an assertion about paths from a program point
+to the procedure \emph{exit};
+such assertions are established by a \emph{backward dataflow analysis}.
+An assertion about the paths from the procedure
+\emph{entry} to a program point is established by a \emph{forward dataflow analysis}.
+In an important special case, such as @x == 7@ above,
+an assertion may say simply
+that all paths to a point establish a predicate~$P$ which is true of the program
+state at that point. 
 
-Assertions hold at program points, which we represent as edges in
+A~program point is represented as an edge in
 a \emph{control-flow graph}.\footnote
 {We discuss only intraprocedural optimization here;
 interprocedural optimizations are the work of the GHC~inliner
@@ -560,8 +555,8 @@ To write a dataflow analysis, the compiler
 writer must 
 \begin{itemize}
 \item
-Choose a representation~$F$ of dataflow facts and a logical interpretation.
-thereof
+Choose a representation~$F$ of dataflow facts and a logical interpretation
+thereof.
 \item
 Implement lattice operations over~$F$.
 \item
@@ -1242,7 +1237,7 @@ cmmLiveness g = zdfFpFacts soln
     where res = zdfSolveBwd "liveness analysis" liveLattice liveTransfers emptyVarSet g
 \end{code}%
 \B
-& Liveness \mbox{analysis}\\
+& ~~~~~~~~~~Liveness \mbox{~~~~~~~~~~analysis}\\
 \end{codetable}
 \caption{Liveness analysis}
 \figlabel{liveness-all}
@@ -1270,35 +1265,26 @@ then it is safe to insert a reload without changing the observable
 behavior of the program.
 
 To sink a reload of a variable $x$, we insert redundant reloads immediately
-before a use of $x$.
-We use an analysis that identifies not only when it is safe to insert
-such a reload, but when the inserted reload will make an earlier reload redundant.
-Specifically, we should insert a reload before a node that uses $x$ only if,
-on every path to the node, the most recent definition of $x$ was a reload from
-$\slotof x$; we assert this property with the informal notation
-$\mathit{lastDef}(x) = x @=@ \slotof x$.
-
-For a single variable, the logical assertion takes the form
-\mbox{$(x = \slotof x) \wedge
-       (\mathit{lastDef}(x) = x @=@ \slotof x)$}.
-For multiple variables, the logical assertion is a conjunction of assertions
-on single variables.
-To represent this assertion, our analysis uses a 
-set of variables~$X$ such that \mbox{$\forall x \in X \mathrel
-: (x = \slotof x \wedge (\mathit{lastDef}(x) = x @=@ \slotof x))$}.
+before uses of~$x$.
+%We use an analysis that identifies not only when it is safe to insert
+%such a reload, but when the inserted reload will make an earlier reload redundant.
+%Specifically, 
+It is \emph{profitable} to insert a reload before a use of~$x$ only if, 
+on every path to the use, the most recent definition of $x$~is a reload from
+$\slotof x$.
+The dataflow fact computed by our analysis is the set of variables for
+which it is both 
+safe and desirable to insert a reload.
 The lattice-join operation is set intersection,\footnote
-{A variable $x = \slotof x$ at a label~@L@ if and
-only if $x = \slotof x$ on every control-flow edge coming into~@L@.}
+{Because the assertion of interest is an ``all-paths'' property.}
 and the bottom element
 is the universal set containing all variables.
-\simon{I'm puzzled about why you are treating this example so differently
-to constant-prop in Section 3.1.  It looks almost identical to me.  We could
-keep a fact for every variable: $x=\bot$ means nothing is known; $x=s_x$ means
-x's stack slot is up to date; $x=\top$ means x's stack slot is out of date.
-Then keep a finite map as we do for constant prop.  If there is a difference
-that drives the rep you have here, let's say so. If the difference is
-purely accidental, we should eliminate it.  (Or maybe we don't have time, in
-which case we should remark that there is no diff.)}
+It~is optimistic to assume that any variable can be safely reloaded from the stack,
+but this optimistic assumption is what enables us to improve the
+code---and if the assumption is not justified, the transfer functions
+will correct it before
+the analysis reaches a fixed point.
+
 Because universal sets can be awkward to manipulate, we represent a
 set using one of two alternatives
 (see~\figref{avail-lattice}):
@@ -1306,11 +1292,10 @@ set using one of two alternatives
 \item \texttt{UniverseMinus~s}: All variables except those in the set~@s@
 \item \texttt{AvailVars~~~~~s}: The variables in the set~@s@
 \end{itemize}
-The bottom element is @UniverseMinus emptyVarSet@.
-It is optimistic to assume that a variable can be redundantly reloaded from the stack,
-but this optimistic assumption is what enables us to improve the
-code---and if the assumption is not justified, it will be corrected before
-the analysis reaches a fixed point.
+The bottom element is represented as @UniverseMinus emptyVarSet@.
+To manipulate sets of variables, we provide the functions shown at the
+top of \figref{avail}.
+%  The implementations use analogous operations on @VarSet@s.
 
 
 
@@ -1329,16 +1314,6 @@ the analysis reaches a fixed point.
 %%  Then, we rely on a dead-code elimination to~remove
 %%  the early reload.
 
-To manipulate sets of variables, we provide the functions shown at the
-top of \figref{avail}.
-\simon{Whoa!  We've moved from sets of \emph{assertions} to 
-sets of \emph{variables}. I see what you are doing, but it's a bit slippery.
-How about saying this: 
-(a) the dataflow fact on an edge is the set of
-variables whose stack slots are up to date; 
-(b) the interpretation of such set S is that $x=s_x$ for each $x\in S$.
-(I'm not sure the ``interpretation'' makes it clearer; I'd be happy with (a).)}
-The implementations use analogous operations on @VarSet@s.
 
 %%In~the lattice of available reloads (\figref{avail-lattice}),
 %%the~join is computed by taking the intersection of two sets
@@ -2215,61 +2190,6 @@ Pure analysis is as a special case in which no node is
 ever rewritten.
 
 
-
-\begin{figure*}
-%%  forward_rew
-%%          :: forall m l a . 
-%%             (DebugNodes m l, LastNode l, Outputable a)
-%%          => (forall a . Fuel -> Maybe a -> Maybe a)
-%%          -> RewritingDepth
-%%          -> BlockEnv a
-%%          -> PassName
-%%          -> ForwardTransfers m l a
-%%          -> ForwardRewrites m l a
-%%          -> a
-%%          -> Graph m l
-%%          -> Fuel
-%%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
-%%  forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
-%%    where
-%%      fixed_pt_and_fuel =
-%%          do { (a, g, fuel) <- rewrite xstart_facts getExitFact in_factx gx fuelx
-%%             ; facts <- getAllFacts
-%%             ; let fp = ... facts ... g ...
-%%             ; return (fp, fuel)
-%%             }
-%%  
-\setcounter{codeline}{0}
-\begin{numberedcode}
-      ...
-    rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
-    rewrite start finish in_fact g fuel =
-      let Graph eid blockenv = g
-          blocks = G.postorder_dfs_from blockenv entry
-      in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
-            ; (rewritten, fuel) <- rewrite_blocks blocks emptyBlockEnv fuel
-            ; a <- finish
-            ; return (a, Graph eid rewritten, fuel)
-            }
-
-      ...
-
-    rewrite_blocks (Block id t : bs) rewritten fuel =
-      ... rew_tail h (ft_first_out transfers id a) t rewritten fuel ...
-    rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
-
-    rew_tail head in' (G.ZTail m t) rewritten fuel =
-      case squash fuel $ fr_middle rewrites m in' of
-        Nothing -> rew_tail (G.ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
-        Just g -> do { markGraphRewritten
-                     ; (a, g, fuel) <- inner_rew getExitFact in' g fuel
-                     ; let (blocks, h) = G.splice_head' head g
-                     ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
-\end{numberedcode}
-\caption{Excerpts from the forward rewriter}
-\figlabel{rewriter-excerpts}
-\end{figure*}
-
 In a workshop paper \cite{ramsey-dias:applicative-flow-graph}, we
 showed a backward solver and rewriter that kept dataflow facts in
 mutable cells.
@@ -2348,6 +2268,61 @@ Once @run@ reaches a fixed point, @solve@ returns the exit fact and
 the remaining fuel.
 (Computation @getExitFact :: DFM a a@ is an operation in the dataflow
 monad.)
+
+
+\begin{figure*}
+%%  forward_rew
+%%          :: forall m l a . 
+%%             (DebugNodes m l, LastNode l, Outputable a)
+%%          => (forall a . Fuel -> Maybe a -> Maybe a)
+%%          -> RewritingDepth
+%%          -> BlockEnv a
+%%          -> PassName
+%%          -> ForwardTransfers m l a
+%%          -> ForwardRewrites m l a
+%%          -> a
+%%          -> Graph m l
+%%          -> Fuel
+%%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
+%%  forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
+%%    where
+%%      fixed_pt_and_fuel =
+%%          do { (a, g, fuel) <- rewrite xstart_facts getExitFact in_factx gx fuelx
+%%             ; facts <- getAllFacts
+%%             ; let fp = ... facts ... g ...
+%%             ; return (fp, fuel)
+%%             }
+%%  
+\setcounter{codeline}{0}
+\begin{numberedcode}
+      ...
+    rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
+    rewrite start finish in_fact g fuel =
+      let Graph eid blockenv = g
+          blocks = G.postorder_dfs_from blockenv entry
+      in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
+            ; (rewritten, fuel) <- rewrite_blocks blocks emptyBlockEnv fuel
+            ; a <- finish
+            ; return (a, Graph eid rewritten, fuel)
+            }
+
+      ...
+
+    rewrite_blocks (Block id t : bs) rewritten fuel =
+      ... rew_tail h (ft_first_out transfers id a) t rewritten fuel ...
+    rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
+
+    rew_tail head in' (G.ZTail m t) rewritten fuel =
+      case squash fuel $ fr_middle rewrites m in' of
+        Nothing -> rew_tail (G.ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
+        Just g -> do { markGraphRewritten
+                     ; (a, g, fuel) <- inner_rew getExitFact in' g fuel
+                     ; let (blocks, h) = G.splice_head' head g
+                     ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
+\end{numberedcode}
+\caption{Excerpts from the forward rewriter}
+\figlabel{rewriter-excerpts}
+\end{figure*}
 
 To understand @set_successor_facts@, you must understand the
 representation of basic blocks.
