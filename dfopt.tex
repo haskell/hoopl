@@ -1265,35 +1265,26 @@ then it is safe to insert a reload without changing the observable
 behavior of the program.
 
 To sink a reload of a variable $x$, we insert redundant reloads immediately
-before a use of $x$.
-We use an analysis that identifies not only when it is safe to insert
-such a reload, but when the inserted reload will make an earlier reload redundant.
-Specifically, we should insert a reload before a node that uses $x$ only if,
-on every path to the node, the most recent definition of $x$ was a reload from
-$\slotof x$; we assert this property with the informal notation
-$\mathit{lastDef}(x) = x @=@ \slotof x$.
-
-For a single variable, the logical assertion takes the form
-\mbox{$(x = \slotof x) \wedge
-       (\mathit{lastDef}(x) = x @=@ \slotof x)$}.
-For multiple variables, the logical assertion is a conjunction of assertions
-on single variables.
-To represent this assertion, our analysis uses a 
-set of variables~$X$ such that \mbox{$\forall x \in X \mathrel
-: (x = \slotof x \wedge (\mathit{lastDef}(x) = x @=@ \slotof x))$}.
+before uses of~$x$.
+%We use an analysis that identifies not only when it is safe to insert
+%such a reload, but when the inserted reload will make an earlier reload redundant.
+%Specifically, 
+It is \emph{profitable} to insert a reload before a use of~$x$ only if, 
+on every path to the use, the most recent definition of $x$~is a reload from
+$\slotof x$.
+The dataflow fact computed by our analysis is the set of variables for
+which it is both 
+safe and desirable to insert a reload.
 The lattice-join operation is set intersection,\footnote
-{A variable $x = \slotof x$ at a label~@L@ if and
-only if $x = \slotof x$ on every control-flow edge coming into~@L@.}
+{Because the assertion of interest is an ``all-paths'' property.}
 and the bottom element
 is the universal set containing all variables.
-\simon{I'm puzzled about why you are treating this example so differently
-to constant-prop in Section 3.1.  It looks almost identical to me.  We could
-keep a fact for every variable: $x=\bot$ means nothing is known; $x=s_x$ means
-x's stack slot is up to date; $x=\top$ means x's stack slot is out of date.
-Then keep a finite map as we do for constant prop.  If there is a difference
-that drives the rep you have here, let's say so. If the difference is
-purely accidental, we should eliminate it.  (Or maybe we don't have time, in
-which case we should remark that there is no diff.)}
+It~is optimistic to assume that any variable can be safely reloaded from the stack,
+but this optimistic assumption is what enables us to improve the
+code---and if the assumption is not justified, the transfer functions
+will correct it before
+the analysis reaches a fixed point.
+
 Because universal sets can be awkward to manipulate, we represent a
 set using one of two alternatives
 (see~\figref{avail-lattice}):
@@ -1301,11 +1292,10 @@ set using one of two alternatives
 \item \texttt{UniverseMinus~s}: All variables except those in the set~@s@
 \item \texttt{AvailVars~~~~~s}: The variables in the set~@s@
 \end{itemize}
-The bottom element is @UniverseMinus emptyVarSet@.
-It is optimistic to assume that a variable can be redundantly reloaded from the stack,
-but this optimistic assumption is what enables us to improve the
-code---and if the assumption is not justified, it will be corrected before
-the analysis reaches a fixed point.
+The bottom element is represented as @UniverseMinus emptyVarSet@.
+To manipulate sets of variables, we provide the functions shown at the
+top of \figref{avail}.
+%  The implementations use analogous operations on @VarSet@s.
 
 
 
@@ -1324,16 +1314,6 @@ the analysis reaches a fixed point.
 %%  Then, we rely on a dead-code elimination to~remove
 %%  the early reload.
 
-To manipulate sets of variables, we provide the functions shown at the
-top of \figref{avail}.
-\simon{Whoa!  We've moved from sets of \emph{assertions} to 
-sets of \emph{variables}. I see what you are doing, but it's a bit slippery.
-How about saying this: 
-(a) the dataflow fact on an edge is the set of
-variables whose stack slots are up to date; 
-(b) the interpretation of such set S is that $x=s_x$ for each $x\in S$.
-(I'm not sure the ``interpretation'' makes it clearer; I'd be happy with (a).)}
-The implementations use analogous operations on @VarSet@s.
 
 %%In~the lattice of available reloads (\figref{avail-lattice}),
 %%the~join is computed by taking the intersection of two sets
