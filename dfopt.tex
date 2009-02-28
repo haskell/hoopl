@@ -2166,61 +2166,6 @@ Pure analysis is as a special case in which no node is
 ever rewritten.
 
 
-
-\begin{figure*}
-%%  forward_rew
-%%          :: forall m l a . 
-%%             (DebugNodes m l, LastNode l, Outputable a)
-%%          => (forall a . Fuel -> Maybe a -> Maybe a)
-%%          -> RewritingDepth
-%%          -> BlockEnv a
-%%          -> PassName
-%%          -> ForwardTransfers m l a
-%%          -> ForwardRewrites m l a
-%%          -> a
-%%          -> Graph m l
-%%          -> Fuel
-%%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
-%%  forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
-%%    where
-%%      fixed_pt_and_fuel =
-%%          do { (a, g, fuel) <- rewrite xstart_facts getExitFact in_factx gx fuelx
-%%             ; facts <- getAllFacts
-%%             ; let fp = ... facts ... g ...
-%%             ; return (fp, fuel)
-%%             }
-%%  
-\setcounter{codeline}{0}
-\begin{numberedcode}
-      ...
-    rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
-    rewrite start finish in_fact g fuel =
-      let Graph eid blockenv = g
-          blocks = G.postorder_dfs_from blockenv entry
-      in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
-            ; (rewritten, fuel) <- rewrite_blocks blocks emptyBlockEnv fuel
-            ; a <- finish
-            ; return (a, Graph eid rewritten, fuel)
-            }
-
-      ...
-
-    rewrite_blocks (Block id t : bs) rewritten fuel =
-      ... rew_tail h (ft_first_out transfers id a) t rewritten fuel ...
-    rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
-
-    rew_tail head in' (G.ZTail m t) rewritten fuel =
-      case squash fuel $ fr_middle rewrites m in' of
-        Nothing -> rew_tail (G.ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
-        Just g -> do { markGraphRewritten
-                     ; (a, g, fuel) <- inner_rew getExitFact in' g fuel
-                     ; let (blocks, h) = G.splice_head' head g
-                     ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
-\end{numberedcode}
-\caption{Excerpts from the forward rewriter}
-\figlabel{rewriter-excerpts}
-\end{figure*}
-
 In a workshop paper \cite{ramsey-dias:applicative-flow-graph}, we
 showed a backward solver and rewriter that kept dataflow facts in
 mutable cells.
@@ -2299,6 +2244,61 @@ Once @run@ reaches a fixed point, @solve@ returns the exit fact and
 the remaining fuel.
 (Computation @getExitFact :: DFM a a@ is an operation in the dataflow
 monad.)
+
+
+\begin{figure*}
+%%  forward_rew
+%%          :: forall m l a . 
+%%             (DebugNodes m l, LastNode l, Outputable a)
+%%          => (forall a . Fuel -> Maybe a -> Maybe a)
+%%          -> RewritingDepth
+%%          -> BlockEnv a
+%%          -> PassName
+%%          -> ForwardTransfers m l a
+%%          -> ForwardRewrites m l a
+%%          -> a
+%%          -> Graph m l
+%%          -> Fuel
+%%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
+%%  forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
+%%    where
+%%      fixed_pt_and_fuel =
+%%          do { (a, g, fuel) <- rewrite xstart_facts getExitFact in_factx gx fuelx
+%%             ; facts <- getAllFacts
+%%             ; let fp = ... facts ... g ...
+%%             ; return (fp, fuel)
+%%             }
+%%  
+\setcounter{codeline}{0}
+\begin{numberedcode}
+      ...
+    rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
+    rewrite start finish in_fact g fuel =
+      let Graph eid blockenv = g
+          blocks = G.postorder_dfs_from blockenv entry
+      in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
+            ; (rewritten, fuel) <- rewrite_blocks blocks emptyBlockEnv fuel
+            ; a <- finish
+            ; return (a, Graph eid rewritten, fuel)
+            }
+
+      ...
+
+    rewrite_blocks (Block id t : bs) rewritten fuel =
+      ... rew_tail h (ft_first_out transfers id a) t rewritten fuel ...
+    rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
+
+    rew_tail head in' (G.ZTail m t) rewritten fuel =
+      case squash fuel $ fr_middle rewrites m in' of
+        Nothing -> rew_tail (G.ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
+        Just g -> do { markGraphRewritten
+                     ; (a, g, fuel) <- inner_rew getExitFact in' g fuel
+                     ; let (blocks, h) = G.splice_head' head g
+                     ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
+\end{numberedcode}
+\caption{Excerpts from the forward rewriter}
+\figlabel{rewriter-excerpts}
+\end{figure*}
 
 To understand @set_successor_facts@, you must understand the
 representation of basic blocks.
