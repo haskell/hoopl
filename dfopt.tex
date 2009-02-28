@@ -25,10 +25,10 @@
 
 \newcommand\lineref[1]{line~\ref{line:#1}}
 \newcommand\linepairref[2]{lines \ref{line:#1}~and~\ref{line:#2}}
-\newcommand\linerangeref[2]{lines~\ref{line:#1}--\ref{line:#2}}
+\newcommand\linerangeref[2]{\mbox{lines~\ref{line:#1}--\ref{line:#2}}}
 \newcommand\Lineref[1]{Line~\ref{line:#1}}
 \newcommand\Linepairref[2]{Lines \ref{line:#1}~and~\ref{line:#2}}
-\newcommand\Linerangeref[2]{Lines~\ref{line:#1}--\ref{line:#2}}
+\newcommand\Linerangeref[2]{\mbox{Lines~\ref{line:#1}--\ref{line:#2}}}
 
 \makeatletter
 
@@ -948,11 +948,11 @@ class DataflowSolverDirection
 \T\begin{numberedcode}
 !UniverseMinus!data AvailVars = UniverseMinus VarSet
 !AvailVars!               | AvailVars     VarSet
-extendAvail  :: AvailVars -> LocalVar  -> AvailVars  -- add var to set
+!extendAvail!extendAvail  :: AvailVars -> LocalVar  -> AvailVars  -- add var to set
 delFromAvail :: AvailVars -> LocalVar  -> AvailVars  -- remove var from set
 elemAvail    :: AvailVars -> LocalVar  -> Bool       -- set membership
 interAvail   :: AvailVars -> AvailVars -> AvailVars  -- set intersection
-smallerAvail :: AvailVars -> AvailVars -> Bool       -- compare sizes
+!smallerAvail!smallerAvail :: AvailVars -> AvailVars -> Bool       -- compare sizes
 \end{numberedcode}%
 \B
 & Dataflow fact and operations\\
@@ -1004,8 +1004,8 @@ lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 \T\begin{code}
 cmmAvailableVars :: Graph Middle Last -> BlockEnv AvailVars
 cmmAvailableVars g = zdfFpFacts soln
-  where soln = zdfSolveFwd "available variables" availVarsLattice 
-               avail_vars_transfer (fact_bot availVarsLattice) g
+!avail.solve.1!  where soln = zdfSolveFwd "available variables" availVarsLattice 
+!avail.solve.2!               avail_vars_transfer (fact_bot availVarsLattice) g
 \end{code}%
 \B
 & Available-variables analysis\\
@@ -1181,18 +1181,18 @@ the transformations are described in
 \begin{figure*}
 \begin{codetable}
 \T\begin{code}
-type Live = VarSet
+!Live!type Live = VarSet
 \end{code}%
 \B
 & Dataflow fact\\
 \hline
 
 \T\begin{code}
-liveLattice :: DataflowLattice Live
+!liveLattice!liveLattice :: DataflowLattice Live
 liveLattice = DataflowLattice "live LocalReg's" emptyVarSet add
   where add new old =
           let join = unionVarSets new old in
-          (if sizeVarSet join > sizeVarSet old then aTx else noTx) join
+!liveLattice.end!          (if sizeVarSet join > sizeVarSet old then aTx else noTx) join
 \end{code}%
 \B
 & Lattice\\
@@ -1216,10 +1216,10 @@ lastLiveness   :: Last -> (BlockId -> Live) -> Live
 middleLiveness m = addUsed m . remDefd m
 lastLiveness   l = addUsed l . remDefd l . lastLiveOut l 
 
-addUsed :: UserOfLocalVars    a => a -> Live -> Live
+!liveness.addUsed.sig!addUsed :: UserOfLocalVars    a => a -> Live -> Live
 remDefd :: DefinerOfLocalVars a => a -> Live -> Live 
 addUsed a live = foldVarsUsed extendVarSet  live a
-remDefd a live = foldVarsDefd delFromVarSet live a
+!liveness.remDefd.def!remDefd a live = foldVarsDefd delFromVarSet live a
 
 lastLiveOut :: Last -> (BlockId -> Live) -> Live
 lastLiveOut l env = last l 
@@ -1236,7 +1236,7 @@ lastLiveOut l env = last l
 \T\begin{code}
 cmmLiveness :: Graph Middle Last -> BlockEnv Live
 cmmLiveness g = zdfFpFacts soln
-   where soln = zdfSolveBwd "liveness" liveLattice liveTransfers emptyVarSet g
+!live.zdfSolveBwd!   where soln = zdfSolveBwd "liveness" liveLattice liveTransfers emptyVarSet g
 \end{code}%
 \B
 & Liveness \mbox{analysis}\\
@@ -1329,12 +1329,13 @@ To manipulate sets of variables, we provide the functions declared in
 
 The most interesting part of the pass is the @middleAvail@ transfer
 function in \figref{avail-transfers}.
+\remark{Let us revise the paper to pretend that global variables
+don't exist.}
 This transfer function is specialized to the type of @Middle@ node
 used in~GHC.
 In~GHC, a~middle node is either @MidAssign@, which assigns to a local
 or global variable, or @MidStore@, which assigns to memory.
-\remark{Let us revise the paper to pretend that global variables
-don't exist.}
+\remark{Check these bullets against the figure for correctness}
 \begin{itemize}
 \item
 Lines \ref{line:reload1} and \ref{line:reload2}
@@ -1427,39 +1428,30 @@ is @flip const@ (\lineref{avail.first}).
 
 Given the lattice and the transfer functions,
 we perform the available-variables analysis by calling
-the dataflow engine in the form of function @zdfSolveFwd@
-(\figref{avail-running}).
-The function @zdfFpFacts@ returns 
-a finite map from basic-block IDs to the set of available variables
-at the beginning of each block.
-Except for the implementations of the set operations on @AvailVars@,
+the dataflow-engine function @zdfSolveFwd@ (\figref{avail},
+\linerangeref{avail.solve.1}{avail.solve.2}). 
+%The function @zdfFpFacts@ returns 
+%a finite map from basic-block IDs to the set of available variables
+%at the beginning of each block.
+Except for the implementations of the set operations on
+\linerangeref{extendAvail}{smallerAvail}, 
 \figref{avail} shows the \emph{entire} analysis.
 
 \subsection{Liveness: a backward analysis} 
-\simon{To my mind 4.2 is easier to understand than 4.1. It's a totally
-well-known analysis.  Can we re-order to put it first?
-Fine by me ---NR}
-\simon{Same question as in current 4.1: what is the connection to
-passes 1,2,3?  Irrelevant: the analysis should stand on its own ---NR.
-SLPJ responds: Not irrelevant to the reader!  I expect 4.2 to follow in some way
-from 4.0 (the bit before 4.1).  
-Indeed we say (start of 4) ``In~this section we provide evidence for that claim by showing
-implementations of two analyses...that help solve a real problem in GHC''.
-So presumably this analysis is somehow connected to 4.0.}
 
 \seclabel{liveness}
 
 The assertion computed by 
-a backward dataflow analysis typically applies to a
-\emph{continuation} at a program point, not to a state.\john{Why ``typically?''}
+a backward dataflow analysis applies to a
+\emph{continuation} at a program point, not to a state.
 The classic example is liveness analysis;
 the logical fact of interest is that at a particular program point,
 the answer produced by the continuation does not depend on
 the value of a particular variable~$x$.
-If~so, $x$ is said to be \emph{dead} at that point.
+If~so, $x$~is said to be \emph{dead} at that point.
 If the answer produced by the continuation \emph{might} depend on the
 value of~$x$, $x$~is \emph{live}.\footnote
-{Liveness cannot be decided accurately; it reduces easily to the halting problem.
+{Liveness cannot be decided accurately; it reduces to the halting problem.
 As usual, we approximate liveness by reachability.}
 
 In a modern compiler, liveness analysis supports many program
@@ -1472,21 +1464,18 @@ ensures that if two variables are
 live at the same time, they are not assigned to the same register. 
 
 The dataflow fact we use to represent liveness assertions is the set of
-live variables.
+live variables (\figref{live-lattice}, \lineref{Live}).
 The bottom element of the lattice is the empty set, and the join
-operation is set union (\figref{live-lattice});
-a~variable is deemed live if it is live on \emph{any} edge leaving a
-node. \simon{You mean ``deemed live after the node if it is live on any edge...''.
-You don't mean ``deemed live on entry to the node..'' (think of assignments).
-It's a bit tricky to state this clearly I grant you.}
+operation is set union (\figref{live-lattice},
+\linerangeref{liveLattice}{liveLattice.end}); 
+a~variable is deemed live after a node if it is live on \emph{any} edge leaving that
+node.
 
 The transfer functions for liveness rely on two auxiliary functions
-@addUsed@ and @remDefd@, which are shown in \figref{liveness}.
-\simon{I suggest that we give more explicit
-references into the code, mentioning the functions @middleLiveness@, and 
-using @(1)@ etc as URLs. [NR: we want line numbers]  Even then it's a bit confusing becuase we
-have last-nodes and liveness, 
-both of which start with ``@l@''.  Oh well.}
+\remark{linenumbers}
+@addUsed@ and @remDefd@, which are shown on
+\linerangeref{liveness.addUsed.sig}{liveness.remDefd.def} of
+\figref{liveness}. 
 A~transfer function is given a set of variables live on the edges
 going out of the node, and it removes from that set any variable
 defined by the node, then adds to the set any variable used by the
@@ -1507,92 +1496,53 @@ assignment, as in
 \end{verbatim}
 then the answer might well depend on~@i@, so @i@~is considered live
 before the assignment.
-For this reason the transfer functions in \figref{liveness} must
+For this reason the transfer functions in \figref{liveness} 
 remove defined variables \emph{before} adding used variables.
+\remark{line numbers}
 
 For a last node, function @lastLiveOut@ consults the solution in
-progress to find out what variables are live at the successors of a
+progress to find out what variables are live at the \emph{successors} of a
 last node. 
 For an unconditional branch, we look up the live set at the label
-branched to;
-for a conditional branch, we look at both true and false edges, and
+branched to;\remark{line number}
+for a conditional branch, we look at both true and false edges, \remark{linenumber}
+ and
 for a switch (computed goto), we consider every possible target of the
-branch.
-The~remaining case is a call, 
-and since a call destroys the values of all local variables, the
-only variables live just before a call are ones that might be used to
-compute the address of the procedure being called, which are added by
-@addUsed@ in @lastLiveness@.
+branch. \remark{line number}
+The~remaining case \remark{line number} is a call, 
+and since a call destroys the values of all local variables, no
+local variables are live at its continuation.
 
 Given the lattice and the transfer functions,
 we perform the liveness analysis by calling
-the dataflow engine in the form of function @zdfSolveBwd@
-The function @zdfFpFacts@ returns 
-a finite map from basic-block IDs to the set of live variables
-at the beginning of each block.
+the dataflow-engine function @zdfSolveBwd@ (\figref{liveness},
+\lineref{live.zdfSolveBwd}). 
+%The function @zdfFpFacts@ returns 
+%a finite map from basic-block IDs to the set of live variables
+%at the beginning of each block.
 \figref{avail} shows the \emph{entire} analysis.
 (The overloaded functions
-@foldVarsUsed@ and @foldVarsDefd@ are used throughout the back end and
+@foldVarsUsed@ and @foldVarsDefd@
+are used throughout the back end and
 should not be considered part of liveness analysis.)
-\simon{Please let us give their types somewhere!  Every function
- should have either a type signature, or a type and an implementation. Otherwise
-the code becomes opaque.  \textbf{NR}: Where do you suggest we put the types?
-\textbf{SLPJ} I don't think it matters much.  Perhpas in a Figure
-that collects the signatures of otherwise less-important functions, or in Figure
-3 itself (but it's so wide it wastes space to put a type sig in!}
+%
+% types of fold functions agreed to in principle, but in practice
+% there is no good place to put them.
 
-%%  Each transfer function takes an instruction and
-%%  the set of live registers in the instruction's continuation (the \liveout\ set);
-%%  the result of the function is the set of live registers before the instruction.
-%%  The standard procedure is to start with the set \liveout\,
-%%  then remove each register defined by the instruction and
-%%  add any register used by the instruction.
-%%  In classic optimization literature, this procedure
-%%  is~described in terms of @gen@ and @kill@ functions
-%%  that add and remove registers from the live sets.
-%%  
-%%  Using the @gen@ and @kill@ functions, we define the 
-%%  transfer functions for the liveness analysis as @liveTransfers@
-%%  (see~\figref{live-transfers}):
-%%  \begin{itemize}
-%%  \item \emph{First nodes}:
-%%    The set of live registers is the same before and after a first node,
-%%    so we return the \liveout\ set unchanged using @flip const@.
-%%  \item \emph{Middle nodes}:
-%%    The set of live registers is determined by the @gen@ and @kill@
-%%    functions, which are composed in @middleLiveness@.
-%%  \item \emph{Last nodes}:
-%%    Like a middle node, the set of live register is determined by
-%%    the @gen@ and @kill@ sets, which are composed in @lastLiveness@.
-%%    But because a last node may have multiple sucessors,
-%%    we use the @lastLiveOut@ function to compute the set of registers that
-%%    must be live in any continuation of the last node.
-%%    For most last nodes, we take the union of the live sets from all of the successors.
-%%    The exception is for call nodes: because a function call can overwrite any
-%%    local register, there must not be any registers live out of a call site.
-%%  \end{itemize}
-%%  
-%%  Finally, we can perform the liveness analysis by calling the dataflow framework's
-%%  @zdfSolveFrom@ function with the lattice
-%%  and transfer functions (see~\figref{live-running}).
-%%  The function @zdfFpFacts@ returns the result of the analysis
-%%  in the form of a map from basic-block IDs to the set of variables
-%%  live at the beginning of each block.
-%%  \john{Don't forget to go back and check consistency of names (e.g. s/CmmLive/Live/)}
-%%  \john{I've dropped some sanity checking code.}
 
 
 \ifgenkill
 \section{Writing transfer functions using \texttt{gen} and \texttt{kill}}
 
-\remark{I've tried to rewrite this section without the abstract guff;
-Simon, can you let us know what you think?}
+%\remark{I've tried to rewrite this section without the abstract guff;
+%Simon, can you let us know what you think?}
 
 
 \seclabel{gen-kill}
 
 If you pick up a compiler textbook, you might see dataflow
-optimization explained in terms of functions \texttt{gen} and \texttt{kill},
+optimization explained in terms of functions called \texttt{gen} and
+\texttt{kill}, 
 which say what dataflow facts are ``generated'' and
 ``killed'' by each node.
 Our design is compatible with explanations based on \texttt{gen} and
@@ -1605,8 +1555,6 @@ use them to write the transfer functions.
 %%  assertion no longer holds (@kill@), or both.
 %%  If~you want to transliterate specifications that use @gen@ and @kill@,
 %%  it's easy.
-\remark{I tried to repair @smallcode@ so as not to affect
-line spacing in the previous~\P.}
 For example, the functions @addUsed@ and @remDefd@ in \figref{liveness}'s
 liveness analysis correspond directly to the traditional @gen@ and
 @kill@ functions.
@@ -1619,24 +1567,16 @@ gen  a avail = foldVarsUsed extendAvail  avail a
 kill a avail = foldVarsDefd delFromAvail avail a
 \end{smallcode}
 Using @gen@ and @kill@ entails no loss of efficiency;
-for example, in @middleAvail@ in \figref{avail}, GHC~will identify and
+for example, on \lineref{reload2} of \figref{avail}, GHC~would identify and
 inline the type-specific instance of @foldVarsUsed@, which for the
 case of a local variable is the identity function, so @gen x avail@
-reduces to @extendAvail avail x@.
+would reduce to @extendAvail avail x@.
 
 \fi
 
 \section{Using dataflow facts to rewrite graphs, with examples}
 
 \seclabel{rewrites}
-
-\remark{Orphaned text:
-Analyzing a subgraph also uses a non-bottom entry fact.
-For example, if a rewrite function proposes to replace 
-@z = x + y@ with @z = 7 + y@, an analysis will be run on the one-node
-graph @z = 7 + y@ with input fact
-$@x == 7@ \land @y == 8@$.
-}
 
 \seclabel{example-rewrites}
 
@@ -1654,7 +1594,7 @@ data BackRewrites mid last a = BackRewrites
   br_last   :: last ->
                (BlockId -> a) -> Rewrite mid last} 
 \end{code}
-\caption{Rewrite functions for forward and backward transformations.}
+\caption{Types of forward and backward rewrite functions.}
 \figlabel{rewrites}
 \end{figure}
 
@@ -1694,34 +1634,37 @@ insertLateReloads g = liftM zdfFpContents result
 
 We compute dataflow facts in order to enable code-improving
 transformations.
-When creating a transformation, the compiler writer uses
-the assertions represented by dataflow facts to ensure that the
-transformation preserves semantics.
-We~write a transformation as a triple of
+The heart of a transformation is a triple of
 \emph{rewrite functions};
-functions for both forward and backward transformations are shown in
-\figref{rewrites}. 
+type declarations for rewrite functions are
+shown in \figref{rewrites}. 
 %
 A~rewrite function is given a dataflow fact and a node.
 It~may choose to replace the node with a new graph~$g$, in which case it
 returns $@Just@\;g$, or it may do nothing, in which case it returns @Nothing@.
+The assertions represented by incoming dataflow facts must be
+sufficient to ensure that the
+rewrite preserves semantics.
+%%  
+%%  
+%%  If~a rewrite function returns $@Just@\;g$, the incoming dataflow fact
+%%  must guarantee that replacing the node with~$g$ does not change the
+%%  observable behavior of the program.
+%%  
 
-
-To create a program transformation,
+To write a program transformation,
 the compiler writer must 
 \begin{itemize}
 \item
 Create a dataflow lattice and transfer functions for the supporting
 analysis, as described in \secref{create-analysis}. 
 \item
-Create sound rewriting functions for first, middle, and last nodes;
-it is sufficient that given the dataflow fact(s) coming into the node,
-the behavior of 
-any proposed replacement is not observably different from the original node.
+Create rewrite functions for first, middle, and last nodes.
 \end{itemize}
-Given the rewriting functions and the supporting analysis, the
+The
 compiler writer can then use the 
-dataflow-engine function @zdfRewriteFwd@ to compute a solution:
+dataflow-engine function @zdfRewriteFwd@ to transform a control-flow
+graph:
 \begin{code}
   zdfRewriteFwd 
     :: RewritingDepth         -- Rewrite recursively?
@@ -1794,7 +1737,7 @@ of not to terminate is infinite ``deep rewriting.''
 Once the solver is complete, the resulting fixed point is sound,
 and the facts in the fixed point are used by the second phase, in which
 no dataflow facts change, but
-each replacement proposed by a rewriting function is actually
+each replacement proposed by a rewrite function is actually
 performed.
 This phase is called the \emph{rewriter}.
 \end{itemize}
@@ -1826,7 +1769,7 @@ questions and point to Chambers for details.
 
 \textbf{NR}: Good questions, but let's have a forward reference to \secref{dfengine}}
 
-The rewriting function is like the @zdfSolveFwd@ function in
+The rewrite function is like the @zdfSolveFwd@ function in
 \secref{zdfSolveFwd}, but it uses and produces extra
 information.\seclabel{engine-truth} 
 \begin{itemize}
@@ -1840,7 +1783,7 @@ Deep rewriting is essential to achieve the results of
 \citet{lerner-grove-chambers:2002}, e.g., to remove the induction
 variable from the loop in the example in \secref{induction-var-elim}.
 \item
-The rewriter requires rewriting functions as well as transfer
+The rewriter requires rewrite functions as well as transfer
 functions.
 \item
 The type constructor @ForwardFixedPoint@ has a fourth
@@ -2087,7 +2030,7 @@ a backward solver, and a backward rewriter.
 Despite the implicit claim in the title of this paper,
 the dataflow engine is not simple.
 The benefit of our design is that the \emph{interface} to the dataflow
-engine (lattice, transfer functions, rewriting functions) is simple,
+engine (lattice, transfer functions, rewrite functions) is simple,
 and as shown above, compiler passes written \emph{using} the engine
 are very simple indeed.
 But~the engine itself is complex.
@@ -2524,7 +2467,7 @@ to rewrite~@t@.
 %%  \item
 %%  It tracks the supply of \emph{optimization fuel}.
 %%  As~shown below, when fuel runs out, the dataflow engine stops
-%%  calling rewriting functions, effectively halting optimization.
+%%  calling rewrite functions, effectively halting optimization.
 %%  Binary search on the size of the fuel supply enables the compiler to
 %%  identify unsound rewrites quickly \cite{whalley:isolation}.
 %%  \end{itemize}
