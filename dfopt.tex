@@ -2774,7 +2774,7 @@ Compiler textbooks make dataflow analysis and optimization appear
 difficult and complicated.
 We make dataflow simple not by using a single magic
 ingredient, but by applying ideas that are well understood by functional
-programmers and others who reason formally about programs.
+programmers. %% and others who reason formally about programs.
 These ideas
 make it possible to think simple thoughts about classical code improvements.
 \begin{itemize}
@@ -2783,16 +2783,18 @@ We acknowledge only one program-analysis technique: the solution of
 recursion equations.
 Like our colleagues working in imperative languages, we solve
 recursion equations by iterating to a fixed point.
-Most equations relate
-properties of program states; some relate properties of continuations.
+Many equations relate
+properties of program states; some relate properties of paths through
+programs. 
 \item
-When looking at properties of program states, we consider only two
+We consider only two
 relations: weakest liberal precondition and strongest 
 postcondition.
-\john{Why is this tied to program states only?}
-In the compiler literature, these relations correspond respectively to
+These relations correspond 
+respectively
+to
 ``backward dataflow problems'' and ``forward dataflow problems.''
-\simon{Can we give an exmple of a property of program states which is
+\finalremark{Can we give an exmple of a property of program states which is
 neither, just by way of contrast; ie this we cannot do.}
 %%  \item
 %%  In a language that admits loops, iterating weakest preconditions or
@@ -2811,21 +2813,22 @@ neither, just by way of contrast; ie this we cannot do.}
 %%    logic to compute strongest postconditions, which justify the
 %%    transformation locally.}
 \item
-We consider only three program transformation techniques:
+Although our implementation allows graph nodes to be rewritten in any
+way that preserves semantics, we concentrate on
+only three program-transformation techniques:
 substitution of equals for equals, 
 insertion of assignments to unobserved variables, 
-and removal of assignments to unobserved variables. \simon{No such
-restrictions were placed on the functions in @ForwardRewrites@.
-If we expect such restrictions to be observed we should say so!}
-Substituting equals for equals may require reasoning about program
-states; for example, if we have a program point at which variable~$x$
-is always~7, we are justified in substituting~7 for~$x$.
-\remark{We can also justify substitution of \emph{labels} in goto
-  statements by reasoning about continuations.  The introduction is
+and removal of assignments to unobserved variables. 
+Substitution of equals for equals is often justified by properties of program
+states; for example, if variable~$x$
+is always~7, we may substitute~7 for~$x$.\finalremark
+{We can also justify substitution of \emph{labels} in goto
+  statements by reasoning about continuations.  This is
   probably not the place to mention this fact.}
-Inserting and removing assignments require reasoning about program
-continuations; an assignment may be inserted or removed if its results
-are not used by its continuation.
+Insertion and removal of assignments are often justified by properties
+of paths through programs;
+for example, if an assignment's continuation does not use the variable
+assigned~to, that assignment may be removed.
 
 %%  Some compiler texts treat the removal of unreachable code as a
 %%  code-improving transformation in its own right.
@@ -2833,29 +2836,21 @@ are not used by its continuation.
 %%  garbage-collection sense, so no special effort is required to remove
 %%  it.
 \item
-These simple program transformations may be composed to form more
-complex tranformations.
+Complex program tranformations should be composed from simple
+transformations. 
 For example, both ``code motion'' and ``induction-variable
-elimination'' are implemented in three stages: insert new assignments;
+elimination'' should be implemented in three stages: insert new assignments;
 substitute equals for equals; remove unneeded assignments
 (\secref{induction-var-elim}). 
 
-\simon{I'd make these two bullet.  There are two things going
-on.  First, a big transformation can be done by composing phases
-(pass 1, 2, 3).  Benefit: modularity, plug and play.
-
-Second each phase consists of lots of individual
-rewrites, and it's OK to apply only some of these individual rewrites.
-Hence we can isolate bugs to a very fine granularity.}
-
-One virtue of implementing complex transformations by composing simple
-transformations is that each simple transformation leaves the program
-in a consistent state. \simon{Is that the same as ``leaves the semantics
-of the program unchanged''?}
-It~is therefore safe to use 
+\item 
+Because each simple transformation leaves the semantics
+of the program unchanged, 
+it is safe to use 
 ``optimization fuel'' to limit the number of \emph{simple}
-transformations, which means that when we isolate a fault in the optimizer
-(\secref{vpoiso}), we have the luxury of debugging a simple
+transformations.
+ When we isolate a fault in the optimizer
+(\secref{vpoiso}), we therefore have the luxury of debugging a simple
  transformation, not a complex one.
 \end{itemize}
 
