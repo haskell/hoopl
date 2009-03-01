@@ -22,7 +22,7 @@ timestamp.tex: $TGT.tex
 	date=`stat -c "%y" $prereq`
 	signature=""
 	if [ -x $HOME/bin/md5words ]; then
-          signature=" [MD5: `md5words $prereq`]"
+          signature=" [MD5: \\mbox{`md5words $prereq`}]"
 	fi
 	date -d "$date" "+\\rlap{\\textbf{\\uppercase{%A} %l:%M %p$signature}}" > $target
 
