@@ -1,0 +1,3 @@
+%.bbl: %.aux
+	nbibtex $stem
+
