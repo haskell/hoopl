@@ -161,7 +161,8 @@
 
 \usepackage{code}   % At-sign notation
 
-\preprintfooter{\input{timestamp}}
+\input{timestamp}
+\preprintfooter{\mdfivestamp}
 
 \begin{document}
 \title{Dataflow Optimization Made Simple}
@@ -2300,6 +2301,10 @@ Case @ZNoLast@ arises when a replacement graph has no last node.
 %%             ; return (fp, fuel)
 %%             }
 %%  
+%%  
+%%      rewrite_blocks (Block id t : bs) rewritten fuel =
+%%        ... rew_tail h (ft_first_out transfers id a) t rewritten fuel ...
+%%      rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
 \setcounter{codeline}{0}
 \begin{numberedcode}
     rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
@@ -2312,17 +2317,12 @@ Case @ZNoLast@ arises when a replacement graph has no last node.
             ; return (a, Graph eid rewritten, fuel)
             }
 
-    rewrite_blocks (Block id t : bs) rewritten fuel =
-      ... rew_tail h (ft_first_out transfers id a) t rewritten fuel ...
-    rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
-
-    rew_tail head in' (ZTail m t) rewritten fuel =
+!rew.tail.1!    rew_tail head in' (ZTail m t) rewritten fuel =
       case squash fuel $ fr_middle rewrites m in' of
-        Nothing -> rew_tail (ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
-        Just g -> do { markGraphRewritten
-                     ; (a, g, fuel) <- inner_rew getExitFact in' g fuel
-                     ; let (blocks, h) = splice_head' head g
-                     ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
+!rewrite.append.m!        Nothing -> rew_tail (ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
+!rewrite.rewrite.1!        Just g -> do { (a, g, fuel) <- inner_rew in' g fuel
+!rewrite.rewrite.*!                     ; let (blocks, h) = splice_head head g
+!rew.tail.*!                     ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
 \end{numberedcode}
 \caption{Excerpts from the forward rewriter}
 \figlabel{rewriter-excerpts}
@@ -2438,56 +2438,71 @@ graphs.
 \seclabel{forward-rewriter}
 
 The core of the rewriter is shown in \figref{rewriter-excerpts}.
-A~graph~@g@ to be rewritten is represented by a finite map from  @BlockId@
+At~this point, because the rewriter produces a new graph, we~explain
+how a graph is represented: it is a finite map from  @BlockId@
   to basic block, together with the @BlockId@ of the entry block:
 \begin{code}
 data Graph m l = Graph BlockId (BlockEnv (Block m l))
 \end{code}
-The function @rewrite@ first calls @forward_sol@ to iterate to a fixed
-point.
-At~this point, the facts stored in the inner dataflow monad can safely be
+Function @rewrite@ first calls @forward_sol@
+(\figref{solver-excerpts}) to iterate to a fixed point.
+At~this point, the facts stored in the inner dataflow monad can be
 used for rewriting.
-The work is done by @rewrite_blocks@; the monadic action @finish@
-extracts any value of interest; and that value is returned together
-with the rewritten graph and the remaining fuel.
+The work is done by @rewrite_blocks@ (not shown), which simply
+rewrites each block in turn and returns a finite map containing the
+rewritten blocks, plus the remaining fuel supply.
 
-The actual rewriting is done by @rewrite_blocks@, whose second parameter is
-an accumulating parameter which carries a finite map containing those
-blocks which have been fully rewritten.
 As~above, we show only the code relevant to rewriting middle codes;
 code for first nodes and last nodes is similar.
-The @rew_tail@ function uses exactly the same test as in the solver:
+The @rew_tail@ function (\linerangeref{rew.tail.1}{rew.tail.*}) uses
+exactly the same test as in the solver: on \lineref{rewrite.squash},
 it scrutinizes
 \begin{verbatim}
    squash fuel $ fr_middle rewrites m in'
 \end{verbatim}
-If there is no rewriting, the action taken is almost the same, but
-there is an additional accumulating parameter, @head@, which stores
-the fragment of the basic block leading up to the node~@m@ which is
-a candidate for rewriting.
-To~store this fragment, we use type @ZHead m@, which makes the
-nearest node the easiest to access; we append~@m@ to the
-fragment~@head@ by forming @ZHead head m@:
+If the node~@m@ is not rewritten, the action taken is almost the same
+as in the solve, but @rew_tail@ takes two 
+ additional accumulating parameters.
+Parameter @head@ carries
+the leading fragment of the current basic block,
+from its first node up to the middle node~@m@, which is
+a candidate for rewriting;
+parameter @rewritten@ carries the blocks that have already been
+rewritten.
+%
+To~store a leading fragment of a basic block, we use type @ZHead m@:
 \begin{verbatim} 
 data ZHead m = ZFirst BlockId | ZHead (ZHead m) m
 \end{verbatim}
+We append~@m@ to the
+fragment~@head@ by forming @ZHead head m@ 
+(\figref{rewriter-excerpts}, \lineref{rewrite.append.m}). 
+
 
 The interesting case is where the middle node~@m@ is rewritten into
-the replacement graph~@g@. \remark{line number}
-We~first mark the graph as rewritten, so that whatever called this
-pass may know that the graph has changed.
-As~before, we convert~@g@ by supplying it with fresh labels.
-We then call @inner_rew@, which calls @forward_sol@ when rewriting
-shallowly (i.e., not rewriting~@g@) and calls @rewrite@ recursively
-when rewriting deeply.
-Finally, the rewritten graph, newly rebound to the name~@g@, is
+the replacement graph~@g@ (\linerangeref{rewrite.rewrite.1}{rewrite.rewrite.*}).
+%%We~first mark the graph as rewritten, so that whatever called this
+%% pass may know that the graph has changed.
+%% As~before, we convert~@g@ by supplying it with fresh labels.
+On \lineref{rewrite.rewrite.1}, @inner_rew@ (not shown) handles the
+distinction between deep and shallow rewriting:
+when rewriting deeply, it recursively calls @rewrite@,
+and 
+when rewriting shallowly, it calls @forward_sol@ from
+\figref{solver-excerpts}. 
+Deep or shallow, it produces the exit fact from the sub-analysis of
+the rewritten graph, 
+the rewritten graph itself, 
+and the remaining fuel supply.
+The rewritten graph is
 spliced onto the head of the block, producing a new head~@h@ and a set
-of fully rewritten blocks~@blocks@.
+of fully rewritten blocks~@blocks@ (\lineref{rewrite.rewrite.*}).
 The splicing algorithm is described by
 \citet{ramsey-dias:applicative-control-flow}. 
-The new head~@h@ replaces @head@, and @blocks@ is added to the
-accumulating parameter @rewritten@.
-Function @rew_tail@ continues with the next node by making a tail call
+On~\lineref{rew.tail.*}, 
+the new head~@h@ replaces @head@, @blocks@ is added to the
+accumulating parameter @rewritten@, and
+@rew_tail@ continues with the next node by making a tail call
 to rewrite~@t@.
 
 
@@ -2553,9 +2568,16 @@ to rewrite~@t@.
 
 \section{The next 700 dataflow analyses}
 
+\seclabel{logic}
 \seclabel{next-700}
+
 %%  \simon{I know that this section is Dear to the Ramsey Heart, but
 %%  I still can't figure out what it is trying to say to the reader.
+%%
+%%  [For the record: one reason this section is dear to my heart is
+%%  that after my talk at the Computing Lab in 2007, Alan Mycroft
+%%  encouraged me in the strongest possible terms to get this
+%%  explanation published. ---NR]
 %%  
 %%  Let me try one stab at what I think you might be trying to say.
 %%  In this paper we have described a re-usable, polymorphic 
@@ -2586,9 +2608,9 @@ to rewrite~@t@.
 
 
 Most of this paper is devoted to the implementation of dataflow
-analysis and their associated transformations.
+analyses and their associated transformations.
 But we also promised you ideas.
-The~main idea is that dataflow analysis is not really special,
+The~main idea is that dataflow analysis is not unique,
 difficult, or intimidating---it's a special case of work you may
 already know about:
 the seminal work of
@@ -2598,17 +2620,10 @@ and
 \citet{dijkstra:discipline}
 on semantics of programming languages and
  formal methods of program construction.
-If~you like this classic material, you are ready to invent a new
-dataflow analysis: just invent an approximation of program logic 
-such that the approximation has no infinite ascending chains.
+If~you like this material, you are ready to invent a new
+dataflow analysis: just approximate program logic 
+using a lattice with no infinite ascending chains.
 
-In this section we compare the formal methods a
-person uses to 
-\emph{construct} a new program with the formal methods a compiler uses
-to \emph{analyze} a program that already exists.
-The comparison is a bit tricky,
-because compilers and
-people typically work in opposite directions.
 
 
 %%  \section{Logical view of optimization}
@@ -2619,61 +2634,73 @@ people typically work in opposite directions.
 %%  
 %%  Examples on board.
 
-\seclabel{logic}
-
-
-
-
-The most highly developed
-methodology for constructing a procedure (Dijkstra's) starts with a
-postcondition~$Q$ that the procedure must establish and a
-precondition~$P$ that the procedure may assume.
-Using Dijkstra's method, a programmer 
-works backwards, adding a statement, computing the weakest
-precondition of that statement with respect to~$Q$,
-and continuing with more statements until
-eventually the weakest precondition of the procedure body is implied by~$P$.
+To~illuminate the connection, let's compare the formal methods a 
+person uses to 
+\emph{construct} a new program with the formal methods a compiler uses
+to \emph{analyze} a program that's given.
+%The comparison is a bit tricky,
+%because 
+%People and compilers 
+%typically work in opposite directions.
+Dijkstra says people should start with a specification (the postcondition a procedure
+must establish and the precondition it may assume), then construct the
+procedure body from back 
+to front, computing weakest preconditions until one is implied by the
+procedure's precondition. 
+%%  
+%%  
+%%  
+%%  
+%%  The most highly developed
+%%  methodology for constructing a procedure (Dijkstra's) starts with a
+%%  postcondition~$Q$ that the procedure must establish and a
+%%  precondition~$P$ that the procedure may assume.
+%%  Using Dijkstra's method, a programmer 
+%%  works backwards, adding a statement, computing the weakest
+%%  precondition of that statement with respect to~$Q$,
+%%  and continuing with more statements until
+%%  eventually the weakest precondition of the procedure body is implied by~$P$.
 A~compiler, by contrast, is given a procedure with no specification,
-and the compiler typically reasons forward,  starting with the
-weakest possible precondition, then using strongest postconditions to
+and most analyses reason forward,  starting with the
+weakest possible precondition and using strongest postconditions to
 compute assertions that hold at various points throughout the program.
 
-
-Computing either strongest postconditions or weakest liberal
+Computing strongest postconditions \emph{or} weakest
 preconditions is a simple matter of calculation---except for loops.
-Let's revisit the example of induction-variable elimination in
-\secref{induction-var-elim}. 
-If~a compiler wants to know what @i@~is, it can easily see that on the
-first trip $@i@=0$, on the second trip $@i@=1$, and so on.
-But it's all too easy for a compiler to get stuck trying to compute an
+In~a loop, such as the one in the example of induction-variable elimination in
+\secref{induction-var-elim}, 
+%If~a compiler wants to know what @i@~is, it can easily see that on the
+%first trip $@i@=0$, on the second trip $@i@=1$, and so on.
+it's all too easy for a compiler to get stuck trying to compute an
 infinite disjunction like $\bigvee_{k=0}^{\infty} @i@=k$.
 Compilers are no good at solving recursion
 equations that require limits of infinite sequences.
-
-People don't like infinite sequences either---instead they invent
+%
+People don't like infinite sequences either, which is why they invent
 \emph{loop invariants}. 
-In the classic situation, using weakest preconditions, a loop
-invariant~$I$ is an assertion that is \emph{stronger} than the weakest
-precondition, is invariant under the loop, and when conjoined with
-the loop's termination condition, implies the weakest precondition of
-what follows the loop.
-%%   and has these properties:
-%%  \begin{itemize}
-%%  \item
-%%  Together with the loop-termination condition, the invariant~$I$ implies the weakest
-%%  precondition of the code following the loop.
-%%  \item
-%%  The invariant~$I$ implies the weakest precondition of the loop body
-%%  with respect to~$I$.
-%%  In other words, $I$~is strong enought so that having $I$ hold at the
-%%  beginning of the loop body is enough to
-%%  imply that $I$~also holds at the end of the loop body.
-%%  \end{itemize}
-To be useful, a loop invariant must be neither too strong nor too
-weak.
-Much like finding a useful induction hypothesis for a proof, 
-finding a loop invariant requires art and intuition.
-In~all but the simplest cases, it is beyond the capabilities of any
+%%  
+%%  In the classic situation, using weakest preconditions, a loop
+%%  invariant~$I$ is an assertion that is \emph{stronger} than the weakest
+%%  precondition, is invariant under the loop, and when conjoined with
+%%  the loop's termination condition, implies the weakest precondition of
+%%  what follows the loop.
+%%  %%   and has these properties:
+%%  %%  \begin{itemize}
+%%  %%  \item
+%%  %%  Together with the loop-termination condition, the invariant~$I$ implies the weakest
+%%  %%  precondition of the code following the loop.
+%%  %%  \item
+%%  %%  The invariant~$I$ implies the weakest precondition of the loop body
+%%  %%  with respect to~$I$.
+%%  %%  In other words, $I$~is strong enought so that having $I$ hold at the
+%%  %%  beginning of the loop body is enough to
+%%  %%  imply that $I$~also holds at the end of the loop body.
+%%  %%  \end{itemize}
+%%  To be useful, a loop invariant must be neither too strong nor too
+%%  weak.
+%Much like finding a useful induction hypothesis for a proof, 
+But finding a loop invariant requires art and intuition;
+in~all but the simplest cases, it is beyond the capabilities of any
 compiler.
 
 %%  Strongest postconditions also require a loop invariant, but with dual
@@ -2695,21 +2722,24 @@ compiler.
 
 So if we can't find loop invariants automatically, what's a poor
 compiler writer to do?
-The compiler writer wants assertions that justify interesting program
+We~want assertions that justify interesting program
 transformations. 
 Such assertions can often be established by a dataflow analysis.
-So to write a new dataflow analysis, a compiler writer
+So to write a new dataflow analysis, we
 should \emph{invent a new logic} which is
 \emph{expressive enough to justify interesting transformations}
-but \emph{inexpressive enough that a fixed point
-  is always reached in finitely many steps}.
+but \emph{inexpressive enough that no fact can increase more than
+finitely many times}.
 With the logic in place, the transfer functions simply approximate
   weakest preconditions (for a backward analysis) or strongest
   postconditions (for a forward analysis) as best they can within the
   constraints of the logic.
-Thus, the next 700 dataflow analyses will spring from 700 variations on
-program logic, each of which is inexpressive in a different way.
-\remark{Do we have examples or not?}
+From~this point of view, we can understand the traditional
+``optimization zoo'' as arising from a collection of approximate,
+inexpressive logics. 
+We~even venture to predict that the next 700 dataflow analyses will
+arise from 700 more variations on 
+program logic, each of which will be inexpressive in a different way.
 
 %%  Let's review the examples of \secref{example:xforms} in that light.
 %%  \begin{itemize}
@@ -2747,7 +2777,7 @@ Compiler textbooks make dataflow analysis and optimization appear
 difficult and complicated.
 We make dataflow simple not by using a single magic
 ingredient, but by applying ideas that are well understood by functional
-programmers and others who reason formally about programs.
+programmers. %% and others who reason formally about programs.
 These ideas
 make it possible to think simple thoughts about classical code improvements.
 \begin{itemize}
@@ -2756,16 +2786,18 @@ We acknowledge only one program-analysis technique: the solution of
 recursion equations.
 Like our colleagues working in imperative languages, we solve
 recursion equations by iterating to a fixed point.
-Most equations relate
-properties of program states; some relate properties of continuations.
+Many equations relate
+properties of program states; some relate properties of paths through
+programs. 
 \item
-When looking at properties of program states, we consider only two
+We consider only two
 relations: weakest liberal precondition and strongest 
 postcondition.
-\john{Why is this tied to program states only?}
-In the compiler literature, these relations correspond respectively to
+These relations correspond 
+respectively
+to
 ``backward dataflow problems'' and ``forward dataflow problems.''
-\simon{Can we give an exmple of a property of program states which is
+\finalremark{Can we give an exmple of a property of program states which is
 neither, just by way of contrast; ie this we cannot do.}
 %%  \item
 %%  In a language that admits loops, iterating weakest preconditions or
@@ -2784,21 +2816,22 @@ neither, just by way of contrast; ie this we cannot do.}
 %%    logic to compute strongest postconditions, which justify the
 %%    transformation locally.}
 \item
-We consider only three program transformation techniques:
+Although our implementation allows graph nodes to be rewritten in any
+way that preserves semantics, we concentrate on
+only three program-transformation techniques:
 substitution of equals for equals, 
 insertion of assignments to unobserved variables, 
-and removal of assignments to unobserved variables. \simon{No such
-restrictions were placed on the functions in @ForwardRewrites@.
-If we expect such restrictions to be observed we should say so!}
-Substituting equals for equals may require reasoning about program
-states; for example, if we have a program point at which variable~$x$
-is always~7, we are justified in substituting~7 for~$x$.
-\remark{We can also justify substitution of \emph{labels} in goto
-  statements by reasoning about continuations.  The introduction is
+and removal of assignments to unobserved variables. 
+Substitution of equals for equals is often justified by properties of program
+states; for example, if variable~$x$
+is always~7, we may substitute~7 for~$x$.\finalremark
+{We can also justify substitution of \emph{labels} in goto
+  statements by reasoning about continuations.  This is
   probably not the place to mention this fact.}
-Inserting and removing assignments require reasoning about program
-continuations; an assignment may be inserted or removed if its results
-are not used by its continuation.
+Insertion and removal of assignments are often justified by properties
+of paths through programs;
+for example, if an assignment's continuation does not use the variable
+assigned~to, that assignment may be removed.
 
 %%  Some compiler texts treat the removal of unreachable code as a
 %%  code-improving transformation in its own right.
@@ -2806,29 +2839,21 @@ are not used by its continuation.
 %%  garbage-collection sense, so no special effort is required to remove
 %%  it.
 \item
-These simple program transformations may be composed to form more
-complex tranformations.
+Complex program tranformations should be composed from simple
+transformations. 
 For example, both ``code motion'' and ``induction-variable
-elimination'' are implemented in three stages: insert new assignments;
+elimination'' should be implemented in three stages: insert new assignments;
 substitute equals for equals; remove unneeded assignments
 (\secref{induction-var-elim}). 
 
-\simon{I'd make these two bullet.  There are two things going
-on.  First, a big transformation can be done by composing phases
-(pass 1, 2, 3).  Benefit: modularity, plug and play.
-
-Second each phase consists of lots of individual
-rewrites, and it's OK to apply only some of these individual rewrites.
-Hence we can isolate bugs to a very fine granularity.}
-
-One virtue of implementing complex transformations by composing simple
-transformations is that each simple transformation leaves the program
-in a consistent state. \simon{Is that the same as ``leaves the semantics
-of the program unchanged''?}
-It~is therefore safe to use 
+\item 
+Because each simple transformation leaves the semantics
+of the program unchanged, 
+it is safe to use 
 ``optimization fuel'' to limit the number of \emph{simple}
-transformations, which means that when we isolate a fault in the optimizer
-(\secref{vpoiso}), we have the luxury of debugging a simple
+transformations.
+ When we isolate a fault in the optimizer
+(\secref{vpoiso}), we therefore have the luxury of debugging a simple
  transformation, not a complex one.
 \end{itemize}
 
@@ -3057,7 +3082,7 @@ forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx 
                            ; rewrite_blocks bs rewritten fuel }
              Just g  -> do { markGraphRewritten
                            ; (outfact, g, fuel) <- inner_rew getExitFact a g fuel
-                           ; let (blocks, h) = splice_head' h g
+                           ; let (blocks, h) = splice_head h g
                            ; (rewritten, fuel) <- rew_tail h outfact t (blocks `plusBlockEnv` rewritten) fuel
                            ; rewrite_blocks bs rewritten fuel }
          }
@@ -3067,14 +3092,14 @@ forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx 
         Nothing -> rew_tail (ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
         Just g -> do { markGraphRewritten
                      ; (a, g, fuel) <- inner_rew getExitFact in' g fuel
-                     ; let (blocks, h) = splice_head' head g
+                     ; let (blocks, h) = splice_head head g
                      ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
     rew_tail h in' (ZLast l) rewritten fuel = 
-      case squash fuel $ either_last rewrites in' l of
+!rewrite.squash!      case squash fuel $ either_last rewrites in' l of
         Nothing -> return (insertBlock (zipht h (ZLast l)) rewritten, fuel)
         Just g -> do { markGraphRewritten
                      ; ((), g, fuel) <- inner_rew (return ()) in' g fuel
-                     ; let g' = splice_head_only' h g
+                     ; let g' = splice_head_only h g
                      ; return (lg_blocks g' `plusBlockEnv` rewritten, fuel) }
     either_last rewrites in' (LastExit) = in'
     either_last rewrites in' (LastOther l) = fr_last rewrites l in'
