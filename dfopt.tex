@@ -1800,20 +1800,17 @@ This phase is called the \emph{rewriter}.
 Facts computed by the solver depend on graphs produced by rewrite
 functions, which in turn depend on facts computed by the solver.
 How~do we know this algorithm is sound, or even if it terminates?
-Answering this question requires a POPL paper
-\remark{It would be nice to have some insight into why the soundness
-of the rewrite functions wrt the incoming dataflow facts is sufficient
-to make the whole algorithm sound.}
-\cite{lerner-grove-chambers:2002}, but we can at least give some
-intuition about termination.
+A~proof requires a POPL paper
+\cite{lerner-grove-chambers:2002}, but we can give some
+intuition:
 \begin{itemize} 
-\item 
-As noted above, rewrite functions may not return graphs that contain
-nodes which are rewritten indefinitely.
-Alternatively, 
-by using the @RewritingDepth@ parameter,
-@zdfRewriteFwd@ can be told not to rewrite graphs returned from a
-rewrite function. 
+\item
+To think about soundness, think about the final iteration of the
+solver, where no dataflow facts change.
+The~facts in that iteration are a fixed point not for the original
+graph, but for the graph that is rewritten in light of those facts.
+Thus, as long as the rewrite functions are sound, the rewritten graph
+has the same observable behavior as the original.
 \item
 No matter what the transfer functions and rewrite functions do,
 the dataflow engine uses the dataflow lattice's join operation to ensure that
@@ -1821,6 +1818,30 @@ facts at labels always increase.
 As~long as the lattice permits no fact to increase infinitely many
 times, analysis is guaranteed to terminate.
 \end{itemize}
+Thus to guarantee soundness and termination, client code must supply a
+lattice with no infinite ascending chains, sound transfer functions,
+and sound rewrite functions.
+Moreover, either the rewrite functions do not return replacement graphs that contain
+nodes which are rewritten indefinitely,
+or the client code specifies shallow rewriting, which ensures that the
+dataflow engine never rewrites a replacement graph.
+
+Why bother with such a complex algorithm?
+\remark{We could condense the quote}
+\citet{lerner-grove-chambers:2002} write
+\begin{quote}
+\emph{Previous efforts to exploit [the mutually beneficial
+interactions of dataflow analyses] either (1)~iteratively performed
+each individual analysis until no further improvements are discovered
+or (2)~developed [handwritten] ``super-analyses'' that manually
+combine conceptually separate analyses. We have devised a new approach
+that allows analyses to be defined independently while still enabling
+them to be combined automatically and profitably. Our approach avoids
+the loss of precision associated with iterating individual analyses
+and the implementation difficulties of manually writing a
+super-analysis.}
+\end{quote}
+
 
 
 %%  \simon{But do we apply rewrites even before the analysis reaches a fixed point?
@@ -1846,7 +1867,9 @@ times, analysis is guaranteed to terminate.
 %%  \textbf{NR}: Good questions, but let's have a forward reference to \secref{dfengine}}
 
 
-In the rest of this section we present two transformations:
+In~practice, interleaving analysis with transformation makes it
+possible to create startlingly simple transformations.
+In the rest of this section we present two examples:
 \secref{sink-reloads} shows how to insert a reload instruction just
 before the first use of each spilled variable, and
 \secref{dead-code-elim} shows how to eliminate dead assignments.
@@ -2073,23 +2096,6 @@ a backward solver, and a backward rewriter.
 
 Most of the complexity in the dataflow engine arises because we
 implement the ambitious algorithm of
-\remark{Perhaps this \P\ could be cut drastically, and we can refer
-back to the specification in \secref{dfengine-spec}?}
-\citet{lerner-grove-chambers:2002}, who write
-\begin{quote}
-\emph{Previous efforts to exploit [the mutually beneficial
-interactions of dataflow analyses] either (1)~iteratively performed
-each individual analysis until no further improvements are discovered
-or (2)~developed [handwritten] ``super-analyses'' that manually
-combine conceptually separate analyses. We have devised a new approach
-that allows analyses to be defined independently while still enabling
-them to be combined automatically and profitably. Our approach avoids
-the loss of precision associated with iterating individual analyses
-and the implementation difficulties of manually writing a
-super-analysis.}
-\end{quote}
-Adapting this work to a purely functional setting results in an
-implementation that is significantly simpler than the original.
 
 
 %%  Note that the dataflow engine is the only part of the system that is
