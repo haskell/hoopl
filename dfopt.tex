@@ -200,17 +200,18 @@ back end for the Glasgow Haskell Compiler.
 
 \section{Introduction}
 
-Anyone writing a compiler for an imperative language benefits
-from many years' work on code improvement, also called
+\ifpagetuning\enlargethispage{\baselineskip}\fi
+
+If you write a compiler for an imperative language, you can exploit
+many years' work on code improvement, also called
 ``optimization.''
 But the work is typically presented
 as a large collection of apparently unrelated analyses and
-transformations, each with its own name---and not everyone can easily
-remember the difference 
-between
-such names as
-``copy propagation'' and ``constant propagation.''
-Typical presentations obscure fundamental principles of
+transformations, each with its own name---and 
+it's not always easy to % not everyone can easily
+remember how something like
+``copy propagation'' differs from ``constant propagation.''
+Many presentations obscure fundamental principles of
 code improvement.
 
 %The contribution of this paper is to elucidate a large body of work on code
@@ -1283,6 +1284,8 @@ code---and if the assumption is not justified, the transfer functions
 will correct it before
 the analysis reaches a fixed point.
 
+\ifpagetuning\enlargethispage{\baselineskip}\fi
+
 Because universal sets can be awkward to manipulate, we represent a
 set either as
 $\mathtt{UniverseMinus}\;s$, which stands for all variables except
@@ -1335,7 +1338,9 @@ This transfer function is specialized to the type of @Middle@ node
 used in~GHC.
 In~GHC, a~middle node is either @MidAssign@, which assigns to a local
 or global variable, or @MidStore@, which assigns to memory.
-\remark{Check these bullets against the figure for correctness}
+\par
+\ifpagetuning{\enlargethispage{\baselineskip}}\fi
+%\kern-8pt
 \begin{itemize}
 \item
 Lines \ref{line:reload1} and \ref{line:reload2}
@@ -1344,7 +1349,7 @@ variable~@x@ from its stack slot.\finalremark{I propose the compiler be
 modified to use @isStackSlotOf@ as I've written. JD~approves.}
 After such an assignment, $x = \slotof x$,
 and the last definition of $x$ is a reload,
-so @x@~is added to the set of available variables.
+so @x@~is added to the set of available variables.\remark{Check these bullets against the figure for correctness}
 % No other variable is affected.
 \item
 On lines \linepairref{assign.avail.1}{assign.avail.2},
@@ -1588,7 +1593,7 @@ data ForwardRewrites mid last a = ForwardRewrites
   fr_middle :: mid     -> a -> Rewrite mid last,
   fr_last   :: last    -> a -> Rewrite mid last} 
 
-data BackRewrites mid last a = BackRewrites
+data BackwardRewrites mid last a = BackwardRewrites
  {br_first  :: BlockId  -> a  -> Rewrite mid last,
   br_middle :: mid      -> a  -> Rewrite mid last,
   br_last   :: last ->
@@ -1604,13 +1609,13 @@ data BackRewrites mid last a = BackRewrites
 \T\begin{code}
 availRewrites :: ForwardRewrites Middle Last AvailVars
 availRewrites = ForwardRewrites first middle last
-  where first _ _ = Nothing
+!avail.rewrites.first!  where first _ _ = Nothing
         middle m avail = maybe_reload_before avail m (mkMiddle m)
-        last   l avail = maybe_reload_before avail l (mkLast l)
-        maybe_reload_before avail node tail =
+!avail.rewrites.last!        last   l avail = maybe_reload_before avail l (mkLast l)
+!maybe.reload.before.1!        maybe_reload_before avail node tail =
             let used = filterVarsUsed (elemAvail avail) node
             in  if isEmptyVarSet used then Nothing
-                else Just $ reloadTail used tail
+!maybe.reload.before.2!                else Just $ reloadTail used tail
         reloadTail vars t = foldl rel t $ varSetToList vars
           where rel t r = mkMiddle (reload r) <*> t
 \end{code}%
@@ -1621,9 +1626,9 @@ availRewrites = ForwardRewrites first middle last
 \T\begin{code}
 insertLateReloads :: (Graph Middle Last) -> DFMonad (Graph Middle Last)
 insertLateReloads g = liftM zdfFpContents result
-  where result = zdfRewriteFwd RewriteShallow "insert late reloads"
+!insertLateReloads.1!  where result = zdfRewriteFwd RewriteShallow "insert late reloads"
                                availVarsLattice avail_vars_transfer
-                               availRewrites (fact_bot availVarsLattice) g
+!insertLateReloads.2!                               availRewrites (fact_bot availVarsLattice) g
 \end{code}%
 & Insert late reloads\\
 \end{codetable}
@@ -1680,7 +1685,7 @@ graph:
 %%  class DataflowSolverDirectiontransfers fixedpt =>
 %%        DataflowDirection
 %%          transfers fixedpt rewrites where
-%%    zdfRewriteFrom :: (DebugNodes m l, Outputable a)
+%%    zdfRewriteFwd :: (DebugNodes m l, Outputable a)
 %%      => RewritingDepth    -- Recursive rewrites?
 %%      -> BlockEnv a        -- Init facts
 %%      -> PassName          -- Analysis name
@@ -1692,11 +1697,54 @@ graph:
 %%      -> DFMonad (fixedpt m l a (Graph m l))
 %%
 %%
-Function
-@zdfRewriteForward@ implements
-the transformation
+Function @zdfRewriteFwd@ is like @zdfSolveFwd@ in
+\secref{zdfSolveFwd}, but it uses and produces extra
+information.\seclabel{engine-truth} 
+\begin{itemize}
+\item
+The @RewritingDepth@ parameter controls recursive rewriting;
+if~a graph produced by a rewrite function should not be further rewritten,
+rewriting is \emph{shallow};
+if~a graph produced by a rewrite function can be rewritten again,
+rewriting is \emph{deep}.
+Deep rewriting is essential to achieve the results of
+\citet{lerner-grove-chambers:2002}, e.g., to remove the induction
+variable from the loop in the example in \secref{induction-var-elim}.
+When deep rewriting is used, the rewrite functions are obligated to
+ensure that the graphs they produce cannot be written indefinitely.
+\item
+Function @zdfRewriteFwd@ requires rewrite functions as well as transfer
+functions.
+\item
+The type constructor @ForwardFixedPoint@ has a fourth
+type parameter,\footnote
+{We lied to you earlier.}
+which is a value contained in the fixed point.
+The~value can be extracted using function @zdfFpContents@, which has
+type @ForwardFixedPoint m l a b -> b@.
+Here the type parameter~@b@ is instantiated to @Graph m l@: the fixed point
+contains the rewritten graph.
+In~@zdfSolveFwd@, @b@~is instantiated with
+the unit type~@()@.
+%%% \simon{I'm afraid I do not understand this bullet at all.}
+\item
+The computation is monadic in the \emph{dataflow monad}, written
+@DFMonad@.
+This monad keeps track of the current dataflow fact at each label,
+provides a supply of fresh labels, 
 and
-analysis in two phases \citep{lerner-grove-chambers:2002}:\seclabel{solver-phase}
+also helps implement the fault-isolation strategy described
+in \secref{vpoiso} below.
+Because @zdfRewriteFwd@ and @zdfSolveFwd@ share much of their
+implementation, the truth 
+about @zdfSolveFwd@ is that it also returns a value of monadic type.
+\end{itemize}
+
+
+Function
+@zdfRewriteFwd@ implements
+interleaved analysis and transformation
+in two phases \citep{lerner-grove-chambers:2002}:\seclabel{solver-phase}
 \begin{itemize}
 \item
 In the first phase, when a rewrite function proposes to replace a
@@ -1742,35 +1790,33 @@ performed.
 This phase is called the \emph{rewriter}.
 \end{itemize}
 
-The solver executes a complicated algorithm with complicated control-flow
-that depends on the lattice, transfer functions, and rewrite functions;
-but how do we know if the solver will terminate?
-There are two possible sources of non-termination:
-\begin{itemize}
-\item \emph{Recursive rewriting}:
-  If a rewrite function returns a new graph, the graph is analyzed
-  and possibly rewritten.
-  Therefore, to avoid divergence,
-  the rewrite functions are required to never return graphs that can be 
-  rewritten indefinitely.
-  If this requirement cannot be met,
-  the solver can be told not to rewrite graphs returned from a rewrite function
-  by using the @RewritingDepth@ parameter described below.
-\item \emph{Iteration to convergence}:
-  The solver iterates the analysis until the dataflow facts at all the
-  labels in the procedure have converged.
-  Because the new fact at a label is always joined with the old fact
-  at the label, the iteration must terminate if the lattice satisfies
-  the requirement that each point in the lattice can be increased at
-  most finitely many times.
-  This termination condition is completely independent of both
-  the transfer and rewriter functions.
+%The solver executes a complicated algorithm with complicated control-flow
+%that depends on the lattice, transfer functions, and rewrite functions;
+Facts computed by the solver depend on graphs produced by rewrite
+functions, which in turn depend on facts computed by the solver.
+How~do we know this algorithm is sound, or even if it terminates?
+Answering this question requires a POPL paper
+\remark{It would be nice to have some insight into why the soundness
+of the rewrite functions wrt the incoming dataflow facts is sufficient
+to make the whole algorithm sound.}
+\cite{lerner-grove-chambers:2002}, but we can at least give some
+intuition about termination.
+\begin{itemize} 
+\item 
+As noted above, rewrite functions may not return graphs that contain
+nodes which are rewritten indefinitely.
+Alternatively, 
+by using the @RewritingDepth@ parameter,
+@zdfRewriteFwd@ can be told not to rewrite graphs returned from a
+rewrite function. 
+\item
+No matter what the transfer functions and rewrite functions do,
+the dataflow engine uses the dataflow lattice's join operation to ensure that
+facts at labels always increase. 
+As~long as the lattice permits no fact to increase infinitely many
+times, analysis is guaranteed to terminate.
 \end{itemize}
 
-\remark{We might wish to explain (briefly) how this algorithm could possibly work.
-E.g., When you analyze a written graph, you could get a fact that's lower,
-but when you reach a join point, you take the join, and the fact
-doesn't get smaller.  So things terminate. (And why is rewriting sound?)}
 
 %%  \simon{But do we apply rewrites even before the analysis reaches a fixed point?
 %%  If so, what property do the rewrites have to satisfy to ensure soundness?
@@ -1794,43 +1840,6 @@ doesn't get smaller.  So things terminate. (And why is rewriting sound?)}
 %%  
 %%  \textbf{NR}: Good questions, but let's have a forward reference to \secref{dfengine}}
 
-The rewrite function is like the @zdfSolveFwd@ function in
-\secref{zdfSolveFwd}, but it uses and produces extra
-information.\seclabel{engine-truth} 
-\begin{itemize}
-\item
-The @RewritingDepth@ parameter controls recursive rewriting;
-if~a graph produced by a rewrite function should not be further rewritten,
-rewriting is \emph{shallow};
-if~a graph produced by a rewrite function can be rewritten \emph{ad
-infinitum},\john{this phrasing evokes non-termination} rewriting is \emph{deep}.
-Deep rewriting is essential to achieve the results of
-\citet{lerner-grove-chambers:2002}, e.g., to remove the induction
-variable from the loop in the example in \secref{induction-var-elim}.
-\item
-The rewriter requires rewrite functions as well as transfer
-functions.
-\item
-The type constructor @ForwardFixedPoint@ has a fourth
-type parameter,\footnote
-{We lied to you earlier.}
-which is a value contained in the fixed point.
-The~value can be extracted using function @zdfFpContents@, which has
-type @ForwardFixedPoint m l a b -> b@.
-Here the type parameter~@b@ is instantiated to @Graph m l@: the fixed point
-contains the rewritten graph.
-In the solver, @b@~is instantiated with
-the unit type~@()@. \simon{I'm afraid I do not understand this bullet
-at all.}
-\item
-The computation is monadic in the \emph{dataflow monad}, written
-@DFMonad@.
-This monad provides a supply of fresh labels, and it
-also helps implement the fault-isolation strategy invented by
-\citet{whalley:isolation} (\secref{vpoiso}).
-Because they share substantial implementation in common, the truth
-about the solver is that it also returns a value of monadic type.
-\end{itemize}
 
 In the rest of this section we present two transformations:
 \secref{sink-reloads} shows how to insert a reload instruction just
@@ -1878,13 +1887,12 @@ sink reloads and produce programs like the example shown in
 \begin{figure*}
 \begin{codetable}
 \T\begin{code}
-deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing Nothing
-  where nothing _ _ = Nothing
-
-middleRemoveDeads :: Middle -> CmmLive -> Maybe (Graph Middle Last)
-middleRemoveDeads (MidAssign (CmmLocal x) _) live
-    | not (x `elemVarSet` live) = Just emptyGraph
-middleRemoveDeads _ _ = Nothing
+deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing
+!deadRewrites.1!  where nothing _ _ = Nothing
+        middleRemoveDeads :: Middle -> CmmLive -> Maybe (Graph Middle Last)
+!elim.dead.1!        middleRemoveDeads (MidAssign (CmmLocal x) _) live
+!elim.dead.2!            | not (x `elemVarSet` live) = Just emptyGraph
+!deadRewrites.2!        middleRemoveDeads _ _ = Nothing
 \end{code}%
 \B
 & Rewrite \mbox{functions}\\
@@ -1893,8 +1901,8 @@ middleRemoveDeads _ _ = Nothing
 \T\begin{code}
 removeDeadAssignments :: (Graph Middle Last) -> DFMonad (Graph Middle Last)
 removeDeadAssignments g = liftM zdfFpContents result
-     where result = zdfRewriteBwd RewriteDeep "dead-assignment elim"
-                                  liveLattice liveTransfers rewrites emptyVarSet g
+!rewriteBwd.1!     where result = zdfRewriteBwd RewriteDeep "dead-assignment elim"
+!rewriteBwd.2!                                  liveLattice liveTransfers rewrites emptyVarSet g
 \end{code}%
 & \mbox{Dead-code} elimination\\
 \end{codetable}
@@ -1905,16 +1913,8 @@ removeDeadAssignments g = liftM zdfFpContents result
 
 
 \subsection{Sinking reloads: a forward transformation}
-\simon{Backward reference needed to ``Pass 2 of the algorithm described
-in the preamble to Section 4''}
 
-\simon{I believe that in fact we never make the call to @zdfSolveFwd@ given 
-in Figure 3?  Instead we pass the transfer functions @avails\_vars\_transfer@
-to @zdfRewriteFwd@?  Whose call is not given in Figure 6. Perhpas we should give
-the latter call, and point out that the call in Figure 3 is illustrative and
-is not in fact used?}
-
-\simon{Incidentally, I wonder if we should
+\finalremark{Incidentally, I wonder if we should
 use record notation when constructing @ForwardRewrites@?}
 
 \seclabel{sink-reloads}
@@ -1922,19 +1922,21 @@ use record notation when constructing @ForwardRewrites@?}
 We can use the available-variables analysis of \secref{avail} to
 insert reloads
 immediately before uses of variables.
-The transformation is implemented by the rewrite functions in the top
-half of \figref{avail-rewrites}.
+The transformation is implemented by the rewrite functions on
+\linerangeref{avail.rewrites.first}{avail.rewrites.last} of \figref{avail-rewrites}.
 A~first node uses no variables and so is never rewritten.
-For middle and last nodes, the @maybe_reload_before@ function
-computes @used@, which is the set $\{ x \mid x = \slotof x\}$, i.e., 
-the set of variables whose values are the same as the values in the
-corresponding stack slots.
+For middle and last nodes, @maybe_reload_before@ 
+(\linerangeref{maybe.reload.before.1}{maybe.reload.before.2})
+computes @used@, which is the set
+of variables used in the node which are both safe and profitable to
+reload. 
 If that set is not empty, function
 @reloadTail@ replaces @node@ with a new graph in which @node@ is
 preceded by a (redundant) reload for each variable in the set~@used@.
+%%%%% This rewrite function \emph{must} be used with shallow
+%%%%% rewriting. % redundant
 
-To do the rewriting, the code uses several functions that create
-graphs:
+\figref{avail} uses these functions to create graphs:
 \begin{code}
 mkMiddle :: m -> Graph m l
 mkLast   :: l -> Graph m l
@@ -1948,18 +1950,17 @@ mkLast   :: l -> Graph m l
 The infix @<*>@ function is graph concatenation.
 
 The transformation is implemented by the call to @zdfRewriteFwd@
-shown at the bottom of \figref{avail-rewrites}.
+on \linerangeref{insertLateReloads.1}{insertLateReloads.2} of \figref{avail-rewrites}.
 Rewriting is shallow, which is to say that a graph returned by
 @maybe_reload_before@ is not itself rewritten.
-(If~it \emph{were} rewritten, an nonempty @used@ set would make the
+(If~it \emph{were} rewritten, a nonempty @used@ set would make the
 compiler insert an infinite sequence of reloads before @node@.)
 Once the reloads are inserted, the original reloads immediately
 following the call site are dead, and they can be eliminated by our
 next transformation, dead-assignment elimination.
 
 \subsection{Dead-assignment elimination: a backward \rlap{transformation}}
-\simon{Backward reference needed to ``Pass 3 of the algorithm described
-in the preamble to Section 4''}
+
 
 \seclabel{dead-code-elimination}
 \seclabel{dead-code-elim}
@@ -1973,19 +1974,22 @@ We use the liveness analysis of \secref{liveness} to identify
 assignments which modify only variables that are not used.
 Such \emph{dead assignments} can be removed without changing the
 observable behavior of the program.
-The removal is implemented by the rewrite functions in the top half of
-\figref{dead-elim}. 
+The removal is implemented by the rewrite functions on
+\linerangeref{deadRewrites.1}{deadRewrites.2} of \figref{dead-elim}. 
 First and last nodes are not assignments and are therefore never
 rewritten.
 A~middle node is rewritten to the empty graph if and only if it is an
-assignment to a dead variable.
-In~the bottom half of \figref{dead-elim}, we call @zdfRewriteBwd@, and
+assignment to a dead variable (\linerangeref{elim.dead.1}{elim.dead.2}).
+On \linepairref{rewriteBwd.1}{rewriteBwd.2}, we call @zdfRewriteBwd@, and
 that is all there is to it.
-\john{Need to run this version of the code in anger.}
+\finalremark{JD: Need to run this version of the code in anger.}
 %
 \remark{In this space we should have some guff about
 composing transformations, which should refer to the example on
-eliminating the induction variable.}
+eliminating the induction variable.
+More generally, list some places dead-assignment elim is used and
+include \secref{induction-var-elim}.
+}
 
 
 
@@ -2249,18 +2253,15 @@ monad.)
 %%  
 \setcounter{codeline}{0}
 \begin{numberedcode}
-      ...
     rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
-    rewrite start finish in_fact g fuel =
+    rewrite start in_fact g fuel =
       let Graph eid blockenv = g
           blocks = G.postorder_dfs_from blockenv entry
       in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
             ; (rewritten, fuel) <- rewrite_blocks blocks emptyBlockEnv fuel
-            ; a <- finish
+            ; a <- getExitFact
             ; return (a, Graph eid rewritten, fuel)
             }
-
-      ...
 
     rewrite_blocks (Block id t : bs) rewritten fuel =
       ... rew_tail h (ft_first_out transfers id a) t rewritten fuel ...
