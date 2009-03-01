@@ -2846,7 +2846,7 @@ substitute equals for equals; remove unneeded assignments
 \item 
 Because each simple transformation leaves the semantics
 of the program unchanged, 
-it is safe to use 
+we can use 
 ``optimization fuel'' to limit the number of \emph{simple}
 transformations.
  When we isolate a fault in the optimizer
@@ -2856,14 +2856,24 @@ transformations.
 
 We also blend proven implementation technqiues
 in a way that
-makes it possible to
-write simple code
+makes it easy
 to implement classical code improvements.
 \begin{itemize}
 \item
-To {analyze} programs, we use a purely applicative representation of
-control-flow graphs, inspired by Huet's zipper
-\cite{huet:zipper,ramsey-dias:applicative-flow-graph}. 
+We use the algorithm of \citet{lerner-grove-chambers:2002} to 
+compose analyses and transformations.
+This~algorithm makes it easy to compose complex transformations
+from simple ones.
+\item
+Inspired by Huet's~\citeyearpar{huet:zipper} zipper,
+we use an applicative representation of
+control-flow graphs
+\cite{ramsey-dias:applicative-flow-graph}. 
+We~also improve on our own work by making the state of analysis
+explicit in the inner dataflow monad;
+these two functional data structures make it easy to implement the hard
+part of Lerner, Grove, and Chamber's algorithm: discarding replacement
+graphs and their associated state at need.
 %
 % important, but no longer mentioned in this paper:
 %
@@ -2875,8 +2885,9 @@ control-flow graphs, inspired by Huet's zipper
 %%  It is inspired in part by Hughes's \citeyearpar{hughes:novel-lists}
 %%  representation of lists, which supports a constant-time append operation.
 \item
-Improving on our own prior work, we make all flow-graph
-types fully polymorphic in the representations of
+We also make 
+the interface to our dataflow library polymorphic in the
+representations of 
 assignments and control-flow operations.
 %%  Although our polymorphic representations have been instantiated only
 %%  with the low-level intermediate code used by the Glasgow Haskell
@@ -2884,13 +2895,12 @@ assignments and control-flow operations.
 %%  machine-dependent representations of target-machine instructions, as
 %%  part of a larger project of refactoring GHC's back ends.
 %
-Making the control-flow graph polymorphic seems obvious in retrospect,
-but we underestimated the degree to which polymorphism forces us to
+This design seems obvious in retrospect,
+but we underestimated the degree to which polymorphism would force us to
 separate concerns.
-Even though at present the polymorphic types have but one instance
-apiece, introducing polymorphism has made the code far simpler, easier
-to understand, and easier to maintain. \simon{Is it possible to substantiate
-this claim by examples?}
+Introducing polymorphism has made the code simpler, easier
+to understand, and easier to maintain.\finalremark
+{SLPJ: Is it possible to substantiate this claim by examples?}
 %
 % gen and kill are history
 %
@@ -2901,26 +2911,17 @@ this claim by examples?}
 %%If you like, you can even write overloaded @gen@ and @kill@ functions.
 %%The benefit is that it is easy to compare the actual code with the
 %%abstract treatments found in textbooks\ifgenkill \ (\secref{gen-kill})\fi.
-\item
-Finally, we use both polymorphism and type classes to implement a single,
-polymorphic,
-higher-order ``dataflow engine,'' which composes analyses and transformations
-\cite{lerner-grove-chambers:2002}. 
-By~putting the sophisticated algorithms in the dataflow engine, 
-we make it very easy to create a new analysis or transformation:
+\end{itemize}
+Using our tools,
+you can create a new code improvement in three steps:
 create a lattice representation for the assertions that can be
 expressed in the logic;
 create transfer functions that approximate weakest preconditions or
 strongest postconditions;
 and 
 create rewrite functions that use the assertions to justify
-interesting program transformations.  \simon{Isn't this
-re-usability what Chambers was on about in his original paper?
-In what way is it easier for us to create new analyses than it is for him?}
-\end{itemize}
-These ideas and techniques form a powerful toolkit for
-analyzing and transforming imperative programs.
-With this toolkit, a compiler writer can quickly get to the real
+interesting program transformations.  
+You can get quickly to the real 
 intellectual work of code improvement: identifying interesting
 transformations and the assertions that can justify them.
 
