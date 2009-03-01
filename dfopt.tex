@@ -2318,7 +2318,7 @@ Case @ZNoLast@ arises when a replacement graph has no last node.
             }
 
 !rew.tail.1!    rew_tail head in' (ZTail m t) rewritten fuel =
-      case squash fuel $ fr_middle rewrites m in' of
+!rewrite.squash!      case squash fuel $ fr_middle rewrites m in' of
 !rewrite.append.m!        Nothing -> rew_tail (ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
 !rewrite.rewrite.1!        Just g -> do { (a, g, fuel) <- inner_rew in' g fuel
 !rewrite.rewrite.*!                     ; let (blocks, h) = splice_head head g
@@ -2452,7 +2452,7 @@ The work is done by @rewrite_blocks@ (not shown), which simply
 rewrites each block in turn and returns a finite map containing the
 rewritten blocks, plus the remaining fuel supply.
 
-As~above, we show only the code relevant to rewriting middle codes;
+As~above, we show only the code relevant to rewriting middle nodes;
 code for first nodes and last nodes is similar.
 The @rew_tail@ function (\linerangeref{rew.tail.1}{rew.tail.*}) uses
 exactly the same test as in the solver: on \lineref{rewrite.squash},
@@ -2461,7 +2461,7 @@ it scrutinizes
    squash fuel $ fr_middle rewrites m in'
 \end{verbatim}
 If the node~@m@ is not rewritten, the action taken is almost the same
-as in the solve, but @rew_tail@ takes two 
+as in the solver, but @rew_tail@ takes two 
  additional accumulating parameters.
 Parameter @head@ carries
 the leading fragment of the current basic block,
@@ -2500,8 +2500,8 @@ of fully rewritten blocks~@blocks@ (\lineref{rewrite.rewrite.*}).
 The splicing algorithm is described by
 \citet{ramsey-dias:applicative-control-flow}. 
 On~\lineref{rew.tail.*}, 
-the new head~@h@ replaces @head@, @blocks@ is added to the
-accumulating parameter @rewritten@, and
+the new head~@h@ replaces @head@; @blocks@ is added to the
+accumulating parameter @rewritten@; and
 @rew_tail@ continues with the next node by making a tail call
 to rewrite~@t@.
 
@@ -2665,7 +2665,7 @@ and most analyses reason forward,  starting with the
 weakest possible precondition and using strongest postconditions to
 compute assertions that hold at various points throughout the program.
 
-Computing strongest postconditions \emph{or} weakest
+Computing strongest postconditions or weakest
 preconditions is a simple matter of calculation---except for loops.
 In~a loop, such as the one in the example of induction-variable elimination in
 \secref{induction-var-elim}, 
@@ -3095,7 +3095,7 @@ forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx 
                      ; let (blocks, h) = splice_head head g
                      ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
     rew_tail h in' (ZLast l) rewritten fuel = 
-!rewrite.squash!      case squash fuel $ either_last rewrites in' l of
+      case squash fuel $ either_last rewrites in' l of
         Nothing -> return (insertBlock (zipht h (ZLast l)) rewritten, fuel)
         Just g -> do { markGraphRewritten
                      ; ((), g, fuel) <- inner_rew (return ()) in' g fuel
