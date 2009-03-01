@@ -20,6 +20,10 @@ supplement.pdf: $TGT.dvi
 
 timestamp.tex: $TGT.tex
 	date=`stat -c "%y" $prereq`
-	date -d "$date" "+\\textbf{\\uppercase{%A} %l:%M %p}" > $target
+	signature=""
+	if [ -x $HOME/bin/md5words ]; then
+          signature=" [MD5: `md5words $prereq`]"
+	fi
+	date -d "$date" "+\\rlap{\\textbf{\\uppercase{%A} %l:%M %p$signature}}" > $target
 
 
