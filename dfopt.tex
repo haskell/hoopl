@@ -1871,7 +1871,7 @@ In~practice, interleaving analysis with transformation makes it
 possible to create startlingly simple transformations.
 In the rest of this section we present two examples:
 \secref{sink-reloads} shows how to insert a reload instruction just
-before the first use of each spilled variable, and
+before each use of each spilled variable, and
 \secref{dead-code-elim} shows how to eliminate dead assignments.
 When these two transformations are run in sequence, the effect is to
 sink reloads and produce programs like the example shown in
