@@ -2063,7 +2063,7 @@ include \secref{induction-var-elim}.
 \seclabel{engine}
 \seclabel{dfengine}
 
-Above, in sections \ref{sec:example:transforms}
+Above, in sections \ref{sec:making-simple}
 through~\ref{sec:rewrites},
 we use our library to create analyses and transformations.
 In this section, we sketch the implementation of the main part of our
@@ -2074,7 +2074,7 @@ The \emph{interface} (lattice, transfer functions, rewrite functions) is simple,
 and as shown above, compiler passes written \emph{using} the engine
 are simple.
 But~the implementation is complex.
-This purpose of this section is to show that the complexity is \emph{manageable}.
+The purpose of this section is to show that the complexity is \emph{manageable}.
 \remark{What's new? Polymorphism, purity, type classes---purity makes
 it easier to expunge bugs, especailly when managing state for things
 like sub-analyses.}
@@ -2103,7 +2103,7 @@ operations as independent sub-analysis of a replacement graph.]
 
 
 The dataflow engine is implemented in two layers.
-The lower layer comprises the\emph{fuel monad} and the \emph{inner dataflow monad}.
+The lower layer comprises the \emph{fuel monad} and the \emph{inner dataflow monad}.
 The fuel monad provides a way to suppress
 optimization selectively in order to isolate faults, as discussed
 below (\secref{vpoiso}). 
@@ -2128,6 +2128,7 @@ the previous state.
 Using pure code and a monad makes this version much easier to get
 right than our Objective Caml version
 \cite{ramsey-dias:applicative-flow-graph}. 
+\john{Presumably this sentence disappears if the italic text is made permanent.}
 
 These monads are private to the implementation of the library;
 what is exposed in the interface is a combined monad called @DFMonad@, and a function
@@ -2137,7 +2138,7 @@ what is exposed in the interface is a combined monad called @DFMonad@, and a fun
 The upper layer of the dataflow engine comprises four functions:
 a forward solver, a forward rewriter,
 a backward solver, and a backward rewriter.
-We show excerpts the forward solver and rewriter in
+We show excerpts of the forward solver and rewriter in
 \secreftwo{forward-solver}{forward-rewriter}. 
 More complete descriptions are available as a supplement to this
 paper. 
@@ -2247,6 +2248,7 @@ on each block in the graph, until the facts
 stored in the inner dataflow monad stop changing.
 Each block comes from  the list of reachable blocks in~@blocks@,
 which is computed by postorder depth-first traversal of the graph.
+\john{Really, it's reverse postorder dfs...}
 (Although any order will result in a correct fixed point,
 postorder depth-first order hastens convergence of forward dataflow
 analyses---often just a few iterations suffice.
@@ -2339,12 +2341,13 @@ Function @set_or_save@ updates the facts in the inner dataflow monad
 (\lineref{solver.set.or.save}), 
 and finally @set_successor_facts@ returns the remaining fuel
 (\lineref{set.successor.facts.*}). 
+\john{If we need space, this paragraph is very heavy for its payload.}
 
 The workhorse of the analysis is @solve_tail@, which handles the three
 cases of @ZTail@: a middle node, a last node, and @ZNoLast@.
 \figref{solver-excerpts} shows only the code for the middle node
 (\linerangeref{solver.tail.1}{solver.tail.*}).
-The~first step is present the incoming fact~@in'@ and the middle
+The~first step presents the incoming fact~@in'@ and the middle
 node~@m@ to the appropriate rewrite function (\lineref{solver.fr.middle}).
 If~that function returns @Nothing@, or if the value is squashed to
 @Nothing@,\footnote
@@ -2362,7 +2365,7 @@ calls the transfer function
 
 
 
-The interesting case occurs on \linerangeref{solver.rewrite.1}{solver.rewrite.*},
+The interesting case occurs on \linerangeref{solver.rewrite.1}{solver.tail.*},
 after the rewrite function 
 @fr_middle rewrites@
 proposes a replacement graph~@g@.
@@ -2400,13 +2403,13 @@ State changes made in a sub-analysis cannot be observed by the outer
 analysis. 
 In~fact, after the sub-analysis all the new state \emph{and the new
   graph} are thrown away.
-As~\linerangeref{solver.rewrite.1}{solver.rewrite.*} show, the new
+As~\linerangeref{solver.rewrite.1}{solver.tail.*} show, the new
 graph~@g@ is used only to compute the new 
 dataflow fact~@a@ and the diminished
 supply of fuel.
 On \lineref{solver.tail.*}, @solve_tail@ continues tail-recursively solving~@t@.
 The only difference between rewriting
-(\linerangeref{solver.rewrite.1}{solver.rewrite.*}) and not 
+(\linerangeref{solver.rewrite.1}{solver.tail.*}) and not 
 rewriting (\lineref{solver.no.rewrite}) is the
 \emph{fact} and the \emph{fuel} passed to the tail call.
 
@@ -2435,7 +2438,7 @@ graphs.
 \seclabel{forward-rewriter}
 
 The core of the rewriter is shown in \figref{rewriter-excerpts}.
-A~graph~@g@ to be rewritten is reprsented by a finite map from  @BlockId@
+A~graph~@g@ to be rewritten is represented by a finite map from  @BlockId@
   to basic block, together with the @BlockId@ of the entry block:
 \begin{code}
 data Graph m l = Graph BlockId (BlockEnv (Block m l))
