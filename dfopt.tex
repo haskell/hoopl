@@ -981,7 +981,7 @@ availVarsLattice = DataflowLattice "reloaded registers" empty add
 %%  
 \T\begin{code}
 avail_vars_transfer :: ForwardTransfers Middle Last AvailVars
-avail_vars_transfer = ForwardTransfers (flip const) middleAvail lastAvail
+!avail.first!avail_vars_transfer = ForwardTransfers (flip const) middleAvail lastAvail
 
 middleAvail :: Middle -> AvailVars -> AvailVars
 !reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail
@@ -995,7 +995,7 @@ middleAvail :: Middle -> AvailVars -> AvailVars
 !store.avail.other!middleAvail (MidStore {}) avail = avail
 
 lastAvail :: Last -> AvailVars -> LastOuts AvailVars
-lastAvail (LastCall _ (Just k) _ _) _ = LastOuts [(k, AvailVars emptyVarSet)]
+!avail.LastCall!lastAvail (LastCall _ (Just k) _ _) _ = LastOuts [(k, AvailVars emptyVarSet)]
 lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 \end{code}%
 \B
@@ -1537,7 +1537,8 @@ should not be considered part of liveness analysis.)
 
 
 \ifgenkill
-\section{Writing transfer functions using \texttt{gen} and \texttt{kill}}
+\section{Writing transfer functions using {\mdseries\texttt{gen}} and
+{\mdseries\texttt{kill}}}
 
 %\remark{I've tried to rewrite this section without the abstract guff;
 %Simon, can you let us know what you think?}
@@ -1740,6 +1741,8 @@ implementation, the truth
 about @zdfSolveFwd@ is that it also returns a value of monadic type.
 \end{itemize}
 
+
+\seclabel{dfengine-spec}
 
 Function
 @zdfRewriteFwd@ implements
@@ -1997,16 +2000,15 @@ include \secref{induction-var-elim}.
 \begin{figure*}
 \setcounter{codeline}{0}
 \begin{numberedcode}
-    forward_sol :: LastNode l => (forall a . Fuel -> Maybe a -> Maybe a) -> RewritingDepth -> PassName 
+!forward.sol.sig!    forward_sol :: LastNode l => (forall a . Fuel -> Maybe a -> Maybe a) -> RewritingDepth -> PassName 
                 -> BlockEnv a -> ForwardTransfers m l a -> ForwardRewrites m l a
                 -> a -> Graph m l -> Fuel
                 -> DFM a (ForwardFixedPoint m l a (), Fuel)
-    forward_sol squash depth name start_facts transfers rewrites = ...
-      where solve :: a -> Graph m l -> Fuel -> DFM a (a, Fuel)
-            solve in_fact g fuel =
-                  do { fuel <- run "forward" name set_successor_facts blocks fuel
-                     ; b <- getExitFact
-                     ; return (b, fuel) }
+!forward.sol.args!    forward_sol squash depth name start_facts transfers rewrites = ...
+!solve.1!      where solve :: a -> Graph m l -> Fuel -> DFM a (a, Fuel)
+            solve in_fact g fuel = do { fuel <- run "forward" name set_successor_facts blocks fuel
+                                      ; b <- getExitFact                                          
+!solve.*!                                      ; return (b, fuel) }                                        
               where blocks = G.postorder_dfs g
                     set_successor_facts (Block id tail) fuel =
                       do { idfact <- getFact id
@@ -2025,7 +2027,6 @@ include \secref{induction-var-elim}.
                                                          ; return (a, oneLessFuel fuel) }
                              ; solve_tail a t fuel
                              }
-            ...
 \end{numberedcode}
 \caption{Excerpts from the forward solver}
 \figlabel{solver-excerpts}
@@ -2037,9 +2038,17 @@ include \secref{induction-var-elim}.
 \seclabel{engine}
 \seclabel{dfengine}
 
-\simon{Need a linking sentence like ``So far we have discussed clients of 
-our library.  Now we turn our attention to the implementation of the
-library itself.''  Yes, you'll want to use different vocabulary!}
+Above, in sections \ref{sec:example:transforms}
+through~\ref{sec:rewrites},
+we show how to use our library to create analyses and transformations.
+In this section, we sketch the implementation of the main part of our
+library: the dataflow engine.
+Despite the implicit claim in the title of this paper,
+the implementation of dataflow engine is not simple.
+The \emph{interface} (lattice, transfer functions, rewrite functions) is simple,
+and as shown above, compiler passes written \emph{using} the engine
+are simple.
+But~the engine itself is complex.
 
 The dataflow engine is implemented in two layers.
 The lower layer comprises the \emph{dataflow monad} and the \emph{fuel monad}.
@@ -2048,24 +2057,22 @@ dataflow fact.
 It keeps track of the values of dataflow facts as the
 engine iterates.
 The fuel monad contains
-computations of type @Fuel -> (a, Fuel)@ (see \secref{vpoiso} below).
+computations of type @Fuel -> (a, Fuel)@.
 It provides a way to suppress
-optimization selectively in order to isolate faults \cite{whalley:isolation}.
+optimization selectively in order to isolate faults  (\secref{vpoiso}).
+These monads are private to the implementation of the library;
+what is exposed in the interface is a combined monad called @DFMonad@, and a function
+@runDFIO@ of type @IORef Fuel -> DFMonad a -> IO a@.
 
-The upper layer of the dataflow engine is divided into four parts:
+The upper layer of the dataflow engine comprises four functions:
 a forward solver, a forward rewriter,
 a backward solver, and a backward rewriter.
 
-Despite the implicit claim in the title of this paper,
-the dataflow engine is not simple.
-The benefit of our design is that the \emph{interface} to the dataflow
-engine (lattice, transfer functions, rewrite functions) is simple,
-and as shown above, compiler passes written \emph{using} the engine
-are very simple indeed.
-But~the engine itself is complex.
 
 Most of the complexity in the dataflow engine arises because we
 implement the ambitious algorithm of
+\remark{Perhaps this \P\ could be cut drastically, and we can refer
+back to the specification in \secref{dfengine-spec}?}
 \citet{lerner-grove-chambers:2002}, who write
 \begin{quote}
 \emph{Previous efforts to exploit [the mutually beneficial
@@ -2081,7 +2088,6 @@ super-analysis.}
 \end{quote}
 Adapting this work to a purely functional setting results in an
 implementation that is significantly simpler than the original.
-We~sketch that implementation below.
 
 
 %%  Note that the dataflow engine is the only part of the system that is
@@ -2144,22 +2150,24 @@ explicit treatment.  Not necessarily here.}
 To avoid duplicating code,
 \emph{the dataflow engine implements only composed
 analysis and transformation}.
-Pure analysis is as a special case in which no node is
+Pure analysis is a special case in which no node is
 ever rewritten.
 
 
-In a workshop paper \cite{ramsey-dias:applicative-flow-graph}, we
-showed a backward solver and rewriter that kept dataflow facts in
-mutable cells.
-\emph{[New stuff is pure, polymorphic, and shows how to use
-    fuel]}\remark{fix me}
+\remark{How and where do we say what's new over
+\citet{ramsey-dias:applicative-flow-graph}?}
+%showed a backward solver and rewriter that kept dataflow facts in
+%mutable cells.
+%\emph{[New stuff is pure, polymorphic, and shows how to use
+%    fuel]}\remark{fix me}
 
 
 \figref{solver-excerpts} shows excerpts from the forward solver 
 @forward_sol@, which is the function used to implement
 @zdfSolveFwd@.
-As~it is also used to solve subgraphs and to help the rewriter, it
-takes a few more parameters than @zdfSolveFwd@.
+Because it is also used to solve subgraphs and to help the rewriter, it
+takes a few more parameters than @zdfSolveFwd@
+(\figref{solver-excerpts}, \linerangeref{forward.sol.sig}{forward.sol.args}).
 \begin{itemize}
 \item
 An analysis of a subgraph starts with known facts, not bottom facts.
@@ -2167,11 +2175,11 @@ These facts are stored in parameter
 @start_facts@.
 \item
 In the solver phase described in \secref{solver-phase},
-a node can be rewritten, the replacement graph is used to compute new
-dataflow facts, and then the replacement graph is abandoned.
-But sometimes we want to prevent a node from being rewritten at all,
+if a node is rewritten, the replacement graph is used to compute new
+dataflow facts, and then the replacement graph is thrown away.
+But sometimes we want to prevent a node from being rewritten,
 either because
-the solver is implementing a pure analysis, or because the optimizer
+we are implementing a pure analysis, or because the optimizer
 is out of fuel. 
 We~do so using parameter @squash@.
 \item
@@ -2180,8 +2188,9 @@ parameter @fuel@.
 Parameter @fuel@ comes last because the fuel abstraction works with
 functions of type @Fuel -> (a, Fuel)@.
 \end{itemize}
-A~fixed point is computed by initializing the facts using
-@setAllFacts@, which is an operation in the dataflow monad.
+%A~fixed point is computed by initializing the facts using
+%@setAllFacts@, which is an operation in the dataflow monad.
+%
 \simon{I think it would help to list the operations of the monad. 
 E.g. How should I think of @setAllFacts@ for example? Perhaps it's a state monad, whose
 state includes a mapping from @BlockId@ to fact, and @setAllFacts@ initialises this
@@ -2192,12 +2201,6 @@ and seemed peripheral to the main point.  If we had the space I would
 definitely go for a figure giving the operations mentioned here. 
 I'm not sure we want to use our space that way, however.  It's a conundrum.
 }
-Function @solve@, also sketched in \figref{solver-excerpts}, finds a
-fixed point and returns a pair containing the exit fact and the
-remaining fuel supply.
-This fact, plus other state extracted from the dataflow monad, are
-used to create a fixed point.
-
 \simon{@solve@ transforms the @Fuel@.  But isn't @Fuel@ part of the dataflow monad?
 Is @DFMonad@ in the type of @zdfRewriteFwd@ the same as @DFM@ in this
 figure?
@@ -2205,28 +2208,53 @@ figure?
 is the composition of @DFM@ with @Fuel -> (a, Fuel)@.
 I~fear we are trying to cram 10~pounds of information into a 5-pound sack.
 }
+Function @solve@, on \linerangeref{solve.1}{solve.*} of
+\figref{solver-excerpts}, 
+takes an input fact, a graph, and fuel supply, and it
+returns a pair containing the exit fact and the
+remaining fuel supply.
+It~also has a side effect on the state stored in the dataflow monad:
+it brings the facts associated with labels up to a fixed point.
  
-Function @solve@ takes a graph
-and applies a higher-order @run@ function,
+Function @solve@ works by applying a higher-order @run@ function,
 not shown here,
 % And don't you dare ask for its type.  The type of run would make you
 % vomit.  ---NR
 which repeatedly runs
-@set_successor_facts@ each block in the graph, until the internal facts
-stop changing.
+@set_successor_facts@ each block in the graph, until the facts
+stored in the dataflow monad stop changing.
 Each block comes from  the list of reachable blocks in~@blocks@,
 which is computed by postorder depth-first traversal of the graph.
-Although any order will result in a correct fixed point,
+(Although any order will result in a correct fixed point,
 postorder depth-first order hastens convergence of forward dataflow
 analyses---often just a few iterations suffice.
-(The @LastNode l@ constraint in the type of @forward_sol@
+The @LastNode l@ constraint in the type of @forward_sol@
 guarantees that we can
   find the successors of last nodes and so do the traversal.)
-Once @run@ reaches a fixed point, @solve@ returns the exit fact and
-the remaining fuel.
-(Computation @getExitFact :: DFM a a@ is an operation in the dataflow
-monad.)
+%(Computation @getExitFact :: DFM a a@ is an operation in the dataflow
+%monad.)
 
+
+
+To understand @set_successor_facts@, you must understand the
+representation of basic blocks.
+A~basic block is a sequence beginning with a first node, continuing
+with zero or more middle nodes, and ending in a last node.
+A~first node contains only a unique identifier of type @BlockId@; the
+types of middle and last nodes are parameters.
+A~sequence of middle nodes followed by a last node is reresented by a
+value of type @ZTail m l@, where @m@~and~@l@
+are the types of middle and last nodes:
+\begin{code}
+data ZTail m l = ZLast (ZLast l) | ZTail m (ZTail m l)
+\end{code}
+The type @ZLast l@ extends~@l@ with an additional case, @LastExit@,
+which represents a subgraph that ends not in a control transfer but by
+``falling off the end.''
+A~block is the first node followed by the tail:
+\begin{code}
+data Block m l = Block BlockId (ZTail m l)
+\end{code}
 
 \begin{figure*}
 %%  forward_rew
@@ -2278,26 +2306,6 @@ monad.)
 \caption{Excerpts from the forward rewriter}
 \figlabel{rewriter-excerpts}
 \end{figure*}
-
-To understand @set_successor_facts@, you must understand the
-representation of basic blocks.
-A~basic block is a sequence beginning with a first node, continuing
-with zero or more middle nodes, and ending in a last node.
-A~first node contains only a unique identifier of type @BlockId@; the
-types of middle and last nodes are parameters.
-A~sequence of middle nodes followed by a last node is reresented by a
-value of type @ZTail m l@, where @m@~and~@l@
-are the types of middle and last nodes:
-\begin{code}
-data ZTail m l = ZLast (ZLast l) | ZTail m (ZTail m l)
-\end{code}
-The type @ZLast l@ extends~@l@ with an additional case, @LastExit@,
-which represents a subgraph that ends not in a control transfer but by
-``falling off the end.''
-A~block is the first node followed by the tail:
-\begin{code}
-data Block m l = Block BlockId (ZTail m l)
-\end{code}
 
 Function @set_successor_facts@ walks a basic block from first node to
 last node, using and updating the state maintained by
