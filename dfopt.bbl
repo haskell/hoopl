@@ -1,11 +1,3 @@
-\def\letbib#1#2{%
-  \def\tempb##1##2##3##4##5\ends{\csname
-  NAT@wrout\endcsname{##1}{##2}{##3}{##4}}%
-  \def\tempc##1{\expandafter\tempb##1{??}{??}{??}{??}{??}\ends}%
-  \csname @ifundefined\endcsname{b@#2\csname @extra@b@citeb\endcsname}%
-     {}%
-     {\expandafter\tempc\csname b@#2\csname
-  @extra@b@citeb\endcsname\endcsname{#1}}}
 \begin{thebibliography}{12}
 \expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
 \expandafter\ifx\csname url\endcsname\relax
@@ -83,13 +75,11 @@ Simon~L. Peyton~Jones, Norman Ramsey, and Fermin Reig.
   Invited paper\let\next\relax\fi
   \ifx\invitedtrue\undefined\else\invitedtrue\fi \next.
 
-\bibitem[Ramsey and Dias(2005)]{ramsey-dias:applicative-control-flow}
+\bibitem[Ramsey and Dias(2005)]{ramsey-dias:applicative-flow-graph}
 Norman Ramsey and {Jo\~ao} Dias.
 \newblock 2005 (September).
 \newblock An applicative control-flow graph based on {Huet}'s zipper.
 \newblock In \emph{ACM SIGPLAN Workshop on ML}, pages~101--122.
-\letbib{ramsey-dias:applicative-flow-graph}{ramsey-dias:applicative-control-fl%
-ow}
 
 \bibitem[Ramsey and {Peyton Jones}(2000)]{peyton-jones-ramsey:exceptions}
 Norman Ramsey and Simon~L. {Peyton Jones}.

@@ -2309,7 +2309,7 @@ Case @ZNoLast@ arises when a replacement graph has no last node.
     rewrite start in_fact g fuel =
       let Graph eid blockenv = g
           blocks = postorder_dfs_from blockenv entry
-      in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
+!call.forward.sol!      in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
             ; (rewritten, fuel) <- rewrite_blocks blocks emptyBlockEnv fuel
             ; a <- getExitFact
             ; return (a, Graph eid rewritten, fuel)
@@ -2453,7 +2453,8 @@ how a graph is represented: it is a finite map from  @BlockId@
 data Graph m l = Graph BlockId (BlockEnv (Block m l))
 \end{code}
 Function @rewrite@ first calls @forward_sol@
-(\figref{solver-excerpts}) to iterate to a fixed point.
+(\figref{solver-excerpts}) to iterate to a fixed point
+(\figref{rewriter-excerpts}, \lineref{call.forward.sol}).
 At~this point, the facts stored in the inner dataflow monad can be
 used for rewriting.
 The work is done by @rewrite_blocks@ (not shown), which simply
@@ -2488,7 +2489,7 @@ fragment~@head@ by forming @ZHead head m@
 
 
 The interesting case is where the middle node~@m@ is rewritten into
-the replacement graph~@g@ (\linerangeref{rewrite.rewrite.1}{rewrite.rewrite.*}).
+a replacement graph~@g@ (\linerangeref{rewrite.rewrite.1}{rewrite.rewrite.*}).
 %%We~first mark the graph as rewritten, so that whatever called this
 %% pass may know that the graph has changed.
 %% As~before, we convert~@g@ by supplying it with fresh labels.
@@ -2503,10 +2504,12 @@ the rewritten graph,
 the rewritten graph itself, 
 and the remaining fuel supply.
 The rewritten graph is
-spliced onto the head of the block, producing a new head~@h@ and a set
+spliced onto the head of the block
+\cite{ramsey-dias:applicative-flow-graph}, producing a new head~@h@
+and a set 
 of fully rewritten blocks~@blocks@ (\lineref{rewrite.rewrite.*}).
-The splicing algorithm is described by
-\citet{ramsey-dias:applicative-control-flow}. 
+%The splicing algorithm is described by
+%\citet{ramsey-dias:applicative-control-flow}. 
 On~\lineref{rew.tail.*}, 
 the new head~@h@ replaces @head@; @blocks@ is added to the
 accumulating parameter @rewritten@; and
@@ -2617,10 +2620,9 @@ to rewrite~@t@.
 
 Most of this paper is devoted to the implementation of dataflow
 analyses and their associated transformations.
-But we also promised you ideas.
+But we also promise ideas.
 The~main idea is that dataflow analysis is not unique,
-difficult, or intimidating---it's a special case of work you may
-already know about:
+difficult, or intimidating---it's a special case of 
 the seminal work of
 \citet{floyd:assigning-meanings},
 \citet{hoare:axiomatic-basis},
@@ -2652,8 +2654,8 @@ to \emph{analyze} a program.
 %because 
 %People and compilers 
 %typically work in opposite directions.
-Dijkstra says people should start with a specification (the postcondition a procedure
-must establish and the precondition it may assume), then construct the
+Dijkstra says people should start with a specification (a postcondition
+we must establish and a precondition we may assume), then construct a
 procedure body from back 
 to front, computing weakest preconditions until one is implied by the
 procedure's precondition. 
@@ -2679,11 +2681,11 @@ computing strongest postconditions that hold at various points throughout the pr
 
 Computing strongest postconditions or weakest
 preconditions is a simple matter of calculation---except for loops.
-In~a loop, such as the one in the example of induction-variable elimination in
+In~a loop, such as in the example of induction-variable elimination from
 \secref{induction-var-elim}, 
 %If~a compiler wants to know what @i@~is, it can easily see that on the
 %first trip $@i@=0$, on the second trip $@i@=1$, and so on.
-it's all too easy for a compiler to get stuck trying to compute an
+it's easy for a compiler to get stuck trying to compute an
 infinite disjunction like $\bigvee_{k=0}^{\infty} @i@=k$.
 Compilers are no good at solving recursion
 equations that require limits of infinite sequences.
@@ -2712,8 +2714,13 @@ People don't like infinite sequences either, which is why they invent
 %%  weak.
 %Much like finding a useful induction hypothesis for a proof, 
 But finding a loop invariant requires art and intuition;
-in~all but the simplest cases, it is beyond the capabilities of any
-compiler.
+in~all but the simplest cases, it is beyond
+\ifpagetuning
+what a compiler can do.
+\else
+the capabilities of a compiler.
+\fi
+
 
 %%  Strongest postconditions also require a loop invariant, but with dual
 %%  properties:
@@ -2744,15 +2751,15 @@ but \emph{inexpressive enough that no fact can increase more than
 finitely many times}.
 With the logic in place, the transfer functions simply approximate
   weakest preconditions (for a backward analysis) or strongest
-  postconditions (for a forward analysis) as best they can within the
-  constraints of the logic.
+  postconditions (for a forward analysis) as best they can
+given the expressive power of the logic.
 From~this point of view, we can understand the traditional
 ``optimization zoo'' as arising from a collection of approximate,
 inexpressive logics, each with its own implementation of strongest postcondition
 or weakest precondition. 
-We~even venture to predict that the next 700 dataflow analyses will
+The next 700 dataflow analyses may well
 arise from 700 more variations on 
-program logic, each of which will be inexpressive in a different way.
+program logic, each of which can be inexpressive in a different way.
 
 %%  Let's review the examples of \secref{example:xforms} in that light.
 %%  \begin{itemize}
@@ -2805,12 +2812,15 @@ programs.
 \item
 We consider only two
 relations: weakest liberal precondition and strongest 
-postcondition.
-These relations correspond 
+postcondition, which
+ correspond 
+\ifpagetuning\else
 respectively
+\fi
 to
-``backward dataflow problems'' and ``forward dataflow problems.''
-\finalremark{Can we give an exmple of a property of program states which is
+``backward dataflow problems'' and ``forward dataflow
+problems.''\finalremark
+{Can we give an exmple of a property of program states which is
 neither, just by way of contrast; ie this we cannot do.}
 %%  \item
 %%  In a language that admits loops, iterating weakest preconditions or
@@ -2880,15 +2890,20 @@ compose analyses and transformations.
 This~algorithm makes it easy to compose complex transformations
 from simple ones.
 \item
+Our code is pure.
 Inspired by Huet's~\citeyearpar{huet:zipper} zipper,
 we use an applicative representation of
 control-flow graphs
 \cite{ramsey-dias:applicative-flow-graph}. 
-We~also improve on our own work by making the state of analysis
+We~improve on our prior work by making the state of analysis
 explicit in the inner dataflow monad;
 these two functional data structures make it easy to implement the hard
 part of Lerner, Grove, and Chamber's algorithm: discarding replacement
 graphs and their associated state at need.
+Managing state explicitly, instead of
+using ML's built-in state monad, 
+makes it especially easy to implement such
+operations as independent sub-analysis of a replacement graph.
 %
 % important, but no longer mentioned in this paper:
 %
@@ -2921,12 +2936,6 @@ dataflow engine must know about flow-graph nodes.
 (It must be able to enumerate the successors of a last
 node, and it must be able to create an unconditional branch to the
 label of its choice.)
-\item
-The code is pure.
-State is managed explicitly using the dataflow monad, rather than
-implicitly using ML's built-in state monad.
-This explicit management makes it especially easy to implement such
-operations as independent sub-analysis of a replacement graph.
 \end{itemize}
 %
 % gen and kill are history
@@ -2940,12 +2949,12 @@ operations as independent sub-analysis of a replacement graph.
 %%abstract treatments found in textbooks\ifgenkill \ (\secref{gen-kill})\fi.
 Using our tools,
 you can create a new code improvement in three steps:
-create a lattice representation for the assertions that can be
-expressed in the logic;
+create a lattice representation for the assertions you want to
+express;
 create transfer functions that approximate weakest preconditions or
 strongest postconditions;
 and 
-create rewrite functions that use the assertions to justify
+create rewrite functions that use your assertions to justify
 interesting program transformations.  
 You can get quickly to the real 
 intellectual work of code improvement: identifying interesting
@@ -2959,7 +2968,7 @@ transformations and the assertions that can justify them.
 
 \subsubsection*{Relationship to previously published work}
 
-\citet{ramsey-dias:applicative-flow-graph} describe
+Our ML~workshop paper \citep{ramsey-dias:applicative-flow-graph} describes
 an applicative flow graph which is
 an ancestor of the one used in this paper. 
 That paper also presents an implementation of dataflow analysis
@@ -2969,8 +2978,9 @@ described above, and the analyses of
 \secreftwo{create-analysis}{example-analyses}, the transformations of
 \secref{rewrites}, and the 
 explanation in \secref{next-700} are entirely new.
-(If~the paper is accepted, we will find a way to work this information
-into the text.)
+
+If~this submission is accepted, we will find a better way to work
+this information into the text.
 
 
 \clearpage
