@@ -1182,7 +1182,6 @@ the transformations are described in
 
 
 
-
 \subsection{Available variables: a forward analysis} 
 
 \seclabel{avail}
@@ -1273,8 +1272,10 @@ there is a stack slot~\slotof x that is used to save the value of~$x$.
 %
 If the variable and the stack slot hold the same value,
 that is if $x = \slotof x$,
-then it is safe to insert a reload without changing the observable
-behavior of the program.
+then it is safe to insert a reload.
+
+
+\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
 To sink a reload of a variable $x$, we insert redundant reloads immediately
 before uses of~$x$.
@@ -1343,9 +1344,12 @@ To manipulate sets of variables, we provide the functions declared in
 
 
 
+
+\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
+
 The most interesting part of the pass is the @middleAvail@ transfer
-function in \figref{avail-transfers}.
-\remark{Let us revise the paper to pretend that global variables
+function in \figref{avail-transfers}.\finalremark
+{Let us revise the paper to pretend that global variables
 don't exist.}
 This transfer function is specialized to the type of @Middle@ node
 used in~GHC.
@@ -1365,14 +1369,14 @@ and the last definition of $x$ is a reload,
 so @x@~is added to the set of available variables.\remark{Check these bullets against the figure for correctness}
 % No other variable is affected.
 \item
-On lines \linepairref{assign.avail.1}{assign.avail.2},
+On \linepairref{assign.avail.1}{assign.avail.2},
 an assignment to a local variable means that the
 variable is no longer necessarily equal to the value in its stack
 slot, so if @lhs@ is a local variable, it is removed from the set of
 available variables.
 Function @foldVarsDefd@ is a function which, in this
 instance, calls @delFromAvail@ if @lhs@ is a local variable and does
-nothing if @lhs@ is a hardware register.
+nothing if @lhs@ is a global variable.
 %% \remark{To Simon and John: I've removed ``overloaded but am a bit nervous
 %% because @foldVarsDef@ shows up as overloaded later in the paper, and I
 %% had thought to signpost it here.  Your thoughts?}
@@ -1381,12 +1385,12 @@ There are three cases for @MidStore@ nodes.
 \Linepairref{store.avail.spill.1}{store.avail.spill.2}
 match a node that spills a variable~$\mathtt{x}$ to the stack.
 After such a node, $\mathtt{x} = \slotOf {\mathtt{x}}$,
-but there is no guarantee that @x@~was defined by a reload instruction,
+but the node is not a reload instruction,
 so @x@~is not added to the set of available variables.
 %
 \Linepairref{store.avail.otherslot.1}{store.avail.otherslot.2}
-match a node that writes any \emph{other} value to \slotOf {\mathtt x},
-after which it is no longer safe to assume that $\mathtt x = \slotof {\mathtt{x}}$.
+match a node that writes any \emph{other} value to a stack slot,
+after which the variable associated with that slot is no longer available.
 %
 \Lineref{store.avail.other} matches a store to a location that is not
 a stack slot, which leaves the set of available variables unchanged.
@@ -1415,7 +1419,7 @@ a stack slot, which leaves the set of available variables unchanged.
 
 The transfer function for a last node checks to see if the node is a
 function call (\lineref{avail.LastCall}); if so, the set of
-available variables is empty on every outgoing control-flow edge.
+available variables at the call's continuation is empty.
 Other last nodes do not change values of variables or stack slots, 
 so the set of available variables remains unchanged.
 %
