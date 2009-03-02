@@ -2049,7 +2049,8 @@ include \secref{induction-var-elim}.
                -> DFM a (ForwardFixedPoint m l a (), Fuel)
 !forward.sol.args!   forward_sol squash depth name start_facts transfers rewrites = ... setAllFacts start_facts ...
 !solve.1!     where solve :: a -> Graph m l -> Fuel -> DFM a (a, Fuel)
-           solve in_fact g fuel = do { fuel <- run "forward" name set_successor_facts blocks fuel
+           solve in_fact g fuel = do { setFact (g_entry g) in_fact
+                                     ; fuel <- run "forward" name set_successor_facts blocks fuel
                                      ; b <- getExitFact                                          
 !solve.*!                                     ; return (b, fuel) }                                        
              where blocks = postorder_dfs g
