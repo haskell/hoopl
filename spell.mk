@@ -14,7 +14,8 @@
 	sed -e '/^\\begin{verbatim}/,/^\\end{verbatim}/d'               \
             -e '/^\\begin{code}/,/^\\end{code}/d'                       \
             -e '/^\\begin{smallverbatim}/,/^\\end{smallverbatim}/d'     \
-            -e '/^\\begin{smallcode}/,/^\\end{smallcode}/d'             |
+            -e '/^\\begin{smallcode}/,/^\\end{smallcode}/d'             \
+            -e '/^\\begin{numberedcode}/,/^\\end{numberedcode}/d'       |
 	(sed 's/^/*/' $HOME/okwords.txt; sed 's/^/^/') | ispell -t -a | 
 	sed '/^[*+]/d;/^$/d;s/[0-9][0-9 ]*[0-9]/9/;s/ *[0-9][0-9]*//' | sort -uf
 
