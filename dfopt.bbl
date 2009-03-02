@@ -1,0 +1,100 @@
+\begin{thebibliography}{12}
+\expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
+\expandafter\ifx\csname url\endcsname\relax
+  \def\url#1{{\tt #1}}\fi
+
+\bibitem[Benitez and Davidson(1988)]{benitez-davidson:portable-optimizer}
+Manuel~E. Benitez and Jack~W. Davidson.
+\newblock 1988 (July).
+\newblock A portable global optimizer and linker.
+\newblock \emph{Proceedings of the ACM SIGPLAN '88 Conference on Programming
+  Language Design and Implementation, {\em in} SIGPLAN Notices}, 23\penalty0
+  (7):\penalty0 329--338.
+
+\bibitem[Click and Cooper(1995)]{click-cooper}
+Cliff Click and Keith~D. Cooper.
+\newblock 1995 (March).
+\newblock Combining analyses, combining optimizations.
+\newblock \emph{ACM Transactions on Programming Languages and Systems},
+  17\penalty0 (2):\penalty0 181--196.
+
+\bibitem[Dijkstra(1976)]{dijkstra:discipline}
+Edsger~W. Dijkstra.
+\newblock 1976.
+\newblock \emph{A Discipline of Programming}.
+\newblock Prentice-Hall, Englewood Cliffs, NJ.
+
+\bibitem[Floyd(1967)]{floyd:assigning-meanings}
+Robert~W. Floyd.
+\newblock 1967.
+\newblock Assigning meanings to programs.
+\newblock In J.~T. Schwartz, editor, \emph{Proceedings of Symposia in Applied
+  Mathematics}, volume~19, pages~\mbox{19--32}, Providence, Rhode Island.
+  American Mathematical Society.
+
+\bibitem[Hoare(1969)]{hoare:axiomatic-basis}
+C.~A.~R. Hoare.
+\newblock 1969 (October).
+\newblock An axiomatic basis for computer programming.
+\newblock \emph{Communications of the ACM}, 12\penalty0 (10):\penalty0
+  576--580.
+
+\bibitem[Huet(1997)]{huet:zipper}
+G{\'e}rard Huet.
+\newblock 1997 (September).
+\newblock The {Zipper}.
+\newblock \emph{Journal of Functional Programming}, 7\penalty0 (5):\penalty0
+  549--554.
+\newblock Functional Pearl.
+
+\bibitem[Lerner, Grove, and Chambers(2002)]{lerner-grove-chambers:2002}
+Sorin Lerner, David Grove, and Craig Chambers.
+\newblock 2002 (January).
+\newblock Composing dataflow analyses and transformations.
+\newblock \emph{Conference Record of the 29th Annual ACM Symposium on
+  Principles of Programming Languages, {\em in} SIGPLAN Notices}, 31\penalty0
+  (1):\penalty0 270--282.
+
+\bibitem[Peyton~Jones and Marlow(2002)]{peyton-jones:secrets-inliner}
+Simon Peyton~Jones and Simon Marlow.
+\newblock 2002 (July).
+\newblock Secrets of the {Glasgow Haskell Compiler} inliner.
+\newblock \emph{Journal of Functional Programming}, 12\penalty0
+  (4\&5):\penalty0 393--433.
+
+\bibitem[Peyton~Jones, Ramsey, and
+  Reig(1999)]{peyton-jones-ramsey:garbage-collection:inproceedings}
+Simon~L. Peyton~Jones, Norman Ramsey, and Fermin Reig.
+\newblock 1999 (September).
+\newblock {\texttt{C{-}{-}}}: A portable assembly language that supports
+  garbage collection.
+\newblock In \emph{International Conference on Principles and Practice of
+  Declarative Programming}, \emph{LNCS} volume 1702, pages~\mbox{1--28}.
+  Springer Verlag.
+\newblock \ifx\position\undefined\def\gobbledot#1.{}\let\next\gobbledot \else
+  Invited paper\let\next\relax\fi
+  \ifx\invitedtrue\undefined\else\invitedtrue\fi \next.
+
+\bibitem[Ramsey and Dias(2005)]{ramsey-dias:applicative-flow-graph}
+Norman Ramsey and {Jo\~ao} Dias.
+\newblock 2005 (September).
+\newblock An applicative control-flow graph based on {Huet}'s zipper.
+\newblock In \emph{ACM SIGPLAN Workshop on ML}, pages~101--122.
+
+\bibitem[Ramsey and {Peyton Jones}(2000)]{peyton-jones-ramsey:exceptions}
+Norman Ramsey and Simon~L. {Peyton Jones}.
+\newblock 2000 (May).
+\newblock A single intermediate language that supports multiple implementations
+  of exceptions.
+\newblock \emph{Proceedings of the ACM SIGPLAN~'00 Conference on Programming
+  Language Design and Implementation, {\em in} SIGPLAN Notices}, 35\penalty0
+  (5):\penalty0 285--298.
+
+\bibitem[Whalley(1994)]{whalley:isolation}
+David~B. Whalley.
+\newblock 1994 (September).
+\newblock Automatic isolation of compiler errors.
+\newblock \emph{ACM Transactions on Programming Languages and Systems},
+  16\penalty0 (5):\penalty0 1648--1659.
+
+\end{thebibliography}
