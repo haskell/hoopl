@@ -1470,7 +1470,7 @@ The assertion computed by
 a backward dataflow analysis applies to a
 \emph{continuation} at a program point, not to a state.
 The classic example is liveness analysis;
-the logical fact of interest is that at a particular program point,
+the assertion of interest is that at a particular program point,
 the answer produced by the continuation does not depend on
 the value of a particular variable~$x$.
 If~so, $x$~is said to be \emph{dead} at that point.
@@ -1500,28 +1500,30 @@ The transfer functions for liveness rely on two auxiliary functions
 @addUsed@ and @remDefd@ (\figref{liveness}, 
 \linerangeref{liveness.addUsed.sig}{liveness.remDefd.def}).
 A~transfer function is given a set of variables live on the edges
-going out of the node, and it removes from that set any variable
-defined by the node, then adds to the set any variable used by the
+going out of the node.
+It~removes from that set any variable
+defined by the node, then adds any variable used by the
 node.
-The~idea is that if a node has the assignment
+For~example, if the node is
 \begin{verbatim}
   i = n - 1;
 \end{verbatim}
 then @i@ is not live just before the node, since if we start the
-program just before the assignment @i = 0@, the answer cannot 
+program just before the assignment to~@i@, the answer cannot 
 depend on the value of~@i@, which is about to be overwritten.
-However, the answer might well depend on the value of~@n@, so
+But the answer \emph{might} depend on the value of~@n@, so
 @n@~is considered live before the assignment.
-If a variable appears on both left- and right-hand sides of an
-assignment, as in
+If a variable appears on both sides of an
+assignment, as in \ifpagetuning{\looseness=-1 \par}\fi
 \begin{verbatim}
   i = i + 1;
 \end{verbatim}
-then the answer might well depend on~@i@, so @i@~is considered live
+then the answer might depend on~@i@, so @i@~is considered live
 before the assignment.
-For this reason the transfer functions in \figref{liveness}
-(\linepairref{middleLiveness}{lastLiveness}) 
-remove defined variables \emph{before} adding used variables.
+The transfer functions
+therefore
+remove defined variables \emph{before} adding used variables
+(\figref{liveness}, \linepairref{middleLiveness}{lastLiveness}). 
 
 For a last node, function @lastLiveOut@ consults the solution in
 progress to find out what variables are live at the \emph{successors} of a
