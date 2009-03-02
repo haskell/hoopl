@@ -453,8 +453,8 @@ combined passes often cannot be composed;
 and 
 some combined passes require nonstandard, handwritten traversals of
 the control-flow graph.
-\citet{click-cooper} show the advantages of combining separate passes;
-\citet{lerner-grove-chambers:2002} discuss the issues in detail.}
+\citet{lerner-grove-chambers:2002} discuss these issues in detail;
+\citet{click-cooper} show the advantages of combining separate passes.}
 \secref{dfengine} describes our implementation of their interleaving
 method, which eliminates the boxed assignments to~@i@:
 \begin{alltt}
@@ -1302,7 +1302,7 @@ Because universal sets can be awkward to manipulate, we represent a
 set either as
 $\mathtt{UniverseMinus}\;s$, which stands for all variables except
 those in the set~$s$,
-or $\mathtt{AvailVars}\;s$, which stands for the variables in the set~$s$.
+or $\mathtt{AvailVars}\;s$, which stands for the variables in the set~$s$
 (\figref{avail-lattice}, \linepairref{UniverseMinus}{AvailVars}).
 %
 %
