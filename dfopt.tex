@@ -260,7 +260,7 @@ thinking about and justifying classical optimizations using
 Hoare logic and substitution of equals for equals.
 To~support our claim that we make dataflow optimization easy, 
 we spend most of the paper explaining how
-a to create new dataflow analyses or transformations
+to create new dataflow analyses or transformations
 (\secref{making-simple}) and showing complete implementations of significant
 analyses (\secref{example-analyses}) and transformations
 (\secref{example-rewrites}) from the Glasgow Haskell Compiler.
@@ -282,8 +282,8 @@ substitution of equals for equals,
 and
 removal of assignments to unobserved variables,
 all of which preserve semantics.
-Insertion and removal are often composed to achieve the effect called
-``code motion,'' as by \citet{knoop:lazy-code-motion}, for example.
+Insertion and removal can be composed to achieve the effect called
+``code motion.''
 The examples below express classical code
 improvements by composing small analyses and transformations.
 
@@ -453,9 +453,8 @@ combined passes often cannot be composed;
 and 
 some combined passes require nonstandard, handwritten traversals of
 the control-flow graph.
-\citet{lerner-grove-chambers:2002} discuss these issues in detail;
-\citet{click-cooper} present a handwritten combined pass of
-significant complexity.}
+\citet{click-cooper} show the advantages of combining separate passes;
+\citet{lerner-grove-chambers:2002} discuss these issues in detail.}
 \secref{dfengine} describes our implementation of their interleaving
 method, which eliminates the boxed assignments to~@i@:
 \begin{alltt}
@@ -472,7 +471,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
 \end{alltt}
 
 After the insertion of assignments to @p@~and~@lim@, the substitution
-of equals for equals, the removal of newly dead assignments
+of equals for equals, and the removal of newly dead assignments
 to~@i@, we have ``eliminated the induction variable:''
 \begin{alltt}
 sum_r("address" bits32 a, bits32 n) \lbr
