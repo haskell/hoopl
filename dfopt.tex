@@ -1583,7 +1583,7 @@ would reduce to @extendAvail avail x@.
 
 \fi
 
-\section{Using dataflow facts to rewrite graphs, with examples}
+\section{Using dataflow facts to rewrite graphs\ifpagetuning\else, with examples\fi}
 
 \seclabel{rewrites}
 
@@ -2077,29 +2077,6 @@ But~the implementation is complex.
 The purpose of this section is to show that the complexity is \emph{manageable}.
 
 
-\emph{[Our implementation improves on our 2005 work in two
-ways:\remark{Not sure here is the palce for this}
-\begin{itemize}
-\item
-The control-flow graph and dataflow engine are polymorphic in the
-types of nodes.
-This small change makes it much easier to separate concerns;
-in particular, it forces us to make explicit \emph{exactly} what the
-dataflow engine must know about flow-graph nodes.
-(The answer is, it must be able to enumerate the successors of a last
-node, and it must be able to create an unconditional branch to the
-label of its choice.)
-\item
-The code is pure.
-State is managed explicitly using the dataflow monad, rather than
-implicitly using ML's built-in state monad.
-This explicit management makes it especially easy to implement such
-operations as independent sub-analysis of a replacement graph.]
-\end{itemize}
-}
-
-
-
 The dataflow engine is implemented in two layers.
 The lower layer comprises the \emph{fuel monad} and the \emph{inner dataflow monad}.
 The fuel monad provides a way to suppress
@@ -2123,10 +2100,10 @@ versa.
 The~most interesting operation is @subAnalysis@, which
 runs an analysis in a fresh copy of the current state, then reverts to
 the previous state.
-Using pure code and a monad makes this version much easier to get
-right than our Objective Caml version
-\cite{ramsey-dias:applicative-flow-graph}. 
-\john{Presumably this sentence disappears if the italic text is made permanent.}
+%%  Using pure code and a monad makes this version much easier to get
+%%  right than our Objective Caml version
+%%  \cite{ramsey-dias:applicative-flow-graph}. 
+%%  \john{Presumably this sentence disappears if the italic text is made permanent.}
 
 These monads are private to the implementation of the library;
 what is exposed in the interface is a combined monad called @DFMonad@, and a function
@@ -2902,7 +2879,19 @@ but we underestimated the degree to which polymorphism would force us to
 separate concerns.
 Introducing polymorphism has made the code simpler, easier
 to understand, and easier to maintain.\finalremark
-{SLPJ: Is it possible to substantiate this claim by examples?}
+{SLPJ: Is it possible to substantiate this claim by [more] examples?}
+In particular, it forced us to make explicit \emph{exactly} what the
+dataflow engine must know about flow-graph nodes.
+(It must be able to enumerate the successors of a last
+node, and it must be able to create an unconditional branch to the
+label of its choice.)
+\item
+The code is pure.
+State is managed explicitly using the dataflow monad, rather than
+implicitly using ML's built-in state monad.
+This explicit management makes it especially easy to implement such
+operations as independent sub-analysis of a replacement graph.
+\end{itemize}
 %
 % gen and kill are history
 %
@@ -2913,7 +2902,6 @@ to understand, and easier to maintain.\finalremark
 %%If you like, you can even write overloaded @gen@ and @kill@ functions.
 %%The benefit is that it is easy to compare the actual code with the
 %%abstract treatments found in textbooks\ifgenkill \ (\secref{gen-kill})\fi.
-\end{itemize}
 Using our tools,
 you can create a new code improvement in three steps:
 create a lattice representation for the assertions that can be

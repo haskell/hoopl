@@ -91,13 +91,13 @@ Simon~L. Peyton~Jones, Norman Ramsey, and Fermin Reig.
   Invited paper\let\next\relax\fi
   \ifx\invitedtrue\undefined\else\invitedtrue\fi \next.
 
-\bibitem[Ramsey and Dias(2005)]{ramsey-dias:applicative-flow-graph}
+\bibitem[Ramsey and Dias(2005)]{ramsey-dias:applicative-control-flow}
 Norman Ramsey and {Jo\~ao} Dias.
 \newblock 2005 (September).
 \newblock An applicative control-flow graph based on {Huet}'s zipper.
 \newblock In \emph{ACM SIGPLAN Workshop on ML}, pages~101--122.
-\letbib{ramsey-dias:applicative-control-flow}{ramsey-dias:applicative-flow-gra%
-ph}
+\letbib{ramsey-dias:applicative-flow-graph}{ramsey-dias:applicative-control-fl%
+ow}
 
 \bibitem[Ramsey and {Peyton Jones}(2000)]{peyton-jones-ramsey:exceptions}
 Norman Ramsey and Simon~L. {Peyton Jones}.
