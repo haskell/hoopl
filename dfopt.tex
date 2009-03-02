@@ -3009,7 +3009,7 @@ this information into the text.
 %         -> Fuel
 %         -> DFM a (ForwardFixedPoint m l a (), Fuel)
 \begin{numberedcode}
-forward_sol squash rewrite name start_facts transfers rewrites = fixed_point
+forward_sol squash depth name start_facts transfers rewrites = fixed_point
  where
    fixed_point in_fact g fuel =
      do { setAllFacts start_facts
@@ -3028,13 +3028,13 @@ forward_sol squash rewrite name start_facts transfers rewrites = fixed_point
           }
      where blocks = G.postorder_dfs g
            set_or_save = mk_set_or_save (isJust . lookupBlockEnv blockenv)
-           set_successor_facts (Block id _ tail) fuel =
+           set_successor_facts (Block id tail) fuel =
              do { idfact <- getFact id
                 ; (last_outs, fuel) <-
                     case squash fuel $ fr_first rewrites id idfact of
                       Nothing -> solve_tail (ft_first_out transfers id idfact) tail fuel
                       Just g -> do (a, fuel) <- subAnalysis' $
-                                     case rewrite of
+                                     case depth of
                                        RewriteDeep -> solve getExitFact idfact g (oneLessFuel fuel)
                                        RewriteShallow ->
                                            do { a <- anal_f getExitFact idfact g
@@ -3047,7 +3047,7 @@ forward_sol squash rewrite name start_facts transfers rewrites = fixed_point
      case squash fuel $ fr_middle rewrites m in' of
        Nothing -> solve_tail (ft_middle_out transfers m in') t fuel
        Just g -> do { (a, fuel) <- subAnalysis' $
-                         case rewrite of
+                         case depth of
                            RewriteDeep -> solve getExitFact in' g (oneLessFuel fuel)
                            RewriteShallow -> do { a <- anal_f getExitFact in' g
                                                 ; return (a, oneLessFuel fuel) }
@@ -3059,7 +3059,7 @@ forward_sol squash rewrite name start_facts transfers rewrites = fixed_point
                             LastExit -> do { setExitFact in'
                                            ; return (LastOutFacts [], fuel) }
        Just g -> do { (last_outs :: LastOutFacts a, fuel) <- subAnalysis' $
-                        case rewrite of
+                        case depth of
                           RewriteDeep -> solve lastOutFacts in' g (oneLessFuel fuel)
                           RewriteShallow -> do { los <- anal_f lastOutFacts in' g
                                                ; return (los, oneLessFuel fuel) }
@@ -3304,7 +3304,6 @@ forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx 
                          ; rewrite_blocks NonEntryBlock bs rewritten fuel }
 
     rew_tail head in' (G.ZTail m t) rewritten fuel =
-      my_trace "Rewriting middle node" (ppr m) $
       case squash fuel $ fr_middle rewrites m in' of
         Nothing -> rew_tail (G.ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
         Just g -> do { markGraphRewritten
@@ -3312,7 +3311,6 @@ forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx 
                      ; let (Graph _ blocks, h) = G.splice_head head g
                      ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
     rew_tail h in' (G.ZLast l) rewritten fuel = 
-      my_trace "Rewriting last node" (ppr l) $
       case squash fuel $ either_last rewrites in' l of
         Nothing -> do return (insertBlock (zipht h (G.ZLast l)) rewritten, fuel)
         Just g -> do { markGraphRewritten
