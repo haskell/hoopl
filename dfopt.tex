@@ -453,8 +453,8 @@ combined passes often cannot be composed;
 and 
 some combined passes require nonstandard, handwritten traversals of
 the control-flow graph.
-\citet{click-cooper} show the advantages of combining separate passes;
-\citet{lerner-grove-chambers:2002} discuss the issues in detail.}
+\citet{lerner-grove-chambers:2002} discuss these issues in detail;
+\citet{click-cooper} show the advantages of combining separate passes.}
 \secref{dfengine} describes our implementation of their interleaving
 method, which eliminates the boxed assignments to~@i@:
 \begin{alltt}
@@ -1732,7 +1732,7 @@ Deep rewriting is essential to achieve the results of
 \citet{lerner-grove-chambers:2002}, e.g., to remove the induction
 variable from the loop in the example in \secref{induction-var-elim}.
 When deep rewriting is used, the rewrite functions are obligated to
-ensure that the graphs they produce cannot be written indefinitely.
+ensure that the graphs they produce cannot be rewritten indefinitely.
 \item
 Function @zdfRewriteFwd@ requires rewrite functions as well as transfer
 functions.
