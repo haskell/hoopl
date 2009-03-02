@@ -2307,8 +2307,7 @@ Case @ZNoLast@ arises when a replacement graph has no last node.
 \begin{numberedcode}
     rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
     rewrite start in_fact g fuel =
-      let Graph eid blockenv = g
-          blocks = postorder_dfs_from blockenv entry
+      let blocks = postorder_dfs g
 !call.forward.sol!      in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
             ; (rewritten, fuel) <- rewrite_blocks blocks emptyBlockEnv fuel
             ; a <- getExitFact
@@ -2991,27 +2990,27 @@ this information into the text.
 
 
 \begin{figure*}
-%%  forward_sol
-%%          :: forall m l a . 
-%%             (DebugNodes m l, LastNode l, Outputable a)
-%%          => (forall a . Fuel -> Maybe a -> Maybe a)
-%%  		-- Squashes proposed rewrites if there is
-%%  		-- no more fuel; OR if we are doing a pure
-%%  		-- analysis, so totally ignore the rewrite
-%%  		-- ie. For pure-analysis the fn is (\_ _ -> Nothing)
-%%          -> RewritingDepth	-- Shallow/deep
-%%          -> PassName
-%%          -> BlockEnv a		-- Initial set of facts
-%%          -> ForwardTransfers m l a
-%%          -> ForwardRewrites m l a
-%%          -> a			-- Entry fact
-%%          -> Graph m l
-%%          -> Fuel
-%%          -> DFM a (ForwardFixedPoint m l a (), Fuel)
 \setcounter{codeline}{0}
+% forward_sol
+%         :: forall m l a . 
+%            (DebugNodes m l, LastNode l, Outputable a)
+%         => (forall a . Fuel -> Maybe a -> Maybe a)
+% 		-- Squashes proposed rewrites if there is
+% 		-- no more fuel; OR if we are doing a pure
+% 		-- analysis, so totally ignore the rewrite
+% 		-- ie. For pure-analysis the fn is (\_ _ -> Nothing)
+%         -> RewritingDepth	-- Shallow/deep
+%         -> PassName
+%         -> BlockEnv a		-- Initial set of facts
+%         -> ForwardTransfers m l a
+%         -> ForwardRewrites m l a
+%         -> a			-- Entry fact
+%         -> LGraph m l
+%         -> Fuel
+%         -> DFM a (ForwardFixedPoint m l a (), Fuel)
 \begin{numberedcode}
 forward_sol squash rewrite name start_facts transfers rewrites = fixed_point
- where 
+ where
    fixed_point in_fact g fuel =
      do { setAllFacts start_facts
         ; (a, fuel) <- solve getExitFact in_fact g fuel
@@ -3021,77 +3020,241 @@ forward_sol squash rewrite name start_facts transfers rewrites = fixed_point
         }
 
    solve :: DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Fuel)
-   solve finish in_fact (Graph entry blockenv) fuel =
-     let blocks = postorder_dfs_from blockenv entry
-         set_or_save = mk_set_or_save (isJust . lookupBlockEnv blockenv)
-         set_successor_facts (Block id _ tail) fuel =
-           do { idfact <- getFact id
-              ; (last_outs, fuel) <-
-                  case squash fuel $ fr_first rewrites id idfact of
-                    Nothing -> solve_tail (ft_first_out transfers id idfact) tail fuel
-                    Just g -> do { (a, fuel) <- subAnalysis' $
+   solve finish in_fact g@(Graph eid blockenv) fuel =
+       do { setFact eid in_fact
+          ; fuel <- run "forward" name set_successor_facts blocks fuel
+          ; b <- finish
+          ; return (b, fuel)
+          }
+     where blocks = G.postorder_dfs g
+           set_or_save = mk_set_or_save (isJust . lookupBlockEnv blockenv)
+           set_successor_facts (Block id _ tail) fuel =
+             do { idfact <- getFact id
+                ; (last_outs, fuel) <-
+                    case squash fuel $ fr_first rewrites id idfact of
+                      Nothing -> solve_tail (ft_first_out transfers id idfact) tail fuel
+                      Just g -> do (a, fuel) <- subAnalysis' $
                                      case rewrite of
                                        RewriteDeep -> solve getExitFact idfact g (oneLessFuel fuel)
                                        RewriteShallow ->
-                                         do { a <- anal_f getExitFact idfact g
-                                            ; return (a, oneLessFuel fuel) }
-                                  ; solve_tail a tail fuel }
-              ; set_or_save last_outs
-              ; return fuel }
+                                           do { a <- anal_f getExitFact idfact g
+                                              ; return (a, oneLessFuel fuel) }
+                                   solve_tail a tail fuel
+                ; set_or_save last_outs
+                ; return fuel }
 
-     in do { (last_outs, fuel) <- solve_tail in_fact entry fuel
-           ; set_or_save last_outs                                    
-           ; fuel <- run "forward" name set_successor_facts blocks fuel
-           ; b <- finish
-           ; return (b, fuel)
-           }
-
-   solve_tail in' (ZTail m t) fuel =
+   solve_tail in' (G.ZTail m t) fuel =
      case squash fuel $ fr_middle rewrites m in' of
        Nothing -> solve_tail (ft_middle_out transfers m in') t fuel
-       Just g -> do { (a, fuel) <- subAnalysis' $                                     
-                         case rewrite of                                              
-                           RewriteDeep -> solve getExitFact in' g (oneLessFuel fuel)  
-                           RewriteShallow -> do { a <- anal_f getExitFact in' g       
-                                                ; return (a, oneLessFuel fuel) }      
-                    ; solve_tail a t fuel                                             
+       Just g -> do { (a, fuel) <- subAnalysis' $
+                         case rewrite of
+                           RewriteDeep -> solve getExitFact in' g (oneLessFuel fuel)
+                           RewriteShallow -> do { a <- anal_f getExitFact in' g
+                                                ; return (a, oneLessFuel fuel) }
+                    ; solve_tail a t fuel
                     }
-
-   solve_tail in' (ZLast l) fuel = 
+   solve_tail in' (G.ZLast l) fuel = 
      case squash fuel $ either_last rewrites in' l of
        Nothing -> case l of LastOther l -> return (ft_last_outs transfers l in', fuel)
-                            LastExit -> do { setExitFact in' ; return (LastOuts [], fuel) }
-       Just g -> do { (last_outs :: LastOuts a, fuel) <- subAnalysis' $           
-                        case rewrite of                                               
-                          RewriteDeep -> solve lastOutFacts in' g (oneLessFuel fuel)  
-                          RewriteShallow -> do { los <- anal_f lastOutFacts in' g     
-                                               ; return (los, fuel) }                 
-                    ; return (last_outs, fuel)                                        
-                    }
+                            LastExit -> do { setExitFact in'
+                                           ; return (LastOutFacts [], fuel) }
+       Just g -> do { (last_outs :: LastOutFacts a, fuel) <- subAnalysis' $
+                        case rewrite of
+                          RewriteDeep -> solve lastOutFacts in' g (oneLessFuel fuel)
+                          RewriteShallow -> do { los <- anal_f lastOutFacts in' g
+                                               ; return (los, oneLessFuel fuel) }
+                    ; return (last_outs, fuel)
+                    } 
 
    anal_f :: DFM a b -> a -> Graph m l -> DFM a b
    anal_f finish in' g = do { fwd_pure_anal name emptyBlockEnv transfers in' g; finish }
-   either_last rewrites in' (LastExit) = in'
+   either_last rewrites in' (LastExit) = Nothing
    either_last rewrites in' (LastOther l) = fr_last rewrites l in'
 \end{numberedcode}
 \caption{The forward solver}
 \end{figure*}
+%% \begin{figure*}
+%% %%  forward_sol
+%% %%          :: forall m l a . 
+%% %%             (DebugNodes m l, LastNode l, Outputable a)
+%% %%          => (forall a . Fuel -> Maybe a -> Maybe a)
+%% %%  		-- Squashes proposed rewrites if there is
+%% %%  		-- no more fuel; OR if we are doing a pure
+%% %%  		-- analysis, so totally ignore the rewrite
+%% %%  		-- ie. For pure-analysis the fn is (\_ _ -> Nothing)
+%% %%          -> RewritingDepth	-- Shallow/deep
+%% %%          -> PassName
+%% %%          -> BlockEnv a		-- Initial set of facts
+%% %%          -> ForwardTransfers m l a
+%% %%          -> ForwardRewrites m l a
+%% %%          -> a			-- Entry fact
+%% %%          -> Graph m l
+%% %%          -> Fuel
+%% %%          -> DFM a (ForwardFixedPoint m l a (), Fuel)
+%% \setcounter{codeline}{0}
+%% \begin{numberedcode}
+%% forward_sol squash rewrite name start_facts transfers rewrites = fixed_point
+%%  where 
+%%    fixed_point in_fact g fuel =
+%%      do { setAllFacts start_facts
+%%         ; (a, fuel) <- solve getExitFact in_fact g fuel
+%%         ; facts <- getAllFacts
+%%         ; let fp = ... facts ...
+%%         ; return (fp, fuel)
+%%         }
+%% 
+%%    solve :: DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Fuel)
+%%    solve finish in_fact (Graph entry blockenv) fuel =
+%%      let blocks = postorder_dfs_from blockenv entry
+%%          set_or_save = mk_set_or_save (isJust . lookupBlockEnv blockenv)
+%%          set_successor_facts (Block id _ tail) fuel =
+%%            do { idfact <- getFact id
+%%               ; (last_outs, fuel) <-
+%%                   case squash fuel $ fr_first rewrites id idfact of
+%%                     Nothing -> solve_tail (ft_first_out transfers id idfact) tail fuel
+%%                     Just g -> do { (a, fuel) <- subAnalysis' $
+%%                                      case rewrite of
+%%                                        RewriteDeep -> solve getExitFact idfact g (oneLessFuel fuel)
+%%                                        RewriteShallow ->
+%%                                          do { a <- anal_f getExitFact idfact g
+%%                                             ; return (a, oneLessFuel fuel) }
+%%                                   ; solve_tail a tail fuel }
+%%               ; set_or_save last_outs
+%%               ; return fuel }
+%% 
+%%      in do { (last_outs, fuel) <- solve_tail in_fact entry fuel
+%%            ; set_or_save last_outs                                    
+%%            ; fuel <- run "forward" name set_successor_facts blocks fuel
+%%            ; b <- finish
+%%            ; return (b, fuel)
+%%            }
+%% 
+%%    solve_tail in' (ZTail m t) fuel =
+%%      case squash fuel $ fr_middle rewrites m in' of
+%%        Nothing -> solve_tail (ft_middle_out transfers m in') t fuel
+%%        Just g -> do { (a, fuel) <- subAnalysis' $                                     
+%%                          case rewrite of                                              
+%%                            RewriteDeep -> solve getExitFact in' g (oneLessFuel fuel)  
+%%                            RewriteShallow -> do { a <- anal_f getExitFact in' g       
+%%                                                 ; return (a, oneLessFuel fuel) }      
+%%                     ; solve_tail a t fuel                                             
+%%                     }
+%% 
+%%    solve_tail in' (ZLast l) fuel = 
+%%      case squash fuel $ either_last rewrites in' l of
+%%        Nothing -> case l of LastOther l -> return (ft_last_outs transfers l in', fuel)
+%%                             LastExit -> do { setExitFact in' ; return (LastOuts [], fuel) }
+%%        Just g -> do { (last_outs :: LastOuts a, fuel) <- subAnalysis' $           
+%%                         case rewrite of                                               
+%%                           RewriteDeep -> solve lastOutFacts in' g (oneLessFuel fuel)  
+%%                           RewriteShallow -> do { los <- anal_f lastOutFacts in' g     
+%%                                                ; return (los, fuel) }                 
+%%                     ; return (last_outs, fuel)                                        
+%%                     }
+%% 
+%%    anal_f :: DFM a b -> a -> Graph m l -> DFM a b
+%%    anal_f finish in' g = do { fwd_pure_anal name emptyBlockEnv transfers in' g; finish }
+%%    either_last rewrites in' (LastExit) = in'
+%%    either_last rewrites in' (LastOther l) = fr_last rewrites l in'
+%% \end{numberedcode}
+%% \caption{The forward solver}
+%% \end{figure*}
+
+%% \begin{figure*}
+%% %%  forward_rew
+%% %%          :: forall m l a . 
+%% %%             (DebugNodes m l, LastNode l, Outputable a)
+%% %%          => (forall a . Fuel -> Maybe a -> Maybe a)
+%% %%          -> RewritingDepth
+%% %%          -> BlockEnv a
+%% %%          -> PassName
+%% %%          -> ForwardTransfers m l a
+%% %%          -> ForwardRewrites m l a
+%% %%          -> a
+%% %%          -> Graph m l
+%% %%          -> Fuel
+%% %%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
+%% \setcounter{codeline}{0}
+%% \begin{numberedcode}
+%% forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
+%%   where
+%%     fixed_pt_and_fuel =
+%%         do { (a, g, fuel) <- rewrite xstart_facts getExitFact in_factx gx fuelx
+%%            ; facts <- getAllFacts
+%%            ; let fp = ... facts ... g ...
+%%            ; return (fp, fuel)
+%%            }
+%%     solve = forward_sol squash
+%%     rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
+%%     rewrite start finish in_fact g fuel =
+%%       let Graph entry blockenv = g
+%%           blocks = postorder_dfs_from blockenv entry
+%%       in do { solve depth name start transfers rewrites in_fact g fuel
+%%             ; eid <- freshBlockId "temporary entry id"
+%%             ; (rewritten, fuel) <- rew_tail (ZFirst eid emptyStackInfo) in_fact entry emptyBlockEnv fuel
+%%             ; (rewritten, fuel) <- rewrite_blocks blocks rewritten fuel
+%%             ; a <- finish
+%%             ; return (a, lgraphToGraph (LGraph eid rewritten), fuel)
+%%             }
+%%     don't_rewrite facts finish in_fact g fuel =
+%%         do  { solve depth name facts transfers rewrites in_fact g fuel
+%%             ; a <- finish
+%%             ; return (a, g, fuel)
+%%             }
+%%     inner_rew :: DFM a f -> a -> Graph m l -> Fuel -> DFM a (f, Graph m l, Fuel)
+%%     inner_rew f i g fu = getAllFacts >>= \facts -> inner_rew' facts f i g fu
+%%         where inner_rew' = case depth of RewriteShallow -> don't_rewrite
+%%                                          RewriteDeep    -> rewrite
+%%     rewrite_blocks :: [Block m l] -> (BlockEnv (Block m l)) -> Fuel -> DFM a (BlockEnv (Block m l), Fuel)
+%%     rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
+%%     rewrite_blocks (Block id off t : bs) rewritten fuel =
+%%       do { let h = ZFirst id off
+%%          ; a <- getFact id
+%%          ; case squash fuel $ fr_first rewrites id a of
+%%              Nothing -> do { (rewritten, fuel) <- rew_tail h (ft_first_out transfers id a) t rewritten fuel
+%%                            ; rewrite_blocks bs rewritten fuel }
+%%              Just g  -> do { markGraphRewritten
+%%                            ; (outfact, g, fuel) <- inner_rew getExitFact a g fuel
+%%                            ; let (blocks, h) = splice_head h g
+%%                            ; (rewritten, fuel) <- rew_tail h outfact t (blocks `plusBlockEnv` rewritten) fuel
+%%                            ; rewrite_blocks bs rewritten fuel }
+%%          }
+%% 
+%%     rew_tail head in' (ZTail m t) rewritten fuel =
+%%       case squash fuel $ fr_middle rewrites m in' of
+%%         Nothing -> rew_tail (ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
+%%         Just g -> do { markGraphRewritten
+%%                      ; (a, g, fuel) <- inner_rew getExitFact in' g fuel
+%%                      ; let (blocks, h) = splice_head head g
+%%                      ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
+%%     rew_tail h in' (ZLast l) rewritten fuel = 
+%%       case squash fuel $ either_last rewrites in' l of
+%%         Nothing -> return (insertBlock (zipht h (ZLast l)) rewritten, fuel)
+%%         Just g -> do { markGraphRewritten
+%%                      ; ((), g, fuel) <- inner_rew (return ()) in' g fuel
+%%                      ; let g' = splice_head_only h g
+%%                      ; return (g_blocks g' `plusBlockEnv` rewritten, fuel) }
+%%     either_last rewrites in' (LastExit) = in'
+%%     either_last rewrites in' (LastOther l) = fr_last rewrites l in'
+%% \end{numberedcode}
+%% \caption{The forward rewriter}
+%% \end{figure*}
 
 \begin{figure*}
-%%  forward_rew
-%%          :: forall m l a . 
-%%             (DebugNodes m l, LastNode l, Outputable a)
-%%          => (forall a . Fuel -> Maybe a -> Maybe a)
-%%          -> RewritingDepth
-%%          -> BlockEnv a
-%%          -> PassName
-%%          -> ForwardTransfers m l a
-%%          -> ForwardRewrites m l a
-%%          -> a
-%%          -> Graph m l
-%%          -> Fuel
-%%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
 \setcounter{codeline}{0}
+% forward_rew
+%         :: forall m l a . 
+%            (DebugNodes m l, LastNode l, Outputable a)
+%         => (forall a . Fuel -> Maybe a -> Maybe a)
+%         -> RewritingDepth
+%         -> BlockEnv a
+%         -> PassName
+%         -> ForwardTransfers m l a
+%         -> ForwardRewrites m l a
+%         -> a
+%         -> Graph m l
+%         -> Fuel
+%         -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
 \begin{numberedcode}
 forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
   where
@@ -3104,14 +3267,14 @@ forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx 
     solve = forward_sol squash
     rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
     rewrite start finish in_fact g fuel =
-      let Graph entry blockenv = g
-          blocks = postorder_dfs_from blockenv entry
+      let Graph entry _ = g
+          blocks = G.postorder_dfs g
       in do { solve depth name start transfers rewrites in_fact g fuel
-            ; eid <- freshBlockId "temporary entry id"
-            ; (rewritten, fuel) <- rew_tail (ZFirst eid emptyStackInfo) in_fact entry emptyBlockEnv fuel
-            ; (rewritten, fuel) <- rewrite_blocks blocks rewritten fuel
+            ; setEntryId entry
+            ; (rewritten, fuel) <- rewrite_blocks EntryBlock blocks emptyBlockEnv fuel
+            ; entry <- getEntryId
             ; a <- finish
-            ; return (a, lgraphToGraph (LGraph eid 0 rewritten), fuel)
+            ; return (a, Graph entry rewritten, fuel)
             }
     don't_rewrite facts finish in_fact g fuel =
         do  { solve depth name facts transfers rewrites in_fact g fuel
@@ -3122,36 +3285,41 @@ forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx 
     inner_rew f i g fu = getAllFacts >>= \facts -> inner_rew' facts f i g fu
         where inner_rew' = case depth of RewriteShallow -> don't_rewrite
                                          RewriteDeep    -> rewrite
-    rewrite_blocks :: [Block m l] -> (BlockEnv (Block m l)) -> Fuel -> DFM a (BlockEnv (Block m l), Fuel)
-    rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
-    rewrite_blocks (Block id off t : bs) rewritten fuel =
-      do { let h = ZFirst id off
-         ; a <- getFact id
-         ; case squash fuel $ fr_first rewrites id a of
-             Nothing -> do { (rewritten, fuel) <- rew_tail h (ft_first_out transfers id a) t rewritten fuel
-                           ; rewrite_blocks bs rewritten fuel }
-             Just g  -> do { markGraphRewritten
-                           ; (outfact, g, fuel) <- inner_rew getExitFact a g fuel
-                           ; let (blocks, h) = splice_head h g
-                           ; (rewritten, fuel) <- rew_tail h outfact t (blocks `plusBlockEnv` rewritten) fuel
-                           ; rewrite_blocks bs rewritten fuel }
-         }
+    rewrite_blocks :: BlockPos -> [Block m l] -> (BlockEnv (Block m l))
+                   -> Fuel -> DFM a (BlockEnv (Block m l), Fuel)
+    rewrite_blocks _ [] rewritten fuel = return (rewritten, fuel)
+    rewrite_blocks pos (G.Block id t : bs) rewritten fuel =
+      do let h = ZFirst id off
+         a <- getFact id
+         case squash fuel $ fr_first rewrites id a of
+           Nothing -> do { (rewritten, fuel) <-
+                              rew_tail h (ft_first_out transfers id a) t rewritten fuel
+                         ; rewrite_blocks NonEntryBlock bs rewritten fuel }
+           Just g  -> do { markGraphRewritten
+                         ; ifEntryBlock pos $ setEntryId (g_entry g)
+                         ; (outfact, g, fuel) <- inner_rew getExitFact a g fuel
+                         ; let (Graph _ blocks, h) = splice_head h g
+                         ; (rewritten, fuel) <-
+                             rew_tail h outfact t (blocks `plusBlockEnv` rewritten) fuel
+                         ; rewrite_blocks NonEntryBlock bs rewritten fuel }
 
-    rew_tail head in' (ZTail m t) rewritten fuel =
+    rew_tail head in' (G.ZTail m t) rewritten fuel =
+      my_trace "Rewriting middle node" (ppr m) $
       case squash fuel $ fr_middle rewrites m in' of
-        Nothing -> rew_tail (ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
+        Nothing -> rew_tail (G.ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
         Just g -> do { markGraphRewritten
                      ; (a, g, fuel) <- inner_rew getExitFact in' g fuel
-                     ; let (blocks, h) = splice_head head g
+                     ; let (Graph _ blocks, h) = G.splice_head head g
                      ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
-    rew_tail h in' (ZLast l) rewritten fuel = 
+    rew_tail h in' (G.ZLast l) rewritten fuel = 
+      my_trace "Rewriting last node" (ppr l) $
       case squash fuel $ either_last rewrites in' l of
-        Nothing -> return (insertBlock (zipht h (ZLast l)) rewritten, fuel)
+        Nothing -> do return (insertBlock (zipht h (G.ZLast l)) rewritten, fuel)
         Just g -> do { markGraphRewritten
                      ; ((), g, fuel) <- inner_rew (return ()) in' g fuel
-                     ; let g' = splice_head_only h g
-                     ; return (lg_blocks g' `plusBlockEnv` rewritten, fuel) }
-    either_last rewrites in' (LastExit) = in'
+                     ; let g' = G.splice_head_only h g
+                     ; return (G.g_blocks g' `plusBlockEnv` rewritten, fuel) }
+    either_last rewrites in' (LastExit) = Nothing
     either_last rewrites in' (LastOther l) = fr_last rewrites l in'
 \end{numberedcode}
 \caption{The forward rewriter}
