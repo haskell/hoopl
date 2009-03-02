@@ -1236,11 +1236,10 @@ addUsed a live = foldVarsUsed extendVarSet  live a
 
 lastLiveOut :: Last -> (BlockId -> Live) -> Live
 lastLiveOut l env = last l 
-  where
-!live.lastBranch!    last (LastBranch id)        = env id 
-!live.condBranch!    last (LastCondBranch _ t f) = unionVarSets (env t) (env f)
-!live.lastSwitch!    last (LastSwitch _ tbl)     = unionManyVarSets $ map env (catMaybes tbl)
-!live.lastCall!    last (LastCall { })         = emptyVarSet
+!live.lastBranch!  where last (LastBranch id)        = env id 
+!live.condBranch!        last (LastCondBranch _ t f) = unionVarSets (env t) (env f)
+!live.lastSwitch!        last (LastSwitch _ tbl)     = unionManyVarSets $ map env (catMaybes tbl)
+!live.lastCall!        last (LastCall { })         = emptyVarSet
 \end{code}%
 \B
 & Transfer \mbox{functions}\\
@@ -1377,6 +1376,10 @@ available variables.
 Function @foldVarsDefd@ is a function which, in this
 instance, calls @delFromAvail@ if @lhs@ is a local variable and does
 nothing if @lhs@ is a global variable.
+
+\ifpagetuning\smallskip\fi  
+  % more even spacing because \subsection 4.2 forces page break
+
 %% \remark{To Simon and John: I've removed ``overloaded but am a bit nervous
 %% because @foldVarsDef@ shows up as overloaded later in the paper, and I
 %% had thought to signpost it here.  Your thoughts?}
@@ -1394,10 +1397,10 @@ after which the variable associated with that slot is no longer available.
 %
 \Lineref{store.avail.other} matches a store to a location that is not
 a stack slot, which leaves the set of available variables unchanged.
-
-
-
-
+%%
+%%
+%%
+%%
 % \footnote
 % {Although @MidStore@ may overwrite a stack slot \slotof x, GHC
 % carefully arranges that all stores to \slotof x have the form
