@@ -1234,7 +1234,7 @@ addUsed a live = foldVarsUsed extendVarSet  live a
 !liveness.remDefd.def!remDefd a live = foldVarsDefd delFromVarSet live a
 
 lastLiveOut :: Last -> (BlockId -> Live) -> Live
-lastLiveOut l env = last l 
+!lastLiveOut.1!lastLiveOut l env = last l 
 !live.lastBranch!  where last (LastBranch id)        = env id 
 !live.condBranch!        last (LastCondBranch _ t f) = unionVarSets (env t) (env f)
 !live.lastSwitch!        last (LastSwitch _ tbl)     = unionManyVarSets $ map env (catMaybes tbl)
@@ -1364,7 +1364,7 @@ variable~@x@ from its stack slot.\finalremark{I propose the compiler be
 modified to use @isStackSlotOf@ as I've written. JD~approves.}
 After such an assignment, $x = \slotof x$,
 and the last definition of $x$ is a reload,
-so @x@~is added to the set of available variables.\remark{Check these bullets against the figure for correctness}
+so @x@~is added to the set of available variables.
 % No other variable is affected.
 \item
 On \linepairref{assign.avail.1}{assign.avail.2},
@@ -1525,7 +1525,8 @@ remove defined variables \emph{before} adding used variables
 (\figref{liveness}, \linepairref{middleLiveness}{lastLiveness}). 
 
 For a last node, function @lastLiveOut@ consults the solution in
-progress to find out what variables are live at the \emph{successors} of a
+progress (parameter~@env@ on \lineref{lastLiveOut.1}) to find out what
+variables are live at the \emph{successors} of a 
 last node. 
 For an unconditional branch, we look up the live set at the label
 branched to (\lineref{live.lastBranch});
@@ -1539,17 +1540,17 @@ and since a call destroys the values of all local variables, no
 local variables are live at its continuation.
 
 Given the lattice and the transfer functions,
-we perform the liveness analysis by calling
+we perform liveness analysis by calling
 the dataflow-engine function @zdfSolveBwd@ (\figref{liveness},
 \lineref{live.zdfSolveBwd}). 
 %The function @zdfFpFacts@ returns 
 %a finite map from basic-block IDs to the set of live variables
 %at the beginning of each block.
-\figref{avail} shows the \emph{entire} analysis.
-(The overloaded functions
+\figref{liveness} shows the \emph{entire} analysis.
+(Overloaded functions
 @foldVarsUsed@ and @foldVarsDefd@
 are used throughout the back end and
-should not be considered part of liveness analysis.)
+are not considered part of liveness analysis.)
 %
 % types of fold functions agreed to in principle, but in practice
 % there is no good place to put them.
@@ -1567,7 +1568,7 @@ should not be considered part of liveness analysis.)
 \seclabel{gen-kill}
 
 If you pick up a compiler textbook, you might see dataflow
-optimization explained in terms of functions called \texttt{gen} and
+analysis explained in terms of functions called \texttt{gen} and
 \texttt{kill}, 
 which say what dataflow facts are ``generated'' and
 ``killed'' by each node.
@@ -1593,9 +1594,11 @@ gen  a avail = foldVarsUsed extendAvail  avail a
 kill a avail = foldVarsDefd delFromAvail avail a
 \end{smallcode}
 Using @gen@ and @kill@ entails no loss of efficiency;
-for example, on \lineref{reload2} of \figref{avail}, GHC~would identify and
-inline the type-specific instance of @foldVarsUsed@, which for the
-case of a local variable is the identity function, so @gen x avail@
+for example, on \lineref{reload2} of \figref{avail}, GHC~would 
+\ifpagetuning\else identify and \fi
+inline the type-specific instance of @foldVarsUsed@, which for 
+\ifpagetuning\else the case of \fi
+a local variable is the identity function, so @gen x avail@
 would reduce to @extendAvail avail x@.
 
 \fi
@@ -1668,8 +1671,8 @@ shown in \figref{rewrites}.
 A~rewrite function is given a dataflow fact and a node.
 It~may choose to replace the node with a new graph~$g$, in which case it
 returns $@Just@\;g$, or it may do nothing, in which case it returns @Nothing@.
-The assertions represented by incoming dataflow facts must be
-sufficient to ensure that the
+The assertions represented by incoming dataflow facts must 
+ensure that the
 rewrite preserves semantics.
 %%  
 %%  
@@ -1720,7 +1723,7 @@ graph:
 %%
 Function @zdfRewriteFwd@ is like @zdfSolveFwd@ in
 \secref{zdfSolveFwd}, but it uses and produces extra
-information.\seclabel{engine-truth} 
+information:\seclabel{engine-truth} 
 \begin{itemize}
 \item
 The @RewritingDepth@ parameter controls recursive rewriting;
@@ -1731,15 +1734,15 @@ rewriting is \emph{deep}.
 Deep rewriting is essential to achieve the results of
 \citet{lerner-grove-chambers:2002}, e.g., to remove the induction
 variable from the loop in the example in \secref{induction-var-elim}.
-When deep rewriting is used, the rewrite functions are obligated to
-ensure that the graphs they produce cannot be written indefinitely.
+When deep rewriting is used, the rewrite functions must
+ensure that the graphs they produce are not rewritten indefinitely.
 \item
 Function @zdfRewriteFwd@ requires rewrite functions as well as transfer
 functions.
 \item
 The type constructor @ForwardFixedPoint@ has a fourth
 type parameter,\footnote
-{We lied to you earlier.}
+{We lied to you above.}
 which is a value contained in the fixed point.
 The~value can be extracted using function @zdfFpContents@, which has
 type @ForwardFixedPoint m l a b -> b@.
@@ -1755,7 +1758,7 @@ This monad keeps track of the current dataflow fact at each label,
 provides a supply of fresh labels, 
 and
 also helps implement the fault-isolation strategy described
-in \secref{vpoiso} below.
+in \secref{vpoiso}.
 Because @zdfRewriteFwd@ and @zdfSolveFwd@ share much of their
 implementation, the truth 
 about @zdfSolveFwd@ is that it also returns a value of monadic type.
@@ -1824,7 +1827,7 @@ intuition:
 \begin{itemize} 
 \item
 The algorithm is sound because, given the incoming dataflow facts,
-each rewrite must preserve the observable semantics of the program.
+each rewrite must preserve the observable behavior of the program.
 Therefore, a sound analysis of the rewritten graph
 can only generate dataflow facts that could have been
 generated by a more complicated analysis of the original graph.
@@ -1838,10 +1841,10 @@ times, analysis is guaranteed to terminate.
 Thus to guarantee soundness and termination, client code must supply a
 lattice with no infinite ascending chains, sound transfer functions,
 and sound rewrite functions.
-Moreover, either the rewrite functions do not return replacement graphs that contain
-nodes which are rewritten indefinitely,
-or the client code specifies shallow rewriting, which ensures that the
-dataflow engine never rewrites a replacement graph.
+Moreover, either the rewrite functions must not return replacement
+graphs that contain nodes which are rewritten indefinitely,
+or the client code must specify shallow rewriting, which tells the
+dataflow engine never to rewrite a replacement graph.
 
 Why bother with such a complex algorithm?
 \citet{lerner-grove-chambers:2002} write
@@ -1849,8 +1852,7 @@ Why bother with such a complex algorithm?
 \emph{Previous efforts to exploit [the mutually beneficial
 interactions of dataflow analyses] either (1)~iteratively performed
 each individual analysis until no further improvements are discovered
-or (2)~developed [handwritten] ``super-analyses'' that manually\remark
-{We could condense the quote}
+or (2)~developed [handwritten] ``super-analyses'' that manually
 combine conceptually separate analyses. We have devised a new approach
 that allows analyses to be defined independently while still enabling
 them to be combined automatically and profitably. Our approach avoids
@@ -1884,7 +1886,7 @@ super-analysis.}
 %%  \textbf{NR}: Good questions, but let's have a forward reference to \secref{dfengine}}
 
 
-In~practice, interleaving analysis with transformation makes it
+Interleaving analysis with transformation makes it
 possible to create startlingly simple transformations.
 In the rest of this section we present two examples:
 \secref{sink-reloads} shows how to insert a reload instruction just
