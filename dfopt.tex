@@ -3363,9 +3363,7 @@ forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx 
       let Graph entry _ = g
           blocks = G.postorder_dfs g
       in do { solve depth name start transfers rewrites in_fact g fuel
-            ; setEntryId entry
             ; (rewritten, fuel) <- rewrite_blocks EntryBlock blocks emptyBlockEnv fuel
-            ; entry <- getEntryId
             ; a <- finish
             ; return (a, Graph entry rewritten, fuel)
             }
@@ -3389,7 +3387,6 @@ forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx 
                               rew_tail h (ft_first_out transfers id a) t rewritten fuel
                          ; rewrite_blocks NonEntryBlock bs rewritten fuel }
            Just g  -> do { markGraphRewritten
-                         ; ifEntryBlock pos $ setEntryId (g_entry g)
                          ; (outfact, g, fuel) <- inner_rew getExitFact a g fuel
                          ; let (Graph _ blocks, h) = splice_head h g
                          ; (rewritten, fuel) <-
