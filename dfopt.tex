@@ -319,7 +319,9 @@ This transformation, although also an instance of substituting equals
 for equals, has a different name: ``constant folding.''
 
 \subsection{A complex transformation}
-\simon{It's a pity that this transformation occupies nearly the entire second page, 
+
+\finalremark{It's a pity that this transformation occupies nearly the
+entire second page,  
 and then plays no subsequent role in the paper whatsoever.
 One possibility: move it to ``the next 700'' section, as a substantiating example
 to the claims made there.
@@ -346,7 +348,6 @@ although the code is~C:
 \end{verbatim}
 To explain the improvement we wish to make, we show the same
 code at the machine level.
-\remark{Try to abuse {\LaTeX} to pull those 3 lines to page 1}
 We write machine-level examples using our low-level compiler-target
 language,~{\PAL} % tuning for line breaks
 \cite{peyton-jones-ramsey:garbage-collection:inproceedings,peyton-jones-ramsey:exceptions}: 
@@ -1217,8 +1218,8 @@ liveTransfers = BackwardTransfers (flip const) middleLiveness lastLiveness
 
 middleLiveness :: Middle -> Live -> Live
 lastLiveness   :: Last -> (BlockId -> Live) -> Live
-middleLiveness m = addUsed m . remDefd m
-lastLiveness   l = addUsed l . remDefd l . lastLiveOut l 
+!middleLiveness!middleLiveness m = addUsed m . remDefd m
+!lastLiveness!lastLiveness   l = addUsed l . remDefd l . lastLiveOut l 
 
 !liveness.addUsed.sig!addUsed :: UserOfLocalVars    a => a -> Live -> Live
 remDefd :: DefinerOfLocalVars a => a -> Live -> Live 
@@ -1228,10 +1229,10 @@ addUsed a live = foldVarsUsed extendVarSet  live a
 lastLiveOut :: Last -> (BlockId -> Live) -> Live
 lastLiveOut l env = last l 
   where
-    last (LastBranch id)        = env id 
-    last (LastCondBranch _ t f) = unionVarSets (env t) (env f)
-    last (LastSwitch _ tbl)     = unionManyVarSets $ map env (catMaybes tbl)
-    last (LastCall { })         = emptyVarSet
+!live.lastBranch!    last (LastBranch id)        = env id 
+!live.condBranch!    last (LastCondBranch _ t f) = unionVarSets (env t) (env f)
+!live.lastSwitch!    last (LastSwitch _ tbl)     = unionManyVarSets $ map env (catMaybes tbl)
+!live.lastCall!    last (LastCall { })         = emptyVarSet
 \end{code}%
 \B
 & Transfer \mbox{functions}\\
@@ -1480,10 +1481,8 @@ a~variable is deemed live after a node if it is live on \emph{any} edge leaving 
 node.
 
 The transfer functions for liveness rely on two auxiliary functions
-\remark{linenumbers}
-@addUsed@ and @remDefd@, which are shown on
-\linerangeref{liveness.addUsed.sig}{liveness.remDefd.def} of
-\figref{liveness}. 
+@addUsed@ and @remDefd@ (\figref{liveness}, 
+\linerangeref{liveness.addUsed.sig}{liveness.remDefd.def}).
 A~transfer function is given a set of variables live on the edges
 going out of the node, and it removes from that set any variable
 defined by the node, then adds to the set any variable used by the
@@ -1504,20 +1503,21 @@ assignment, as in
 \end{verbatim}
 then the answer might well depend on~@i@, so @i@~is considered live
 before the assignment.
-For this reason the transfer functions in \figref{liveness} 
+For this reason the transfer functions in \figref{liveness}
+(\linepairref{middleLiveness}{lastLiveness}) 
 remove defined variables \emph{before} adding used variables.
-\remark{line numbers}
 
 For a last node, function @lastLiveOut@ consults the solution in
 progress to find out what variables are live at the \emph{successors} of a
 last node. 
 For an unconditional branch, we look up the live set at the label
-branched to;\remark{line number}
-for a conditional branch, we look at both true and false edges, \remark{linenumber}
+branched to (\lineref{live.lastBranch});
+for a conditional branch, we look at both true and false edges
+(\lineref{live.condBranch}), 
  and
-for a switch (computed goto), we consider every possible target of the
-branch. \remark{line number}
-The~remaining case \remark{line number} is a call, 
+for a switch, we consider every possible target of the
+branch (\lineref{live.lastSwitch}).
+The~remaining case (\lineref{live.lastCall}) is a call, 
 and since a call destroys the values of all local variables, no
 local variables are live at its continuation.
 
@@ -1827,13 +1827,13 @@ or the client code specifies shallow rewriting, which ensures that the
 dataflow engine never rewrites a replacement graph.
 
 Why bother with such a complex algorithm?
-\remark{We could condense the quote}
 \citet{lerner-grove-chambers:2002} write
 \begin{quote}
 \emph{Previous efforts to exploit [the mutually beneficial
 interactions of dataflow analyses] either (1)~iteratively performed
 each individual analysis until no further improvements are discovered
-or (2)~developed [handwritten] ``super-analyses'' that manually
+or (2)~developed [handwritten] ``super-analyses'' that manually\remark
+{We could condense the quote}
 combine conceptually separate analyses. We have devised a new approach
 that allows analyses to be defined independently while still enabling
 them to be combined automatically and profitably. Our approach avoids
@@ -2075,9 +2075,7 @@ and as shown above, compiler passes written \emph{using} the engine
 are simple.
 But~the implementation is complex.
 The purpose of this section is to show that the complexity is \emph{manageable}.
-\remark{What's new? Polymorphism, purity, type classes---purity makes
-it easier to expunge bugs, especailly when managing state for things
-like sub-analyses.}
+
 
 \emph{[Our implementation improves on our 2005 work in two
 ways:\remark{Not sure here is the palce for this}
@@ -2112,7 +2110,7 @@ The inner dataflow monad has type @DFM a@, where @a@~is the type of a
 dataflow fact.
 It~is a state monad which keeps track of the values of dataflow facts
 as the engine iterates.
-Its~operations include
+Its~operations include % listed as per SLPJ!
 \begin{code}
 getFact     :: BlockId -> DFM a a
 getExitFact :: DFM a a
@@ -2190,7 +2188,7 @@ Pure analysis is a special case in which no node is
 ever rewritten.
 
 
-\remark{How and where do we say what's new over
+\finalremark{How and where do we say what's new over
 \citet{ramsey-dias:applicative-flow-graph}?}
 %showed a backward solver and rewriter that kept dataflow facts in
 %mutable cells.
@@ -2233,7 +2231,6 @@ Function @solve@, on \linerangeref{solve.1}{solve.*} of
 takes an input fact, a graph, and a fuel supply; it~returns a pair
 containing the exit fact and the 
 remaining fuel supply.
-\simon{List the operations of the monad. (Agreed ---NR)}
 It~also has a side effect on the state stored in the inner dataflow monad:
 it brings the facts associated with labels up to a fixed point.
  
@@ -2247,10 +2244,9 @@ which repeatedly runs
 on each block in the graph, until the facts
 stored in the inner dataflow monad stop changing.
 Each block comes from  the list of reachable blocks in~@blocks@,
-which is computed by postorder depth-first traversal of the graph.
-\john{Really, it's reverse postorder dfs...}
+which is computed by reverse postorder depth-first traversal of the graph.
 (Although any order will result in a correct fixed point,
-postorder depth-first order hastens convergence of forward dataflow
+reverse postorder depth-first order hastens convergence of forward dataflow
 analyses---often just a few iterations suffice.
 The @LastNode l@ constraint in the type of @forward_sol@
 guarantees that we can
@@ -2367,8 +2363,8 @@ calls the transfer function
 The interesting case occurs on \linerangeref{solver.rewrite.1}{solver.tail.*},
 after the rewrite function 
 @fr_middle rewrites@
-proposes a replacement graph~@g@.
-\remark{Orphaned text:
+proposes a replacement graph~@g@.\finalremark
+{Orphaned text:
 and
 a list of facts that hold on edges leaving the graph, which is  
  extracted using function @zdfFpLastOuts@.
