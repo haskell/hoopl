@@ -92,8 +92,8 @@
 \usepackage{enumerate}
 \usepackage{url}
 \usepackage{graphicx}
-%\usepackage{natbib}
-\bibpunct();A{},
+\usepackage{natbib}
+% \bibpunct();A{},
 \let\cite\citep
 \let\citeyearnopar=\citeyear
 \let\citeyear=\citeyearpar
@@ -161,7 +161,7 @@
 
 \usepackage{code}   % At-sign notation
 
-\input{timestamp}
+% \input{timestamp}
 % \preprintfooter{\mdfivestamp}
 
 \begin{document}
@@ -180,7 +180,8 @@ We present a Haskell library that makes it easy for compiler writers
 to implement program transformations based on dataflow analyses.
 The compiler writer must identify (a)~a family of logical assertions
 on which the transformation will be based;
-(b)~an \emph{approximate} representation of such assertions, which
+(b)~an \emph{approximate} \simon{Nuke the italics here.}
+representation of such assertions, which
 must have a lattice structure such that every assertion can be increased at
 most finitely many times;
 (c)~transfer functions that approximate weakest preconditions or
@@ -189,7 +190,8 @@ strongest postconditions over the assertions; and
 To~guide compiler writers,
 we show how dataflow analyses are related to
 seminal work on program 
-correctness. 
+correctness. \simon{The ``next 700'' section sort of does so, but I'm not 
+sure it deserves mention in the abstract.}
 Finally, our library uses the algorithm of 
 \citet{lerner-grove-chambers:2002}, which enables compiler writers to
 compose very simple analyses and transformations in a way that achieves
@@ -309,6 +311,7 @@ assertion (@true@) and computing strongest postconditions.
     { x == 7 && y == 8 }
   z = x + y;
 \end{verbatim}
+\simon{Could we add $x=7,y=8,z=15$ as a final assertion?}
 In the assignment to~@z@, the assertion @x == 7@ justifies
 substituting 7~for~@x@, leaving @z = 7 + y@.  
 This transformation is traditionally called ``constant propagation.''
@@ -564,6 +567,12 @@ interprocedural optimizations are the work of the GHC~inliner
 The edges connect nodes, each of which represents a label, an assignment, or
 a control transfer.
 
+\simon{Add ``Our library allows a client to do two things: (a)to write
+a dataflow \emph{analysis}, which computes dataflow facts for each
+program point; and (b) a \emph{transformation} based on an analysis,
+which both computes dataflow facts, and transforms the program in the
+light of those facts.''  Without this, it's easy for the reader to miss
+the analysis vs transformation distinction.}
 To write a dataflow analysis, the compiler
 writer must 
 \begin{itemize}
@@ -575,10 +584,15 @@ Implement lattice operations over~$F$.
 \item
 Write \emph{transfer functions} that relate dataflow facts before and
 after each type of node.
+\simon{I'd italicise key words from all three bullets, or none.}
 \end{itemize}
 
-To write a transformation based on an analysis, the compiler writer
-must create a \emph{rewrite function}, which is presented with a
+To write a transformation 
+\simon{Italicise ``transformation''; it is easily missed.
+Dually ``analysis'' above.}
+based on an analysis, the compiler writer
+must \simon{additionally}
+create a \emph{rewrite function}, which is presented with a
 flow-graph node and with the dataflow facts on the edges coming
 into that node.
 The function either suggests that the node should be replaced with a
@@ -588,24 +602,42 @@ any proposed replacement preserves semantics.
 For example, in \secref{constant-propagation} the fact @x == 7@ is
 used to justify replacing @z = x + y@ with @z = 7 + y@.
 
+\simon{Much improved!}
 Our library defines the types of lattice operations,
 control-flow graphs, transfer functions, and rewrite functions.
 \emph{All}~these types are parameterized by the types of
 nodes in the control-flow graph and the types of dataflow facts, so
 the library can be used with many intermediate languages and
-dataflow facts.
+dataflow facts. 
+\simon{Remove ``and dataflow facts''; it is covered
+by the next sentence. It's confusing to cover the facts twice. 
+Mabye worth splitting into two points, thus:
+``All these types are parameterized by the types of
+nodes in the control-flow graph, so the library can be used with 
+many intermediate languages.  Moreover they are also o
+parameterized by the type of dataflow facts, so that 
+client code may define many different analyses, each involving
+different types of dataflow facts.}
 Moreover, client code may define many different analyses, involving
 different types of dataflow facts, all operating over a single type of
 graph. 
 
 In~addition to the abstractions listed above, the main part of our
-dataflow library is the \emph{dataflow engine}:  
+dataflow library is the \emph{dataflow engine}: 
 polymorphic functions that compute 
 dataflow facts (\secref{zdfSolveFwd}) and implement
 semantics-preserving transformations (\secref{rewrites}).
+\simon{A bit confusing.  How about ``In addition to the types sketched
+above, the main API of our library is a small set of polymorphic functions
+that compute 
+dataflow facts (\secref{zdfSolveFwd}) and implement
+semantics-preserving transformations (\secref{rewrites}).''}
 These functions are higher-order, taking lattice operations, transfer
 functions, and rewrite functions as arguments.
 Their implementation is sketched in \secref{dfengine}.
+\simon{Interface?  Perhpas ``The signatures and expected usage of these
+functions is described in xxx, while their implementation is sketched
+in yyy''}
 
 %%  Given lattice operations and transfer functions, our
 %%  polymorphic, reusable \emph{dataflow engine} computes a
@@ -649,7 +681,15 @@ The analysis shows nothing about~$x$, which we notate $x=\bot$.
 \end{itemize}
 The bottom element of the lattice is~$x=\bot$, and
 the join operation \emph{approximates} disjunction.
+\simon{No empahsis needed.}
 In the lattice, a~disjunction of two inconsistent facts is represented by~$x=\top$.
+\simon{I'd still like to give an intuition here about
+\emph{why} disjunction is the key operation, and/or where is is used.
+For example: ``Disjunction is to combine constant-propagation facts
+arriving at a label; for example, if two blocks branch to L, and $x=7$ holds
+at one branch, while $x=8$ holds at the, then the disjunction $x=7 \lor x=8$ holds
+at L.  In the particular language of facts chosen above, this disjunction
+approximated by $x=\top$.''  Oh, and this would be a better place for the footnote.}
 Here are some examples:
 \begin{itemize}
 \item
@@ -857,6 +897,8 @@ Given lattice operations of type @DataflowLattice a@
 and transfer functions of type @ForwardTransfers m l a@,
 the compiler writer can run the analysis by calling the
 dataflow-engine function @zdfSolveFwd@:
+\simon{Mention somehow that this is one of the main 
+functions exposed by the library.}
 \begin{code}
  zdfSolveFwd 
   :: PassName               -- Name of this analysis
@@ -1265,7 +1307,9 @@ cmmLiveness g = zdfFpFacts soln
 
 
 
-To~understand the analysis, you must know that for each variable~$x$,
+\simon{I'd like to see the term ``available variables analysis'' 
+mentioned in the Pass 2 item above.}
+To~understand the \simon{available-variables} analysis, you must know that for each variable~$x$,
 there is a stack slot~\slotof x that is used to save the value of~$x$.
 %
 If the variable and the stack slot hold the same value,
@@ -1283,6 +1327,8 @@ before uses of~$x$.
 It is \emph{profitable} to insert a reload before a use of~$x$ only if, 
 on every path to the use, the most recent definition of $x$~is a reload from
 $\slotof x$.
+\simon{I'm confused.  Surely that definition of profitable is also what we
+mean by safe?  Also you italicise ``profitable'' but not ``safe'' which is confusing.}
 The dataflow fact computed by our analysis is the set of variables for
 which it is both 
 safe and profitable to insert a reload.
@@ -1295,6 +1341,20 @@ but this optimistic assumption is what enables us to improve the
 code---and if the assumption is not justified, the transfer functions
 will correct it before
 the analysis reaches a fixed point.
+\simon{I'm guessing tha you intend this sentence to address my long bleat:
+``I'm puzzled about why you are treating this example so differently
+to constant-prop in Section 3.1.  It looks almost identical to me.  We could
+keep a fact for every variable: $x=\bot$ means nothing is known; $x=s_x$ means
+x's stack slot is up to date; $x=\top$ means x's stack slot is out of date.
+Then keep a finite map as we do for constant prop.  If there is a difference
+that drives the rep you have here, let's say so. If the difference is
+purely accidental, we should eliminate it.  (Or maybe we don't have time, in
+which case we should remark that there is no diff.)''.
+For the paper, let's leave it as it is, but this note is to remind us
+that I am still unhappy on this point.  I think the difficulty is that we
+want to represent \emph{both} the universal set \emph{and} the empty set.
+But I'm unclear about the trade-offs in approximation that arise 
+from this either-or representation.}
 
 \ifpagetuning\enlargethispage{\baselineskip}\fi
 
@@ -1454,6 +1514,8 @@ Given the lattice and the transfer functions,
 we perform the available-variables analysis by calling
 the dataflow-engine function @zdfSolveFwd@ (\figref{avail},
 \linerangeref{avail.solve.1}{avail.solve.2}). 
+\simon{But this is really a lie. We actually call the transformation 
+function!  I'm not quite sure how to fix this pedagogical point.}
 %The function @zdfFpFacts@ returns 
 %a finite map from basic-block IDs to the set of available variables
 %at the beginning of each block.
@@ -1551,6 +1613,8 @@ the dataflow-engine function @zdfSolveBwd@ (\figref{liveness},
 @foldVarsUsed@ and @foldVarsDefd@
 are used throughout the back end and
 are not considered part of liveness analysis.)
+\simon{I still want to see their type signatures in a figure somewhere!!
+Plus any other non-obvious functions we use but do not define.}
 %
 % types of fold functions agreed to in principle, but in practice
 % there is no good place to put them.
@@ -1566,6 +1630,9 @@ are not considered part of liveness analysis.)
 
 
 \seclabel{gen-kill}
+
+\simon{I'd make this into a sub-section of Section 4.  
+It's not important enough to deserve a section to itself.}
 
 If you pick up a compiler textbook, you might see dataflow
 analysis explained in terms of functions called \texttt{gen} and
@@ -1600,7 +1667,10 @@ inline the type-specific instance of @foldVarsUsed@, which for
 \ifpagetuning\else the case of \fi
 a local variable is the identity function, so @gen x avail@
 would reduce to @extendAvail avail x@.
-
+\simon{But that's what line 17 already says!  
+I suggest that we actually give the code for the implementation of forward 
+transfers in terms of gen and kill, rather than hoping the reader
+can construct it in their head.}
 \fi
 
 \section{Using dataflow facts to rewrite graphs\ifpagetuning\else, with examples\fi}
@@ -1662,7 +1732,9 @@ insertLateReloads g = liftM zdfFpContents result
 
 
 We compute dataflow facts in order to enable code-improving
-transformations.
+transformations. \simon{Our library provides a function
+that performs (interleaved) analysis and transformation on the
+graph, which we describe in this section. New paragraph.}
 The heart of a transformation is a triple of
 \emph{rewrite functions};
 type declarations for rewrite functions are
@@ -1674,6 +1746,9 @@ returns $@Just@\;g$, or it may do nothing, in which case it returns @Nothing@.
 The assertions represented by incoming dataflow facts must 
 ensure that the
 rewrite preserves semantics.
+\simon{I'm still wholly unclear about whether this is enough; 
+doesn't the rewrite have to be monotonic wrt the analysis?
+See my earlier example.}
 %%  
 %%  
 %%  If~a rewrite function returns $@Just@\;g$, the incoming dataflow fact
@@ -1750,6 +1825,8 @@ Here the type parameter~@b@ is instantiated to @Graph m l@: the fixed point
 contains the rewritten graph.
 In~@zdfSolveFwd@, @b@~is instantiated with
 the unit type~@()@.
+\simon{We can't make this point until later, where we say that solve is
+implemented using rewrite.}
 %%% \simon{I'm afraid I do not understand this bullet at all.}
 \item
 The computation is monadic in the \emph{dataflow monad}, written
@@ -1762,6 +1839,8 @@ in \secref{vpoiso}.
 Because @zdfRewriteFwd@ and @zdfSolveFwd@ share much of their
 implementation, the truth 
 about @zdfSolveFwd@ is that it also returns a value of monadic type.
+\simon{We should postpone this too.  And in any case we don't need to
+expose it to the client, if it is a mere implementation matter, do we?}
 \end{itemize}
 
 
@@ -2084,6 +2163,11 @@ include \secref{induction-var-elim}.
 \seclabel{engine}
 \seclabel{dfengine}
 
+\simon{The earlier sections promised that we'd reveal the lies.
+Do we?  I see no mention of @LastNode@ for example, which is rather important
+for polymorphism.  Indeed, a subsection on that point might be a good way
+to substantiate the claims of the last bullet of the conclusion.}
+
 Above, in sections \ref{sec:making-simple}
 through~\ref{sec:rewrites},
 we use our library to create analyses and transformations.
@@ -2097,6 +2181,12 @@ are simple.
 But~the implementation is complex.
 This section shows that the complexity is {manageable}.
 
+\simon{This section is better, although I have not read every line.
+But it still doesn't answer the questions I asked earlier:
+What new insights
+are gained, beyond a quick sketch of a particular implementation?
+For example, is it notably simpler than the OCaml version or Chambers's version?
+If so, what led to this simplicity?}
 
 The dataflow engine is implemented in two layers.
 The lower layer comprises the \emph{fuel monad} and the \emph{inner dataflow monad}.
@@ -2120,16 +2210,16 @@ The @get@ operations have corresponding @set@ operations and vice
 versa.
 The~most interesting operation is @subAnalysis@, which
 runs an analysis in a fresh copy of the current state, then reverts to
-the previous state.
+the previous state.  \simon{What is @set\_or\_save@?}
 %%  Using pure code and a monad makes this version much easier to get
 %%  right than our Objective Caml version
 %%  \cite{ramsey-dias:applicative-flow-graph}. 
 %%  \john{Presumably this sentence disappears if the italic text is made permanent.}
 
-These monads are private to the implementation of the library;
+These monads are \simon{``This monad is''?} private to the implementation of the library;
 what is exposed in the interface is a combined monad called @DFMonad@,
 and a @run@ function that lifts computations of type @DFMonad a@
-to~@IO a@.
+to~@IO a@. \simon{``combined''??  There is no fuel moand in Fig 8!}
 % cannot afford to mention @Fuel@ yet
 
 The upper layer of the dataflow engine comprises four functions:
@@ -2799,6 +2889,8 @@ ingredient, but by applying ideas that are well understood by functional
 programmers. %% and others who reason formally about programs.
 These ideas
 make it possible to think simple thoughts about classical code improvements.
+\simon{It would be good to give cross-refs to plces in the paper that
+substantiate these claims.}
 \begin{itemize}
 \item
 We acknowledge only one program-analysis technique: the solution of
@@ -2902,7 +2994,8 @@ graphs and their associated state at need.
 Managing state explicitly, instead of
 using ML's built-in state monad, 
 makes it especially easy to implement such
-operations as independent sub-analysis of a replacement graph.
+operations as independent sub-analysis of a replacement graph. \simon{This 
+last sentence is a repeat of the previous one.}
 %
 % important, but no longer mentioned in this paper:
 %
