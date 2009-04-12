@@ -1717,7 +1717,7 @@ availRewrites = ForwardRewrites first middle last
 !maybe.reload.before.2!                else Just $ reloadTail used tail
         reloadTail vars t = foldl rel t $ varSetToList vars
 !mkMiddle!          where rel t r = mkMiddle (reload r) <*> t
-\end{code}%
+\end{code}
 \B
 & Rewrite \mbox{functions}\\
 \hline
@@ -1728,7 +1728,7 @@ insertLateReloads g = liftM zdfFpContents result
 !insertLateReloads.1!  where result = zdfRewriteFwd RewriteShallow "insert late reloads"
                                availVarsLattice avail_vars_transfer
 !insertLateReloads.2!                               availRewrites (fact_bot availVarsLattice) g
-\end{code}%
+\end{code}
 & Late-reload insertion\\
 \end{codetable}
 \caption{Late-reload insertion, which relies on the analysis of \figref{avail}}
@@ -2027,7 +2027,7 @@ deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing
 !elim.dead.1!        middleRemoveDeads (MidAssign (CmmLocal x) _) live
 !elim.dead.2!            | not (x `elemVarSet` live) = Just emptyGraph
 !deadRewrites.2!        middleRemoveDeads _ _ = Nothing
-\end{code}%
+\end{code}
 \B
 & Rewrite \mbox{functions}\\
 \hline
@@ -2037,7 +2037,7 @@ removeDeadAssignments :: (Graph Middle Last) -> DFMonad (Graph Middle Last)
 removeDeadAssignments g = liftM zdfFpContents result
 !rewriteBwd.1!     where result = zdfRewriteBwd RewriteDeep "dead-assignment elim"
 !rewriteBwd.2!                                  liveLattice liveTransfers rewrites emptyVarSet g
-\end{code}%
+\end{code}
 & \mbox{Dead-code} elimination\\
 \end{codetable}
 \caption{Dead-assignment elimination, which relies on the analysis of
