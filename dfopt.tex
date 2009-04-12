@@ -2157,11 +2157,11 @@ type LOFsKont a b = LastOuts a -> Fuel -> DFM a b
 !solve.mid.case!       case with_fuel fuel $ fr_middle rewrites in' m of
 !solve.mid.Nothing!         Nothing -> k (ft_middle_out transfers in' m) fuel
 !solve.mid.Just!         Just (fuel, g) ->
-           do { (a, fuel) <- subAnalysis $
+!solve.subAnalysis!           do { (a, fuel) <- subAnalysis $
                    case depth of
-                     RewriteDeep -> solve_OO' g return2 in' fuel
-                     RewriteShallow -> do { a <- anal_f_OO g in'
-                                          ; return (a, fuel) }
+!solve.OO!                     RewriteDeep -> solve_OO g (uncurry return) in' fuel
+!solve.rewrite.shallow.1!                     RewriteShallow -> do { a <- anal_f_OO g in'
+!solve.rewrite.shallow.*!                                          ; return (a, fuel) }
 !solve.mid.*!              ; k a fuel }
 \end{numberedcode}
 %%  
@@ -2425,6 +2425,57 @@ It~also has a side effect on the state stored in the inner dataflow monad:
 it brings the facts associated with labels up to a fixed point.
 \fi
 
+
+
+\begin{figure*}
+%%  forward_rew
+%%          :: forall m l a . 
+%%             (DebugNodes m l, LastNode l, Outputable a)
+%%          => (forall a . Fuel -> Maybe a -> Maybe a)
+%%          -> RewritingDepth
+%%          -> BlockEnv a
+%%          -> PassName
+%%          -> ForwardTransfers m l a
+%%          -> ForwardRewrites m l a
+%%          -> a
+%%          -> Graph m l
+%%          -> Fuel
+%%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
+%%  forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
+%%    where
+%%      fixed_pt_and_fuel =
+%%          do { (a, g, fuel) <- rewrite xstart_facts getExitFact in_factx gx fuelx
+%%             ; facts <- getAllFacts
+%%             ; let fp = ... facts ... g ...
+%%             ; return (fp, fuel)
+%%             }
+%%  
+%%  
+%%      rewrite_blocks (Block id t : bs) rewritten fuel =
+%%        ... rew_tail h (ft_first_out transfers id a) t rewritten fuel ...
+%%      rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
+\setcounter{codeline}{0}
+\begin{numberedcode}
+    rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
+    rewrite start in_fact g fuel =
+      let blocks = postorder_dfs g
+!call.forward.sol!      in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
+            ; (rewritten, fuel) <- rewrite_blocks blocks emptyBlockEnv fuel
+            ; a <- getExitFact
+            ; return (a, Graph eid rewritten, fuel)
+            }
+
+!rew.tail.1!    rew_tail head in' (ZTail m t) rewritten fuel =
+!rewrite.squash!      case squash fuel $ fr_middle rewrites m in' of
+!rewrite.append.m!        Nothing -> rew_tail (ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
+!rewrite.rewrite.1!        Just g -> do { (a, g, fuel) <- inner_rew in' g fuel
+!rewrite.rewrite.*!                     ; let (blocks, h) = splice_head head g
+!rew.tail.*!                     ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
+\end{numberedcode}
+\caption{Excerpts from the forward rewriter}
+\figlabel{rewriter-excerpts}
+\end{figure*}
+
 The solver is written in continuation-passing style, using the three
 continuation types on \linerangeref{FactKont}{FuelKont} of
 \figref{solver-excerpts}. 
@@ -2480,74 +2531,26 @@ fuel;
 it runs for its side effects on the inner dataflow monad, and it
 returns the remaining fuel.
 
-Space limitations prevent us from presenting the rest of the solver
-in detail.
-To~solve a list of blocks, we iterate @solve_block@ until reaching a
+In the rest of the solver,
+function @solve_blocks@ takes a list of blocks
+produces a continuation of type @FuelKont a Fuel@, which
+iterates @solve_block@ until it reaches a
 fixed point.
-We~can then write solvers for subgraphs which are open/open,
+Using @solve_blocks@, we write solvers for subgraphs which are open/open,
 open/closed, or closed/open, and finally @solve_Ox@, which solves an
 entire graph~@g@.
-Graph~@g@ is open at the entry and may be open or closed at
-the exit: if open, it produces an exit fact; if closed, it does not.
-The solver for an entire graph therefore has side effects on the inner
-dataflow monad, and it returns a pair containing a possible exit fact
-and the remaining fuel.
+This function is run primarily for its
+side effects on the inner
+dataflow monad.
+It also returns the remaning fuel, and if it is open at the exit, it
+returns an exit fact as well.
 
-
-\begin{figure*}
-%%  forward_rew
-%%          :: forall m l a . 
-%%             (DebugNodes m l, LastNode l, Outputable a)
-%%          => (forall a . Fuel -> Maybe a -> Maybe a)
-%%          -> RewritingDepth
-%%          -> BlockEnv a
-%%          -> PassName
-%%          -> ForwardTransfers m l a
-%%          -> ForwardRewrites m l a
-%%          -> a
-%%          -> Graph m l
-%%          -> Fuel
-%%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
-%%  forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
-%%    where
-%%      fixed_pt_and_fuel =
-%%          do { (a, g, fuel) <- rewrite xstart_facts getExitFact in_factx gx fuelx
-%%             ; facts <- getAllFacts
-%%             ; let fp = ... facts ... g ...
-%%             ; return (fp, fuel)
-%%             }
-%%  
-%%  
-%%      rewrite_blocks (Block id t : bs) rewritten fuel =
-%%        ... rew_tail h (ft_first_out transfers id a) t rewritten fuel ...
-%%      rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
-\setcounter{codeline}{0}
-\begin{numberedcode}
-    rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
-    rewrite start in_fact g fuel =
-      let blocks = postorder_dfs g
-!call.forward.sol!      in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
-            ; (rewritten, fuel) <- rewrite_blocks blocks emptyBlockEnv fuel
-            ; a <- getExitFact
-            ; return (a, Graph eid rewritten, fuel)
-            }
-
-!rew.tail.1!    rew_tail head in' (ZTail m t) rewritten fuel =
-!rewrite.squash!      case squash fuel $ fr_middle rewrites m in' of
-!rewrite.append.m!        Nothing -> rew_tail (ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
-!rewrite.rewrite.1!        Just g -> do { (a, g, fuel) <- inner_rew in' g fuel
-!rewrite.rewrite.*!                     ; let (blocks, h) = splice_head head g
-!rew.tail.*!                     ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
-\end{numberedcode}
-\caption{Excerpts from the forward rewriter}
-\figlabel{rewriter-excerpts}
-\end{figure*}
-
-We do feel compelled to give details of one solver function:
-all other functions are composed of applications of @solve_first@,
-@solve_mid@, and @solve_last@, and on
-\linerangeref{solve.mid.1}{solve.mid.*} of \figref{solver-excerpts},
-we show @solve_mid@ in full.
+Ultimately, \emph{all} solver functions
+are composed of applications of @solve_first@,
+@solve_mid@, and @solve_last@: they are the base cases.
+All three are similar, so we show just one:
+@solve_mid@ appears on
+\linerangeref{solve.mid.1}{solve.mid.*} of \figref{solver-excerpts}.
 On~\lineref{solve.mid.case}, a rewrite function is presented with an
 input fact~@in'@ and a middle node~@m@.
 If~the rewrite function proposes no replacement graph, 
@@ -2559,47 +2562,52 @@ the supply of fuel.
 The interesting case occurs on \linerangeref{solve.mid.Just}{solve.mid.*},
 when the rewrite function 
 proposes a replacement graph~@g@.
+The application of @with_fuel@ produces~@g@ together with the reduced
+supply of fuel.
 \begin{enumerate}
 \item
-If we are doing \emph{deep} rewriting, @g@~may be further rewritten,
-so we call @solve@ recursively after removing one unit of fuel (\lineref{solver.rewrite.deep}).
+If we are doing \emph{deep} rewriting, @g@~may be further rewritten as
+it is analyzed.
+We therefore make a recursive call to @solve_OO@ (not shown) on
+\lineref{solve.OO}.
+(Because @g@~replaces a middle node, it is open at entry and exit.)
+This recursive call is given continuation @curry return@, and the
+resulting @FactKont a a@ is given
+the input fact and fuel supply.
+The result is a monadic computation of the output fact and remaining
+fuel supply, which are bound on \lineref{solve.subAnalysis}.
+
+Before binding the results, we apply @subAnalysis@ (also on
+\lineref{solve.subAnalysis}), which rolls back the mutations
+made by @solve_OO@ as it iterates to a fixed point.
+Applying @subAnalysis@ leaves the state of the inner dataflow monad
+unchanged, so that only the pair @(a, fuel)@ esacpes from the sub-analysis.
 \item
 If we are doing \emph{shallow} rewriting,  new graph~@g@ must not be
 rewritten, but we must still find a fixed point of the transfer
 equations.
-We compute that fixed point using @anal_f@ (not shown), which  recursively calls
-@forward_sol@ using the @squash@ function
+We compute that fixed point using @anal_f_OO@ (not shown), which  recursively calls
+@forward_sol@ using the @with_fuel@ function
 @\ _ _ -> Nothing@, 
 thereby doing no rewriting and consuming no fuel
-(\linepairref{solver.rewrite.shallow.1}{solver.rewrite.*}).
-
+(\linepairref{solve.rewrite.shallow.1}{solve.rewrite.shallow.*}).
 \end{enumerate}
-Whether rewriting is shallow or deep, the new graph~@g@ is analyzed as
-a ``sub-analysis'' in the inner dataflow monad
-(\lineref{solver.rewrite.1}), which means it has fresh 
-state for tracking facts and deciding whether analysis has reached a
-fixed point.
-State changes made in a sub-analysis cannot be observed by the outer
-analysis. 
-In~fact, after the sub-analysis all the new state \emph{and the new
-  graph} are thrown away.
-As~\linerangeref{solver.rewrite.1}{solver.tail.*} show, the new
-graph~@g@ is used only to compute the new 
-dataflow fact~@a@ and the diminished
-supply of fuel.
-On \lineref{solver.tail.*}, @solve_tail@ continues tail-recursively solving~@t@.
-The only difference between rewriting
-(\linerangeref{solver.rewrite.1}{solver.tail.*}) and not 
-rewriting (\lineref{solver.no.rewrite}) is the
-\emph{fact} and the \emph{fuel} passed to the tail call.
-
-\ifpagetuning\enlargethispage{-\baselineskip}\fi % reduce ugly gaps
-
-The full implementations of @solve@ and @solve_tail@, which are
-included in a supplement to this paper, contain similar code to
-rewrite first nodes and last nodes and to sub-analyze the replacement
-graphs. 
-
+%%  Whether rewriting is shallow or deep, the new graph~@g@ is analyzed as
+%%  a ``sub-analysis'' in the inner dataflow monad
+%%  (\lineref{solver.rewrite.1}), which means it has fresh 
+%%  state for tracking facts and deciding whether analysis has reached a
+%%  fixed point.
+%%  State changes made in a sub-analysis cannot be observed by the outer
+%%  analysis. 
+%%  In~fact, after the sub-analysis all the new state \emph{and the new
+%%    graph} are thrown away.
+%%  As~\linerangeref{solver.rewrite.1}{solver.tail.*} show, the new
+%%  graph~@g@ is used only to compute the new 
+%%  dataflow fact~@a@ and the diminished
+%%  supply of fuel.
+Whether rewriting is shallow or deep, the application on
+\lineref{solve.mid.*} uses the continuation~@k@ to solve the rest of
+the graph, given the output fact and the remaining fuel supply.
 
 
 
