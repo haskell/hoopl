@@ -311,7 +311,12 @@ assertion (@true@) and computing strongest postconditions.
     { x == 7 && y == 8 }
   z = x + y;
 \end{verbatim}
-\simon{Could we add $x=7,y=8,z=15$ as a final assertion?}
+\remark{SLPJ asks: Could we add $x=7,y=8,z=15$ as a final assertion?
+We can but we should not, because a \naive\ sp function 
+would produce the assertion $x=7\land y = 8
+\land z = x+y$. To reach the point you desire, some sort of simplifier
+would be required, and it is better to let the conclusion emerge
+naturally as  the code is rewritten.}
 In the assignment to~@z@, the assertion @x == 7@ justifies
 substituting 7~for~@x@, leaving @z = 7 + y@.  
 This transformation is traditionally called ``constant propagation.''
