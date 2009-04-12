@@ -3018,6 +3018,15 @@ We use the algorithm of \citet{lerner-grove-chambers:2002} to
 compose analyses and transformations.
 This~algorithm makes it easy to compose complex transformations
 from simple ones.
+
+We have create a new implementation of the algorithm, which uses
+continuation-passing style.
+Written in this style, each part of algorithm is implemented by many
+compositions of three relatively simple functions.
+Because the individual functions are simple, and because we can
+compare our code with standard denotational semantics for imperative
+languages, we have more confidence in this new implementation than in
+any previous implementation. 
 \item
 Our code is pure.
 Inspired by Huet's~\citeyearpar{huet:zipper} zipper,
