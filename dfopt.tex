@@ -3237,8 +3237,8 @@ forward_sol squash depth name start_facts transfers rewrites = fixed_point
      case squash fuel $ either_last rewrites in' l of
        Nothing -> case l of LastOther l -> return (ft_last_outs transfers l in', fuel)
                             LastExit -> do { setExitFact in'
-                                           ; return (LastOutFacts [], fuel) }
-       Just g -> do { (last_outs :: LastOutFacts a, fuel) <- subAnalysis' $
+                                           ; return (LastOuts [], fuel) }
+       Just g -> do { (last_outs :: LastOuts a, fuel) <- subAnalysis' $
                         case depth of
                           RewriteDeep -> solve lastOutFacts in' g (oneLessFuel fuel)
                           RewriteShallow -> do { los <- anal_f lastOutFacts in' g
