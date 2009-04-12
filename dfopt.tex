@@ -2447,9 +2447,8 @@ it brings the facts associated with labels up to a fixed point.
           Just (fuel, g) ->
 !rew.subAnalysis!              do { (g, a, fuel) <- subAnalysis $
                       case depth of
-                        RewriteDeep -> sar_OO g (\g a f -> return (g, a, f)) in' fuel
-                        RewriteShallow ->
-!rew.anal.f.OO!                           do { a <- anal_f_OO g in'; return (g, a, fuel) }
+                        RewriteDeep    -> sar_OO g (\g a f -> return (g, a, f)) in' fuel
+!rew.anal.f.OO!                        RewriteShallow -> do { a <- anal_f_OO g in'; return (g, a, fuel) }
 !rew.mid.*!                 ; k (head <*> g) a fuel }
 
 !sar.OO!      sar_OO :: Graph m l -> GraphFactKont m l a b -> FactKont a b
@@ -2550,26 +2549,29 @@ the current supply of fuel.
 The interesting case occurs on \linerangeref{solve.mid.Just}{solve.mid.*},
 when the rewrite function 
 proposes a replacement graph~@g@.
-The application of @with_fuel@ produces~@g@ together with the reduced
+The application of @with_fuel@ produces~@g@ together with a reduced
 supply of fuel.
 \begin{enumerate}
 \item
-If we are doing \emph{deep} rewriting, @g@~may be further rewritten as
-it is analyzed.
-We therefore make a recursive call to @solve_OO@ (not shown) on
-\lineref{solve.OO}.
+If we are doing \emph{deep} rewriting, then as @g@~is analyzed
+it may be rewritten further.
+Analysis with rewriting is done
+on~\lineref{solve.OO}
+by a recursive call to @solve_OO@ (not shown).
 (Because @g@~replaces a middle node, it is open at entry and exit.)
-This recursive call is given continuation @curry return@, and the
-resulting @FactKont a a@ is given
+The recursive call gets continuation @uncurry return@, and the
+resulting @FactKont a (a, Fuel)@ is given
 the input fact and fuel supply.
-The result is a monadic computation of the output fact and remaining
-fuel supply, which are bound on \lineref{solve.subAnalysis}.
+The output fact and remaining
+fuel supply are computed in the inner dataflow monad and bound on
+\lineref{solve.subAnalysis}. 
 
-Before binding the results, we apply @subAnalysis@ (also on
+The monadic computation is wrapped in @subAnalysis@ (also on
 \lineref{solve.subAnalysis}), which rolls back the mutations
 made by @solve_OO@ as it iterates to a fixed point.
 Applying @subAnalysis@ leaves the state of the inner dataflow monad
-unchanged, so that only the pair @(a, fuel)@ esacpes from the sub-analysis.
+unchanged, so that the only effect of the sub-analysis is to produce
+ the pair @(a, fuel)@.
 \item
 If we are doing \emph{shallow} rewriting,  new graph~@g@ must not be
 rewritten, but we must still find a fixed point of the transfer
@@ -2625,7 +2627,8 @@ different, as shown on \linepairref{GraphFactKont}{GraphKont} of
 \Linerangeref{rew.first}{rew.last} give the types of the base-case
 rewriting functions; because these functions are called \emph{after}
 the solver has set the state of the inner dataflow monad to a fixed
-point, there is no need to propagate facts out of a last node.
+point, they need not propagate facts out of a last node, so there is
+no analog of @LOFsKont@.
 
 Function @rew_mid@ on \linerangeref{rew.mid.1}{rew.mid.*} of
 \figref{rewriter-excerpts} is very similar to function @solve_mid@ on 
@@ -2644,12 +2647,14 @@ Rewriting proceeds with the new graph @head <*> g@
 \remark{Need to be sure that we say @<*>@ is splicing and cite ML
 workshop paper}
 
-Function @sar_OO@ (type on \lineref{sar.OO}, implementation not shown)
-has no counterpart in the solver; 
-indeed, it first calls the solver to set the dataflow facts to a fixed
+The recursive solve-and-rewrite function @sar_OO@ (type on
+\lineref{sar.OO}, implementation not shown) 
+has no counterpart in the solver.
+It first calls the solver to set the dataflow facts to a fixed
 point, then calls rewrite functions to rewrite the graph based on
 those facts.
-There are similar functions for graphs of other shapes.
+For graphs of other shapes,
+there are similar functions.
 
 
 
