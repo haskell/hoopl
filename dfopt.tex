@@ -2456,21 +2456,25 @@ it brings the facts associated with labels up to a fixed point.
 %%      rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
 \setcounter{codeline}{0}
 \begin{numberedcode}
-    rewrite :: BlockEnv a -> DFM a b -> a -> Graph m l -> Fuel -> DFM a (b, Graph m l, Fuel)
-    rewrite start in_fact g fuel =
-      let blocks = postorder_dfs g
-!call.forward.sol!      in do { forward_sol squash depth name start transfers rewrites in_fact g fuel
-            ; (rewritten, fuel) <- rewrite_blocks blocks emptyBlockEnv fuel
-            ; a <- getExitFact
-            ; return (a, Graph eid rewritten, fuel)
-            }
+!GraphFactKont!type GraphFactKont  m l a b = Graph m l -> a -> Fuel -> DFM a b
+!GraphKont!type GraphKont      m l a b = Graph m l      -> Fuel -> DFM a b
 
-!rew.tail.1!    rew_tail head in' (ZTail m t) rewritten fuel =
-!rewrite.squash!      case squash fuel $ fr_middle rewrites m in' of
-!rewrite.append.m!        Nothing -> rew_tail (ZHead head m) (ft_middle_out transfers m in') t rewritten fuel
-!rewrite.rewrite.1!        Just g -> do { (a, g, fuel) <- inner_rew in' g fuel
-!rewrite.rewrite.*!                     ; let (blocks, h) = splice_head head g
-!rew.tail.*!                     ; rew_tail h a t (blocks `plusBlockEnv` rewritten) fuel }
+!rew.first!      rew_first :: BlockId -> GraphFactKont m l a b -> GraphKont     m l a b
+      rew_mid   :: m       -> GraphFactKont m l a b -> GraphFactKont m l a b
+!rew.last!      rew_last  :: l       -> GraphKont     m l a b -> GraphFactKont m l a b
+
+!rew.mid.1!      rew_mid m k head in' fuel =
+        case with_fuel fuel $ fr_middle rewrites in' m of
+          Nothing -> k (head <*> mkMiddle m) (ft_middle_out transfers in' m) fuel
+          Just (fuel, g) ->
+!rew.subAnalysis!              do { (g, a, fuel) <- subAnalysis $
+                      case depth of
+                        RewriteDeep -> sar_OO g (\g a f -> return (g, a, f)) in' fuel
+                        RewriteShallow ->
+!rew.anal.f.OO!                           do { a <- anal_f_OO g in'; return (g, a, fuel) }
+!rew.mid.*!                 ; k (head <*> g) a fuel }
+
+!sar.OO!      sar_OO :: Graph m l -> GraphFactKont m l a b -> FactKont a b
 \end{numberedcode}
 \caption{Excerpts from the forward rewriter}
 \figlabel{rewriter-excerpts}
@@ -2629,77 +2633,39 @@ the graph, given the output fact and the remaining fuel supply.
 
 \seclabel{forward-rewriter}
 
-The core of the rewriter is shown in \figref{rewriter-excerpts}.
-At~this point, because the rewriter produces a new graph, we~explain
-how a graph is represented: it is a finite map from  @BlockId@
-  to basic block, together with the @BlockId@ of the entry block:
-\begin{code}
-data Graph m l = Graph BlockId (BlockEnv (Block m l))
-\end{code}
-Function @rewrite@ first calls @forward_sol@
-(\figref{solver-excerpts}) to iterate to a fixed point
-(\figref{rewriter-excerpts}, \lineref{call.forward.sol}).
-At~this point, the facts stored in the inner dataflow monad can be
-used for rewriting.
-The work is done by @rewrite_blocks@ (not shown), which simply
-rewrites each block in turn and returns a finite map containing the
-rewritten blocks, plus the remaining fuel supply.
+The forward rewriter closely resembles the
+forward solver, but because the rewriter passes the rewritten graph as
+an accumulating parameter, the types of the continuations are
+different, as shown on \linepairref{GraphFactKont}{GraphKont} of
+\figref{rewriter-excerpts}. 
+\Linerangeref{rew.first}{rew.last} give the types of the base-case
+rewriting functions; because these functions are called \emph{after}
+the solver has set the state of the inner dataflow monad to a fixed
+point, there is no need to propagate facts out of a last node.
 
-As~above, we show only the code relevant to rewriting middle nodes;
-code for first nodes and last nodes is similar.
-The @rew_tail@ function (\linerangeref{rew.tail.1}{rew.tail.*}) uses
-exactly the same test as in the solver: on \lineref{rewrite.squash},
-it scrutinizes
-\begin{verbatim}
-   squash fuel $ fr_middle rewrites m in'
-\end{verbatim}
-If the node~@m@ is not rewritten, the action taken is almost the same
-as in the solver, but @rew_tail@ takes two 
- additional accumulating parameters.
-Parameter @head@ carries
-the leading fragment of the current basic block,
-from its first node up to the middle node~@m@, which is
-a candidate for rewriting;
-parameter @rewritten@ carries the blocks that have already been
-rewritten.
-%
-To~store a leading fragment of a basic block, we use type @ZHead m@:
-\begin{verbatim} 
-data ZHead m = ZFirst BlockId | ZHead (ZHead m) m
-\end{verbatim}
-We append~@m@ to the
-fragment~@head@ by forming @ZHead head m@ 
-(\figref{rewriter-excerpts}, \lineref{rewrite.append.m}). 
+Function @rew_mid@ on \linerangeref{rew.mid.1}{rew.mid.*} of
+\figref{rewriter-excerpts} is very similar to function @solve_mid@ on 
+\linerangeref{solve.mid.1}{solve.mid.*} of \figref{solver-excerpts}.
+\Lineref{rew.mid.1} shows the additional parameter @head@, which
+contains the (rewritten) graph preceding middle node~@m@.
+When no rewrite is proposed, the only change to the code is that
+continuation~@k@ takes the additional parameter
+@head <*> mkMiddle m@,
+which is the graph formed by concatenating graph @head@ and node~@m@. 
+When a rewrite is proposed, the sub-analysis computes not just an
+output fact and a new fuel supply but also a possibly rewritten graph
+(\linerangeref{rew.subAnalysis}{rew.anal.f.OO}).
+Rewriting proceeds with the new graph @head <*> g@
+(\lineref{rew.mid.*}).
+\remark{Need to be sure that we say @<*>@ is splicing and cite ML
+workshop paper}
 
-
-The interesting case is where the middle node~@m@ is rewritten into
-a replacement graph~@g@ (\linerangeref{rewrite.rewrite.1}{rewrite.rewrite.*}).
-%%We~first mark the graph as rewritten, so that whatever called this
-%% pass may know that the graph has changed.
-%% As~before, we convert~@g@ by supplying it with fresh labels.
-On \lineref{rewrite.rewrite.1}, @inner_rew@ (not shown) handles the
-distinction between deep and shallow rewriting:
-when rewriting deeply, it recursively calls @rewrite@,
-and 
-when rewriting shallowly, it calls @forward_sol@ from
-\figref{solver-excerpts}. 
-Deep or shallow, it produces the exit fact from the sub-analysis of
-the rewritten graph, 
-the rewritten graph itself, 
-and the remaining fuel supply.
-The rewritten graph is
-spliced onto the head of the block
-\cite{ramsey-dias:applicative-flow-graph}, producing a new head~@h@
-and a set 
-of fully rewritten blocks~@blocks@ (\lineref{rewrite.rewrite.*}).
-%The splicing algorithm is described by
-%\citet{ramsey-dias:applicative-control-flow}. 
-On~\lineref{rew.tail.*}, 
-the new head~@h@ replaces @head@; @blocks@ is added to the
-accumulating parameter @rewritten@; and
-@rew_tail@ continues with the next node by making a tail call
-to rewrite~@t@.
-
+Function @sar_OO@ (type on \lineref{sar.OO}, implementation not shown)
+has no counterpart in the solver; 
+indeed, it first calls the solver to set the dataflow facts to a fixed
+point, then calls rewrite functions to rewrite the graph based on
+those facts.
+There are similar functions for graphs of other shapes.
 
 
 
