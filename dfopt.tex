@@ -794,6 +794,8 @@ into a node, and it computes dataflow facts on outgoing edges.
 To~understand transfer functions, we must 
 understand how the library organize the nodes and edges of a control-flow graph.
 
+\seclabel{graph.intro}
+
 A~control-flow graph is a collection of labelled \emph{basic blocks}.
 Each basic block is a sequence beginning with a \emph{first node},
 containing zero or more \emph{middle nodes},
@@ -805,6 +807,9 @@ a~typical last node is a conditional, unconditional, or indirect branch.
 The client code choose the types of middle and last nodes, and in this
 way defines its intermediate
 representation.
+(An~optimizer also works with \emph{subgraphs}, in which one or two
+distinguished basic blocks may be incomplete.
+Details appear in \secref{subgraphs}.)
 
 
 
@@ -1741,7 +1746,8 @@ type declarations for rewrite functions are
 shown in \figref{rewrites}. 
 %
 A~rewrite function is given a dataflow fact and a node.
-It~may choose to replace the node with a new graph~$g$, in which case it
+It~may choose to replace the node with a \emph{replacement graph}~$g$,
+in which case it 
 returns $@Just@\;g$, or it may do nothing, in which case it returns @Nothing@.
 The assertions represented by incoming dataflow facts must 
 ensure that the
@@ -1861,6 +1867,8 @@ graph is \emph{thrown away}; only the facts remain.
 If,~during iteration, the original node is analyzed again, perhaps
 with a different input fact, the rewrite function may propose
 a different replacement or even no replacement at all.
+As described in \secref{subgraphs}, every replacement graph is a
+\emph{subgraph}, not a complete graph.
 
 The first phase is called the \emph{solver}.
 It computes a fixed point of the dataflow analysis
@@ -2264,6 +2272,62 @@ To control the fuel supply in a purely functional setting, we use
 the fuel monad.
 %% , which works with
 %% computations of type @Fuel -> (a, Fuel)@.
+
+
+\subsection{Aside: Representing graphs and subgraphs}
+
+\seclabel{subgraphs}
+
+\secref{graph.intro} oversimplifies the representation of graphs.
+It is true that a graph is a collection of basic blocks, 
+and that a typical basic block has one first node followed by zero or
+more middle nodes followed by one last node.
+But~in addition, a graph may contain two special, incomplete basic
+blocks:
+\begin{itemize}
+\item
+An \emph{entry sequence} is a sequence of zero or more middle nodes
+ending in a last node (i.e., a control transfer).
+If~a graph has an entry sequence it is \emph{enterable} or
+\emph{open at the entry}.
+\item
+An \emph{exit sequence} is a first node followed by zero or more
+middle nodes, but \emph{not} ending in a last node---control ``falls
+off the end.''
+If~a graph has an exit sequence it is \emph{exitable} or
+\emph{open at the exit}.
+\end{itemize}
+The representation of both graphs and subgraphs is therefore a triple:
+an optional entry sequence, a @BlockEnv@ containing basic blocks,
+and an optional exit sequence.
+
+
+To~describe the presence or absence of entry and exit sequences, we
+refer to a graph's \emph{shape} as open/open (enterable and exitable),
+open/closed (enterable but not exitable), or closed/open (not
+enterable, but exitable).  
+In
+the dataflow engine, the shape constrains the rewrite
+functions:\footnote {Shape is also used when graphs are constructed:
+graphs provide a constant-type concatentation operator @<*>@, and for
+example if $g_1$'s shape is $e$/open and $g_2$'s shape is open/$x$,
+then $g_1 \mathbin{\mbox{@<*>@}} g_2$ is well defined and has shape
+$e$/$x$.  (The exit sequence of~$g_1$ is spliced to the entry sequence
+of~$g_2$ to form a new, complete basic block.)}
+\begin{itemize}
+\item
+A first node with @BlockId@~$l$ must be rewritten to a closed/open
+replacement graph which also begins with @BlockId@~$l$.
+\item
+A middle node must be rewritten to an open/open graph, that is, a
+single-entry, single-exit subgraph.
+\item
+A last node must be rewritten to an open/closed graph, that is, a
+graph with an entry sequence but no exit sequence: all control-flow
+paths end in explicit control transfers.
+\end{itemize}
+These conditions are necessary and sufficient to ensure that 
+every replacement graph can be spliced in place of the node it is derived from.
 
 
 \subsection{The forward solver}
