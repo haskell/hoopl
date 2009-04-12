@@ -2,6 +2,8 @@
 <./spell.mk
 <./bbl.$USER.mk
 
+#LASTPAGE=12  # used this for submission
+LASTPAGE=   
 
 TGT=dfopt
 
@@ -13,7 +15,7 @@ bbl:V: bib
 dfopt.dvi: dfopt.bbl code.sty timestamp.tex
 
 $TGT.pdf: $TGT.dvi
-	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-12 $prereq
+	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-$LASTPAGE $prereq
 
 supplement.pdf: $TGT.dvi
 	dvips -Ppdf -o "|ps2pdf - $target" -pp 13- $prereq
