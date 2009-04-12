@@ -792,9 +792,8 @@ a~typical last node is a conditional, unconditional, or indirect branch.
 The client code choose the types of middle and last nodes, and in this
 way defines its intermediate
 representation.
-\remark{To say or not to say: ``(An~optimizer also works with \emph{subgraphs}, in which one or two
-distinguished basic blocks may be incomplete.
-Details appear in \secref{subgraphs}.)''}
+(An~optimizer also works with \emph{subgraphs}, which may be missing a
+first node or a last node, as discussed in \secref{subgraphs}.)
 
 
 
@@ -1162,7 +1161,7 @@ expression @z + x@.
 at all.
 
 \ifpagetuning\enlargethispage{0.5\baselineskip}\fi 
-  % make adjacent columns match
+  % this one has national-security importance!
 
 
 
@@ -1344,7 +1343,9 @@ want to represent \emph{both} the universal set \emph{and} the empty set.
 But I'm unclear about the trade-offs in approximation that arise 
 from this either-or representation.}
 
-\ifpagetuning\enlargethispage{\baselineskip}\fi
+%\ifpagetuning\enlargethispage{\baselineskip}\fi
+   % restoring this saves about 5 lines on page 9
+
 
 Because universal sets can be awkward to manipulate, we represent a
 set either as
@@ -1391,7 +1392,7 @@ To manipulate sets of variables, we provide the functions declared in
 
 
 
-\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
+% \ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
 The most interesting part of the pass is the @middleAvail@ transfer
 function in \figref{avail-transfers}.\finalremark
@@ -1401,8 +1402,8 @@ This transfer function is specialized to the type of @Middle@ node
 used in~GHC.
 In~GHC, a~middle node is either @MidAssign@, which assigns to a local
 or global variable, or @MidStore@, which assigns to memory.
-\par
-\ifpagetuning{\enlargethispage{\baselineskip}}\fi
+%\par
+%\ifpagetuning{\enlargethispage{\baselineskip}}\fi
 %\kern-8pt
 \begin{itemize}
 \item
@@ -1424,7 +1425,7 @@ Function @foldVarsDefd@ is a function which, in this
 instance, calls @delFromAvail@ if @lhs@ is a local variable and does
 nothing if @lhs@ is a global variable.
 
-\ifpagetuning\smallskip\fi  
+%\ifpagetuning\smallskip\fi  
   % more even spacing because \subsection 4.2 forces page break
 
 %% \remark{To Simon and John: I've removed ``overloaded but am a bit nervous
@@ -2842,11 +2843,7 @@ People don't like infinite sequences either, which is why they invent
 %Much like finding a useful induction hypothesis for a proof, 
 But finding a loop invariant requires art and intuition;
 in~all but the simplest cases, it is beyond
-\ifpagetuning
 what a compiler can do.
-\else
-the capabilities of a compiler.
-\fi
 
 
 %%  Strongest postconditions also require a loop invariant, but with dual
@@ -2943,9 +2940,9 @@ We consider only two
 relations: weakest liberal precondition and strongest 
 postcondition, which
  correspond 
-\ifpagetuning\else
+%\ifpagetuning\else
 respectively
-\fi
+%\fi
 to
 ``backward dataflow problems'' and ``forward dataflow
 problems.''\finalremark
