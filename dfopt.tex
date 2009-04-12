@@ -2159,41 +2159,10 @@ type LOFsKont a b = LastOuts a -> Fuel -> DFM a b
 !solve.mid.Just!         Just (fuel, g) ->
 !solve.subAnalysis!           do { (a, fuel) <- subAnalysis $
                    case depth of
-!solve.OO!                     RewriteDeep -> solve_OO g (uncurry return) in' fuel
-!solve.rewrite.shallow.1!                     RewriteShallow -> do { a <- anal_f_OO g in'
-!solve.rewrite.shallow.*!                                          ; return (a, fuel) }
+!solve.OO!                     RewriteDeep    -> solve_OO g (uncurry return) in' fuel
+!solve.rewrite.shallow.1!                     RewriteShallow -> do { a <- anal_f_OO g in'; return (a, fuel) }
 !solve.mid.*!              ; k a fuel }
 \end{numberedcode}
-%%  
-%%  
-%%  
-%%     forward_sol :: LastNode l => (forall a . Fuel -> Maybe a -> Maybe a) -> RewritingDepth -> PassName 
-%%                 -> BlockEnv a -> ForwardTransfers m l a -> ForwardRewrites m l a
-%%                 -> a -> Graph m l -> Fuel
-%%                 -> DFM a (ForwardFixedPoint m l a (), Fuel)
-%%  !forward.sol.args!   forward_sol squash depth name start_facts transfers rewrites = ... setAllFacts start_facts ...
-%%  !solve.1!     where solve :: a -> Graph m l -> Fuel -> DFM a (a, Fuel)
-%%  !setFact.g.entry!           solve in_fact g fuel = do { setFact (g_entry g) in_fact
-%%                                       ; fuel <- run "forward" name set_successor_facts blocks fuel
-%%                                       ; b <- getExitFact                                          
-%%  !solve.*!                                     ; return (b, fuel) }                                        
-%%  !solve.blocks!             where blocks = postorder_dfs g
-%%  !set.successor.facts.1!                   set_successor_facts (Block id tail) fuel =
-%%  !solver.getFact!                     do { idfact <- getFact id
-%%                          ; (last_outs, fuel) <-
-%%                              ... solve_tail (ft_first_out transfers id idfact) tail fuel ...
-%%  !solver.set.or.save!                        ; set_or_save last_outs
-%%  !set.successor.facts.*!                        ; return fuel }
-%%  
-%%  !solver.tail.1!           solve_tail in' (ZTail m t) fuel =
-%%  !solver.fr.middle!             case squash fuel $ fr_middle rewrites m in' of
-%%  !solver.no.rewrite!               Nothing -> solve_tail (ft_middle_out transfers m in') t fuel
-%%  !solver.rewrite.1!               Just g -> do { (a, fuel) <- subAnalysis $
-%%                                   case depth of
-%%  !solver.rewrite.deep!                                   RewriteDeep -> solve in' g (oneLessFuel fuel)
-%%  !solver.rewrite.shallow.1!                                   RewriteShallow -> do { a <- anal_f getExitFact in' g
-%%  !solver.rewrite.*!                                                        ; return (a, oneLessFuel fuel) }
-%%  !solver.tail.*!                            ; solve_tail a t fuel }
 \caption{Excerpts from the forward solver}
 \figlabel{solver-excerpts}
 \end{figure*}
@@ -2214,20 +2183,17 @@ through~\ref{sec:rewrites},
 we use our library to create analyses and transformations.
 In this section, we sketch the implementation of the main part of our
 library: the dataflow engine.
-Despite the implicit claim in the title of this paper,
-the dataflow engine is not simple.
-The \emph{interface} (lattice, transfer functions, rewrite functions) is simple,
-and as shown above, compiler passes written \emph{using} the engine
-are simple.
-But~the implementation is complex.
-This section shows that the complexity is {manageable}.
+The dataflow engine is not as simple as the title of this paper might
+lead you to expect.
+The \emph{interface} (lattice, transfer functions, rewrite functions) is simple;
+as shown above, compiler passes written \emph{using} the engine
+are simple;
+and even the individual parts of the engine are simple---but the
+totality is complex.
 
-\simon{This section is better, although I have not read every line.
-But it still doesn't answer the questions I asked earlier:
-What new insights
-are gained, beyond a quick sketch of a particular implementation?
-For example, is it notably simpler than the OCaml version or Chambers's version?
-If so, what led to this simplicity?}
+\remark{Simon asked what new insights are gained.
+Compared with our earlier work, using CPS dramatically simplifies the
+dataflow engine.}
 
 The dataflow engine is implemented in two layers.
 The lower layer comprises the \emph{fuel monad} and the \emph{inner dataflow monad}.
@@ -2247,7 +2213,7 @@ getAllFacts :: DFM a (BlockEnv a)
 setAllFacts :: BlockEnv a -> DFM a ()
 subAnalysis :: DFM a b -> DFM a b
 \end{code}
-The~most interesting operation is @subAnalysis@, which
+The~interesting operation is @subAnalysis@, which
 runs an analysis in a fresh copy of the current state, then reverts to
 the previous state.
 %%  Using pure code and a monad makes this version much easier to get
@@ -2265,10 +2231,10 @@ to~@IO a@. \simon{``combined''??  There is no fuel moand in Fig 8!}
 The upper layer of the dataflow engine comprises four functions:
 a forward solver, a forward rewriter,
 a backward solver, and a backward rewriter.
-We show excerpts of the forward solver and rewriter in
-\secreftwo{forward-solver}{forward-rewriter}. 
-More complete descriptions are available as a supplement to this
-paper. 
+These functions are new and are significantly simpler than in our
+previous work \cite{ramsey-dias:applicative-flow-graph}.
+In~\secreftwo{forward-solver}{forward-rewriter},
+we show parts of the forward solver and rewriter. 
 
 
 %%  Note that the dataflow engine is the only part of the system that is
@@ -2283,7 +2249,7 @@ paper.
 
 \seclabel{vpoiso}
 
-We have extended Lerner, Grove, and Chambers's algorithm with
+We have extended Lerner, Grove, and Chambers's optimization-combining algorithm with
 Whalley's \citeyearpar{whalley:isolation} algorithm for isolating
 faults.
 Whalley's algorithm is used to test a faulty optimizer;
@@ -2310,11 +2276,13 @@ the fuel monad.
 
 \seclabel{subgraphs}
 
-\secref{graph.intro} oversimplifies the representation of graphs.
-It is true that a graph is a collection of basic blocks, 
-and that a typical basic block has one first node followed by zero or
-more middle nodes followed by one last node.
-But~in addition, a graph may contain two special, incomplete basic
+To explain how graphs are analyzed and rewritten, we must explain how
+they are represented.
+\secref{graph.intro} oversimplifies.
+A~graph \emph{is} a collection of basic blocks, 
+and a typical basic block \emph{does} have a first node followed by zero or
+more middle nodes followed by a last node.
+But a graph may also contain two special, incomplete
 blocks:
 \begin{itemize}
 \item
@@ -2329,9 +2297,11 @@ off the end.''
 If~a graph has an exit sequence it is \emph{exitable} or
 \emph{open at the exit}.
 \end{itemize}
-The representation of both graphs and subgraphs is therefore a triple:
+The representation of a graph or a subgraph is therefore a triple:
 an optional entry sequence, a @BlockEnv@ containing basic blocks,
 and an optional exit sequence.
+As~a special case, a single sequence of middle nodes also forms a
+graph open at both ends.
 
 
 To~describe the presence or absence of entry and exit sequences, we
@@ -2341,9 +2311,10 @@ enterable, but exitable).
 In
 the dataflow engine, the shape constrains the rewrite
 functions:\footnote {Shape is also used when graphs are constructed:
-graphs provide a constant-type concatentation operator @<*>@, and for
-example if $g_1$'s shape is $e$/open and $g_2$'s shape is open/$x$,
-then $g_1 \mathbin{\mbox{@<*>@}} g_2$ is well defined and has shape
+% graphs provide a constant-time concatentation operator @<*>@, and 
+for
+example, if $g_1$'s shape is $e$/open and $g_2$'s shape is open/$x$,
+then the concatenation $g_1 \mathbin{\mbox{@<*>@}} g_2$ is well defined and has shape
 $e$/$x$.  (The exit sequence of~$g_1$ is spliced to the entry sequence
 of~$g_2$ to form a new, complete basic block.)}
 \begin{itemize}
@@ -2351,11 +2322,10 @@ of~$g_2$ to form a new, complete basic block.)}
 A first node with @BlockId@~$l$ must be rewritten to a closed/open
 replacement graph which also begins with @BlockId@~$l$.
 \item
-A middle node must be rewritten to an open/open graph, that is, a
-single-entry, single-exit subgraph.
+A middle node must be rewritten to an open/open graph.
 \item
-A last node must be rewritten to an open/closed graph, that is, a
-graph with an entry sequence but no exit sequence: all control-flow
+A last node must be rewritten to an open/closed graph, in 
+which all control-flow
 paths end in explicit control transfers.
 \end{itemize}
 These conditions are necessary and sufficient to ensure that 
@@ -2400,12 +2370,15 @@ But sometimes we want to prevent a node from being rewritten,
 either because
 we are implementing a pure analysis, or because the optimizer
 is out of fuel. 
-We~do so using parameter @with_fuel@.
+We~do so using parameter @with_fuel@, which can prevent rewriting by
+returning @Nothing@.
 \item
-An analysis of a subgraph starts with known facts @start_facts@, not
-bottom facts; they are passed as a parameter
-(\lineref{forward.sol.args}) and
- set by @setAllFacts@ on \lineref{forward.sol.setAllFacts}.
+Analysis of a subgraph starts with known facts, not
+bottom facts; they are passed as % parameter
+@start_facts@
+% (\lineref{forward.sol.args}) 
+and
+ set on \lineref{forward.sol.setAllFacts}.
 \item
 We track the amount of fuel remaining using
 parameter @fuel@.
@@ -2485,31 +2458,32 @@ continuation types on \linerangeref{FactKont}{FuelKont} of
 \figref{solver-excerpts}. 
 \begin{itemize}
 \item
-Type @FactKont a b@ gives the context following a first node or middle
+Type @FactKont a b@ describes a context following a first node or middle
 node: in a forward analysis, we expect a fact of type~@a@
 to flow out of the node.
 The rest of the analysis consumes that
 fact and the remaining fuel and produces a computation in the inner
 dataflow monad (@DFM a@) whose answer type is type~@b@.
-Type @FactKont a b@ also gives the context following the analysis of
-any replacement graph that is open at the exit.
+%Type @FactKont a b@ also describes the context following the analysis of
+%any replacement graph that is open at the exit.
 \item
-Type @LOFsKont a b@ gives the context following a last node.
+Type @LOFsKont a b@ describes a context following a last node.
 The type is dictated by the type of the transfer function
 @ft_last_outs@ in \figref{transfers}:
 since as many facts flow out of a last node as there are control-flow
 edges leaving that node, the context expects those facts to have type
 @LastOuts a@.
 \item
-Type @FuelKont a b@ gives the context \emph{before} a first node (or a
+Type @FuelKont a b@ describes a context \emph{before} a first node (or a
 basic block).
-The forward analysis of a basic block does \emph{not} start with any
+The forward analysis of a basic block does \emph{not} start with a
 fact flowing in; it starts with the fact associated with that block's
 label in the inner dataflow monad.
 Thus a @FuelKont@ expects no fact as argument; it gets its fact by
 calling the monadic operation @getFact@.
 \end{itemize}
-\Linerangeref{solve.first.sig}{solve.last.sig} give the types of
+\Linerangeref{solve.first.sig}{solve.last.sig} of
+\figref{solver-excerpts} give the types of
 solvers for first, middle, and last nodes.
 These types show that we have written dataflow analysis in Strachey's
 style:
@@ -2520,48 +2494,53 @@ The result types of @solve_first@, @solve_mid@, and @solve_last@
 compose nicely, so that for any basic block we can compute a function
 of type
 @LOFsKont a b -> FuelKont a b@.
-But once we have analyzed a block, we want to update the facts stored in
-the inner dataflow monad---iterative dataflow analysis \emph{means}
-repeatedly updating stored facts until they reach a fixed point.
+But once we have analyzed a block, we no longer want to pass facts
+from one function to another---we want to update the facts stored in
+the inner dataflow monad.
 Stored facts are updated by function @set_last@ on
 \linerangeref{set.last.sig}{set.last.*} of 
-\figref{solver-excerpts}, which simply calls @setFact@ on each fact
+\figref{solver-excerpts}, which calls @setFact@ on each fact
 flowing out of a block, then returns the remaining~@Fuel@.
 By applying the composition
 of @solve_first@, @solve_mid@, and @solve_last@ to @set_last@, we get
 function @solve_block@, whose type is given on \lineref{solve.block}.
-The~type says that @solve_block@ is given a block and an amount of
-fuel;
-it runs for its side effects on the inner dataflow monad, and it
-returns the remaining fuel.
+Function @solve_block@ is given a block and an amount of
+fuel,
+it runs for its side effects on the inner dataflow monad,
+and
+it returns the remaining fuel.
 
 In the rest of the solver,
-function @solve_blocks@ takes a list of blocks
+function @solve_blocks@ (not shown) takes a list of blocks and
 produces a continuation of type @FuelKont a Fuel@, which
-iterates @solve_block@ until it reaches a
+runs @solve_block@ repeatedly,
+updating stored facts until they reach a
 fixed point.
-Using @solve_blocks@, we write solvers for subgraphs which are open/open,
-open/closed, or closed/open, and finally @solve_Ox@, which solves an
-entire graph~@g@.
+Using @solve_blocks@, we have writren solvers for subgraphs which are open/open,
+open/closed, or closed/open.
+
+Finally, @solve_Ox@ (type on \lineref{solve.Ox}, implementation not
+shown), which provides the external interface, 
+solves a graph~@g@ which is open/open or open/closed.
 This function is run primarily for its
 side effects on the inner
 dataflow monad.
-It also returns the remaning fuel, and if it is open at the exit, it
-returns an exit fact as well.
+It also returns the remaining fuel, and if it is open at the exit, it
+returns an exit fact.
 
 Ultimately, \emph{all} solver functions
 are composed of applications of @solve_first@,
-@solve_mid@, and @solve_last@: they are the base cases.
-All three are similar, so we show just one:
-@solve_mid@ appears on
+@solve_mid@, and @solve_last@.
+They are very similar, so we show just one,
+@solve_mid@, on
 \linerangeref{solve.mid.1}{solve.mid.*} of \figref{solver-excerpts}.
-On~\lineref{solve.mid.case}, a rewrite function is presented with an
+On~\lineref{solve.mid.case}, a rewrite function is passed an
 input fact~@in'@ and a middle node~@m@.
 If~the rewrite function proposes no replacement graph, 
 or if no more fuel is available, the application of @with_fuel@
-produces @Nothing@, and the continuation~@k@ is given the output fact
-(computed by the transfer function on \lineref{solve.mid.Nothing}) and
-the supply of fuel.
+returns @Nothing@, and continuation~@k@ is given the output fact
+(computed by @ft_middle_out@ on \lineref{solve.mid.Nothing}) and
+the current supply of fuel.
 
 The interesting case occurs on \linerangeref{solve.mid.Just}{solve.mid.*},
 when the rewrite function 
@@ -2594,7 +2573,7 @@ We compute that fixed point using @anal_f_OO@ (not shown), which  recursively ca
 @forward_sol@ using the @with_fuel@ function
 @\ _ _ -> Nothing@, 
 thereby doing no rewriting and consuming no fuel
-(\linepairref{solve.rewrite.shallow.1}{solve.rewrite.shallow.*}).
+(\lineref{solve.rewrite.shallow.1}).
 \end{enumerate}
 %%  Whether rewriting is shallow or deep, the new graph~@g@ is analyzed as
 %%  a ``sub-analysis'' in the inner dataflow monad
