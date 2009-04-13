@@ -1,6 +1,7 @@
 \newif\ifpagetuning \pagetuningtrue  % adjust page breaks
 
-\newif\ifnoauthornotes\noauthornotesfalse
+\newif\ifnoauthornotes\noauthornotestrue
+\newif\iftimestamp\timestamptrue  % show MD5 stamp of paper
 
 \newif\ifgenkill\genkillfalse  % have a section on gen and kill
 \genkilltrue
@@ -161,8 +162,10 @@
 
 \usepackage{code}   % At-sign notation
 
-% \input{timestamp}
-% \preprintfooter{\mdfivestamp}
+\iftimestamp
+\input{timestamp}
+\preprintfooter{\mdfivestamp}
+\fi
 
 \begin{document}
 \title{Dataflow Optimization Made Simple}
