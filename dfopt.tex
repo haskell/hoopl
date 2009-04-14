@@ -3,6 +3,11 @@
 \newif\ifnoauthornotes\noauthornotestrue
 \newif\iftimestamp\timestamptrue  % show MD5 stamp of paper
 
+\IfFileExists{timestamp.tex}{}{\timestampfalse}
+
+
+
+
 \newif\ifgenkill\genkillfalse  % have a section on gen and kill
 \genkilltrue
 
