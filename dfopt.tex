@@ -1373,12 +1373,13 @@ before uses of~$x$.
 It is \emph{profitable} to insert a reload before a use of~$x$ only if, 
 on every path to the use, the most recent definition of $x$~is a reload from
 $\slotof x$.
-\simon{I'm confused.  Surely that definition of profitable is also what we
+\delendum{I'm confused.  Surely that definition of profitable is also what we
 mean by safe?  NR: No---safety could be establish by an arbitrary
 assignment to~$x$ followed by a store to $\slotof x$.}
-The dataflow fact computed by our analysis is the set of variables for
-which it is both 
-safe and profitable to insert a reload.
+Safety an profitability are incomparable;
+the dataflow fact computed by our analysis is the set of variables for
+which it is \emph{both}
+safe \emph{and} profitable to insert a reload.
 The lattice-join operation is set intersection,\footnote
 {Because the assertion of interest is an ``all-paths'' property.}
 and the bottom element
