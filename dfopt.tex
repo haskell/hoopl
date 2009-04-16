@@ -712,16 +712,20 @@ We~notate this fact as $x = \top$.
 The analysis shows nothing about~$x$, which we notate $x=\bot$.
 \end{itemize}
 The bottom element of the lattice is~$x=\bot$, and
-the join operation \emph{approximates} disjunction.
-\simon{No empahsis needed.}
-In the lattice, a~disjunction of two inconsistent facts is represented by~$x=\top$.
+\remark{I have a note saying ``it turns out that,'' but I've forgotten where
+this phrase was supposed to be inserted.}
+the join operation \emph{approximates} disjunction:\simon{No emphasis needed.}
+a~disjunction of two inconsistent facts is represented by~$x=\top$.
 \simon{I'd still like to give an intuition here about
 \emph{why} disjunction is the key operation, and/or where is is used.
-For example: ``Disjunction is to combine constant-propagation facts
-arriving at a label; for example, if two blocks branch to L, and $x=7$ holds
-at one branch, while $x=8$ holds at the, then the disjunction $x=7 \lor x=8$ holds
-at L.  In the particular language of facts chosen above, this disjunction
-approximated by $x=\top$.''  Oh, and this would be a better place for the footnote.}
+NR: Maybe in \secref{next-700}?
+%For example: ``Disjunction is to combine constant-propagation facts
+%arriving at a label; for example, if two blocks branch to L, and $x=7$ holds
+%at one branch, while $x=8$ holds at the, then the disjunction $x=7 \lor x=8$ holds
+%at L.  In the particular language of facts chosen above, this disjunction
+%approximated by $x=\top$.''  
+}%
+\simon{This would be a better place for the footnote. NR: Which footnote?}
 Here are some examples:
 \begin{itemize}
 \item
