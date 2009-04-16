@@ -944,7 +944,7 @@ function @zdfSolveFwd@, which is part of our dataflow engine:
   -> ForwardTransfers m l a -- Transfer functions
   -> a                      -- Input fact
   -> Graph m l              -- Control-flow graph
-  -> ForwardFixedPoint m l a
+  -> DFMonad (ForwardFixedPoint m l a)
 \end{code}
 The function is polymorphic in the types of middle and last nodes
 @m@~and~@l@ and in the type of the dataflow fact~@a@.
@@ -956,11 +956,20 @@ parameters or about the stack,
 this fact
 is not always~$\bot$.
 The last argument to @zdfSolveFwd@ is the graph, and the result is a 
+monadic computation that produces a
 fixed point.\footnote
 {The type of @zdfSolveFwd@ has pedagogical lies;
 truth is told in~\secref{engine-truth}.}
 %%  \remark{One of the lies is
 %%  that I've deliberately conflated the three representations of graphs.}
+The \emph{dataflow monad}, written
+@DFMonad@,
+%This monad keeps track of the current dataflow fact at each label,
+provides a supply of fresh labels
+and
+also helps implement the fault-isolation strategy described
+in \secref{vpoiso}.
+
 
 The @ForwardFixedPoint@ data structure is a big bag
 of information about the solution.
@@ -1877,21 +1886,6 @@ implemented using rewrite.  NR: I don't understand why we can't make
 this point now---we are revealing that @ForwardFixedPoint@ has an
 additional type parameter, and we say what value it takes on in the
 earlier example.} 
-\item
-The computation is monadic in the \emph{dataflow monad}, written
-@DFMonad@.
-This monad keeps track of the current dataflow fact at each label,
-provides a supply of fresh labels, 
-and
-also helps implement the fault-isolation strategy described
-in \secref{vpoiso}.
-Because @zdfRewriteFwd@ and @zdfSolveFwd@ share much of their
-implementation, the truth 
-about @zdfSolveFwd@ is that it also returns a value of monadic type.
-\simon{We should postpone this too.  And in any case we don't need to
-expose it to the client, if it is a mere implementation matter, do we?
-NR: It matters very much to the client, because it is exposed---the
-actual types are \emph{not} as claimed earlier in the paper.}
 \end{itemize}
 
 
