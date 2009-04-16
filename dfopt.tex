@@ -117,10 +117,13 @@
 \newcommand\high[1]{\mbox{\fboxsep=1pt \smash{\fbox{\vrule height 6pt
    depth 0pt width 0pt \leavevmode \kern 1pt #1}}}}
 
-% Put figures in boxes
+\usepackage{tabularx}
+
+% Put figures in boxes --- WHY??? --NR
 \usepackage{float}
 \floatstyle{boxed}
 \restylefloat{figure}
+\restylefloat{table}
 
 
 
@@ -153,6 +156,7 @@
 % \let \finalremark \remark % uncomment after submission
 \newcommand{\john}[1]{\authornote{JD: #1}}
 \newcommand{\todo}[1]{\textbf{To~do:} \emph{#1}}
+\newcommand\delendum[1]{\unskip\relax}
 
 \newcommand\secref[1]{Section~\ref{sec:#1}}
 \newcommand\secreftwo[2]{Sections \ref{sec:#1}~and~\ref{sec:#2}}
@@ -160,6 +164,9 @@
 
 \newcommand\figref[1]{Figure~\ref{fig:#1}}
 \newcommand\figlabel[1]{\label{fig:#1}}
+
+\newcommand\tabref[1]{Table~\ref{tab:#1}}
+\newcommand\tablabel[1]{\label{tab:#1}}
 
 
 \newcommand{\CPS}{\textbf{StkMan}}    % Not sure what to call it.
@@ -610,6 +617,32 @@ any proposed replacement preserves semantics.
 For example, in \secref{constant-propagation} the fact @x == 7@ is
 used to justify replacing @z = x + y@ with @z = 7 + y@.
 
+\begin{table}
+\centerline{%
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.03in}>{\scshape}c>{\scshape}
+      c>{\raggedright\arraybackslash}p{1.2in}@{}}
+&\multicolumn1{r}{\llap{\emph{Specified}}\hspace*{-0.3em}}&
+\multicolumn1{l}{\hspace*{-0.4em}\rlap{\emph{Implemented}}}&\\
+\multicolumn1{c}{\emph{Part of optimizer}}
+&\multicolumn1{c}{\emph{by}}&
+\multicolumn1{c}{\emph{by}}&
+\multicolumn1{c}{\emph{How many}}%
+\\[5pt]
+Control-flow graphs& Us & Us & One \\
+Nodes in a control-flow graph & You & You & Two types per intermediate language \\[3pt]
+Dataflow lattice & Us & You & One per logic \\[3pt]
+Transfer functions & Us & You & One set per analysis \\
+Rewrite functions & Us & You & One set per transformation \\[3pt]
+Iterative solver functions & Us & Us & Two (forward \&\ backward) \\
+Solve-and-rewrite functions & Us & Us & Two (forward \&\ backward) \\
+\end{tabular}%
+}
+\caption{Parts of an optimizer}
+\tablabel{parts}
+\end{table}
+
+
+
 Our library defines the types of lattice operations,
 control-flow graphs, transfer functions, and rewrite functions.
 \emph{All}~these types are parameterized by the types of
@@ -620,25 +653,28 @@ facts, so a compiler writer may define different analyses,
 using different types of facts,
 all operating over one type of graph. 
 
+\tabref{parts} shows how our code interacts with client code that you
+might write.
 Client code passes
 lattice
 operations, transfer functions, and rewrite functions
 to the part of our library we call the \emph{dataflow engine}.
 The dataflow engine includes
-polymorphic functions
-that use a forward or backward \emph{analysis} to compute 
+\emph{solver functions}, 
+which use a forward or backward \emph{analysis} to compute 
 a dataflow fact for each program point (\secref{zdfSolveFwd}).
-Other functions
-use a \emph{transformation} to compute facts and to
+It also includes \emph{rewrite functions}, which
+use a forward or backward \emph{transformation} to compute facts and to
 rewrite a control-flow graph in light of those facts
 (\secref{rewrites}).
-Implementations are sketched in \secref{dfengine}.
-\simon{Interface?  Perhpas ``The signatures and expected usage of these
+Its implementation is sketched in \secref{dfengine}.
+\delendum{Interface?  Perhpas ``The signatures and expected usage of these
 functions is described in xxx, while their implementation is sketched
 in yyy''.  NR: I like the idea of parallel structure, but the paper is
 not really very parallel here.  Faced with either repeating the
 section references or distorting what those sections are about, I've
 chosen instead to abandon parallel structure.}
+
 
 
 \begin{figure}
