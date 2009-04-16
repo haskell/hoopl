@@ -328,7 +328,7 @@ assertion (@true@) and computing strongest postconditions.
     { x == 7 && y == 8 }
   z = x + y;
 \end{verbatim}
-\remark{SLPJ asks: Could we add $x=7,y=8,z=15$ as a final assertion?
+\delendum{SLPJ asks: Could we add $x=7,y=8,z=15$ as a final assertion?
 We can but we should not, because a \naive\ sp function 
 would produce the assertion $x=7\land y = 8
 \land z = x+y$. To reach the point you desire, some sort of simplifier
@@ -596,11 +596,11 @@ writer must
 Choose a representation~$F$ of dataflow facts and a logical interpretation
 thereof.
 \item
-Implement lattice operations over~$F$.
+Implement lattice operations over~$F$ (\secref{lattices}).
 \item
 Write \emph{transfer functions} that relate dataflow facts before and
-after each type of node.
-\simon{I'd italicise key words from all three bullets, or none. NR:
+after each type of node (\secref{tffuns}).
+\delendum{I'd italicise key words from all three bullets, or none. NR:
 It's not a question of bullets; the key concepts which are possibly
 new to readers are transfer
 functions and rewrite functions, which is why they are italicized.}
@@ -694,6 +694,7 @@ data DataflowLattice a = DataflowLattice
 
 \subsection{Dataflow lattices}
 
+\seclabel{lattices}
 
 As an example, 
 we present a lattice of facts about constant propagation.
