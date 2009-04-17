@@ -949,7 +949,7 @@ function @zdfSolveFwd@, which is part of our dataflow engine:
   -> ForwardTransfers m l a -- Transfer functions
   -> a                      -- Input fact
   -> Graph m l              -- Control-flow graph
-  -> DFMonad (ForwardFixedPoint m l a)
+  -> DFMonad (FwdFixedPoint m l a)
 \end{code}
 The function is polymorphic in the types of middle and last nodes
 @m@~and~@l@ and in the type of the dataflow fact~@a@.
@@ -976,7 +976,7 @@ also helps implement the fault-isolation strategy described
 in \secref{vpoiso}.
 
 
-The @ForwardFixedPoint@ data structure is a big bag
+The @FwdFixedPoint@ data structure is a big bag
 of information about the solution.
 The most significant information is
 a finite map from each block label to the dataflow fact that holds at
@@ -984,7 +984,7 @@ the label, which is extracted using function @zdfFpFacts@:
 % Simon really wants these type signatures!
 \begin{verbatim}
 type BlockEnv a = Data.Map BlockId a
-zdfFpFacts :: ForwardFixedPoint m l a -> BlockEnv a
+zdfFpFacts :: FwdFixedPoint m l a -> BlockEnv a
 \end{verbatim}
 
 
@@ -1872,7 +1872,7 @@ graph:
     -> ForwardRewrites m l a  -- Rewrite functions
     -> a                      -- Input fact
     -> Graph m l              -- Control-flow graph
-    -> DFMonad (ForwardFixedPoint m l a (Graph m l))
+    -> DFMonad (FwdFixedPoint m l a (Graph m l))
 \end{code}
 %%  
 %%  class DataflowSolverDirectiontransfers fixedpt =>
@@ -1909,19 +1909,19 @@ ensure that the graphs they produce are not rewritten indefinitely.
 Function @zdfRewriteFwd@ requires rewrite functions as well as transfer
 functions.
 \item
-The type constructor @ForwardFixedPoint@ has a fourth
+The type constructor @FwdFixedPoint@ has a fourth
 type parameter,\footnote
 {We lied to you above.}
 which is a value contained in the fixed point.
 The~value can be extracted using function @zdfFpContents@, which has
-type @ForwardFixedPoint m l a b -> b@.
+type @FwdFixedPoint m l a b -> b@.
 Here the type parameter~@b@ is instantiated to @Graph m l@: the fixed point
 contains the rewritten graph.
 In~@zdfSolveFwd@, @b@~is instantiated with
 the unit type~@()@.
 \simon{We can't make this point until later, where we say that solve is
 implemented using rewrite.  NR: I don't understand why we can't make
-this point now---we are revealing that @ForwardFixedPoint@ has an
+this point now---we are revealing that @FwdFixedPoint@ has an
 additional type parameter, and we say what value it takes on in the
 earlier example.} 
 \end{itemize}
@@ -2525,7 +2525,7 @@ it brings the facts associated with labels up to a fixed point.
 %%          -> a
 %%          -> Graph m l
 %%          -> Fuel
-%%          -> DFM a (ForwardFixedPoint m l a (Graph m l), Fuel)
+%%          -> DFM a (FwdFixedPoint m l a (Graph m l), Fuel)
 %%  forward_rew squash depth xstart_facts name transfers rewrites in_factx gx fuelx = fixed_pt_and_fuel
 %%    where
 %%      fixed_pt_and_fuel =
