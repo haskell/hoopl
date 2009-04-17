@@ -2359,13 +2359,19 @@ the fuel monad.
 
 \seclabel{subgraphs}
 
-\simon{There is a confusion of terminology.  In this section 
+\delendum{There is a confusion of terminology.  In this section 
 we say that a ``graph'' may also contain two special incomplete blocks.
 But later we use the terms ``subgraph'' and ``replacement graph'' to mean
 one of these more general graphs; and ``full graph'' to mean (I think)
 a closed/closed graph.   Let's define these terms, and use them consistently.
 I think we can define a ``full graph'' as closed/closed, and a ``subgraph'' as
-one of the other three combinations.}
+one of the other three combinations.
+}
+
+\remark{I've added a \P\ defining ``replacement graph'' and
+``subgraph.''
+A full graph is open/closed, but that's a somewhat arbitrary design
+choice that I'd prefer not to expose in this paper.}
 
 To explain how graphs are analyzed and rewritten, we must explain how
 they are represented.
@@ -2388,12 +2394,19 @@ off the end.''
 If~a graph has an exit sequence it is \emph{exitable} or
 \emph{open at the exit}.
 \end{itemize}
-The representation of a graph or a subgraph is therefore a triple:
+The representation of a graph is therefore a triple:
 an optional entry sequence, a @BlockEnv@ containing basic blocks,
 and an optional exit sequence.
 As~a special case, a single sequence of middle nodes also forms a
 graph open at both ends.
 
+A~graph proposed by a rewrite function as a replacement for a node is
+a \emph{replacement graph}.
+Every replacement graph is also a \emph{subgraph}, i.e., a graph that
+can be analyzed or rewritten independently, but that is connected to
+an outer graph by control-flow edges.
+A~subgraph has the same representation as a graph, including 
+optional entry and exit sequences.
 
 To~describe the presence or absence of entry and exit sequences, we
 refer to a graph's \emph{shape} as open/open (enterable and exitable),
