@@ -136,13 +136,13 @@
   \long\def\authornote#1{%
       \ifvmode
          \marginpar{\raggedright\hbadness=10000
-         \parindent=8pt
+         \parindent=8pt \parskip=2pt
          \def\baselinestretch{0.8}\tiny
          \itshape\noindent #1\par}%
       \else
           \unskip\raisebox{-3.5pt}{\rlap{$\scriptstyle\diamond$}}%
           \marginpar{\raggedright\hbadness=10000
-         \parindent=8pt
+         \parindent=8pt \parskip=2pt
          \def\baselinestretch{0.8}\tiny
          \itshape\noindent #1\par}%
       \fi}
