@@ -2457,17 +2457,14 @@ I believe that the story is that the solver needs to perform rewriting
 to get the right answer; it just doesn't retain the rewritten graph.
 Well, that's ok, but it's quite confusing.  Moreover, a simple (but
 perhaps less efficient) way to write the solver would be to call the
-rewriter, and simply discard teh returned graph.  Correct?
-So {\tt forward\_sol} is simply an efficiency hack on {\tt forward\_rew}.
-If that is so, perhaps we should simply present the forward rewriter,
-thereby avoiding the confusion altogether.  Admittedly the code is slightly
-more complicated, but not much.
-}
+rewriter, and simply discard the returned graph.  Correct?
 
-\simon{New remark.  I found myself deep in fuel administration when looking 
-at the code.  Of all things that ought to be hidden in a monad, surely 
-fuel is the primary example?  Yet you have deliberately and carefully 
-made it back into an explicitly passed parameter.  Why?}
+NR: \emph{Incorrect}.  The rewriter calls the solver to do most of the work.
+%So {\tt forward\_sol} is simply an efficiency hack on {\tt forward\_rew}.
+%If that is so, perhaps we should simply present the forward rewriter,
+%thereby avoiding the confusion altogether.  Admittedly the code is slightly
+%more complicated, but not much.
+}
 
 
 \finalremark{How and where do we say what's new over
@@ -2751,7 +2748,12 @@ thereby doing no rewriting and consuming no fuel
 clumsy to me.  The obvious thing would be to add a third constructor @NoRewrite@
 to the @RewritingDepth@ type, so that we could call @forward\_sol@ saying
 ``don't do any rewriting at all''.  Would that even elimiate the higher order
-@with\_fuel@ parameter altogether?  What is it used for?}
+@with\_fuel@ parameter altogether?  What is it used for? 
+NR:~If you re-examine the structure of the case expressions, you'll
+see that @NoRewrite@ as a third constructor would leave to
+inexhaustive pattern matching.  A Boolean would do.
+Function @with\_fuel@ is also
+used to decrement the fuel supply.}
 
 \end{enumerate}
 %%  Whether rewriting is shallow or deep, the new graph~@g@ is analyzed as
