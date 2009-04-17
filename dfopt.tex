@@ -2444,10 +2444,7 @@ ever rewritten.
 We say that ``the dataflow engine implements only composed
 analysis and transformation'', but then we provide (a)
 a solver, and (b) a rewriter.  Which apparently contradicts.
-}
 
-\simon{(I wish I could put paragraphs in the middle of comments!
-This continues the previous remark.)  
 I believe that the story is that the solver needs to perform rewriting
 to get the right answer; it just doesn't retain the rewritten graph.
 Well, that's ok, but it's quite confusing.  Moreover, a simple (but
