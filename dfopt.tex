@@ -2240,10 +2240,19 @@ type LOFsKont a b = LastOuts a -> Fuel -> DFM a b
 !solve.OO!                     RewriteDeep    -> solve_OO g (uncurry return) in' fuel
 !solve.rewrite.shallow.1!                     RewriteShallow -> do { a <- anal_f_OO g in'; return (a, fuel) }
 !solve.mid.*!              ; k a fuel }
+
+zdfSolveFwd name lattice transfers in_fact g = 
+    runDFM lattice $ ffp () $ fwd_pure_anal name emptyBlockEnv transfers in_fact g
+fwd_pure_anal name env transfers in_fact g =
+    forward_sol (\_ _ -> Nothing) undefined name env transfers undefined in_fact g undefined >>= 
+    return . fst
+ffp :: b -> DFM a (Maybe a) -> DFM a (ForwardFixedPoint m l a b)
 \end{numberedcode}
 \caption{Excerpts from the forward solver}
 \figlabel{solver-excerpts}
 \end{figure*}
+
+
 
 
 
@@ -2290,6 +2299,7 @@ setFact     :: BlockId -> a -> DFM a ()
 getAllFacts :: DFM a (BlockEnv a)
 setAllFacts :: BlockEnv a -> DFM a ()
 subAnalysis :: DFM a b -> DFM a b
+runDFM :: DataflowLattice a -> DFM a b -> DFMonad b
 \end{code}
 The~interesting operation is @subAnalysis@, which
 runs an analysis in a fresh copy of the current state, then reverts to
