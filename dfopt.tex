@@ -2453,6 +2453,22 @@ We say that ``the dataflow engine implements only composed
 analysis and transformation'', but then we provide (a)
 a solver, and (b) a rewriter.  Which apparently contradicts.
 
+NR: Apparently so.  Maybe you can think of better names.
+Here's the story: 
+\begin{itemize}
+\item
+The solver implements composed analysis and
+transformation.  The output is a set of facts and a graph.
+The solver keeps the facts and discards the graph.  (And to save
+allocations, it never builds the graph in the first place.)
+The solver is both iterative and recursive.
+\item
+The rewriter calls the solver, then in a \emph{single} pass, rewrites
+the graph.  The rewriter is not iterative, but it is recursive.
+\end{itemize}
+Ideas for a better way to tell this story?
+
+SLPJ: 
 I believe that the story is that the solver needs to perform rewriting
 to get the right answer; it just doesn't retain the rewritten graph.
 Well, that's ok, but it's quite confusing.  Moreover, a simple (but
@@ -2753,7 +2769,11 @@ NR:~If you re-examine the structure of the case expressions, you'll
 see that @NoRewrite@ as a third constructor would leave to
 inexhaustive pattern matching.  A Boolean would do.
 Function @with\_fuel@ is also
-used to decrement the fuel supply.}
+used to decrement the fuel supply.
+Combining the decrement with the test in a higher-order function
+simplified the code significantly (and made it impossible to forget to
+decrement).
+}
 
 \end{enumerate}
 %%  Whether rewriting is shallow or deep, the new graph~@g@ is analyzed as
