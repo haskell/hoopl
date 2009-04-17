@@ -130,6 +130,7 @@
 
 
 % Set \noauthornotestrue to suppress notes
+\noauthornotesfalse
 %\newcommand{\qed}{QED}
 \ifnotesinmargin
   \long\def\authornote#1{%
@@ -2320,6 +2321,14 @@ the fuel monad.
 
 \seclabel{subgraphs}
 
+\simon{There is a confusion of terminology.  In this section 
+we say that a ``graph'' may also contain two special incomplete blocks.
+But later we use the terms ``subgraph'' and ``replacement graph'' to mean
+one of these more general graphs; and ``full graph'' to mean (I think)
+a closed/closed graph.   Let's define these terms, and use them consistently.
+I think we can define a ``full graph'' as closed/closed, and a ``subgraph'' as
+one of the other three combinations.}
+
 To explain how graphs are analyzed and rewritten, we must explain how
 they are represented.
 \secref{graph.intro} oversimplifies.
@@ -2387,6 +2396,30 @@ To avoid duplicating code,
 analysis and transformation}.
 Pure analysis is a special case in which no node is
 ever rewritten.
+
+\simon{I keep tripping over a nasty misunderstanding here.
+We say that ``the dataflow engine implements only composed
+analysis and transformation'', but then we provide (a)
+a solver, and (b) a rewriter.  Which apparently contradicts.
+}
+
+\simon{(I wish I could put paragraphs in the middle of comments!
+This continues the previous remark.)  
+I believe that the story is that the solver needs to perform rewriting
+to get the right answer; it just doesn't retain the rewritten graph.
+Well, that's ok, but it's quite confusing.  Moreover, a simple (but
+perhaps less efficient) way to write the solver would be to call the
+rewriter, and simply discard teh returned graph.  Correct?
+So {\tt forward\_sol} is simply an efficiency hack on {\tt forward\_rew}.
+If that is so, perhaps we should simply present the forward rewriter,
+thereby avoiding the confusion altogether.  Admittedly the code is slightly
+more complicated, but not much.
+}
+
+\simon{New remark.  I found myself deep in fuel administration when looking 
+at the code.  Of all things that ought to be hidden in a monad, surely 
+fuel is the primary example?  Yet you have deliberately and carefully 
+made it back into an explicitly passed parameter.  Why?}
 
 
 \finalremark{How and where do we say what's new over
@@ -2525,6 +2558,14 @@ label in the inner dataflow monad.
 Thus a @FuelKont@ expects no fact as argument; it gets its fact by
 calling the monadic operation @getFact@.
 \end{itemize}
+\simon{I like these continuations, but I'm very puzzled about the
+fuel.  If @FuelKont@ takes @Fuel@ in, where does it return the depleted @Fuel@?
+It must come out eventualy, because it's needed in the rest of the program.
+And if it always comes out, then we should say so:
+@FuelKont a b = Fuel -> DFM a (Fuel, b)@.
+And once you do that, it's plain that @FuelKont@ is just a state monad,
+and I can't see why it isn't part of @DFM@ in the first place.}
+
 \Linerangeref{solve.first.sig}{solve.last.sig} of
 \figref{solver-excerpts} give the types of
 solvers for first, middle, and last nodes.
@@ -2620,6 +2661,12 @@ We compute that fixed point using @anal_f_OO@ (not shown), which  recursively ca
 @\ _ _ -> Nothing@, 
 thereby doing no rewriting and consuming no fuel
 (\lineref{solve.rewrite.shallow.1}).
+\simon{This business of passing in a different @with\_fuel@ seems terribly
+clumsy to me.  The obvious thing would be to add a third constructor @NoRewrite@
+to the @RewritingDepth@ type, so that we could call @forward\_sol@ saying
+``don't do any rewriting at all''.  Would that even elimiate the higher order
+@with\_fuel@ parameter altogether?  What is it used for?}
+
 \end{enumerate}
 %%  Whether rewriting is shallow or deep, the new graph~@g@ is analyzed as
 %%  a ``sub-analysis'' in the inner dataflow monad
