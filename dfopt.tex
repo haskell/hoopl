@@ -457,7 +457,7 @@ loop.
 But we use Lerner, Grove, and Chambers's
 \citeyearpar{lerner-grove-chambers:2002} algorithm to
 \emph{interleave} liveness analysis with 
-``dead-assignment elimination.'' 
+``dead-assignment elimination.'' \seclabel{interleave-introduced}%
 Dead-assignment elimination removes an assignment if the variable
 assigned to is not live, that is, if it cannot be used by the
 assignment's continuation.
@@ -1901,7 +1901,10 @@ earlier example.}
 
 Function
 @zdfRewriteFwd@ implements
-interleaved analysis and transformation
+interleaved analysis and transformation 
+\remark{First mention of
+interleaving is in \secref{interleave-introduced} on
+page~\pageref{interleave-introduced}.}
 in two phases \citep{lerner-grove-chambers:2002}:\seclabel{solver-phase}
 \begin{itemize}
 \item
