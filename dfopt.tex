@@ -1809,15 +1809,43 @@ returns $@Just@\;g$, or it may do nothing, in which case it returns @Nothing@.
 If it returns $@Just@\;g$, it must guarantee that given
 the assertions represented by incoming dataflow facts,
 graph~$g$ is observationally equivalent to node~$n$.
-\simon{I'm still wholly unclear about whether this is enough; 
-doesn't the rewrite have to be monotonic wrt the analysis?
-NR~\&~JD: we're pretty sure not.}
+\simon{Doesn't the rewrite have to be monotonic wrt the analysis?
+NR~\&~JD: we're pretty sure not.  For scrutiny, we've reinserted your long comment,
+but in your example, once $x$ is deemed live it stays live, because
+facts at labels increase monotonically.
+(Also, the only interesting partial order we're aware of is Tony Hoare's
+``implements'' relation.  That might actually be permissible, but we
+have used the stronger requirement of observational equivalence.
+In~code generation these will be equivalent because of
+determinism. ---NR)
+}
 %%  
 %%  
 %%  If~a rewrite function returns $@Just@\;g$, the incoming dataflow fact
 %%  must guarantee that replacing the node with~$g$ does not change the
 %%  observable behavior of the program.
 %%  
+%%%%    \simon{The rewrite functions must presumably satisfy
+%%%%    some monotonicity property.  Something like: given a more informative
+%%%%    fact, the rewrite function will rewrite a node to a more informative graph
+%%%%    (in the fact lattice.).
+%%%%    \textbf{NR}: actually the only obligation of the rewrite function is
+%%%%    to preserve observable behavior.  There's no requirement that it be
+%%%%    monotonic or indeed that it do anything useful.  It just has to
+%%%%    preserve semantics (and be a pure function of course).
+%%%%    \textbf{SLPJ} In that case I think I could cook up a program that
+%%%%    would never reach a fixpoint. Imagine a liveness analysis with a loop;
+%%%%    x is initially unused anywhere.
+%%%%    At some assignment node inside the loop, the rewriter behaves as follows: 
+%%%%    if (and only if) x is dead downstream, 
+%%%%    make it alive by rewriting the assignment to mention x.
+%%%%    Now in each successive iteration x will go live/dead/live/dead etc.  I
+%%%%    maintain my claim that rewrite functions must satisfy some
+%%%%    monotonicity property.
+%%%%    \textbf{JD}: in the example you cite, monotonicity of facts at labels
+%%%%    means x cannot go live/dead/live/dead etc.  The only way we can think
+%%%%    of not to terminate is infinite ``deep rewriting.''
+%%%%    }
 
 To write a program transformation,
 the compiler writer must 
