@@ -1,6 +1,6 @@
 \newif\ifpagetuning \pagetuningtrue  % adjust page breaks
 
-\newif\ifnoauthornotes\noauthornotestrue
+\newif\ifnoauthornotes\noauthornotesfalse
 \newif\iftimestamp\timestamptrue  % show MD5 stamp of paper
 
 \IfFileExists{timestamp.tex}{}{\timestampfalse}
@@ -131,8 +131,8 @@
 
 
 
-% Set \noauthornotestrue to suppress notes
-\noauthornotesfalse
+% ONE LINE THREE, set \noauthornotestrue to suppress notes (or not)
+
 %\newcommand{\qed}{QED}
 \ifnotesinmargin
   \long\def\authornote#1{%
@@ -150,7 +150,7 @@
       \fi}
 \else
   % Simon: please set \notesinmarginfalse on the first line
-  \long\def\authornote#{{\em #1\/}}
+  \long\def\authornote#1{{\em #1\/}}
 \fi
 \ifnoauthornotes
   \def\authornote#1{\unskip\relax}
