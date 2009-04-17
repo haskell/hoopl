@@ -136,13 +136,15 @@
   \long\def\authornote#1{%
       \ifvmode
          \marginpar{\raggedright\hbadness=10000
+         \parindent=8pt
          \def\baselinestretch{0.8}\tiny
-         \it #1\par}%
+         \itshape\noindent #1\par}%
       \else
           \unskip\raisebox{-3.5pt}{\rlap{$\scriptstyle\diamond$}}%
           \marginpar{\raggedright\hbadness=10000
+         \parindent=8pt
          \def\baselinestretch{0.8}\tiny
-         \it #1\par}%
+         \itshape\noindent #1\par}%
       \fi}
 \else
   % Simon: please set \notesinmarginfalse on the first line
