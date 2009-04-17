@@ -1799,16 +1799,16 @@ The heart of a transformation is a triple of
 type declarations for rewrite functions are
 shown in \figref{rewrites}. 
 %
-A~rewrite function is given a dataflow fact and a node.
-It~may choose to replace the node with a \emph{replacement graph}~$g$,
+A~rewrite function is given a dataflow fact and a node~$n$.
+It~may choose to replace node~$n$ with a \emph{replacement graph}~$g$,
 in which case it 
 returns $@Just@\;g$, or it may do nothing, in which case it returns @Nothing@.
-The assertions represented by incoming dataflow facts must 
-ensure that the
-rewrite preserves semantics.
+If it returns $@Just@\;g$, it must guarantee that given
+the assertions represented by incoming dataflow facts,
+graph~$g$ is observationally equivalent to node~$n$.
 \simon{I'm still wholly unclear about whether this is enough; 
 doesn't the rewrite have to be monotonic wrt the analysis?
-See my earlier example.}
+NR~\&~JD: we're pretty sure not.}
 %%  
 %%  
 %%  If~a rewrite function returns $@Just@\;g$, the incoming dataflow fact
