@@ -1,0 +1,87 @@
+  * We apologize for missing definitions of types, functions, and data
+    structures.  Since the submission deadline we have corrected some
+    of these faults, but regardless of whether the paper is accepted
+    we would be very grateful for a referee to point out other places
+    where information is missing.
+
+  * We need to say something about Schmidt's paper.
+
+  * We agree with reviewer #1 that our paper is about solid
+    engineering; we do not claim to have made a breakthrough.  To an
+    engineer, 'appears straightforward' is a high compliment.  In the
+    design of software and systems, one wishes always to build the
+    simplest system possible.  A simple design usually seems obvious
+    only in retrospect.  Certainly we believe that the interfaces
+    described in the paper are substantially simpler than the
+    interfaces we described in 2005, and we believe that this
+    simplification required substantial intellectual effort.  But
+    perhaps others could have adapted the 2005 paper to something
+    equally simple with less effort.
+
+  * We are sorry to have given the impression that the library is
+    conceived just to serve GHC and its intermediate language.  We
+    have worked hard to make our library polymorphic so that it can be
+    used with *any* intermediate language, provided only that the
+    language distinguishes control transfers and provides a means to
+    follow control-flow edges.  We hope soon to use the library with
+    representations of machine instructions for the various platforms
+    GHC supports.
+
+    It is true that the *implementation* of the library depends on
+    GHC's internals in a few inessential ways, of which the most
+    important is probably that it uses an efficient implementation of
+    integer maps developed by Chris Okasaki and Andy Gill.
+
+  * We're not sure what Reviewer #3 would accept as evidence for a
+    library's fitness for general purposes.  This evaluation is
+    especially important as we make no claim to theoretical novelty
+    and no claim to enable analyses that cannot be implemented using
+    other methods.  Our claim is that using our library, it is much
+    *easier* to implement analyses and transformations than it is
+    using other compiler infrastructures (e.g., SUIF or vpo, to name
+    two with which we are familiar).  In order to substantiate this
+    claim, we included examples of analyses and optimizations which
+    are already known, so that readers can compare our code with code
+    written for their favorite compiler.  
+
+    To be extra confident in the correctness of the examples, we also
+    included *only* examples which have been implemented and tested as
+    part of GHC's back end.  This decision may have influenced the
+    reviewer's impression that the library is not fit for general
+    purposes.
+
+  * Along with Reviewer #2, we felt that section 7 was not properly
+    explained.  In the process of developing a better explanation, we
+    have rewritten the dataflow engine twice.  We have also rewritten
+    every part of section 7 except the part on 'optimization fuel'.
+    It would be unfair to ask referees to evaluate this new material,
+    but we feel constrained to let the referees know that whether the
+    paper is accepted at ICFP or is submitted to another venue, the
+    section 7 in the submission they have evaluated will not appear.
+
+  * To reviewer #1: if register pressure could be approximated by,
+    e.g., the number of live variables, then it would be a
+    straightforward matter to write a dataflow pass that removes
+    redundant reloads when the number of live variables is small.  In
+    fact our back end takes the opposite approach: we optimistically
+    insert a reload of $x$ only in front of the *first* use of $x$
+    (explaining why we use dataflow and not a syntactic
+    transfomration).  If register pressure leads to a spill, $x$ might
+    be spilled preferentially because we know that that value of $x$
+    is already on the stack, and thus only a reloead is needed.  (We
+    say 'might' because our register-allocation guru, who would know
+    for sure, is on his honeymoon.)
+
+If the paper is accepted, our priorities will be:
+
+  1. To make sure all missing definitions and explanations are
+     accounted for, so that readers can understand the code easily.
+
+  2. To provide a suitable scholarly account of the relationship with
+     Schmidt's work and with abstract interpretation more generally.
+
+  3. To work extra hard on the description of the new implementation
+     (Section 7) since that will not have been reviewed by the program
+     committee. 
+
+  4. Anything else?
