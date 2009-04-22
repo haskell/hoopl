@@ -4,12 +4,13 @@ a more positive conclusion from these points than the reviewers imply:
   * We agree with reviewer #1 that our paper is about solid
     engineering, a subject that is often valued at ICFP.
 
-    As engineers, we take the comment 'appears straightforward' as a
-    high compliment.  A simple design can be surprisingly difficult to
-    achieve, and is often obvious only in retrospect.  We believe that
-    the interfaces described in the paper are substantially simpler
-    than the interfaces we described in 2005, and unlike the
-    interfaces in the 2005 paper, they are reusable. 
+    As engineers, we take reviewer #2's comment 'appears
+    straightforward' as a high compliment.  A simple design can be
+    surprisingly difficult to achieve; it is often obvious only in
+    retrospect.  We believe that the interfaces described in the paper
+    are substantially simpler than the interfaces we described in
+    2005, and unlike the interfaces in the 2005 paper, they are
+    reusable.
 
   * The impression that our library is conceived just to serve GHC
     represents a misleading failure of our presentation.  We
@@ -17,28 +18,25 @@ a more positive conclusion from these points than the reviewers imply:
     with *any* intermediate language, provided only that the language
     distinguishes control transfers and provides a means to follow
     control-flow edges.  We hope soon to use the library with
-    representations of machine instructions for the various platforms
-    GHC supports.
+    representations of machine instructions.
 
   * We hope Reviewer #3 may reconsider whether our library is fit for
-    general purposes.  We make no claim to theoretical novelty, and no
+    general purposes.  We make no claim to theoretical novelty and no
     claim to enable analyses that cannot be implemented using other
-    methods.  Our main claim is that using our library, it is much
-    *easier* to implement dataflow analyses and transformations than
-    it is using other compiler infrastructures (e.g., SUIF or vpo, to
-    name two with which we are familiar).  In substantiating this claim,
-    we chose examples of analyses and optimizations that are already
+    methods.  Our claim is that using our library, it is much *easier*
+    to implement dataflow analyses and transformations than it is
+    using other compiler infrastructures (e.g., SUIF or vpo, to name
+    two with which we are familiar).  In substantiating this claim, we
+    chose examples of analyses and optimizations that are already
     known, so that readers can compare our code with code written for
-    their favorite compiler.
+    their favorite compilers.
 
-    To be extra confident in the correctness of the examples, we also
-    included *only* examples which have been implemented and tested as
-    part of GHC's back end.  Our choice of examples may have
+    To be sure the examples are right, we chose *only* examples that
+    have been implemented and tested in GHC.  This choice may have
     influenced the reviewer's impression that the library is not fit
     for general purposes.
 
-There are many faults in the paper.  If the paper happens to be
-accepted,
+There are many faults in the paper.  If the paper is accepted,
 
   1. We will make sure all missing definitions and explanations are
      accounted for, so that readers can understand the code easily.
@@ -48,8 +46,7 @@ accepted,
      decision on work done since the deadline, we say no more here.) 
 
   3. We will provide a suitable scholarly account of the relationship
-     with Schmidt's work and with abstract interpretation more
-     generally.
+     with Schmidt's work and with abstract interpretation more generally.
 
 To reviewer #1: if register pressure could be approximated by,
 e.g., the number of live variables, then it would be a
