@@ -2220,35 +2220,33 @@ include \secref{induction-var-elim}.
 \begin{figure*}
 \setcounter{codeline}{0}
 \begin{numberedcode}
-!FactKont!type FactKont a b = a          -> Fuel -> DFM a b
-type LOFsKont a b = LastOuts a -> Fuel -> DFM a b
-!FuelKont!type FuelKont a b =               Fuel -> DFM a b
+!FactKont!type FactKont a b = a          -> DFM a b
+type LOFsKont a b = LastOuts a -> DFM a b
+!Kont!type Kont     a b =               DFM a b
 
-!forward.sol.sig!forward_sol :: forall m l a . LastNode l => (forall a . Fuel -> Maybe a -> Maybe (Fuel, a)) 
+!forward.sol.sig!forward_sol :: forall m l a . LastNode l => (forall b . Maybe b -> DFM a (Maybe b))
             -> RewritingDepth -> PassName -> BlockEnv a -> ForwardTransfers m l a
-            -> ForwardRewrites m l a -> a -> Graph m l -> Fuel -> DFM a (Maybe a, Fuel)
-!forward.sol.args!forward_sol with_fuel depth name start_facts transfers rewrites in_fact g fuel =
-!forward.sol.setAllFacts!     do { setAllFacts start_facts ; solve_Ox g in_fact fuel }
+            -> ForwardRewrites m l a -> a -> Graph m l -> DFM a (Maybe a)
+!forward.sol.args!forward_sol with_fuel depth name start_facts transfers rewrites in_fact g =
+!forward.sol.setAllFacts!     do { setAllFacts start_facts ; solve_Ox g in_fact }
    where 
-!solve.first.sig!     solve_first :: BlockId -> FactKont a b -> FuelKont a b
+!solve.first.sig!     solve_first :: BlockId -> FactKont a b -> Kont     a b
      solve_mid   :: m       -> FactKont a b -> FactKont a b
 !solve.last.sig!     solve_last  :: l       -> LOFsKont a b -> FactKont a b
 
-!set.last.sig!     set_last :: LOFsKont a Fuel
-!set.last.*!     set_last (LastOutFacts l) fuel = do { mapM_ (uncurry setFact) l; return fuel }
+!set.last.sig!     set_last :: LOFsKont a ()
+!set.last.*!     set_last (LastOutFacts l) = mapM_ (uncurry setFact) l
 
-!solve.block!     solve_block :: Block m l -> FuelKont a Fuel
-!solve.Ox!     solve_Ox    :: Graph m l -> FactKont a (Maybe a, Fuel)
+!solve.block!     solve_block :: Block m l -> Kont a ()
+!solve.Ox!     solve_Ox    :: Graph m l -> FactKont a (Maybe a)
 
-!solve.mid.1!     solve_mid m k in' fuel =
-!solve.mid.case!       case with_fuel fuel $ fr_middle rewrites in' m of
-!solve.mid.Nothing!         Nothing -> k (ft_middle_out transfers in' m) fuel
-!solve.mid.Just!         Just (fuel, g) ->
-!solve.subAnalysis!           do { (a, fuel) <- subAnalysis $
-                   case depth of
-!solve.OO!                     RewriteDeep    -> solve_OO g (uncurry return) in' fuel
-!solve.rewrite.shallow.1!                     RewriteShallow -> do { a <- anal_f_OO g in'; return (a, fuel) }
-!solve.mid.*!              ; k a fuel }
+!solve.mid.1!     solve_mid m k in' =
+!solve.mid.case!       (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
+!solve.mid.Nothing!         Nothing -> k (ft_middle_out transfers in' m)
+!solve.mid.Just!         Just g  -> do { a <- subAnalysis $ case depth of
+!solve.OO!                                              RewriteDeep    -> solve_OO g (uncurry return) in'
+!solve.rewrite.shallow.1!                                              RewriteShallow -> anal_f_OO g in'
+!solve.mid.*!                       ; k a }
 \end{numberedcode}
 \caption{Excerpts from the forward solver}
 \figlabel{solver-excerpts}
@@ -2285,38 +2283,61 @@ Compared with our earlier work, using CPS dramatically simplifies the
 dataflow engine.}
 
 The dataflow engine is implemented in two layers.
-The lower layer comprises the \emph{fuel monad} and the \emph{inner dataflow monad}.
-The fuel monad provides a way to suppress
-optimization selectively in order to isolate faults, as discussed
-below (\secref{vpoiso}). 
-
-The inner dataflow monad has type @DFM a@, where @a@~is the type of a
+The lower layer is the \emph{dataflow monad};
+it has type @DFM a@, where @a@~is the type of a
 dataflow fact.
 It~is a state monad which keeps track of the values of dataflow facts
 as the engine iterates.
-Its~operations include % listed as per SLPJ!
+It also keeps track of a supply of ``optimization fuel,'' which
+helps the compiler isolate faults by selectively suppressing
+optimization, as discussed
+below (\secref{vpoiso}). 
+Finally, it keeps track of a supply of fresh labels.
+
+Operations on the dataflow monad include
 \begin{code}
-getFact     :: BlockId -> DFM a a
-setFact     :: BlockId -> a -> DFM a ()
-getAllFacts :: DFM a (BlockEnv a)
-setAllFacts :: BlockEnv a -> DFM a ()
-subAnalysis :: DFM a b -> DFM a b
-runDFM :: DataflowLattice a -> DFM a b -> DFMonad b
+getFact           :: BlockId -> DFM a a
+setFact           :: BlockId -> a -> DFM a ()
+getAllFacts       :: DFM a (BlockEnv a)
+setAllFacts       :: BlockEnv a -> DFM a ()
+useOneFuel        :: DFM a ()
+fuelExhausted     :: DFM a Bool
+subAnalysis       :: DFM a b -> DFM a b
+withDuplicateFuel :: DFM a b -> DFM a b
+runDFM :: DataflowLattice a -> DFM a b -> FuelMonad b
 \end{code}
-The~interesting operation is @subAnalysis@, which
-runs an analysis in a fresh copy of the current state, then reverts to
-the previous state.
+A~computation in the dataflow monad has two significant side effects:
+it may \emph{increase stored facts} (according to a lattice ordering)
+and it may \emph{consume fuel}.
+The~two most interesting operations in the monad are used to control
+those effects:
+\begin{itemize}
+\item
+Computation @subAnalysis c@ computes the same results as~@c@ and
+consumes the same fuel as~@c@, but it does not change any stored
+dataflow facts.
+\item
+Computation @withDuplicateFuel c@ computes the same results as~@c@ and
+changes the same stored facts as~@c@, but it consumes fuel from a
+\emph{copy} of the fuel supply.
+The inner computation~@c@ may therefore run out of fuel, but
+@withDuplicateFuel c@ restores the original fuel supply.
+\end{itemize}
+\remark{Using @withDuplicateFuel@ is a hell of a lot simpler than the
+``fuel adminstration'' in our caml code}
 %%  Using pure code and a monad makes this version much easier to get
 %%  right than our Objective Caml version
 %%  \cite{ramsey-dias:applicative-flow-graph}. 
 %%  \john{Presumably this sentence disappears if the italic text is made permanent.}
-
-The fuel monad and inner dataflow monad are private to the
+Function @runDFM@ runs a single analysis or transformation, then
+abandons the dataflow facts.
+The supplies of fuel and labels are kept (in the result of type
+@FuelMonad b@) because all analyses and transformations share a single
+supply of fuel and fresh labels.
+%
+The dataflow monad is private to the
 implementation of the library; 
-what is exposed in the interface is a combined monad called @DFMonad@,
-and a @run@ function that lifts computations of type @DFMonad a@
-to~@IO a@. \simon{``combined''??  There is no fuel moand in Fig 8!}
-% cannot afford to mention @Fuel@ yet
+only @FuelMonad@ is exposed in the interface.
 
 The upper layer of the dataflow engine comprises four functions:
 a forward solver, a forward rewriter,
@@ -2338,6 +2359,7 @@ we show parts of the forward solver and rewriter.
   fuel''}
 
 \seclabel{vpoiso}
+\seclabel{fuel}
 
 We have extended Lerner, Grove, and Chambers's optimization-combining algorithm with
 Whalley's \citeyearpar{whalley:isolation} algorithm for isolating
@@ -2516,7 +2538,7 @@ either because
 we are implementing a pure analysis, or because the optimizer
 is out of fuel. 
 We~do so using parameter @with_fuel@, which can prevent rewriting by
-returning @Nothing@.
+returning @return Nothing@.
 \item
 Analysis of a subgraph starts with known facts, not
 bottom facts; they are passed as % parameter
@@ -2524,11 +2546,6 @@ bottom facts; they are passed as % parameter
 % (\lineref{forward.sol.args}) 
 and
  set on \lineref{forward.sol.setAllFacts}.
-\item
-We track the amount of fuel remaining using
-parameter @fuel@.
-Parameter @fuel@ comes last because the fuel monad works with
-functions of type @Fuel -> (a, Fuel)@.
 \end{itemize}
 %A~fixed point is computed by initializing the facts using
 %@setAllFacts@, which is an operation in the dataflow monad.
@@ -2574,22 +2591,22 @@ it brings the facts associated with labels up to a fixed point.
 %%      rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
 \setcounter{codeline}{0}
 \begin{numberedcode}
-!GraphFactKont!type GraphFactKont  m l a b = Graph m l -> a -> Fuel -> DFM a b
-!GraphKont!type GraphKont      m l a b = Graph m l      -> Fuel -> DFM a b
+!GraphFactKont!type GraphFactKont  m l a b = Graph m l -> a -> DFM a b
+!GraphKont!type GraphKont      m l a b = Graph m l      -> DFM a b
 
 !rew.first!      rew_first :: BlockId -> GraphFactKont m l a b -> GraphKont     m l a b
       rew_mid   :: m       -> GraphFactKont m l a b -> GraphFactKont m l a b
 !rew.last!      rew_last  :: l       -> GraphKont     m l a b -> GraphFactKont m l a b
 
-!rew.mid.1!      rew_mid m k head in' fuel =
-        case with_fuel fuel $ fr_middle rewrites in' m of
-          Nothing -> k (head <*> mkMiddle m) (ft_middle_out transfers in' m) fuel
-          Just (fuel, g) ->
-!rew.subAnalysis!              do { (g, a, fuel) <- subAnalysis $
+!rew.mid.1!      rew_mid m k head in' =
+        (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
+          Nothing -> k (head <*> mkMiddle m) (ft_middle_out transfers in' m)
+          Just g  ->
+!rew.subAnalysis!              do { (g, a) <- subAnalysis $
                       case depth of
-                        RewriteDeep    -> sar_OO g (\g a f -> return (g, a, f)) in' fuel
-!rew.anal.f.OO!                        RewriteShallow -> do { a <- anal_f_OO g in'; return (g, a, fuel) }
-!rew.mid.*!                 ; k (head <*> g) a fuel }
+                        RewriteDeep    -> sar_OO g (curry return) in'
+!rew.anal.f.OO!                        RewriteShallow -> do { a <- anal_f_OO g in'; return (g, a) }
+!rew.mid.*!                 ; k (head <*> g) a }
 
 !sar.OO!      sar_OO :: Graph m l -> GraphFactKont m l a b -> FactKont a b
 \end{numberedcode}
@@ -2603,45 +2620,33 @@ The implementation of @zdfSolveFwd@ using @forward_sol@ looks
 like this:
 \begin{smallcode}
 zdfSolveFwd name lattice transfers in_fact g = 
-  runDFM lattice $ ffp () $ 
+  runWithoutFuel $ runDFM lattice $ ffp () $ 
   fwd_pure_anal name emptyBlockEnv transfers in_fact g
 fwd_pure_anal name env transfers in_fact g =
   forward_sol (\_ _ -> Nothing) undefined name env 
               transfers undefined in_fact g undefined >>= 
   return . fst
 ffp :: b -> DFM a (Maybe a) -> DFM a (FwdFixedPoint m l a b)
+runWithoutFuel :: FuelMonad a -> a
 \end{smallcode}
 Funtion @fwd_pure_anal@ is the special case of pure analysis; it is
 also used to implement function @anal_f_OO@ on
 \lineref{solve.rewrite.shallow.1} of \figref{solver-excerpts}.
 Function~@ffp@ (not shown) extracts a @FwdFixedPoint@ from the
 state stored in the inner dataflow monad.
-
-\simon{I found myself deep in fuel administration when looking 
-at the code.  Of all things that ought to be hidden in a monad, surely 
-fuel is the primary example?  Yet you have deliberately and carefully 
-made it back into an explicitly passed parameter.  Why?
-
-NR:~How is this state different from all other states?
-Consider two iterations of @solve\_blocks@.
-The first iteration starts with dataflow facts~$\rho$ and fuel supply~$f$.
-At the end of the iteration the facts are~$\rho'$ and the new
-fuelsupply is $f'$.
-The second iteration starts with \emph{facts}~$\rho'$ but with
-\emph{fuel}~$f$ (no prime).
-That's why I treated fuel as pure.
-I~guess we need a paragraph on this.
-}
+Function @runWithoutFuel@ (not shown) exploits lazy evaluation to run
+a computation in the fuel monad while guaranteeing that the
+computation uses no fuel and no labels.
 
 Function @forward_sol@ is composed of many parts, all written in
 continuation-passing style.
 The types of the
-continuations are shown on \linerangeref{FactKont}{FuelKont} of
+continuations are shown on \linerangeref{FactKont}{Kont} of
 \figref{solver-excerpts}. 
 \begin{itemize}
 \item
 Type @FactKont a b@ describes a context following a first node or middle
-node: in a forward analysis, we expect a fact of type~@a@
+node: in a forward analysis, the context expects a fact of type~@a@
 to flow out of the node.
 The rest of the analysis consumes that
 fact and the remaining fuel and produces a computation in the inner
@@ -2656,20 +2661,20 @@ since as many facts flow out of a last node as there are control-flow
 edges leaving that node, the context expects those facts to have type
 @LastOuts a@.
 \item
-Type @FuelKont a b@ describes a context \emph{before} a first node (or a
+Type @Kont a b@ describes a context \emph{before} a first node (or a
 basic block).
 The forward analysis of a basic block does \emph{not} start with a
 fact flowing in; it starts with the fact associated with that block's
 label in the inner dataflow monad.
-Thus a @FuelKont@ expects no fact as argument; it gets its fact by
+Thus a @Kont@ expects no fact as argument; it gets its fact by
 calling the monadic operation @getFact@.
 \end{itemize}
-\simon{I like these continuations, but I'm very puzzled about the
-fuel.  If @FuelKont@ takes @Fuel@ in, where does it return the depleted @Fuel@?
+\delendum{I like these continuations, but I'm very puzzled about the
+fuel.  If @Kont@ takes @Fuel@ in, where does it return the depleted @Fuel@?
 It must come out eventualy, because it's needed in the rest of the program.
 And if it always comes out, then we should say so:
-@FuelKont a b = Fuel -> DFM a (Fuel, b)@.
-And once you do that, it's plain that @FuelKont@ is just a state monad,
+@Kont a b = DFM a b@.
+And once you do that, it's plain that @Kont@ is just a state monad,
 and I can't see why it isn't part of @DFM@ in the first place.}
 
 \Linerangeref{solve.first.sig}{solve.last.sig} of
@@ -2683,7 +2688,7 @@ continuations.
 The result types of @solve_first@, @solve_mid@, and @solve_last@
 compose nicely, so that for any basic block we can compute a function
 of type
-@LOFsKont a b -> FuelKont a b@.
+@LOFsKont a b -> Kont a b@.
 But once we have analyzed a block, we no longer want to pass facts
 from one function to another---we want to update the facts stored in
 the inner dataflow monad.
@@ -2694,19 +2699,19 @@ flowing out of a block, then returns the remaining~@Fuel@.
 By applying the composition
 of @solve_first@, @solve_mid@, and @solve_last@ to @set_last@, we get
 function @solve_block@, whose type is given on \lineref{solve.block}.
-Function @solve_block@ is given a block and an amount of
-fuel,
-it runs for its side effects on the inner dataflow monad,
-and
-it returns the remaining fuel.
+Function @solve_block@ is given a block and it
+it runs for its side effects on the dataflow monad.
 
 In the rest of the solver,
 function @solve_blocks@ (not shown) takes a list of blocks and
-produces a continuation of type @FuelKont a Fuel@, which
+produces a continuation of type @Kont a ()@, which
 runs @solve_block@ repeatedly,
 updating stored facts until they reach a
 fixed point.
-Using @solve_blocks@, we have writren solvers for subgraphs which are open/open,
+Each iteration runs under @withDuplicateFuel@, so that the analysis
+\emph{simulates} the effects of a fuel limit on the rewriter, but does
+not actually consume any fuel.
+Using @solve_blocks@, we have written solvers for subgraphs which are open/open,
 open/closed, or closed/open.
 
 Finally, @solve_Ox@ (type on \lineref{solve.Ox}, implementation not
@@ -2714,14 +2719,13 @@ shown), which provides the external interface,
 solves a graph~@g@ which is open/open or open/closed.
 This function is run primarily for its
 side effects on the inner
-dataflow monad.
-It also returns the remaining fuel, and if it is open at the exit, it
-returns an exit fact.
+dataflow monad, but if the graph is open at the exit, it also produces
+an exit fact.
 
 Ultimately, \emph{all} solver functions
 are composed of applications of @solve_first@,
 @solve_mid@, and @solve_last@.
-They are very similar, so we show just one,
+These functions are similar, so we show just one,
 @solve_mid@, on
 \linerangeref{solve.mid.1}{solve.mid.*} of \figref{solver-excerpts}.
 On~\lineref{solve.mid.case}, a rewrite function is passed an
@@ -2735,8 +2739,7 @@ the current supply of fuel.
 The interesting case occurs on \linerangeref{solve.mid.Just}{solve.mid.*},
 when the rewrite function 
 proposes a replacement graph~@g@.
-The application of @with_fuel@ produces~@g@ together with a reduced
-supply of fuel.
+Function @with_fuel@ decrements the fuel supply and produces~@g@.
 \begin{enumerate}
 \item
 If we are doing \emph{deep} rewriting, then as @g@~is analyzed
@@ -2746,18 +2749,15 @@ on~\lineref{solve.OO}
 by a recursive call to @solve_OO@ (not shown).
 (Because @g@~replaces a middle node, it is open at entry and exit.)
 The recursive call gets continuation @uncurry return@, and the
-resulting @FactKont a (a, Fuel)@ is given
-the input fact and fuel supply.
-The output fact and remaining
-fuel supply are computed in the inner dataflow monad and bound on
-\lineref{solve.subAnalysis}. 
-
-The monadic computation is wrapped in @subAnalysis@ (also on
-\lineref{solve.subAnalysis}), which rolls back the mutations
-made by @solve_OO@ as it iterates to a fixed point.
-Applying @subAnalysis@ leaves the state of the inner dataflow monad
-unchanged, so that the only effect of the sub-analysis is to produce
- the pair @(a, fuel)@.
+resulting @FactKont a a@ is given
+the input fact.
+The output fact is computed in a sub-analysis
+and bound on
+\lineref{solve.mid.Just}. 
+%
+Function @subAnalysis@ rolls back the facts mutated
+by @solve_OO@ as it iterates to a fixed point, but it accounts for
+the fuel consumed in the final iteration.
 \item
 If we are doing \emph{shallow} rewriting,  new graph~@g@ must not be
 rewritten, but we must still find a fixed point of the transfer
@@ -2841,7 +2841,7 @@ continuation~@k@ takes the additional parameter
 @head <*> mkMiddle m@,
 which is the graph formed by concatenating graph @head@ and node~@m@. 
 When a rewrite is proposed, the sub-analysis computes not just an
-output fact and a new fuel supply but also a possibly rewritten graph
+output fact but also a possibly rewritten graph
 (\linerangeref{rew.subAnalysis}{rew.anal.f.OO}).
 Rewriting proceeds with the new graph @head <*> g@
 (\lineref{rew.mid.*}).
@@ -2850,8 +2850,9 @@ The recursive solve-and-rewrite function @sar_OO@ (type on
 \lineref{sar.OO}, implementation not shown) 
 has no counterpart in the solver.
 It first calls the solver to set the dataflow facts to a fixed
-point, then calls rewrite functions to rewrite the graph based on
-those facts.
+point (using a duplicate fuel supply), then calls rewrite functions to
+rewrite the graph based on 
+those facts (using the shared fuel supply). 
 For graphs of other shapes,
 there are similar functions.
 
