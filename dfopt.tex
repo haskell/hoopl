@@ -209,18 +209,18 @@ most finitely many times;
 (c)~transfer functions that approximate weakest preconditions or
 strongest postconditions over the assertions; and
 (d)~rewrite functions whose soundness is justified by the assertions.
-To~guide compiler writers,
-we show how dataflow analyses are related to
-seminal work on program 
-correctness. \simon{The ``next 700'' section sort of does so, but I'm not 
-sure it deserves mention in the abstract.}
-Finally, our library uses the algorithm of 
+%%  To~guide compiler writers,
+%%  we show how dataflow analyses are related to
+%%  seminal work on program 
+%%  correctness. \simon{The ``next 700'' section sort of does so, but I'm not 
+%%  sure it deserves mention in the abstract.}
+Our library uses the algorithm of 
 \citet{lerner-grove-chambers:2002}, which enables compiler writers to
 compose very simple analyses and transformations in a way that achieves
 the same precision as complex, handwritten
 ``super-analyses.''
 Our library is the workhorse of a new
-back end for the Glasgow Haskell Compiler.
+back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
 \end{abstract}
 
 \makeatactive   %  Enable @foo@ notation
@@ -246,8 +246,10 @@ code improvement.
 This paper makes two contributions:
 \begin{itemize}
 \item
-We show that the ad-hoc ``optimization zoo'' consists mostly of special
-cases of reasoning techniques that have long been understood and used
+To help practitioners make sense of the ad-hoc ``optimization zoo,''
+we argue that most optimizations
+work by applying reasoning techniques that have long been understood
+and used 
 by semanticists and functional programmers:
 assertions about states, assertions about continuations, and
 substitution of equals for equals (\secref{next-700}).
@@ -262,10 +264,10 @@ code-improvement techniques to a purely functional compiler.
 Analyses and transformations, which use the library,
 are small, simple, and easy to get right.
 The library itself
-\ifpagetuning uses \else is built around \fi
+ is built around 
  a sophisticated algorithm which is
-hard to get right but is 
-written once and reused.
+hard to get right, but our implementation
+can be reused with many intermediate languages.
 \end{itemize}
 
 We consider code improvements over low-level
@@ -409,6 +411,9 @@ the invariant % line breaking
 @lim == a + n * 24@,
 so that @i >= n@ if and only if @p >= lim@.
 
+\ifpagetuning \enlargethispage{1\baselineskip} \fi 
+
+
 We implement the code improvement as a sequence of transformations.
 After each transformation, the observable behavior of the program is unchanged.
 %
@@ -484,7 +489,8 @@ and
 some combined passes require nonstandard, handwritten traversals of
 the control-flow graph.
 \citet{lerner-grove-chambers:2002} discuss these issues in detail;
-\citet{click-cooper} show the advantages of combining separate passes.}
+\citet{click-cooper} show both the advantages of and the programming cost
+of combining passes.} 
 \secref{dfengine} describes our implementation of their interleaving
 method, which eliminates the boxed assignments to~@i@:
 \begin{alltt}
@@ -517,6 +523,8 @@ sum_r("address" bits32 a, bits32 n) \lbr
 \end{alltt}
 
   
+\ifpagetuning \enlargethispage{1\baselineskip} \fi 
+
 \section {Making dataflow simple}
 
 \seclabel{making-simple}
@@ -588,14 +596,19 @@ state at that point.
 
 A~program point is represented as an edge in
 a \emph{control-flow graph}.\footnote
-{We discuss only intraprocedural optimization;
-interprocedural optimizations are the work of the GHC~inliner
-\cite{peyton-jones:secrets-inliner}.} 
+{We discuss only intraprocedural optimization, done after inlining.}
+%%
+%%interprocedural optimizations are the work of the GHC~inliner
+%%\cite{peyton-jones:secrets-inliner}.} 
+%% 
+%%  Note: trying to eliminate reviewer's impression that our work is
+%%  conceived for and limited to GHC.  S&S's citation count must
+%%  suffer.  ---NR
+%%
 The edges connect nodes, each of which represents a label, an assignment, or
 a control transfer.
 
-To write a dataflow \emph{analysis}, the compiler
-writer must 
+To write a dataflow \emph{analysis}, you must 
 \begin{itemize}
 \item
 Choose a representation~$F$ of dataflow facts and a logical interpretation
@@ -612,7 +625,7 @@ functions and rewrite functions, which is why they are italicized.}
 \end{itemize}
 
 To write a \emph{transformation}
-based on an analysis, the compiler writer
+based on an analysis, you
 must also
 create a \emph{rewrite function}, which is presented with a
 flow-graph node and with the dataflow facts on the edges coming
@@ -650,20 +663,22 @@ Solve-and-rewrite functions & Us & Us & Two (forward \&\ backward) \\
 
 
 
-Our library defines the types of lattice operations,
-control-flow graphs, transfer functions, and rewrite functions.
-\emph{All}~these types are parameterized by the types of
-nodes in the control-flow graph, so
-the library can be used with many intermediate languages.
-The function types are also parameterized by the type of dataflow
-facts, so a compiler writer may define different analyses, 
+Our library defines the types of
+control-flow graphs, 
+lattice operations,
+transfer functions, 
+and 
+rewrite functions.
+{All}~these types are parameterized by the types of
+nodes in the control-flow graph, which \emph{you} get to define, so you can use
+the library with many intermediate languages (\tabref{parts}).
+Function types are also parameterized by the type of dataflow
+facts, so you can define different analyses, 
 using different types of facts,
 all operating over one type of graph. 
 
-\tabref{parts} shows how our code interacts with client code that you
-might write.
-Client code passes
-lattice
+\tabref{parts} shows how our code interacts with your client code.
+You~pass lattice
 operations, transfer functions, and rewrite functions
 to the part of our library we call the \emph{dataflow engine}.
 The dataflow engine includes
@@ -674,7 +689,7 @@ It also includes \emph{rewrite functions}, which
 use a forward or backward \emph{transformation} to compute facts and to
 rewrite a control-flow graph in light of those facts
 (\secref{rewrites}).
-Its implementation is sketched in \secref{dfengine}.
+The engine's implementation is sketched in \secref{dfengine}.
 \delendum{Interface?  Perhpas ``The signatures and expected usage of these
 functions is described in xxx, while their implementation is sketched
 in yyy''.  NR: I like the idea of parallel structure, but the paper is
@@ -739,11 +754,11 @@ $i = 7 \lor i=\bot \equiv i=7$ (no loss of information)
 $i = 7 \lor i= 7 \equiv  i=7$ (no loss of information)
 \item
 $i = 7 \lor i = 8 \equiv i = \top$ (loss of information)\footnote
-{Client code determines how much information is lost.
+{Your client code determines how much information is lost.
 For example, in a similar analysis for a functional language,
 you might wish to track whether a value~$v$ is known to
 be the application of a value constructor~$C_i$.
-In this analysis, there's no need to limit the representation to a
+In this analysis, you needn't limit the representation to a
 single constructor or to~$\top$;
 you could choose to represent such facts as ``$v$~is
 the application of a constructor drawn from the set $\{C_1, C_2,
@@ -770,6 +785,15 @@ if $x$~maps to @Nothing@ then $x=\top$; if $x$~maps to $@Just@\;k$ then
 $x=k$.
 
 
+Any one procedure has only finitely many variables;
+only finitely many facts are computed at any program point;
+and in this lattice any one fact can increase at most twice.
+These properties
+ensure that the dataflow engine will
+reach a fixed point.
+
+
+
 The dataflow engine uses the lattice join operation in a stylized way.
 Joins occur at labels.
 If~$f_{\mathit{id}}$ is the fact currently associated with the
@@ -781,13 +805,6 @@ the join  $f_{\mathit{new}} \join f_{\mathit{id}}$.
 Furthermore, the dataflow engine wants to know if
   $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$,
 because if not, it has not reached a fixed point.
-
-In the example above, in any one program there are only finitely many variables;
-only finitely many facts are computed at any program point;
-and any one fact can increase at most twice.
-These properties
-ensure that the dataflow engine will
-reach a fixed point.
 
 
 
@@ -841,15 +858,14 @@ A~control-flow graph is a collection of labelled \emph{basic blocks}.
 Each basic block is a sequence beginning with a \emph{first node},
 containing zero or more \emph{middle nodes},
 and ending in a \emph{last node}.
+(An~optimizer also works with \emph{subgraphs}, which may be missing a
+first node or a last node, as discussed in \secref{subgraphs}.)
 A~first node is always a label;
 a~typical middle node assigns to a register or memory
 location;
 a~typical last node is a conditional, unconditional, or indirect branch.
-The client code choose the types of middle and last nodes, and in this
-way defines its intermediate
-representation.
-(An~optimizer also works with \emph{subgraphs}, which may be missing a
-first node or a last node, as discussed in \secref{subgraphs}.)
+You choose the types of middle and last nodes to suit your
+intermediate representation.
 
 
 
@@ -883,11 +899,11 @@ program state, the transfer function @ft_first_out@ is typically
 @flip const@---a variation on
 the
 identity function.\footnote
-{One counterexample is in an
+{One counterexample is an atypical
 analysis, similar to a dominator analysis,
-which we use to help convert {\PAL} to continuation-passing style.
+which helps us convert {\PAL} to continuation-passing style.
 The  analysis
-helps us not to duplicate code that is common to multiple continuations.
+helps us avoid duplicating code that is common to multiple continuations.
 }
 For a middle node, the transfer function @ft_middle_out@ is given a
 node and a precondition and returns an approximation of the strongest
@@ -897,7 +913,7 @@ different successors; for example, the true and false successors of a
 conditional branch may accumulate information implied by the truth or
 falsehood of the condition.
 A~collection of (successor, fact) pairs is represented by a value of
-type @LastOuts a@.
+type @LastOuts a@ (\figref{transfers}).
 
 
 
@@ -940,11 +956,11 @@ engine has reached a fixed point.
 
 Given lattice operations of type @DataflowLattice a@
 and transfer functions of type @ForwardTransfers m l a@,
-the compiler writer can run the analysis by calling our library
-function @zdfSolveFwd@, which is part of our dataflow engine:
+you can run the corresponding analysis by calling our library
+function @zdfSolveFwd@, a part of our dataflow engine:
 \begin{code}
  zdfSolveFwd 
-  :: (LastNode l)           -- Find successors of l
+  :: LastNode l             -- Find successors of l
   => PassName               -- Name of this analysis
   -> DataflowLattice a      -- Lattice
   -> ForwardTransfers m l a -- Transfer functions
@@ -954,15 +970,15 @@ function @zdfSolveFwd@, which is part of our dataflow engine:
 \end{code}
 The function is polymorphic in the types of middle and last nodes
 @m@~and~@l@ and in the type of the dataflow fact~@a@.
-This polymorphism is what makes our library work with any intermediate
-language, but there is a constraint: @(LastNode l)@ means that @l@~may
-be instantiated only with a type providing a function 
+Polymorphism allows our library to work with any intermediate
+language, but there is a constraint: @LastNode l@ is satisfied
+only if there is a function 
 \begin{code}
   succs :: l -> [BlockId]
 \end{code}
 which gives the identifiers of the blocks to which a node of type~@l@
 might transfer control.
-\remark{Would like to have a more limited constraint
+\remark{Would like to have the more limited constraint
 @HavingSuccessors l@, but this will mean additional complexity in the
 implementation.}
 
@@ -975,9 +991,9 @@ parameters or about the stack,
 this fact
 is not always~$\bot$.
 The last argument to @zdfSolveFwd@ is the graph, and the result is a 
-fixed point.\footnote
-{The meaning of the final type parameter~@()@ is 
-is explained in~\secref{engine-truth}.}
+fixed point.
+({The final type parameter~@()@ is 
+is explained in~\secref{engine-truth}.})
 
 
 The @FwdFixedPoint@ data structure is a big bag
@@ -1031,9 +1047,6 @@ class DataflowSolverDirection
 %%  engine and the individual dataflow passes.
 
 
-\section{Example analysis passes}
-
-\seclabel{example-analyses}
 
 
 \newcommand\T{\rule{0pt}{0.6ex}}
@@ -1052,8 +1065,7 @@ class DataflowSolverDirection
 \setcounter{codeline}{0}
 \begin{codetable}
 \T\begin{numberedcode}
-!UniverseMinus!data AvailVars = UniverseMinus VarSet
-!AvailVars!               | AvailVars     VarSet
+!AvailVars!data AvailVars = UniverseMinus VarSet | AvailVars VarSet
 !extendAvail!extendAvail  :: AvailVars -> LocalVar  -> AvailVars  -- add var to set
 delFromAvail :: AvailVars -> LocalVar  -> AvailVars  -- remove var from set
 elemAvail    :: AvailVars -> LocalVar  -> Bool       -- set membership
@@ -1096,7 +1108,7 @@ middleAvail :: Middle -> AvailVars -> AvailVars
 !store.avail.spill.1!middleAvail (MidStore l (CmmReg (CmmLocal x))) avail
 !store.avail.spill.2!                 | l `isStackSlotOf` x = avail
 !store.avail.otherslot.1!middleAvail (MidStore l _) avail 
-!store.avail.otherslot.2!  | isStackSlot l = delFromAvail avail (variableOfSlot l)
+!store.avail.otherslot.2!                 | isStackSlot l = delFromAvail avail (variableOfSlot l)
 !store.avail.other!middleAvail (MidStore {}) avail = avail
 
 lastAvail :: Last -> AvailVars -> LastOuts AvailVars
@@ -1170,9 +1182,16 @@ cmmAvailableVars g = zdfFpFacts soln
 %   elemVarSet r s
 
 
+
+
+\section{Example analysis passes}
+
+\seclabel{example-analyses}
+
+
 We claim that our library
 makes it easy to write compiler passes based on dataflow.
-In~this section we provide evidence for that claim by showing
+Here we support that claim by showing
 implementations of two analyses;
 related transformations appear in \secref{example-rewrites}. 
 The example analyses help solve a real problem in the Glasgow Haskell
@@ -1200,6 +1219,8 @@ f (bits32 a) \lbr
   \rbr
 \rbr
 \end{alltt}
+%\ifpagetuning\par\vfilbreak\fi % this is hell, but if we break here,
+%  downstream suffers
 A~spill and a reload should be inserted as follows:%
 \seclabel{spill-reload-example} % space is deliberate
 \newcommand\bigstrut{%
@@ -1228,10 +1249,6 @@ immediately after the call to~@g@, but just before its use in the
 expression @z + x@.
  On the control-flow path to @return z@, @x@~needn't be reloaded
 at all.
-
-\ifpagetuning\enlargethispage{0.5\baselineskip}\fi 
-  % this one has national-security importance!
-
 
 
 Spills and reloads are inserted in the right places
@@ -1385,35 +1402,37 @@ $\slotof x$.
 \delendum{I'm confused.  Surely that definition of profitable is also what we
 mean by safe?  NR: No---safety could be establish by an arbitrary
 assignment to~$x$ followed by a store to $\slotof x$.}
-Safety an profitability are incomparable;
-the dataflow fact computed by our analysis is the set of variables for
+Safety and profitability are incomparable;
+the dataflow fact computed by our analysis is the set we call
+\emph{available} variables, for
 which it is \emph{both}
 safe \emph{and} profitable to insert a reload.
-The lattice-join operation is set intersection,\footnote
-{Because the assertion of interest is an ``all-paths'' property.}
+Because the assertion of interest is an ``all-paths'' property, 
+the lattice-join operation is set intersection,
 and the bottom element
 is the universal set containing all variables.
-It~is optimistic to assume that any variable can be safely reloaded from the stack,
-but this optimistic assumption is what enables us to improve the
-code---and if the assumption is not justified, the transfer functions
-will correct it before
-the analysis reaches a fixed point.
-\simon{I'm guessing that you intend this sentence to address my long bleat:
-``I'm puzzled about why you are treating this example so differently
+%%It~is optimistic to assume that any variable can be safely reloaded from the stack,
+%%but this optimistic assumption is what enables us to improve the
+%%code---and if the assumption is not justified, the transfer functions
+%%will correct it before
+%%the analysis reaches a fixed point.
+\simon{%I'm guessing that you intend this sentence to address my long bleat:
+I'm puzzled about why you are treating this example so differently
 to constant-prop in Section 3.1.  It looks almost identical to me.  We could
 keep a fact for every variable: $x=\bot$ means nothing is known; $x=s_x$ means
 x's stack slot is up to date; $x=\top$ means x's stack slot is out of date.
 Then keep a finite map as we do for constant prop.  If there is a difference
 that drives the rep you have here, let's say so. If the difference is
-purely accidental, we should eliminate it.  (Or maybe we don't have time, in
-which case we should remark that there is no diff.)''.
-For the paper, let's leave it as it is, but this note is to remind us
-that I am still unhappy on this point.  I think the difficulty is that we
+purely accidental, we should eliminate it.
+
+I am still unhappy on this point.  I think the difficulty is that we
 want to represent \emph{both} the universal set \emph{and} the empty set.
 But I'm unclear about the trade-offs in approximation that arise 
 from this either-or representation.
-%\par
-NR \&\ JD: \figref{avail} has only 24~lines of code.
+
+NR \&\ JD: Availability is an all-paths property, and it's not obvious
+to us that it can be modeled by an assertion about states.
+\figref{avail} has only 24~lines of code.
 Perhaps you could write an alternative implementation?
 }
 
@@ -1426,7 +1445,7 @@ set either as
 $\mathtt{UniverseMinus}\;s$, which stands for all variables except
 those in the set~$s$,
 or $\mathtt{AvailVars}\;s$, which stands for the variables in the set~$s$
-(\figref{avail-lattice}, \linepairref{UniverseMinus}{AvailVars}).
+(\figref{avail-lattice}, \lineref{AvailVars}).
 %
 %
 The bottom element is @UniverseMinus emptyVarSet@.
@@ -1473,8 +1492,7 @@ function in \figref{avail-transfers}.\finalremark
 {Let us revise the paper to pretend that global variables
 don't exist.}
 This transfer function is specialized to the type of @Middle@ node
-used in~GHC.
-In~GHC, a~middle node is either @MidAssign@, which assigns to a local
+used in~GHC: either @MidAssign@, which assigns to a local
 or global variable, or @MidStore@, which assigns to memory.
 %\par
 %\ifpagetuning{\enlargethispage{\baselineskip}}\fi
@@ -1492,12 +1510,21 @@ so @x@~is added to the set of available variables.
 \item
 On \linepairref{assign.avail.1}{assign.avail.2},
 an assignment to a local variable means that the
-variable is no longer necessarily equal to the value in its stack
+variable need not be equal to the value in its stack
 slot, so if @lhs@ is a local variable, it is removed from the set of
 available variables.
-Function @foldVarsDefd@ is a function which, in this
-instance, calls @delFromAvail@ if @lhs@ is a local variable and does
-nothing if @lhs@ is a global variable.
+Function @foldVarsDefd@ is an overloaded function which, along with its dual,
+is used throughout the back end:
+\begin{code}
+foldVarsUsed :: UserOfLocalVars    a 
+             => (b -> Var -> b) -> b -> a -> b
+foldVarsDefd :: DefinerOfLocalVars a 
+             => (b -> Var -> b) -> b -> a -> b
+\end{code}
+On \lineref{assign.avail.2},  if @lhs@ is a local variable,
+@foldVarsDefd@ calls @delFromAvail@;
+ if @lhs@ is global, @foldVarsDefd@ does nothing.
+
 
 %\ifpagetuning\smallskip\fi  
   % more even spacing because \subsection 4.2 forces page break
@@ -1598,7 +1625,7 @@ Except for the implementations of the set operations on
 
 The assertion computed by 
 a backward dataflow analysis applies to a
-\emph{continuation} at a program point, not to a state.
+\emph{continuation} at a program point.
 The classic example is liveness analysis;
 the assertion of interest is that at a particular program point,
 the answer produced by the continuation does not depend on
@@ -1678,18 +1705,6 @@ the dataflow-engine function @zdfSolveBwd@ (\figref{liveness},
 %a finite map from basic-block IDs to the set of live variables
 %at the beginning of each block.
 \figref{liveness} shows the \emph{entire} analysis.
-(Overloaded functions
-@foldVarsUsed@ and @foldVarsDefd@
-are used throughout the back end and
-are not considered part of liveness analysis.)
-\simon{I still want to see their type signatures in a figure somewhere!!
-NR: Agreed in principle, but pray suggest where you mean by ``somewhere.''
-SLPK: Plus any other non-obvious functions we use but do not define.
-NR: Pray enumerate the functions that offend you.
-}
-%
-% types of fold functions agreed to in principle, but in practice
-% there is no good place to put them.
 
 
 
@@ -1854,7 +1869,7 @@ determinism. ---NR)
 %%%%    }
 
 To write a program transformation,
-the compiler writer must 
+you must 
 \begin{itemize}
 \item
 Create a dataflow lattice and transfer functions for the supporting
@@ -1862,21 +1877,20 @@ analysis, as described in \secref{create-analysis}.
 \item
 Create rewrite functions for first, middle, and last nodes.
 \end{itemize}
-The
-compiler writer can then use our
+You can then use our
 library function @zdfRewriteFwd@ (from our dataflow engine) to
 transform a control-flow 
 graph:
 \begin{code}
-  zdfRewriteFwd 
-    :: RewritingDepth         -- Rewrite recursively?
-    -> PassName               -- Name of this pass
-    -> DataflowLattice a      -- Lattice
-    -> ForwardTransfers m l a -- Transfer functions
-    -> ForwardRewrites m l a  -- Rewrite functions
-    -> a                      -- Input fact
-    -> Graph m l              -- Control-flow graph
-    -> FuelMonad (FwdFixedPoint m l a (Graph m l))
+ zdfRewriteFwd 
+  :: RewritingDepth         -- Rewrite recursively?
+  -> PassName               -- Name of this pass
+  -> DataflowLattice a      -- Lattice
+  -> ForwardTransfers m l a -- Transfer functions
+  -> ForwardRewrites  m l a -- Rewrite functions
+  -> a                      -- Input fact
+  -> Graph m l              -- Control-flow graph
+  -> FuelMonad (FwdFixedPoint m l a (Graph m l))
 \end{code}
 %%  
 %%  class DataflowSolverDirectiontransfers fixedpt =>
@@ -1899,6 +1913,9 @@ Function @zdfRewriteFwd@ is like @zdfSolveFwd@ in
 information:\seclabel{engine-truth} 
 \begin{itemize}
 \item
+Function @zdfRewriteFwd@ requires rewrite functions as well as transfer
+functions.
+\item
 The @RewritingDepth@ parameter controls recursive rewriting;
 if~a graph produced by a rewrite function should not be further rewritten,
 rewriting is \emph{shallow};
@@ -1909,9 +1926,6 @@ Deep rewriting is essential to achieve the results of
 variable from the loop in the example in \secref{induction-var-elim}.
 When deep rewriting is used, the rewrite functions must
 ensure that the graphs they produce are not rewritten indefinitely.
-\item
-Function @zdfRewriteFwd@ requires rewrite functions as well as transfer
-functions.
 \item
 The type constructor @FwdFixedPoint@ has a fourth
 type parameter,
@@ -1927,7 +1941,8 @@ implemented using rewrite.  NR: I don't understand why not.
 We are explaining the meaning of the final type parameter to
 @FwdFixedPoint@, as promised.}
 \item
-Rewriting is monadic; the @FuelMonad@ holds resources needed to
+Rewriting is monadic.
+A~@FuelMonad@ holds resources needed to
 rewrite graphs into subgraphs:
 a~supply of fresh labels and a supply of \emph{optimization fuel}
 (\secref{fuel}). 
@@ -2322,9 +2337,10 @@ changes the same stored facts as~@c@, but it consumes fuel from a
 \emph{copy} of the fuel supply.
 The inner computation~@c@ may therefore run out of fuel, but
 @withDuplicateFuel c@ restores the original fuel supply.
+By using @withDuplicateFuel@, we have eliminated the elaborate
+fuel-passing computations we used in earlier implementations
+\cite{ramsey-dias:applicative-flow-graph}. 
 \end{itemize}
-\remark{Using @withDuplicateFuel@ is a hell of a lot simpler than the
-``fuel adminstration'' in our caml code}
 %%  Using pure code and a monad makes this version much easier to get
 %%  right than our Objective Caml version
 %%  \cite{ramsey-dias:applicative-flow-graph}. 
@@ -3326,7 +3342,7 @@ an applicative flow graph which is
 an ancestor of the one used in this paper. 
 That paper also presents an implementation of dataflow analysis,
 but the implementation described in \secref{engine} above is entirely
-now, and even
+new, and even
 the~interface has evolved significantly.
  The analyses of
 \secreftwo{create-analysis}{example-analyses}, the transformations of

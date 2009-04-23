@@ -1,4 +1,4 @@
-\begin{thebibliography}{12}
+\begin{thebibliography}{11}
 \expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
 \expandafter\ifx\csname url\endcsname\relax
   \def\url#1{{\tt #1}}\fi
@@ -54,13 +54,6 @@ Sorin Lerner, David Grove, and Craig Chambers.
 \newblock \emph{Conference Record of the 29th Annual ACM Symposium on
   Principles of Programming Languages, {\em in} SIGPLAN Notices}, 31\penalty0
   (1):\penalty0 270--282.
-
-\bibitem[Peyton~Jones and Marlow(2002)]{peyton-jones:secrets-inliner}
-Simon Peyton~Jones and Simon Marlow.
-\newblock 2002 (July).
-\newblock Secrets of the {Glasgow Haskell Compiler} inliner.
-\newblock \emph{Journal of Functional Programming}, 12\penalty0
-  (4\&5):\penalty0 393--433.
 
 \bibitem[Peyton~Jones, Ramsey, and
   Reig(1999)]{peyton-jones-ramsey:garbage-collection:inproceedings}
