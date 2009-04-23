@@ -944,16 +944,30 @@ the compiler writer can run the analysis by calling our library
 function @zdfSolveFwd@, which is part of our dataflow engine:
 \begin{code}
  zdfSolveFwd 
-  :: PassName               -- Name of this analysis
+  :: (LastNode l)           -- Find successors of l
+  => PassName               -- Name of this analysis
   -> DataflowLattice a      -- Lattice
   -> ForwardTransfers m l a -- Transfer functions
   -> a                      -- Input fact
   -> Graph m l              -- Control-flow graph
-  -> DFMonad (FwdFixedPoint m l a)
+  -> FwdFixedPoint m l a ()
 \end{code}
 The function is polymorphic in the types of middle and last nodes
 @m@~and~@l@ and in the type of the dataflow fact~@a@.
-The first three arguments characterize the analysis.
+This polymorphism is what makes our library work with any intermediate
+language, but there is a constraint: @(LastNode l)@ means that @l@~may
+be instantiated only with a type providing a function 
+\begin{code}
+  succs :: l -> [BlockId]
+\end{code}
+which gives the identifiers of the blocks to which a node of type~@l@
+might transfer control.
+\remark{Would like to have a more limited constraint
+@HavingSuccessors l@, but this will mean additional complexity in the
+implementation.}
+
+After the type constraint, 
+the first three arguments to @zdfSolveFwd@ characterize the analysis.
 The next argument is the dataflow fact that holds on entry to the
 graph;
 because a procedure's caller may establish some facts about
@@ -961,19 +975,9 @@ parameters or about the stack,
 this fact
 is not always~$\bot$.
 The last argument to @zdfSolveFwd@ is the graph, and the result is a 
-monadic computation that produces a
 fixed point.\footnote
-{The type of @zdfSolveFwd@ has pedagogical lies;
-truth is told in~\secref{engine-truth}.}
-%%  \remark{One of the lies is
-%%  that I've deliberately conflated the three representations of graphs.}
-The \emph{dataflow monad}, written
-@DFMonad@,
-%This monad keeps track of the current dataflow fact at each label,
-provides a supply of fresh labels
-and
-also helps implement the fault-isolation strategy described
-in \secref{vpoiso}.
+{The meaning of the final type parameter~@()@ is 
+is explained in~\secref{engine-truth}.}
 
 
 The @FwdFixedPoint@ data structure is a big bag
@@ -984,7 +988,7 @@ the label, which is extracted using function @zdfFpFacts@:
 % Simon really wants these type signatures!
 \begin{verbatim}
 type BlockEnv a = Data.Map BlockId a
-zdfFpFacts :: FwdFixedPoint m l a -> BlockEnv a
+zdfFpFacts :: FwdFixedPoint m l a g -> BlockEnv a
 \end{verbatim}
 
 
@@ -1004,7 +1008,7 @@ class DataflowSolverDirection
     -> transfers m l a   -- Transfers
     -> a                 -- Input fact
     -> Graph m l         -- CFG
-    -> DFMonad (fixedpt m l a ())
+    -> fixedpt m l a ()
 \end{code}
 \fi
 
@@ -1782,7 +1786,7 @@ availRewrites = ForwardRewrites first middle last
 \hline
 
 \T\begin{code}
-insertLateReloads :: (Graph Middle Last) -> DFMonad (Graph Middle Last)
+insertLateReloads :: (Graph Middle Last) -> FuelMonad (Graph Middle Last)
 insertLateReloads g = liftM zdfFpContents result
 !insertLateReloads.1!  where result = zdfRewriteFwd RewriteShallow "insert late reloads"
                                availVarsLattice avail_vars_transfer
@@ -1872,7 +1876,7 @@ graph:
     -> ForwardRewrites m l a  -- Rewrite functions
     -> a                      -- Input fact
     -> Graph m l              -- Control-flow graph
-    -> DFMonad (FwdFixedPoint m l a (Graph m l))
+    -> FuelMonad (FwdFixedPoint m l a (Graph m l))
 \end{code}
 %%  
 %%  class DataflowSolverDirectiontransfers fixedpt =>
@@ -1887,7 +1891,7 @@ graph:
 %%      -> rewrites m l a    -- Input fact
 %%      -> a                 -- Input fact
 %%      -> Graph m l         -- CFG
-%%      -> DFMonad (fixedpt m l a (Graph m l))
+%%      -> FuelMonad (fixedpt m l a (Graph m l))
 %%
 %%
 Function @zdfRewriteFwd@ is like @zdfSolveFwd@ in
@@ -1910,8 +1914,7 @@ Function @zdfRewriteFwd@ requires rewrite functions as well as transfer
 functions.
 \item
 The type constructor @FwdFixedPoint@ has a fourth
-type parameter,\footnote
-{We lied to you above.}
+type parameter,
 which is a value contained in the fixed point.
 The~value can be extracted using function @zdfFpContents@, which has
 type @FwdFixedPoint m l a b -> b@.
@@ -1920,10 +1923,14 @@ contains the rewritten graph.
 In~@zdfSolveFwd@, @b@~is instantiated with
 the unit type~@()@.
 \simon{We can't make this point until later, where we say that solve is
-implemented using rewrite.  NR: I don't understand why we can't make
-this point now---we are revealing that @FwdFixedPoint@ has an
-additional type parameter, and we say what value it takes on in the
-earlier example.} 
+implemented using rewrite.  NR: I don't understand why not.
+We are explaining the meaning of the final type parameter to
+@FwdFixedPoint@, as promised.}
+\item
+Rewriting is monadic; the @FuelMonad@ holds resources needed to
+rewrite graphs into subgraphs:
+a~supply of fresh labels and a supply of \emph{optimization fuel}
+(\secref{fuel}). 
 \end{itemize}
 
 
@@ -2113,7 +2120,7 @@ deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing
 \hline
 
 \T\begin{code}
-removeDeadAssignments :: (Graph Middle Last) -> DFMonad (Graph Middle Last)
+removeDeadAssignments :: (Graph Middle Last) -> FuelMonad (Graph Middle Last)
 removeDeadAssignments g = liftM zdfFpContents result
 !rewriteBwd.1!     where result = zdfRewriteBwd RewriteDeep "dead-assignment elim"
 !rewriteBwd.2!                                  liveLattice liveTransfers rewrites emptyVarSet g
