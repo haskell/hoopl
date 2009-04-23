@@ -2560,6 +2560,12 @@ It~also has a side effect on the state stored in the inner dataflow monad:
 it brings the facts associated with labels up to a fixed point.
 \fi
 
+\remark{Need to say somewhere that @forward\_sol@ returns
+@Just a@ (the exit fact) for a graph that is open at the exit and
+@Nothing@ for a graph that is closed at the exit.
+Any graph passed to @forward\_sol@ must be open at the entry.
+}
+
 
 
 \begin{figure*}
@@ -2781,7 +2787,7 @@ Combining the decrement with the test in a higher-order function
 simplified the code significantly (and made it impossible to forget to
 decrement).
 }
-
+%
 \end{enumerate}
 %%  Whether rewriting is shallow or deep, the new graph~@g@ is analyzed as
 %%  a ``sub-analysis'' in the inner dataflow monad
