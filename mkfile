@@ -12,6 +12,11 @@ bib:V: $TGT.bbl
 dvi:V: $TGT.dvi
 bbl:V: bib
 
+tag:VQ: $TGT.tex
+	tag=`$HOME/bin/md5words $prereq | tr -d "'" | tr -cs a-zA-Z0-9 - | sed s/-*$//`
+	echo git tag $tag
+	git tag $tag
+
 dfopt.dvi: dfopt.bbl code.sty timestamp.tex
 
 $TGT.pdf: $TGT.dvi
