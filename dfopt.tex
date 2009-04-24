@@ -2420,18 +2420,24 @@ choice that I'd prefer not to expose in this paper.}
 
 To explain how graphs are analyzed and rewritten, we must explain how
 they are represented.
-\secref{graph.intro} oversimplifies.
-A~graph \emph{is} a collection of basic blocks, 
-and a typical basic block \emph{does} have a first node followed by zero or
+As mentioned in \secref{graph.intro},
+a~graph is a collection of basic blocks, 
+and a typical basic block has a first node followed by zero or
 more middle nodes followed by a last node.
-But a graph may also contain two special, incomplete
+Not mentioned in \secref{graph.intro},
+a graph may also contain two special, incomplete
 blocks:
 \begin{itemize}
 \item
 An \emph{entry sequence} is a sequence of zero or more middle nodes
 ending in a last node (i.e., a control transfer).
 If~a graph has an entry sequence it is \emph{enterable} or
-\emph{open at the entry}.
+\emph{open at the entry}.  \simon{I find ``enterable'' ambiguous,
+becuase close graph can still bentered by a jump.  It's more like
+``fallable into'' because control can fall through into it. 
+So I suggest we major on ``open at entry'' and de-emphasise or
+nuke ``enterable''.  Its only (considerable) merit is brevity.
+At least put it second, not first.}
 \item
 An \emph{exit sequence} is a first node followed by zero or more
 middle nodes, but \emph{not} ending in a last node---control ``falls
@@ -2452,6 +2458,13 @@ can be analyzed or rewritten independently, but that is connected to
 an outer graph by control-flow edges.
 A~subgraph has the same representation as a graph, including 
 optional entry and exit sequences.
+\simon{I don't find the definition of replacement graph and 
+subgraph satisfactory.  Is the ONLY difference between a graph
+and a sub-graph its purpose in the eye of the beholder?  I think
+perhaps the key point is this: a full graph has no free labels, 
+whereas a subgraph may have
+free labels?  Are subgraphs o/c or c/c or anything like that?
+What about replacement graphs?}
 
 To~describe the presence or absence of entry and exit sequences, we
 refer to a graph's \emph{shape} as open/open (enterable and exitable),
@@ -2470,12 +2483,16 @@ of~$g_2$ to form a new, complete basic block.)}
 \item
 A first node with @BlockId@~$l$ must be rewritten to a closed/open
 replacement graph which also begins with @BlockId@~$l$.
+\simon{Whoa!  What does it mean to say that a graph ``begins with $l$''?
+Perhpas we just mean that the replacement grpah must include a block labelled $l$?}
 \item
 A middle node must be rewritten to an open/open graph.
 \item
 A last node must be rewritten to an open/closed graph, in 
 which all control-flow
 paths end in explicit control transfers.
+\simon{I'd nuke the ``in which all ...'' part, because it sounds like
+an additional condition, but actually it's a consequence of open/closed}.
 \end{itemize}
 These conditions are necessary and sufficient to ensure that 
 every replacement graph can be spliced in place of the node it is derived from.
@@ -2640,6 +2657,10 @@ Any graph passed to @forward\_sol@ must be open at the entry.
 
 The implementation of @zdfSolveFwd@ using @forward_sol@ looks
 like this:
+
+\simon{Hang on!  What kind of graph does {\tt zdfSolveFwd} take?
+I assume a full graph, closed at the entry!  So what is this pesky {\tt in\_fact}??}
+
 \begin{smallcode}
 zdfSolveFwd name lattice transfers in_fact g = 
   runWithoutFuel $ runDFM lattice $ ffp () $ 
