@@ -1,0 +1,156 @@
+#!/usr/bin/env lua
+
+local stringf = string.format
+local function fprintf(f, ...) return f:write(string.format(...)) end
+
+require 'tabutil'
+
+local defnrefs =   -- maps ident to pageref or lineref of its defn
+  { Bool = 'Prelude',
+    Int  = 'Prelude',
+  }
+local uses = { } -- set of identifiers used
+local reserved = table.set { 'where', 'let', 'in', '_' }
+
+local function add_defn(d, u)
+  if defnrefs[d] then
+    error('Identifier ' .. d .. ' has multiple definitions')
+  else
+    defnrefs[d] = u
+  end
+end
+
+local function labelstring(id)
+  return stringf('haskell.def.%s', id:gsub('_', '-')) -- may need to escape specials
+end
+
+local function write_defn(id)
+  io.write(stringf([[\label{%s}]], labelstring(id)), '% automated definition\n')
+end
+
+----------------------------------------------------------------
+
+local symclass = '[%!%#%$%%%&%*%+%.%/%<%=%>%?%@%\\%^%|%-%~]'
+local wordclass = "[%w_']"
+local sym = symclass .. '+'
+local word = wordclass .. '+'
+local symbacktick = sym:gsub('^%[', '[`')
+local wordbacktick = word:gsub('^%[', '[`')
+
+local function find_uses(s)
+  for id in s:gmatch(word) do
+    if not reserved[id] and not id:find '^%d+$' then uses[id] = true end
+  end
+  for id in s:gmatch(sym) do
+    if not reserved[id] then uses[id] = true end
+  end
+end
+
+----------------------------------------------------------------
+
+local function find_definitions(defs)
+  local function got_def(d)
+    if d:find ('^%`' .. word .. '$') or d:find ('^%`' .. sym .. '$') then
+--      fprintf(io.stderr, "Matched definition %q\n", d)
+      d = d:sub(2)
+      table.insert(defs, d)
+      add_defn(d, [[page~\pageref{haskell.def.]] .. d .. [[}]])
+      return d
+    else
+      return d
+    end
+  end
+  return function(s)
+           if false and s:find '`' then
+             io.stderr:write('DEFN? ', s, '\n')
+           end
+           s = s:gsub('`' .. symbacktick, got_def)
+           s = s:gsub('`' .. wordbacktick, got_def)
+           return s
+         end
+end
+
+local function find_definitions_ats(defs)
+  return function(s)
+           return '@' .. find_definitions(defs)(s) .. '@'
+         end
+end
+
+local function process_at_signs(l)
+  local defns = { }
+  l = l:gsub('@(.-)@', find_definitions_ats(defns))
+  io.write(l, '\n')
+  for _, d in ipairs(defns) do
+    write_defn(d)
+  end
+  l:gsub('@(.-)@', find_uses)
+end
+
+----------------------------------------------------------------
+
+local in_document = false
+
+local special = { }
+
+function special.document(line)
+  in_document = true
+  io.write(line, '\n')
+end
+
+function special.code(line, env)
+  local defns = { }
+  local endpat = stringf([[^\end{%s}]], env)
+  io.write(line, '\n')
+  line = io.read()
+  while not line:find(endpat) do
+    line = find_definitions(defns)(line)
+    find_uses(line)
+    io.write(line, '\n')
+    line = io.read()
+  end
+  io.write(line, '\n')
+  for _, d in ipairs(defns) do
+    write_defn(d)
+  end
+end
+
+local line = io.read()
+while line do
+  if line:find 'input.*dfoptdu' then -- skip me
+    -- do nothing
+  else
+    local env = line:match [[\begin{(.*)}]]
+    local def, use = line:match '^%%%s*defn%s+(%S+)%s+(%S+)%s*$'
+    if env and special[env] then
+      special[env](line, env)
+    elseif def and use then
+      add_defn(def, use)
+    elseif in_document then
+      process_at_signs(line)
+    else
+      io.write(line, '\n')
+    end
+  end
+  line = io.read()
+end
+
+local function caselt(s1, s2)
+  if s1:lower() == s2:lower() then
+    return s1 < s2 -- upper case first
+  else
+    return s1:lower() < s2:lower()
+  end
+end
+
+local f = io.open('defuse.tex', 'w')
+for _, k in ipairs(table.sorted_keys(defnrefs, caselt)) do
+  fprintf(f, [[\defuse{%s}{%s}%s]], k, defnrefs[k], '\n')
+end
+
+for _, k in ipairs(table.sorted_keys(uses, caselt)) do
+  if not defnrefs[k] then
+    fprintf(f, [[\notdefd{%s}%s]], k, '\n')
+  end
+end
+f:close()
+

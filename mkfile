@@ -17,7 +17,7 @@ tag:VQ: $TGT.tex
 	echo git tag $tag
 	git tag $tag
 
-dfopt.dvi: dfopt.bbl code.sty timestamp.tex
+dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex
 
 $TGT.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-$LASTPAGE $prereq
@@ -34,3 +34,6 @@ timestamp.tex: $TGT.tex
 	date -d "$date" "+\def\mdfivestamp{\\rlap{\\textbf{\\uppercase{%A} %l:%M %p$signature}}}" > $target
 
 
+
+%du.tex:D: defuse %.tex
+	./defuse < $stem.tex > $target

@@ -701,13 +701,16 @@ chosen instead to abandon parallel structure.}
 
 \begin{figure}
 \begin{code}
-data `ChangeFlag = `NoChange | `SomeChange
+data ChangeFlag = NoChange | SomeChange
 data TxRes a    = TxRes ChangeFlag a
 data DataflowLattice a = DataflowLattice
  {fact_bot        :: a,
   fact_add_to     :: a -> a -> TxRes a,
   fact_name       :: String } -- for debugging
 \end{code}
+\label{haskell.def.ChangeFlag}% automated definition
+\label{haskell.def.NoChange}% automated definition
+\label{haskell.def.SomeChange}% automated definition
 \caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
 \end{figure}
 
