@@ -35,5 +35,8 @@ timestamp.tex: $TGT.tex
 
 
 
-%du.tex:D: defuse %.tex
+%du.tex:D: defuse %.tex hsprelude
+	[ -r "$target" ] && chmod +w $target
 	./defuse < $stem.tex > $target
+	chmod -w $target
+

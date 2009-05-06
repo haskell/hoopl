@@ -1,3 +1,5 @@
+% ====> THIS IS A DERIVED FILE; DO NOT EDIT IT <======
+% ===========> SIMON, THIS MEANS YOU! <===============
 \newif\ifpagetuning \pagetuningtrue  % adjust page breaks
 
 \newif\ifnoauthornotes\noauthornotesfalse
@@ -223,7 +225,7 @@ Our library is the workhorse of a new
 back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
 \end{abstract}
 
-\makeatactive   %  Enable @foo@ notation
+\makeatactive  
 
 \section{Introduction}
 
@@ -235,7 +237,7 @@ many years' work on code improvement, also called
 But the work is typically presented
 as a collection of apparently unrelated analyses and
 transformations, each with its own name---and 
-it's not always easy to % not everyone can easily
+it's not always easy to
 remember how something like
 ``copy propagation'' differs from ``constant propagation.''
 Many presentations obscure fundamental principles of
@@ -316,7 +318,7 @@ improvements by composing small analyses and transformations.
 
 
 \ifpagetuning \enlargethispage{1\baselineskip} \fi 
-    % gets bottoms of columns to match
+   
 
 \subsection{Simple transformations}
 
@@ -324,7 +326,7 @@ improvements by composing small analyses and transformations.
 
 Here is a sequence of assignments separated by assertions.
 We compute the assertions by starting with the weakest possible
-assertion (@true@) and computing strongest postconditions.
+assertion (\texttt{true}) and computing strongest postconditions.
 % \footnote
 {Variables do not alias.}
 \begin{verbatim}
@@ -342,7 +344,12 @@ would produce the assertion $x=7\land y = 8
 would be required, and it is better to let the conclusion emerge
 naturally as  the code is rewritten.}
 In the assignment to~@z@, the assertion @x == 7@ justifies
+\label{haskell.firstuse.z}% automated use
+\label{haskell.firstuse.x}% automated use
+\label{haskell.firstuse.==}% automated use
 substituting 7~for~@x@, leaving @z = 7 + y@.  
+\label{haskell.firstuse.y}% automated use
+\label{haskell.firstuse.+}% automated use
 This transformation is traditionally called ``constant propagation.''
 We may also substitute 8~for~@y@.
 Finally, because @7 + 8 == 15@, we may again substitute equals for
@@ -383,7 +390,7 @@ although the code is~C:
 To explain the improvement we wish to make, we show the same
 code at the machine level.
 We write machine-level examples using our low-level compiler-target
-language,~{\PAL} % tuning for line breaks
+language,~{\PAL}
 \cite{peyton-jones-ramsey:garbage-collection:inproceedings,peyton-jones-ramsey:exceptions}: 
 \begin{verbatim}
   sum_r("address" bits32 a, bits32 n) {
@@ -391,7 +398,7 @@ language,~{\PAL} % tuning for line breaks
        x = 0.0;
        i = 0;
    L1: if (i >= n) goto L2;
-       x = %fadd(x, bits64[a+i*24]);
+       x =
        i = i + 1;
        goto L1;
    L2: return x; 
@@ -399,7 +406,11 @@ language,~{\PAL} % tuning for line breaks
 \end{verbatim}
 The code improvement called ``induction-variable elimination''
 replaces~@i@ with a new variable~@p@ so that we can avoid repeating
+\label{haskell.firstuse.i}% automated use
+\label{haskell.firstuse.p}% automated use
 the computation @a+i*24@ on each iteration through the loop.
+\label{haskell.firstuse.a}% automated use
+\label{haskell.firstuse.*}% automated use
 The new variable~@p@ is intended to satisfy the invariant
 \begin{verbatim}
    { p == a + i * 24 }
@@ -407,9 +418,12 @@ The new variable~@p@ is intended to satisfy the invariant
 The variable @i@ is also used in the loop-termination test.
 To rewrite that test, 
 we introduce a new variable @lim@ satisfying
-the invariant % line breaking
+\label{haskell.firstuse.lim}% automated use
+the invariant
 @lim == a + n * 24@,
+\label{haskell.firstuse.n}% automated use
 so that @i >= n@ if and only if @p >= lim@.
+\label{haskell.firstuse.>=}% automated use
 
 \ifpagetuning \enlargethispage{1\baselineskip} \fi 
 
@@ -426,7 +440,7 @@ New code is \high{boxed}\,.
        x = 0.0;
        i = 0; \high{p = a; lim = a + n * 24;}
    L1: if (i >= n) goto L2;
-       x = %fadd(x, bits64[a+i*24]);
+       x =
        i = i + 1; \high{p = p + 24;}
        goto L1;
    L2: return x; 
@@ -444,7 +458,7 @@ equals, resulting in the new code in boxes below:
        x = 0.0;
        i = 0; p = a; lim = a + n * 24;
    L1: if (\high{p >= lim}) goto L2;
-       x = %fadd(x, bits64[\kern1pt{}\high{p}\kern1pt{}]);
+       x =
        i = i + 1; p = p + 24;
        goto L1;
    L2: return x; 
@@ -457,6 +471,7 @@ In~particular, we reason about whether the value of a variable can be
 used by a continuation; this reasoning is called ``liveness analysis.''
 A~\naive\ analysis would show that although @i@~is not live at
 label~@L2@, it is nevertheless live immediately after 
+\label{haskell.firstuse.L2}% automated use
 the assignment
 @i = i + 1@ in the loop body,
 because the value of~@i@ could be used by the next iteration of the
@@ -499,7 +514,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
      x = 0.0;
      \high{i = 0;} p = a; lim = a + n * 24;
  L1: if ({p >= lim}) goto L2;
-     x = %fadd(x, bits64[{p}]);
+     x =
      \high{i = i + 1;} p = p + 24;
      goto L1;
  L2: return x; 
@@ -515,7 +530,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
      x = 0.0;
      p = a; lim = a + n * 24;
  L1: if ({p >= lim}) goto L2;
-     x = %fadd(x, bits64[{p}]);
+     x =
      p = p + 24;
      goto L1;
  L2: return x; 
@@ -706,12 +721,26 @@ data TxRes a    = TxRes ChangeFlag a
 data DataflowLattice a = DataflowLattice
  {fact_bot        :: a,
   fact_add_to     :: a -> a -> TxRes a,
-  fact_name       :: String } -- for debugging
+  fact_name       :: String }
 \end{code}
-\label{haskell.def.ChangeFlag}% automated definition
-\label{haskell.def.NoChange}% automated definition
-\label{haskell.def.SomeChange}% automated definition
 \caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
+\label{haskell.def.fact:unname}% automated definition
+\label{haskell.def.fact:unadd:unto}% automated definition
+\label{haskell.def.fact:unbot}% automated definition
+\label{haskell.def.DataflowLattice}% automated definition
+\label{haskell.def.TxRes}% automated definition
+\label{haskell.def.SomeChange}% automated definition
+\label{haskell.def.NoChange}% automated definition
+\label{haskell.def.ChangeFlag}% automated definition
+\label{haskell.firstuse.ChangeFlag}% automated use
+\label{haskell.firstuse.NoChange}% automated use
+\label{haskell.firstuse.SomeChange}% automated use
+\label{haskell.firstuse.TxRes}% automated use
+\label{haskell.firstuse.DataflowLattice}% automated use
+\label{haskell.firstuse.fact:unbot}% automated use
+\label{haskell.firstuse.fact:unadd:unto}% automated use
+\label{haskell.firstuse.fact:unname}% automated use
+\label{haskell.firstuse.String}% automated use
 \end{figure}
 
 
@@ -728,6 +757,7 @@ facts about a variable~$x$:
 \item
 The analysis shows that
 $x = k$, where $k$~is a compile-time constant of type @Const@.
+\label{haskell.firstuse.Const}% automated use
 \item
 The analysis shows that $x$~is \emph{not} a compile-time constant.
 We~notate this fact as $x = \top$.
@@ -783,8 +813,11 @@ The lattice  used by the analysis is the Cartesian product of the
 lattices for all the local variables.
 We~represent this lattice as a finite map from variable
 to a value of type @Maybe Const@.
+\label{haskell.firstuse.Maybe}% automated use
 If~a variable $x$ is not in the domain of the map then $x=\bot$;
 if $x$~maps to @Nothing@ then $x=\top$; if $x$~maps to $@Just@\;k$ then
+\label{haskell.firstuse.Nothing}% automated use
+\label{haskell.firstuse.Just}% automated use
 $x=k$.
 
 
@@ -844,6 +877,27 @@ data BackTransfers mid last a = BackTransfers
 % elided: 
 %    ft_exit_out   ::            a -> a
 %
+\label{haskell.def.bt:unlast:unin}% automated definition
+\label{haskell.def.bt:unmiddle:unin}% automated definition
+\label{haskell.def.bt:unfirst:unin}% automated definition
+\label{haskell.def.BackTransfers}% automated definition
+\label{haskell.def.ft:unlast:unouts}% automated definition
+\label{haskell.def.ft:unmiddle:unout}% automated definition
+\label{haskell.def.ft:unfirst:unout}% automated definition
+\label{haskell.def.ForwardTransfers}% automated definition
+\label{haskell.def.LastOuts}% automated definition
+\label{haskell.firstuse.LastOuts}% automated use
+\label{haskell.firstuse.BlockId}% automated use
+\label{haskell.firstuse.ForwardTransfers}% automated use
+\label{haskell.firstuse.mid}% automated use
+\label{haskell.firstuse.last}% automated use
+\label{haskell.firstuse.ft:unfirst:unout}% automated use
+\label{haskell.firstuse.ft:unmiddle:unout}% automated use
+\label{haskell.firstuse.ft:unlast:unouts}% automated use
+\label{haskell.firstuse.BackTransfers}% automated use
+\label{haskell.firstuse.bt:unfirst:unin}% automated use
+\label{haskell.firstuse.bt:unmiddle:unin}% automated use
+\label{haskell.firstuse.bt:unlast:unin}% automated use
 \end{figure}
 
 
@@ -895,11 +949,14 @@ parameterized over a dataflow fact of type~@a@ and over the types
 
 
 The type @BlockId@ represents a label.
+\label{haskell.def.BlockId}% automated definition
 Because a fact in a forward analysis typically represents an assertion
 about program state,
  and because passing a label does not change
 program state, the transfer function @ft_first_out@ is typically 
 @flip const@---a variation on
+\label{haskell.firstuse.flip}% automated use
+\label{haskell.firstuse.const}% automated use
 the
 identity function.\footnote
 {One counterexample is an atypical
@@ -959,31 +1016,40 @@ engine has reached a fixed point.
 
 Given lattice operations of type @DataflowLattice a@
 and transfer functions of type @ForwardTransfers m l a@,
+\label{haskell.firstuse.m}% automated use
+\label{haskell.firstuse.l}% automated use
 you can run the corresponding analysis by calling our library
 function @zdfSolveFwd@, a part of our dataflow engine:
+\label{haskell.firstuse.zdfSolveFwd}% automated use
 \begin{code}
  zdfSolveFwd 
-  :: LastNode l             -- Find successors of l
-  => PassName               -- Name of this analysis
-  -> DataflowLattice a      -- Lattice
-  -> ForwardTransfers m l a -- Transfer functions
-  -> a                      -- Input fact
-  -> Graph m l              -- Control-flow graph
+  :: HavingSuccessors l
+  => PassName
+  -> DataflowLattice a
+  -> ForwardTransfers m l a
+  -> a
+  -> Graph m l
   -> FwdFixedPoint m l a ()
 \end{code}
+\label{haskell.def.zdfSolveFwd}% automated definition
+\label{haskell.def.PassName}% automated definition
+\label{haskell.firstuse.FwdFixedPoint}% automated use
+\label{haskell.firstuse.Graph}% automated use
+\label{haskell.firstuse.PassName}% automated use
+\label{haskell.firstuse.HavingSuccessors}% automated use
 The function is polymorphic in the types of middle and last nodes
 @m@~and~@l@ and in the type of the dataflow fact~@a@.
 Polymorphism allows our library to work with any intermediate
-language, but there is a constraint: @LastNode l@ is satisfied
+language, but there is a constraint: @HavingSuccessors l@ is satisfied
+\label{haskell.def.HavingSuccessors}% automated definition
 only if there is a function 
 \begin{code}
   succs :: l -> [BlockId]
 \end{code}
+\label{haskell.def.succs}% automated definition
+\label{haskell.firstuse.succs}% automated use
 which gives the identifiers of the blocks to which a node of type~@l@
 might transfer control.
-\remark{Would like to have the more limited constraint
-@HavingSuccessors l@, but this will mean additional complexity in the
-implementation.}
 
 After the type constraint, 
 the first three arguments to @zdfSolveFwd@ characterize the analysis.
@@ -1000,36 +1066,43 @@ is explained in~\secref{engine-truth}.})
 
 
 The @FwdFixedPoint@ data structure is a big bag
+\label{haskell.def.FwdFixedPoint}% automated definition
 of information about the solution.
 The most significant information is
 a finite map from each block label to the dataflow fact that holds at
 the label, which is extracted using function @zdfFpFacts@:
-% Simon really wants these type signatures!
-\begin{verbatim}
+\label{haskell.firstuse.zdfFpFacts}% automated use
+\label{haskell.def.emptyBlockEnv}% automated definition
+\begin{code}
 type BlockEnv a = Data.Map BlockId a
 zdfFpFacts :: FwdFixedPoint m l a g -> BlockEnv a
-\end{verbatim}
-
-
-
-
-
-
-\iffalse
-% never tell the whole truth!
-\begin{code}
-class DataflowSolverDirection
-        transfers fixedpt where
-  zdfSolveFrom :: (DebugNodes m l, Outputable a)
-    => BlockEnv a        -- Init facts
-    -> PassName          -- Analysis name
-    -> DataflowLattice a -- Lattice
-    -> transfers m l a   -- Transfers
-    -> a                 -- Input fact
-    -> Graph m l         -- CFG
-    -> fixedpt m l a ()
 \end{code}
-\fi
+\label{haskell.def.BlockEnv}% automated definition
+\label{haskell.def.zdfFpFacts}% automated definition
+\label{haskell.firstuse.g}% automated use
+\label{haskell.firstuse..}% automated use
+\label{haskell.firstuse.Data.Map}% automated use
+\label{haskell.firstuse.BlockEnv}% automated use
+
+
+
+
+
+%%  \iffalse
+%%  % never tell the whole truth!
+%%  \begin{code}
+%%  class DataflowSolverDirection
+%%          transfers fixedpt where
+%%    zdfSolveFrom :: (DebugNodes m l, Outputable a)
+%%      => BlockEnv a        -- Init facts
+%%      -> PassName          -- Analysis name
+%%      -> DataflowLattice a -- Lattice
+%%      -> transfers m l a   -- Transfers
+%%      -> a                 -- Input fact
+%%      -> Graph m l         -- CFG
+%%      -> fixedpt m l a ()
+%%  \end{code}
+%%  \fi
 
 
 
@@ -1054,8 +1127,8 @@ class DataflowSolverDirection
 
 \newcommand\T{\rule{0pt}{0.6ex}}
 \newcommand\B{\rule[-0.05ex]{0pt}{0pt}}
-\newcolumntype{C}{>{\begin{minipage}{5.35in}}l<{\end{minipage}}} % code
-\newcolumntype{L}{>{\Large\bfseries}m{1.3in}<{\centering}}       % label
+\newcolumntype{C}{>{\begin{minipage}{5.35in}}l<{\end{minipage}}}
+\newcolumntype{L}{>{\Large\bfseries}m{1.3in}<{\centering}}      
 \newenvironment{codetable}
   {\setcounter{codeline}{0}%
    \let\code=\numberedcode
@@ -1067,30 +1140,33 @@ class DataflowSolverDirection
 \begin{figure*}
 \setcounter{codeline}{0}
 \begin{codetable}
-\T\begin{numberedcode}
+\T
+\begin{numberedcode}
 !AvailVars!data AvailVars = UniverseMinus VarSet | AvailVars VarSet
-!extendAvail!extendAvail  :: AvailVars -> LocalVar  -> AvailVars  -- add var to set
-delFromAvail :: AvailVars -> LocalVar  -> AvailVars  -- remove var from set
-elemAvail    :: AvailVars -> LocalVar  -> Bool       -- set membership
-interAvail   :: AvailVars -> AvailVars -> AvailVars  -- set intersection
-!smallerAvail!smallerAvail :: AvailVars -> AvailVars -> Bool       -- compare sizes
+!extendAvail!extendAvail  :: AvailVars -> LocalVar  -> AvailVars
+delFromAvail :: AvailVars -> LocalVar  -> AvailVars
+elemAvail    :: AvailVars -> LocalVar  -> Bool
+interAvail   :: AvailVars -> AvailVars -> AvailVars
+!smallerAvail!smallerAvail :: AvailVars -> AvailVars -> Bool
 \end{numberedcode}%
 \B
 & Dataflow fact and operations\\
 \hline
 
-\T\begin{code}
+\T
+\begin{code}
 availVarsLattice :: DataflowLattice AvailVars
-availVarsLattice = DataflowLattice "reloaded registers" empty add
+availVarsLattice = DataflowLattice  empty add
     where empty = UniverseMinus emptyVarSet
           add new old = let join = interAvail new old in
-                        if join `smallerAvail` old then aTx join else noTx join
+                        if join `smallerAvail` old then TxRes NoChange join else TxRes SomeChange join
 \end{code}%
 \B
 & Lattice\\
 \hline
 
-%%  \T\begin{code}
+%%  \T
+%%  \begin{code}
 %%  agen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
 %%  akill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
 %%  agen  a avail = foldVarsUsed extendAvail  avail a
@@ -1099,7 +1175,8 @@ availVarsLattice = DataflowLattice "reloaded registers" empty add
 %%  & Gen/Kill \mbox{functions}\\
 %%  \hline
 %%  
-\T\begin{code}
+\T
+\begin{code}
 avail_vars_transfer :: ForwardTransfers Middle Last AvailVars
 !avail.first!avail_vars_transfer = ForwardTransfers (flip const) middleAvail lastAvail
 
@@ -1107,7 +1184,7 @@ middleAvail :: Middle -> AvailVars -> AvailVars
 !reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail
 !reload2!                 | l `isStackSlotOf` x = extendAvail avail x
 !assign.avail.1!middleAvail (MidAssign lhs _expr) avail = 
-!assign.avail.2!  foldVarsDefd delFromAvail avail lhs  -- remove variables defined in 'lhs'
+!assign.avail.2!  foldVarsDefd delFromAvail avail lhs
 !store.avail.spill.1!middleAvail (MidStore l (CmmReg (CmmLocal x))) avail
 !store.avail.spill.2!                 | l `isStackSlotOf` x = avail
 !store.avail.otherslot.1!middleAvail (MidStore l _) avail 
@@ -1122,10 +1199,11 @@ lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 & Transfer \mbox{functions}\\
 \hline
 
-\T\begin{code}
+\T
+\begin{code}
 cmmAvailableVars :: Graph Middle Last -> BlockEnv AvailVars
 cmmAvailableVars g = zdfFpFacts soln
-!avail.solve.1!  where soln = zdfSolveFwd "available variables" availVarsLattice 
+!avail.solve.1!  where soln = zdfSolveFwd  availVarsLattice 
 !avail.solve.2!               avail_vars_transfer (fact_bot availVarsLattice) g
 \end{code}%
 \B
@@ -1141,6 +1219,69 @@ cmmAvailableVars g = zdfFpFacts soln
 \figlabel{avail-gen-kill}
 \figlabel{avail-transfers}
 \figlabel{avail-running}
+\label{haskell.def.soln}% automated definition
+\label{haskell.def.cmmAvailableVars}% automated definition
+\label{haskell.def.lastAvail}% automated definition
+\label{haskell.def.:unexpr}% automated definition
+\label{haskell.def.lhs}% automated definition
+\label{haskell.def.middleAvail}% automated definition
+\label{haskell.def.avail:unvars:untransfer}% automated definition
+\label{haskell.def.join}% automated definition
+\label{haskell.def.old}% automated definition
+\label{haskell.def.new}% automated definition
+\label{haskell.def.add}% automated definition
+\label{haskell.def.empty}% automated definition
+\label{haskell.def.availVarsLattice}% automated definition
+\label{haskell.def.smallerAvail}% automated definition
+\label{haskell.def.interAvail}% automated definition
+\label{haskell.def.elemAvail}% automated definition
+\label{haskell.def.delFromAvail}% automated definition
+\label{haskell.def.extendAvail}% automated definition
+\label{haskell.def.UniverseMinus}% automated definition
+\label{haskell.def.AvailVars}% automated definition
+\label{haskell.firstuse.cmmAvailableVars}% automated use
+\label{haskell.firstuse.soln}% automated use
+\label{haskell.firstuse.avail:unvars:untransfer}% automated use
+\label{haskell.firstuse.Middle}% automated use
+\label{haskell.firstuse.Last}% automated use
+\label{haskell.firstuse.middleAvail}% automated use
+\label{haskell.firstuse.lastAvail}% automated use
+\label{haskell.firstuse.MidAssign}% automated use
+\label{haskell.firstuse.CmmLocal}% automated use
+\label{haskell.firstuse.CmmLoad}% automated use
+\label{haskell.firstuse.avail}% automated use
+\label{haskell.firstuse.isStackSlotOf}% automated use
+\label{haskell.firstuse.lhs}% automated use
+\label{haskell.firstuse.:unexpr}% automated use
+\label{haskell.firstuse.foldVarsDefd}% automated use
+\label{haskell.firstuse.MidStore}% automated use
+\label{haskell.firstuse.CmmReg}% automated use
+\label{haskell.firstuse.isStackSlot}% automated use
+\label{haskell.firstuse.variableOfSlot}% automated use
+\label{haskell.firstuse.LastCall}% automated use
+\label{haskell.firstuse.k}% automated use
+\label{haskell.firstuse.map}% automated use
+\label{haskell.firstuse.id}% automated use
+\label{haskell.firstuse.$}% automated use
+\label{haskell.firstuse.:bs}% automated use
+\label{haskell.firstuse.availVarsLattice}% automated use
+\label{haskell.firstuse.empty}% automated use
+\label{haskell.firstuse.add}% automated use
+\label{haskell.firstuse.emptyVarSet}% automated use
+\label{haskell.firstuse.^}% automated use
+\label{haskell.firstuse.new}% automated use
+\label{haskell.firstuse.old}% automated use
+\label{haskell.firstuse.join}% automated use
+\label{haskell.firstuse.AvailVars}% automated use
+\label{haskell.firstuse.UniverseMinus}% automated use
+\label{haskell.firstuse.VarSet}% automated use
+\label{haskell.firstuse.extendAvail}% automated use
+\label{haskell.firstuse.LocalVar}% automated use
+\label{haskell.firstuse.delFromAvail}% automated use
+\label{haskell.firstuse.elemAvail}% automated use
+\label{haskell.firstuse.Bool}% automated use
+\label{haskell.firstuse.interAvail}% automated use
+\label{haskell.firstuse.smallerAvail}% automated use
 \end{figure*}
 % Old captions' text:
 % The dataflow fact for the available-reload analysis describes
@@ -1225,7 +1366,7 @@ f (bits32 a) \lbr
 %\ifpagetuning\par\vfilbreak\fi % this is hell, but if we break here,
 %  downstream suffers
 A~spill and a reload should be inserted as follows:%
-\seclabel{spill-reload-example} % space is deliberate
+\seclabel{spill-reload-example}
 \newcommand\bigstrut{%
   \leavevmode\vrule width 0pt height 11pt depth 6pt }
 \begin{alltt}
@@ -1245,12 +1386,15 @@ f (bits32 a) \lbr
 \rbr
 \end{alltt}
 Although the @SPILL@ and @RELOAD@ operations are introduced because of
+\label{haskell.firstuse.SPILL}% automated use
+\label{haskell.firstuse.RELOAD}% automated use
 the call to @g(a)@, they are moved as far from the call as possible:
 the variable~@x@ is spilled immediately after being assigned @a * a@,
 and @x@ is reloaded not
 immediately after the call to~@g@, but just before its use in the
 expression @z + x@.
  On the control-flow path to @return z@, @x@~needn't be reloaded
+\label{haskell.firstuse.return}% automated use
 at all.
 
 
@@ -1310,25 +1454,28 @@ the transformations are described in
 %
 \begin{figure*}
 \begin{codetable}
-\T\begin{code}
+\T
+\begin{code}
 !Live!type Live = VarSet
 \end{code}%
 \B
 & Dataflow fact\\
 \hline
 
-\T\begin{code}
+\T
+\begin{code}
 !liveLattice!liveLattice :: DataflowLattice Live
-liveLattice = DataflowLattice "live LocalReg's" emptyVarSet add
+liveLattice = DataflowLattice  emptyVarSet add
   where add new old =
           let join = unionVarSets new old in
-!liveLattice.end!          (if sizeVarSet join > sizeVarSet old then aTx else noTx) join
+!liveLattice.end!          TxRes (if sizeVarSet join > sizeVarSet old then SomeChange else NoChange) join
 \end{code}%
 \B
 & Lattice\\
 \hline
 
-%%  \T\begin{code}
+%%  \T
+%%  \begin{code}
 %%  gen  :: UserOfLocalVars    a => a -> Live -> Live
 %%  kill :: DefinerOfLocalVars a => a -> Live -> Live 
 %%  gen  a live = foldVarsUsed extendVarSet  live a
@@ -1337,9 +1484,10 @@ liveLattice = DataflowLattice "live LocalReg's" emptyVarSet add
 %%  & Gen/Kill \mbox{functions}\\
 %%  \hline
 
-\T\begin{code}
-liveTransfers :: BackwardTransfers Middle Last Live
-liveTransfers = BackwardTransfers (flip const) middleLiveness lastLiveness
+\T
+\begin{code}
+liveTransfers :: BackTransfers Middle Last Live
+liveTransfers = BackTransfers (flip const) middleLiveness lastLiveness
 
 middleLiveness :: Middle -> Live -> Live
 lastLiveness   :: Last -> (BlockId -> Live) -> Live
@@ -1362,10 +1510,11 @@ lastLiveOut :: Last -> (BlockId -> Live) -> Live
 & Transfer \mbox{functions}\\
 \hline
 
-\T\begin{code}
+\T
+\begin{code}
 cmmLiveness :: Graph Middle Last -> BlockEnv Live
 cmmLiveness g = zdfFpFacts soln
-!live.zdfSolveBwd!   where soln = zdfSolveBwd "liveness" liveLattice liveTransfers emptyVarSet g
+!live.zdfSolveBwd!   where soln = zdfSolveBwd  liveLattice liveTransfers emptyVarSet g
 \end{code}%
 \B
 & Liveness \mbox{analysis}\\
@@ -1376,6 +1525,46 @@ cmmLiveness g = zdfFpFacts soln
 \figlabel{live-lattice}
 \figlabel{live-transfers}
 \figlabel{live-running}
+\label{haskell.def.cmmLiveness}% automated definition
+\label{haskell.def.catMaybes}% automated definition
+\label{haskell.def.tbl}% automated definition
+\label{haskell.def.last}% automated definition
+\label{haskell.def.lastLiveOut}% automated definition
+\label{haskell.def.remDefd}% automated definition
+\label{haskell.def.addUsed}% automated definition
+\label{haskell.def.lastLiveness}% automated definition
+\label{haskell.def.middleLiveness}% automated definition
+\label{haskell.def.liveTransfers}% automated definition
+\label{haskell.def.liveLattice}% automated definition
+\label{haskell.def.Live}% automated definition
+\label{haskell.firstuse.cmmLiveness}% automated use
+\label{haskell.firstuse.zdfSolveBwd}% automated use
+\label{haskell.firstuse.liveTransfers}% automated use
+\label{haskell.firstuse.middleLiveness}% automated use
+\label{haskell.firstuse.lastLiveness}% automated use
+\label{haskell.firstuse.addUsed}% automated use
+\label{haskell.firstuse.remDefd}% automated use
+\label{haskell.firstuse.lastLiveOut}% automated use
+\label{haskell.firstuse.UserOfLocalVars}% automated use
+\label{haskell.firstuse.DefinerOfLocalVars}% automated use
+\label{haskell.firstuse.live}% automated use
+\label{haskell.firstuse.foldVarsUsed}% automated use
+\label{haskell.firstuse.extendVarSet}% automated use
+\label{haskell.firstuse.delFromVarSet}% automated use
+\label{haskell.firstuse.env}% automated use
+\label{haskell.firstuse.LastBranch}% automated use
+\label{haskell.firstuse.LastCondBranch}% automated use
+\label{haskell.firstuse.t}% automated use
+\label{haskell.firstuse.f}% automated use
+\label{haskell.firstuse.LastSwitch}% automated use
+\label{haskell.firstuse.tbl}% automated use
+\label{haskell.firstuse.unionManyVarSets}% automated use
+\label{haskell.firstuse.catMaybes}% automated use
+\label{haskell.firstuse.liveLattice}% automated use
+\label{haskell.firstuse.unionVarSets}% automated use
+\label{haskell.firstuse.sizeVarSet}% automated use
+\label{haskell.firstuse.>}% automated use
+\label{haskell.firstuse.Live}% automated use
 \end{figure*}
 %
 %
@@ -1440,7 +1629,7 @@ Perhaps you could write an alternative implementation?
 }
 
 %\ifpagetuning\enlargethispage{\baselineskip}\fi
-   % restoring this saves about 5 lines on page 9
+  
 
 
 Because universal sets can be awkward to manipulate, we represent a
@@ -1454,6 +1643,16 @@ or $\mathtt{AvailVars}\;s$, which stands for the variables in the set~$s$
 The bottom element is @UniverseMinus emptyVarSet@.
 To manipulate sets of variables, we provide the functions declared in
 \linerangeref{extendAvail}{smallerAvail} of \figref{avail}.
+%
+\label{haskell.def.delFromVarSet}% automated definition
+\label{haskell.def.extendVarSet}% automated definition
+\label{haskell.def.unionVarSets}% automated definition
+\label{haskell.def.sizeVarSet}% automated definition
+\label{haskell.def.emptyVarSet}% automated definition
+\label{haskell.def.unionManyVarSets}% automated definition
+\label{haskell.def.isEmptyVarSet}% automated definition
+\label{haskell.def.elemVarSet}% automated definition
+\label{haskell.def.VarSet}% automated definition
 
 
 
@@ -1476,9 +1675,9 @@ To manipulate sets of variables, we provide the functions declared in
 %%In~the lattice of available reloads (\figref{avail-lattice}),
 %%the~join is computed by taking the intersection of two sets
 %%of available reloads,
-%%The join operation (@add@) returns a \emph{transaction} @aTx@
+%%The join operation (@add@) returns a \emph{transaction} @TxRes SomeChange@
 %%if the join has not yet reached a fixed point;
-%%otherwise, it returns @noTx@ to indicate that the dataflow fact
+%%otherwise, it returns @TxRes NoChange@ to indicate that the dataflow fact
 %%did not change.
 %%The bottom element of the lattice is the universe of all variables,
 %%reflecting the initial assumption that all variables
@@ -1524,13 +1723,19 @@ foldVarsUsed :: UserOfLocalVars    a
 foldVarsDefd :: DefinerOfLocalVars a 
              => (b -> Var -> b) -> b -> a -> b
 \end{code}
+\label{haskell.def.foldVarsUsed}% automated definition
+\label{haskell.def.UserOfLocalVars}% automated definition
+\label{haskell.def.foldVarsDefd}% automated definition
+\label{haskell.def.DefinerOfLocalVars}% automated definition
+\label{haskell.firstuse.Var}% automated use
+\label{haskell.firstuse.b}% automated use
 On \lineref{assign.avail.2},  if @lhs@ is a local variable,
 @foldVarsDefd@ calls @delFromAvail@;
  if @lhs@ is global, @foldVarsDefd@ does nothing.
 
 
 %\ifpagetuning\smallskip\fi  
-  % more even spacing because \subsection 4.2 forces page break
+ 
 
 %% \remark{To Simon and John: I've removed ``overloaded but am a bit nervous
 %% because @foldVarsDef@ shows up as overloaded later in the paper, and I
@@ -1738,7 +1943,9 @@ use them to write the transfer functions.
 %%  it's easy.
 For example, the functions @addUsed@ and @remDefd@ in \figref{liveness}'s
 liveness analysis correspond directly to the traditional @gen@ and
+\label{haskell.firstuse.gen}% automated use
 @kill@ functions.
+\label{haskell.firstuse.kill}% automated use
 In the available-variables analysis of \figref{avail}, @gen@ and
 @kill@ can be defined as follows:
 \begin{smallcode}
@@ -1747,12 +1954,14 @@ kill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
 gen  a avail = foldVarsUsed extendAvail  avail a
 kill a avail = foldVarsDefd delFromAvail avail a
 \end{smallcode}
+\label{haskell.def.gen}% automated definition
+\label{haskell.def.kill}% automated definition
 Using @gen@ and @kill@ entails no loss of efficiency;
 for example, if the right-hand side of \lineref{reload2} of \figref{avail}
 were written
 @gen x avail@,
 then GHC~would 
-identify and % \ifpagetuning\else identify and \fi
+identify and
 inline the type-specific instance of @foldVarsUsed@, which for 
 \ifpagetuning\else the case of \fi
 a local variable is the identity function, so @gen x avail@
@@ -1781,12 +1990,31 @@ data BackwardRewrites mid last a = BackwardRewrites
 \end{code}
 \caption{Types of forward and backward rewrite functions.}
 \figlabel{rewrites}
+\label{haskell.def.br:unlast}% automated definition
+\label{haskell.def.br:unmiddle}% automated definition
+\label{haskell.def.br:unfirst}% automated definition
+\label{haskell.def.BackwardRewrites}% automated definition
+\label{haskell.def.fr:unlast}% automated definition
+\label{haskell.def.fr:unmiddle}% automated definition
+\label{haskell.def.fr:unfirst}% automated definition
+\label{haskell.def.ForwardRewrites}% automated definition
+\label{haskell.def.Rewrite}% automated definition
+\label{haskell.firstuse.Rewrite}% automated use
+\label{haskell.firstuse.ForwardRewrites}% automated use
+\label{haskell.firstuse.fr:unfirst}% automated use
+\label{haskell.firstuse.fr:unmiddle}% automated use
+\label{haskell.firstuse.fr:unlast}% automated use
+\label{haskell.firstuse.BackwardRewrites}% automated use
+\label{haskell.firstuse.br:unfirst}% automated use
+\label{haskell.firstuse.br:unmiddle}% automated use
+\label{haskell.firstuse.br:unlast}% automated use
 \end{figure}
 
 
 \begin{figure*}
 \begin{codetable}
-\T\begin{code}
+\T
+\begin{code}
 availRewrites :: ForwardRewrites Middle Last AvailVars
 availRewrites = ForwardRewrites first middle last
 !avail.rewrites.first!  where first _ _ = Nothing
@@ -1803,10 +2031,11 @@ availRewrites = ForwardRewrites first middle last
 & Rewrite \mbox{functions}\\
 \hline
 
-\T\begin{code}
+\T
+\begin{code}
 insertLateReloads :: (Graph Middle Last) -> FuelMonad (Graph Middle Last)
 insertLateReloads g = liftM zdfFpContents result
-!insertLateReloads.1!  where result = zdfRewriteFwd RewriteShallow "insert late reloads"
+!insertLateReloads.1!  where result = zdfRewriteFwd RewriteShallow 
                                availVarsLattice avail_vars_transfer
 !insertLateReloads.2!                               availRewrites (fact_bot availVarsLattice) g
 \end{code}
@@ -1814,6 +2043,42 @@ insertLateReloads g = liftM zdfFpContents result
 \end{codetable}
 \caption{Late-reload insertion, which relies on the analysis of \figref{avail}}
 \figlabel{avail-rewrites}
+\label{haskell.def.result}% automated definition
+\label{haskell.def.insertLateReloads}% automated definition
+\label{haskell.def.rel}% automated definition
+\label{haskell.def.reloadTail}% automated definition
+\label{haskell.def.used}% automated definition
+\label{haskell.def.maybe:unreload:unbefore}% automated definition
+\label{haskell.def.last}% automated definition
+\label{haskell.def.middle}% automated definition
+\label{haskell.def.first}% automated definition
+\label{haskell.def.availRewrites}% automated definition
+\label{haskell.firstuse.insertLateReloads}% automated use
+\label{haskell.firstuse.FuelMonad}% automated use
+\label{haskell.firstuse.liftM}% automated use
+\label{haskell.firstuse.zdfFpContents}% automated use
+\label{haskell.firstuse.result}% automated use
+\label{haskell.firstuse.zdfRewriteFwd}% automated use
+\label{haskell.firstuse.RewriteShallow}% automated use
+\label{haskell.firstuse.availRewrites}% automated use
+\label{haskell.firstuse.first}% automated use
+\label{haskell.firstuse.middle}% automated use
+\label{haskell.firstuse.maybe:unreload:unbefore}% automated use
+\label{haskell.firstuse.mkMiddle}% automated use
+\label{haskell.firstuse.mkLast}% automated use
+\label{haskell.firstuse.node}% automated use
+\label{haskell.firstuse.tail}% automated use
+\label{haskell.firstuse.used}% automated use
+\label{haskell.firstuse.filterVarsUsed}% automated use
+\label{haskell.firstuse.isEmptyVarSet}% automated use
+\label{haskell.firstuse.reloadTail}% automated use
+\label{haskell.firstuse.vars}% automated use
+\label{haskell.firstuse.foldl}% automated use
+\label{haskell.firstuse.rel}% automated use
+\label{haskell.firstuse.varSetToList}% automated use
+\label{haskell.firstuse.r}% automated use
+\label{haskell.firstuse.reload}% automated use
+\label{haskell.firstuse.<*>}% automated use
 \end{figure*}
 
 
@@ -1886,15 +2151,17 @@ transform a control-flow
 graph:
 \begin{code}
  zdfRewriteFwd 
-  :: RewritingDepth         -- Rewrite recursively?
-  -> PassName               -- Name of this pass
-  -> DataflowLattice a      -- Lattice
-  -> ForwardTransfers m l a -- Transfer functions
-  -> ForwardRewrites  m l a -- Rewrite functions
-  -> a                      -- Input fact
-  -> Graph m l              -- Control-flow graph
+  :: RewritingDepth
+  -> PassName
+  -> DataflowLattice a
+  -> ForwardTransfers m l a
+  -> ForwardRewrites  m l a
+  -> a
+  -> Graph m l
   -> FuelMonad (FwdFixedPoint m l a (Graph m l))
 \end{code}
+\label{haskell.def.zdfRewriteFwd}% automated definition
+\label{haskell.firstuse.RewritingDepth}% automated use
 %%  
 %%  class DataflowSolverDirectiontransfers fixedpt =>
 %%        DataflowDirection
@@ -1920,10 +2187,13 @@ Function @zdfRewriteFwd@ requires rewrite functions as well as transfer
 functions.
 \item
 The @RewritingDepth@ parameter controls recursive rewriting;
+\label{haskell.def.RewritingDepth}% automated definition
 if~a graph produced by a rewrite function should not be further rewritten,
 rewriting is \emph{shallow};
+\label{haskell.def.RewriteShallow}% automated definition
 if~a graph produced by a rewrite function can be rewritten again,
 rewriting is \emph{deep}.
+\label{haskell.def.RewriteDeep}% automated definition
 Deep rewriting is essential to achieve the results of
 \citet{lerner-grove-chambers:2002}, e.g., to remove the induction
 variable from the loop in the example in \secref{induction-var-elim}.
@@ -1934,6 +2204,7 @@ The type constructor @FwdFixedPoint@ has a fourth
 type parameter,
 which is a value contained in the fixed point.
 The~value can be extracted using function @zdfFpContents@, which has
+\label{haskell.def.zdfFpContents}% automated definition
 type @FwdFixedPoint m l a b -> b@.
 Here the type parameter~@b@ is instantiated to @Graph m l@: the fixed point
 contains the rewritten graph.
@@ -1946,6 +2217,7 @@ We are explaining the meaning of the final type parameter to
 \item
 Rewriting is monadic.
 A~@FuelMonad@ holds resources needed to
+\label{haskell.def.FuelMonad}% automated definition
 rewrite graphs into subgraphs:
 a~supply of fresh labels and a supply of \emph{optimization fuel}
 (\secref{fuel}). 
@@ -2125,10 +2397,11 @@ sink reloads and produce programs like the example shown in
 
 \begin{figure*}
 \begin{codetable}
-\T\begin{code}
+\T
+\begin{code}
 deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing
 !deadRewrites.1!  where nothing _ _ = Nothing
-        middleRemoveDeads :: Middle -> CmmLive -> Maybe (Graph Middle Last)
+        middleRemoveDeads :: Middle -> VarSet -> Maybe (Graph Middle Last)
 !elim.dead.1!        middleRemoveDeads (MidAssign (CmmLocal x) _) live
 !elim.dead.2!            | not (x `elemVarSet` live) = Just emptyGraph
 !deadRewrites.2!        middleRemoveDeads _ _ = Nothing
@@ -2137,10 +2410,11 @@ deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing
 & Rewrite \mbox{functions}\\
 \hline
 
-\T\begin{code}
+\T
+\begin{code}
 removeDeadAssignments :: (Graph Middle Last) -> FuelMonad (Graph Middle Last)
 removeDeadAssignments g = liftM zdfFpContents result
-!rewriteBwd.1!     where result = zdfRewriteBwd RewriteDeep "dead-assignment elim"
+!rewriteBwd.1!     where result = zdfRewriteBwd RewriteDeep 
 !rewriteBwd.2!                                  liveLattice liveTransfers rewrites emptyVarSet g
 \end{code}
 & \mbox{Dead-code} elimination\\
@@ -2148,6 +2422,20 @@ removeDeadAssignments g = liftM zdfFpContents result
 \caption{Dead-assignment elimination, which relies on the analysis of
 \figref{liveness}} 
 \figlabel{dead-elim}
+\label{haskell.def.removeDeadAssignments}% automated definition
+\label{haskell.def.middleRemoveDeads}% automated definition
+\label{haskell.def.nothing}% automated definition
+\label{haskell.def.deadRewrites}% automated definition
+\label{haskell.firstuse.removeDeadAssignments}% automated use
+\label{haskell.firstuse.zdfRewriteBwd}% automated use
+\label{haskell.firstuse.RewriteDeep}% automated use
+\label{haskell.firstuse.rewrites}% automated use
+\label{haskell.firstuse.deadRewrites}% automated use
+\label{haskell.firstuse.nothing}% automated use
+\label{haskell.firstuse.middleRemoveDeads}% automated use
+\label{haskell.firstuse.not}% automated use
+\label{haskell.firstuse.elemVarSet}% automated use
+\label{haskell.firstuse.emptyGraph}% automated use
 \end{figure*}
 
 
@@ -2183,6 +2471,11 @@ mkMiddle :: m       -> Graph m l
 mkLast   :: l       -> Graph m l
 (<*>)    :: Graph m l -> Graph m l -> Graph m l
 \end{code}
+\label{haskell.def.mkLabel}% automated definition
+\label{haskell.def.mkMiddle}% automated definition
+\label{haskell.def.mkLast}% automated definition
+\label{haskell.def.<*>}% automated definition
+\label{haskell.firstuse.mkLabel}% automated use
 %% \simon{Aha!  Here is where we lie by pretending that @Graph@ = @AGraph@.  Ok.}
 %% \simon{Does @mkLast@ really have a @LastNode l@ context? How does it use it?}
 %%        Yes, it really does, but it's used only for prettyprinting
@@ -2268,6 +2561,49 @@ type LOFsKont a b = LastOuts a -> DFM a b
 \end{numberedcode}
 \caption{Excerpts from the forward solver}
 \figlabel{solver-excerpts}
+\label{haskell.def.solve:unmid}% automated definition
+\label{haskell.def.solve:unOx}% automated definition
+\label{haskell.def.solve:unblock}% automated definition
+\label{haskell.def.set:unlast}% automated definition
+\label{haskell.def.solve:unlast}% automated definition
+\label{haskell.def.solve:unfirst}% automated definition
+\label{haskell.def.in:unfact}% automated definition
+\label{haskell.def.rewrites}% automated definition
+\label{haskell.def.transfers}% automated definition
+\label{haskell.def.start:unfacts}% automated definition
+\label{haskell.def.forward:unsol}% automated definition
+\label{haskell.def.Kont}% automated definition
+\label{haskell.def.LOFsKont}% automated definition
+\label{haskell.def.FactKont}% automated definition
+\label{haskell.firstuse.FactKont}% automated use
+\label{haskell.firstuse.DFM}% automated use
+\label{haskell.firstuse.LOFsKont}% automated use
+\label{haskell.firstuse.Kont}% automated use
+\label{haskell.firstuse.forward:unsol}% automated use
+\label{haskell.firstuse.LastNode}% automated use
+\label{haskell.firstuse.with:unfuel}% automated use
+\label{haskell.firstuse.depth}% automated use
+\label{haskell.firstuse.name}% automated use
+\label{haskell.firstuse.start:unfacts}% automated use
+\label{haskell.firstuse.transfers}% automated use
+\label{haskell.firstuse.in:unfact}% automated use
+\label{haskell.firstuse.setAllFacts}% automated use
+\label{haskell.firstuse.solve:unOx}% automated use
+\label{haskell.firstuse.solve:unfirst}% automated use
+\label{haskell.firstuse.solve:unmid}% automated use
+\label{haskell.firstuse.solve:unlast}% automated use
+\label{haskell.firstuse.set:unlast}% automated use
+\label{haskell.firstuse.LastOutFacts}% automated use
+\label{haskell.firstuse.mapM:un}% automated use
+\label{haskell.firstuse.uncurry}% automated use
+\label{haskell.firstuse.setFact}% automated use
+\label{haskell.firstuse.solve:unblock}% automated use
+\label{haskell.firstuse.Block}% automated use
+\label{haskell.firstuse.in'}% automated use
+\label{haskell.firstuse.>>=}% automated use
+\label{haskell.firstuse.subAnalysis}% automated use
+\label{haskell.firstuse.solve:unOO}% automated use
+\label{haskell.firstuse.anal:unf:unOO}% automated use
 \end{figure*}
 
 
@@ -2303,6 +2639,7 @@ dataflow engine.}
 The dataflow engine is implemented in two layers.
 The lower layer is the \emph{dataflow monad};
 it has type @DFM a@, where @a@~is the type of a
+\label{haskell.def.DFM}% automated definition
 dataflow fact.
 It~is a state monad which keeps track of the values of dataflow facts
 as the engine iterates.
@@ -2324,6 +2661,18 @@ subAnalysis       :: DFM a b -> DFM a b
 withDuplicateFuel :: DFM a b -> DFM a b
 runDFM :: DataflowLattice a -> DFM a b -> FuelMonad b
 \end{code}
+\label{haskell.def.getFact}% automated definition
+\label{haskell.def.setFact}% automated definition
+\label{haskell.def.getAllFacts}% automated definition
+\label{haskell.def.setAllFacts}% automated definition
+\label{haskell.def.useOneFuel}% automated definition
+\label{haskell.def.fuelExhausted}% automated definition
+\label{haskell.firstuse.runDFM}% automated use
+\label{haskell.firstuse.withDuplicateFuel}% automated use
+\label{haskell.firstuse.fuelExhausted}% automated use
+\label{haskell.firstuse.useOneFuel}% automated use
+\label{haskell.firstuse.getAllFacts}% automated use
+\label{haskell.firstuse.getFact}% automated use
 A~computation in the dataflow monad has two significant side effects:
 it may \emph{increase stored facts} (according to a lattice ordering)
 and it may \emph{consume fuel}.
@@ -2332,10 +2681,13 @@ those effects:
 \begin{itemize}
 \item
 Computation @subAnalysis c@ computes the same results as~@c@ and
+\label{haskell.def.subAnalysis}% automated definition
+\label{haskell.firstuse.c}% automated use
 consumes the same fuel as~@c@, but it does not change any stored
 dataflow facts.
 \item
 Computation @withDuplicateFuel c@ computes the same results as~@c@ and
+\label{haskell.def.withDuplicateFuel}% automated definition
 changes the same stored facts as~@c@, but it consumes fuel from a
 \emph{copy} of the fuel supply.
 The inner computation~@c@ may therefore run out of fuel, but
@@ -2349,6 +2701,7 @@ fuel-passing computations we used in earlier implementations
 %%  \cite{ramsey-dias:applicative-flow-graph}. 
 %%  \john{Presumably this sentence disappears if the italic text is made permanent.}
 Function @runDFM@ runs a single analysis or transformation, then
+\label{haskell.def.runDFM}% automated definition
 abandons the dataflow facts.
 The supplies of fuel and labels are kept (in the result of type
 @FuelMonad b@) because all analyses and transformations share a single
@@ -2388,7 +2741,7 @@ it automatically
 finds the first rewrite that introduces a fault.
 It works by giving the optimizer a finite supply of \emph{optimization
 fuel}.
-Each time a rewrite function proposes to replace a node, one unit of @Fuel@ is
+Each time a rewrite function proposes to replace a node, one unit of fuel is
 consumed.
 When the optimizer runs out of fuel, further rewrites are suppressed.
 Because each rewrite leaves the observable behavior of the
@@ -2574,10 +2927,11 @@ either because
 we are implementing a pure analysis, or because the optimizer
 is out of fuel. 
 We~do so using parameter @with_fuel@, which can prevent rewriting by
+\label{haskell.def.with:unfuel}% automated definition
 returning @return Nothing@.
 \item
 Analysis of a subgraph starts with known facts, not
-bottom facts; they are passed as % parameter
+bottom facts; they are passed as
 @start_facts@
 % (\lineref{forward.sol.args}) 
 and
@@ -2586,15 +2940,15 @@ and
 %A~fixed point is computed by initializing the facts using
 %@setAllFacts@, which is an operation in the dataflow monad.
 %
-\iffalse
-Function @solve@, on \linerangeref{solve.1}{solve.*} of
-\figref{solver-excerpts}, 
-takes an input fact, a graph, and a fuel supply; it~returns a pair
-containing the exit fact and the 
-remaining fuel supply.
-It~also has a side effect on the state stored in the inner dataflow monad:
-it brings the facts associated with labels up to a fixed point.
-\fi
+%\iffalse
+%Function @solve@, on \linerangeref{solve.1}{solve.*} of
+%\figref{solver-excerpts}, 
+%takes an input fact, a graph, and a fuel supply; it~returns a pair
+%containing the exit fact and the 
+%remaining fuel supply.
+%It~also has a side effect on the state stored in the inner dataflow monad:
+%it brings the facts associated with labels up to a fixed point.
+%\fi
 
 \remark{Need to say somewhere that @forward\_sol@ returns
 @Just a@ (the exit fact) for a graph that is open at the exit and
@@ -2654,16 +3008,30 @@ Any graph passed to @forward\_sol@ must be open at the entry.
 \end{numberedcode}
 \caption{Excerpts from the forward rewriter}
 \figlabel{rewriter-excerpts}
+\label{haskell.def.sar:unOO}% automated definition
+\label{haskell.def.rew:unmid}% automated definition
+\label{haskell.def.rew:unlast}% automated definition
+\label{haskell.def.rew:unfirst}% automated definition
+\label{haskell.def.GraphKont}% automated definition
+\label{haskell.def.GraphFactKont}% automated definition
+\label{haskell.firstuse.GraphFactKont}% automated use
+\label{haskell.firstuse.GraphKont}% automated use
+\label{haskell.firstuse.rew:unfirst}% automated use
+\label{haskell.firstuse.rew:unmid}% automated use
+\label{haskell.firstuse.rew:unlast}% automated use
+\label{haskell.firstuse.head}% automated use
+\label{haskell.firstuse.sar:unOO}% automated use
+\label{haskell.firstuse.curry}% automated use
 \end{figure*}
 
 \vfilbreak[3\baselineskip]
 
 The implementation of @zdfSolveFwd@ using @forward_sol@ looks
 like this:
-
+%
 \simon{Hang on!  What kind of graph does {\tt zdfSolveFwd} take?
 I assume a full graph, closed at the entry!  So what is this pesky {\tt in\_fact}??}
-
+%
 \begin{smallcode}
 zdfSolveFwd name lattice transfers in_fact g = 
   runWithoutFuel $ runDFM lattice $ ffp () $ 
@@ -2675,12 +3043,25 @@ fwd_pure_anal name env transfers in_fact g =
 ffp :: b -> DFM a (Maybe a) -> DFM a (FwdFixedPoint m l a b)
 runWithoutFuel :: FuelMonad a -> a
 \end{smallcode}
+\label{haskell.def.lattice}% automated definition
+\label{haskell.def.transfers}% automated definition
+\label{haskell.firstuse.fst}% automated use
+\label{haskell.firstuse.undefined}% automated use
+\label{haskell.firstuse.emptyBlockEnv}% automated use
+\label{haskell.firstuse.fwd:unpure:unanal}% automated use
+\label{haskell.firstuse.ffp}% automated use
+\label{haskell.firstuse.runWithoutFuel}% automated use
+\label{haskell.firstuse.lattice}% automated use
 Funtion @fwd_pure_anal@ is the special case of pure analysis; it is
+\label{haskell.def.fwd:unpure:unanal}% automated definition
 also used to implement function @anal_f_OO@ on
+\label{haskell.def.anal:unf:unOO}% automated definition
 \lineref{solve.rewrite.shallow.1} of \figref{solver-excerpts}.
 Function~@ffp@ (not shown) extracts a @FwdFixedPoint@ from the
+\label{haskell.def.ffp}% automated definition
 state stored in the inner dataflow monad.
 Function @runWithoutFuel@ (not shown) exploits lazy evaluation to run
+\label{haskell.def.runWithoutFuel}% automated definition
 a computation in the fuel monad while guaranteeing that the
 computation uses no fuel and no labels.
 
@@ -2716,7 +3097,7 @@ Thus a @Kont@ expects no fact as argument; it gets its fact by
 calling the monadic operation @getFact@.
 \end{itemize}
 \delendum{I like these continuations, but I'm very puzzled about the
-fuel.  If @Kont@ takes @Fuel@ in, where does it return the depleted @Fuel@?
+fuel.  If @Kont@ takes fuel in, where does it return the depleted fuel?
 It must come out eventualy, because it's needed in the rest of the program.
 And if it always comes out, then we should say so:
 @Kont a b = DFM a b@.
@@ -2741,7 +3122,7 @@ the inner dataflow monad.
 Stored facts are updated by function @set_last@ on
 \linerangeref{set.last.sig}{set.last.*} of 
 \figref{solver-excerpts}, which calls @setFact@ on each fact
-flowing out of a block, then returns the remaining~@Fuel@.
+flowing out of a block.
 By applying the composition
 of @solve_first@, @solve_mid@, and @solve_last@ to @set_last@, we get
 function @solve_block@, whose type is given on \lineref{solve.block}.
@@ -2750,6 +3131,8 @@ it runs for its side effects on the dataflow monad.
 
 In the rest of the solver,
 function @solve_blocks@ (not shown) takes a list of blocks and
+\label{haskell.def.solve:unblocks}% automated definition
+\label{haskell.firstuse.solve:unblocks}% automated use
 produces a continuation of type @Kont a ()@, which
 runs @solve_block@ repeatedly,
 updating stored facts until they reach a
@@ -2815,6 +3198,7 @@ thereby doing no rewriting and consuming no fuel
 (\lineref{solve.rewrite.shallow.1}).
 \simon{This business of passing in a different @with\_fuel@ seems terribly
 clumsy to me.  The obvious thing would be to add a third constructor @NoRewrite@
+\label{haskell.firstuse.NoRewrite}% automated use
 to the @RewritingDepth@ type, so that we could call @forward\_sol@ saying
 ``don't do any rewriting at all''.  Would that even elimiate the higher order
 @with\_fuel@ parameter altogether?  What is it used for? 
@@ -3178,7 +3562,7 @@ Compiler textbooks make dataflow analysis and optimization appear
 difficult and complicated.
 We make dataflow simple not by using a single magic
 ingredient, but by applying ideas that are well understood by functional
-programmers. %% and others who reason formally about programs.
+programmers.
 These ideas
 make it possible to think simple thoughts about classical code improvements.
 \simon{It would be good to give cross-refs to plces in the paper that
@@ -3355,7 +3739,7 @@ transformations and the assertions that can justify them.
 
 \makeatother
 
-\providecommand\includeftpref{\relax} %% total bafflement -- workaround
+\providecommand\includeftpref{\relax}
 \IfFileExists{nrbib.tex}{\bibliography{cs,ramsey}}{\bibliography{cs,ramsey,simon,jd}}
 \bibliographystyle{plainnatx}
 
@@ -3381,6 +3765,83 @@ this information into the text.
 
 \appendix
 
+\section{Index of defined identifiers}
+
+\newcommand\hsprelude[2]{\noindent
+  \texttt{#1} defined in the Haskell Prelude\\}
+\newcommand\hspagedef[3][]{\noindent
+  \texttt{#2} defined on page~\pageref{#3}.\\}
+\newcommand\omithspagedef[3][]{\noindent
+  \texttt{#2} not shown (but see page~\pageref{#3}).\\}
+\newcommand\omithsfigdef[3][]{\noindent
+  \texttt{#2} not shown (but see Figure~\ref{#3} on page~\pageref{#3}).\\}
+\newcommand\hsfigdef[3][]{%
+  \noindent
+  \ifx!#1!%
+    \texttt{#2} defined in Figure~\ref{#3} on page~\pageref{#3}.\\
+  \else
+    \texttt{#2} defined on \lineref{#1} of Figure~\ref{#3} on page~\pageref{#3}.\\
+  \fi
+}    
+\newcommand\hstabdef[3][]{%
+  \noindent
+  \ifx!#1!
+    \texttt{#2} defined in Table~\ref{#3} on page~\pageref{#3}.\\
+  \else
+    \texttt{#2} defined on \lineref{#1} of Table~\ref{#3} on page~\pageref{#3}.\\
+  \fi
+}    
+\newcommand\hspagedefll[3][]{\noindent
+  \texttt{#2} \texttt{let}- or $\lambda$-bound on page~\pageref{#3}.\\}
+\newcommand\hsfigdefll[3][]{%
+  \noindent
+  \ifx!#1!%
+    \texttt{#2} \texttt{let}- or $\lambda$-bound in Figure~\ref{#3} on page~\pageref{#3}.\\
+  \else
+    \texttt{#2} \texttt{let}- or $\lambda$-bound on \lineref{#1} of Figure~\ref{#3} on page~\pageref{#3}.\\
+  \fi
+}    
+
+\newcommand\nothspagedef[3][]{\notdefd\ndpage{#1}{#2}{#3}}
+\newcommand\nothsfigdef[3][]{\notdefd\ndfig{#1}{#2}{#3}}
+\newcommand\nothslinedef[3][]{\notdefd\ndline{#1}{#2}{#3}}
+
+\newcommand\ndpage[3]{\texttt{#2}~(p\pageref{#3})}
+\newcommand\ndfig[3]{\texttt{#2}~(Fig~\ref{#3},~p\pageref{#3})}
+\newcommand\ndline[3]{%
+  \ifx!#1!%
+      \ndfig{#1}{#2}{#3}%
+  \else
+      \texttt{#2}~(Fig~\ref{#3}, line~\lineref{#1}, p\pageref{#3})%
+  \fi
+}
+
+
+
+\newif\ifundefinedsection\undefinedsectionfalse
+
+\newcommand\notdefd[4]{%
+  \ifundefinedsection
+    , #1{#2}{#3}{#4}%
+  \else
+    \undefinedsectiontrue
+    \par
+    \section{Undefined identifiers}
+    #1{#2}{#3}{#4}%
+  \fi
+}
+
+\begingroup
+\raggedright
+
+\input{defuse}%
+\ifundefinedsection.\fi
+
+\endgroup
+
+
+\iffalse
+
 \section{Dataflow-engine functions}
 
 
@@ -3399,7 +3860,7 @@ this information into the text.
 \end{figure*}
 
 
-
+\fi
 
 
 

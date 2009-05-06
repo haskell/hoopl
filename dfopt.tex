@@ -1,3 +1,4 @@
+\input{dfoptdu} % use version with def-use information
 \newif\ifpagetuning \pagetuningtrue  % adjust page breaks
 
 \newif\ifnoauthornotes\noauthornotesfalse
@@ -324,7 +325,7 @@ improvements by composing small analyses and transformations.
 
 Here is a sequence of assignments separated by assertions.
 We compute the assertions by starting with the weakest possible
-assertion (@true@) and computing strongest postconditions.
+assertion (\texttt{true}) and computing strongest postconditions.
 % \footnote
 {Variables do not alias.}
 \begin{verbatim}
@@ -702,11 +703,11 @@ chosen instead to abandon parallel structure.}
 \begin{figure}
 \begin{code}
 data `ChangeFlag = `NoChange | `SomeChange
-data TxRes a    = TxRes ChangeFlag a
-data DataflowLattice a = DataflowLattice
- {fact_bot        :: a,
-  fact_add_to     :: a -> a -> TxRes a,
-  fact_name       :: String } -- for debugging
+data `TxRes a    = TxRes ChangeFlag a
+data `DataflowLattice a = DataflowLattice
+ {`fact_bot        :: a,
+  `fact_add_to     :: a -> a -> TxRes a,
+  `fact_name       :: String } -- for debugging
 \end{code}
 \caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
 \end{figure}
@@ -824,16 +825,16 @@ and @fact_name@  is used for debugging.
 
 \begin{figure}
 \begin{code}
-newtype LastOuts a = LastOuts [(BlockId, a)]
-data ForwardTransfers mid last a = ForwardTransfers
- {ft_first_out  :: BlockId -> a -> a,
-  ft_middle_out :: mid     -> a -> a,
-  ft_last_outs  :: last    -> a -> LastOuts a} 
+newtype `LastOuts a = LastOuts [(BlockId, a)]
+data `ForwardTransfers mid last a = ForwardTransfers
+ {`ft_first_out  :: BlockId -> a -> a,
+  `ft_middle_out :: mid     -> a -> a,
+  `ft_last_outs  :: last    -> a -> LastOuts a} 
 
-data BackTransfers mid last a = BackTransfers
- {bt_first_in  :: BlockId -> a              -> a,
-  bt_middle_in :: mid     -> a              -> a,
-  bt_last_in   :: last    -> (BlockId -> a) -> a} 
+data `BackTransfers mid last a = BackTransfers
+ {`bt_first_in  :: BlockId -> a              -> a,
+  `bt_middle_in :: mid     -> a              -> a,
+  `bt_last_in   :: last    -> (BlockId -> a) -> a} 
 \end{code}
 \caption{Transfer functions for forward and backward analyses.}
 \figlabel{transfers}
@@ -891,7 +892,7 @@ parameterized over a dataflow fact of type~@a@ and over the types
 @mid@ and @last@ of middle and last nodes.  
 
 
-The type @BlockId@ represents a label.
+The type @`BlockId@ represents a label.
 Because a fact in a forward analysis typically represents an assertion
 about program state,
  and because passing a label does not change
@@ -959,9 +960,9 @@ and transfer functions of type @ForwardTransfers m l a@,
 you can run the corresponding analysis by calling our library
 function @zdfSolveFwd@, a part of our dataflow engine:
 \begin{code}
- zdfSolveFwd 
-  :: LastNode l             -- Find successors of l
-  => PassName               -- Name of this analysis
+ `zdfSolveFwd 
+  :: HavingSuccessors l     -- Find successors of l
+  => `PassName               -- Name of this analysis
   -> DataflowLattice a      -- Lattice
   -> ForwardTransfers m l a -- Transfer functions
   -> a                      -- Input fact
@@ -971,16 +972,13 @@ function @zdfSolveFwd@, a part of our dataflow engine:
 The function is polymorphic in the types of middle and last nodes
 @m@~and~@l@ and in the type of the dataflow fact~@a@.
 Polymorphism allows our library to work with any intermediate
-language, but there is a constraint: @LastNode l@ is satisfied
+language, but there is a constraint: @`HavingSuccessors l@ is satisfied
 only if there is a function 
 \begin{code}
-  succs :: l -> [BlockId]
+  `succs :: l -> [BlockId]
 \end{code}
 which gives the identifiers of the blocks to which a node of type~@l@
 might transfer control.
-\remark{Would like to have the more limited constraint
-@HavingSuccessors l@, but this will mean additional complexity in the
-implementation.}
 
 After the type constraint, 
 the first three arguments to @zdfSolveFwd@ characterize the analysis.
@@ -996,37 +994,36 @@ fixed point.
 is explained in~\secref{engine-truth}.})
 
 
-The @FwdFixedPoint@ data structure is a big bag
+The @`FwdFixedPoint@ data structure is a big bag
 of information about the solution.
 The most significant information is
 a finite map from each block label to the dataflow fact that holds at
 the label, which is extracted using function @zdfFpFacts@:
-% Simon really wants these type signatures!
-\begin{verbatim}
-type BlockEnv a = Data.Map BlockId a
-zdfFpFacts :: FwdFixedPoint m l a g -> BlockEnv a
-\end{verbatim}
-
-
-
-
-
-
-\iffalse
-% never tell the whole truth!
+% omit emptyBlockEnv :: BlockEnv a
 \begin{code}
-class DataflowSolverDirection
-        transfers fixedpt where
-  zdfSolveFrom :: (DebugNodes m l, Outputable a)
-    => BlockEnv a        -- Init facts
-    -> PassName          -- Analysis name
-    -> DataflowLattice a -- Lattice
-    -> transfers m l a   -- Transfers
-    -> a                 -- Input fact
-    -> Graph m l         -- CFG
-    -> fixedpt m l a ()
+type `BlockEnv a = Data.Map BlockId a
+`zdfFpFacts :: FwdFixedPoint m l a g -> BlockEnv a
 \end{code}
-\fi
+
+
+
+
+
+%%  \iffalse
+%%  % never tell the whole truth!
+%%  \begin{code}
+%%  class DataflowSolverDirection
+%%          transfers fixedpt where
+%%    zdfSolveFrom :: (DebugNodes m l, Outputable a)
+%%      => BlockEnv a        -- Init facts
+%%      -> PassName          -- Analysis name
+%%      -> DataflowLattice a -- Lattice
+%%      -> transfers m l a   -- Transfers
+%%      -> a                 -- Input fact
+%%      -> Graph m l         -- CFG
+%%      -> fixedpt m l a ()
+%%  \end{code}
+%%  \fi
 
 
 
@@ -1064,30 +1061,33 @@ class DataflowSolverDirection
 \begin{figure*}
 \setcounter{codeline}{0}
 \begin{codetable}
-\T\begin{numberedcode}
-!AvailVars!data AvailVars = UniverseMinus VarSet | AvailVars VarSet
-!extendAvail!extendAvail  :: AvailVars -> LocalVar  -> AvailVars  -- add var to set
-delFromAvail :: AvailVars -> LocalVar  -> AvailVars  -- remove var from set
-elemAvail    :: AvailVars -> LocalVar  -> Bool       -- set membership
-interAvail   :: AvailVars -> AvailVars -> AvailVars  -- set intersection
-!smallerAvail!smallerAvail :: AvailVars -> AvailVars -> Bool       -- compare sizes
+\T
+\begin{numberedcode}
+!AvailVars!data `AvailVars = `UniverseMinus VarSet | AvailVars VarSet
+!extendAvail!`extendAvail  :: AvailVars -> LocalVar  -> AvailVars  -- add var to set
+`delFromAvail :: AvailVars -> LocalVar  -> AvailVars  -- remove var from set
+`elemAvail    :: AvailVars -> LocalVar  -> Bool       -- set membership
+`interAvail   :: AvailVars -> AvailVars -> AvailVars  -- set intersection
+!smallerAvail!`smallerAvail :: AvailVars -> AvailVars -> Bool       -- compare sizes
 \end{numberedcode}%
 \B
 & Dataflow fact and operations\\
 \hline
 
-\T\begin{code}
+\T
+\begin{code}
 availVarsLattice :: DataflowLattice AvailVars
-availVarsLattice = DataflowLattice "reloaded registers" empty add
-    where empty = UniverseMinus emptyVarSet
-          add new old = let join = interAvail new old in
-                        if join `smallerAvail` old then aTx join else noTx join
+`availVarsLattice = DataflowLattice "reloaded registers" empty add
+    where ^empty = UniverseMinus emptyVarSet
+          ^add ^new ^old = let ^join = interAvail new old in
+                        if join `smallerAvail` old then TxRes NoChange join else TxRes SomeChange join
 \end{code}%
 \B
 & Lattice\\
 \hline
 
-%%  \T\begin{code}
+%%  \T
+%%  \begin{code}
 %%  agen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
 %%  akill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
 %%  agen  a avail = foldVarsUsed extendAvail  avail a
@@ -1096,14 +1096,15 @@ availVarsLattice = DataflowLattice "reloaded registers" empty add
 %%  & Gen/Kill \mbox{functions}\\
 %%  \hline
 %%  
-\T\begin{code}
+\T
+\begin{code}
 avail_vars_transfer :: ForwardTransfers Middle Last AvailVars
-!avail.first!avail_vars_transfer = ForwardTransfers (flip const) middleAvail lastAvail
+!avail.first!`avail_vars_transfer = ForwardTransfers (flip const) middleAvail lastAvail
 
-middleAvail :: Middle -> AvailVars -> AvailVars
+`middleAvail :: Middle -> AvailVars -> AvailVars
 !reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail
 !reload2!                 | l `isStackSlotOf` x = extendAvail avail x
-!assign.avail.1!middleAvail (MidAssign lhs _expr) avail = 
+!assign.avail.1!middleAvail (MidAssign ^lhs ^_expr) avail = 
 !assign.avail.2!  foldVarsDefd delFromAvail avail lhs  -- remove variables defined in 'lhs'
 !store.avail.spill.1!middleAvail (MidStore l (CmmReg (CmmLocal x))) avail
 !store.avail.spill.2!                 | l `isStackSlotOf` x = avail
@@ -1111,7 +1112,7 @@ middleAvail :: Middle -> AvailVars -> AvailVars
 !store.avail.otherslot.2!                 | isStackSlot l = delFromAvail avail (variableOfSlot l)
 !store.avail.other!middleAvail (MidStore {}) avail = avail
 
-lastAvail :: Last -> AvailVars -> LastOuts AvailVars
+`lastAvail :: Last -> AvailVars -> LastOuts AvailVars
 !avail.LastCall!lastAvail (LastCall _ (Just k) _ _) _ = LastOuts [(k, AvailVars emptyVarSet)]
 lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 \end{code}%
@@ -1119,10 +1120,11 @@ lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 & Transfer \mbox{functions}\\
 \hline
 
-\T\begin{code}
-cmmAvailableVars :: Graph Middle Last -> BlockEnv AvailVars
+\T
+\begin{code}
+`cmmAvailableVars :: Graph Middle Last -> BlockEnv AvailVars
 cmmAvailableVars g = zdfFpFacts soln
-!avail.solve.1!  where soln = zdfSolveFwd "available variables" availVarsLattice 
+!avail.solve.1!  where ^soln = zdfSolveFwd "available variables" availVarsLattice 
 !avail.solve.2!               avail_vars_transfer (fact_bot availVarsLattice) g
 \end{code}%
 \B
@@ -1307,25 +1309,28 @@ the transformations are described in
 %
 \begin{figure*}
 \begin{codetable}
-\T\begin{code}
-!Live!type Live = VarSet
+\T
+\begin{code}
+!Live!type `Live = VarSet
 \end{code}%
 \B
 & Dataflow fact\\
 \hline
 
-\T\begin{code}
-!liveLattice!liveLattice :: DataflowLattice Live
+\T
+\begin{code}
+!liveLattice!`liveLattice :: DataflowLattice Live
 liveLattice = DataflowLattice "live LocalReg's" emptyVarSet add
   where add new old =
           let join = unionVarSets new old in
-!liveLattice.end!          (if sizeVarSet join > sizeVarSet old then aTx else noTx) join
+!liveLattice.end!          TxRes (if sizeVarSet join > sizeVarSet old then SomeChange else NoChange) join
 \end{code}%
 \B
 & Lattice\\
 \hline
 
-%%  \T\begin{code}
+%%  \T
+%%  \begin{code}
 %%  gen  :: UserOfLocalVars    a => a -> Live -> Live
 %%  kill :: DefinerOfLocalVars a => a -> Live -> Live 
 %%  gen  a live = foldVarsUsed extendVarSet  live a
@@ -1334,34 +1339,37 @@ liveLattice = DataflowLattice "live LocalReg's" emptyVarSet add
 %%  & Gen/Kill \mbox{functions}\\
 %%  \hline
 
-\T\begin{code}
-liveTransfers :: BackwardTransfers Middle Last Live
-liveTransfers = BackwardTransfers (flip const) middleLiveness lastLiveness
+\T
+\begin{code}
+`liveTransfers :: BackTransfers Middle Last Live
+liveTransfers = BackTransfers (flip const) middleLiveness lastLiveness
 
 middleLiveness :: Middle -> Live -> Live
 lastLiveness   :: Last -> (BlockId -> Live) -> Live
-!middleLiveness!middleLiveness m = addUsed m . remDefd m
-!lastLiveness!lastLiveness   l = addUsed l . remDefd l . lastLiveOut l 
+!middleLiveness!`middleLiveness m = addUsed m . remDefd m
+!lastLiveness!`lastLiveness   l = addUsed l . remDefd l . lastLiveOut l 
 
 !liveness.addUsed.sig!addUsed :: UserOfLocalVars    a => a -> Live -> Live
 remDefd :: DefinerOfLocalVars a => a -> Live -> Live 
-addUsed a live = foldVarsUsed extendVarSet  live a
-!liveness.remDefd.def!remDefd a live = foldVarsDefd delFromVarSet live a
+`addUsed a live = foldVarsUsed extendVarSet  live a
+!liveness.remDefd.def!`remDefd a live = foldVarsDefd delFromVarSet live a
 
 lastLiveOut :: Last -> (BlockId -> Live) -> Live
-!lastLiveOut.1!lastLiveOut l env = last l 
-!live.lastBranch!  where last (LastBranch id)        = env id 
+!lastLiveOut.1!`lastLiveOut l env = last l 
+!live.lastBranch!  where ^last (LastBranch id)        = env id 
 !live.condBranch!        last (LastCondBranch _ t f) = unionVarSets (env t) (env f)
-!live.lastSwitch!        last (LastSwitch _ tbl)     = unionManyVarSets $ map env (catMaybes tbl)
+!live.lastSwitch!        last (LastSwitch _ ^tbl)     = unionManyVarSets $ map env (catMaybes tbl)
 !live.lastCall!        last (LastCall { })         = emptyVarSet
 \end{code}%
+% omit catMaybes :: [Maybe a] -> [a]
 \B
 & Transfer \mbox{functions}\\
 \hline
 
-\T\begin{code}
+\T
+\begin{code}
 cmmLiveness :: Graph Middle Last -> BlockEnv Live
-cmmLiveness g = zdfFpFacts soln
+`cmmLiveness g = zdfFpFacts soln
 !live.zdfSolveBwd!   where soln = zdfSolveBwd "liveness" liveLattice liveTransfers emptyVarSet g
 \end{code}%
 \B
@@ -1451,6 +1459,16 @@ or $\mathtt{AvailVars}\;s$, which stands for the variables in the set~$s$
 The bottom element is @UniverseMinus emptyVarSet@.
 To manipulate sets of variables, we provide the functions declared in
 \linerangeref{extendAvail}{smallerAvail} of \figref{avail}.
+%
+% omit delFromVarSet :: VarSet -> Var -> VarSet
+% omit extendVarSet :: VarSet -> Var -> VarSet
+% omit unionVarSets :: VarSet -> VarSet -> VarSet
+% omit sizeVarSet :: VarSet -> Int
+% omit emptyVarSet :: VarSet
+% omit unionManyVarSets :: [VarSet] -> VarSet
+% omit isEmptyVarSet :: VarSet -> Bool
+% omit elemVarSet :: Var -> VarSet -> Bool
+% omit VarSet :: *
 
 
 
@@ -1473,9 +1491,9 @@ To manipulate sets of variables, we provide the functions declared in
 %%In~the lattice of available reloads (\figref{avail-lattice}),
 %%the~join is computed by taking the intersection of two sets
 %%of available reloads,
-%%The join operation (@add@) returns a \emph{transaction} @aTx@
+%%The join operation (@add@) returns a \emph{transaction} @TxRes SomeChange@
 %%if the join has not yet reached a fixed point;
-%%otherwise, it returns @noTx@ to indicate that the dataflow fact
+%%otherwise, it returns @TxRes NoChange@ to indicate that the dataflow fact
 %%did not change.
 %%The bottom element of the lattice is the universe of all variables,
 %%reflecting the initial assumption that all variables
@@ -1516,9 +1534,9 @@ available variables.
 Function @foldVarsDefd@ is an overloaded function which, along with its dual,
 is used throughout the back end:
 \begin{code}
-foldVarsUsed :: UserOfLocalVars    a 
+`foldVarsUsed :: `UserOfLocalVars    a 
              => (b -> Var -> b) -> b -> a -> b
-foldVarsDefd :: DefinerOfLocalVars a 
+`foldVarsDefd :: `DefinerOfLocalVars a 
              => (b -> Var -> b) -> b -> a -> b
 \end{code}
 On \lineref{assign.avail.2},  if @lhs@ is a local variable,
@@ -1741,8 +1759,8 @@ In the available-variables analysis of \figref{avail}, @gen@ and
 \begin{smallcode}
 gen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
 kill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
-gen  a avail = foldVarsUsed extendAvail  avail a
-kill a avail = foldVarsDefd delFromAvail avail a
+`gen  a avail = foldVarsUsed extendAvail  avail a
+`kill a avail = foldVarsDefd delFromAvail avail a
 \end{smallcode}
 Using @gen@ and @kill@ entails no loss of efficiency;
 for example, if the right-hand side of \lineref{reload2} of \figref{avail}
@@ -1764,16 +1782,16 @@ would reduce to @extendAvail avail x@.
 
 \begin{figure}
 \begin{code}
-type Rewrite mid last = Maybe (Graph mid last)
-data ForwardRewrites mid last a = ForwardRewrites
- {fr_first  :: BlockId -> a -> Rewrite mid last,
-  fr_middle :: mid     -> a -> Rewrite mid last,
-  fr_last   :: last    -> a -> Rewrite mid last} 
+type `Rewrite mid last = Maybe (Graph mid last)
+data `ForwardRewrites mid last a = ForwardRewrites
+ {`fr_first  :: BlockId -> a -> Rewrite mid last,
+  `fr_middle :: mid     -> a -> Rewrite mid last,
+  `fr_last   :: last    -> a -> Rewrite mid last} 
 
-data BackwardRewrites mid last a = BackwardRewrites
- {br_first  :: BlockId  -> a  -> Rewrite mid last,
-  br_middle :: mid      -> a  -> Rewrite mid last,
-  br_last   :: last ->
+data `BackwardRewrites mid last a = BackwardRewrites
+ {`br_first  :: BlockId  -> a  -> Rewrite mid last,
+  `br_middle :: mid      -> a  -> Rewrite mid last,
+  `br_last   :: last ->
                (BlockId -> a) -> Rewrite mid last} 
 \end{code}
 \caption{Types of forward and backward rewrite functions.}
@@ -1783,27 +1801,29 @@ data BackwardRewrites mid last a = BackwardRewrites
 
 \begin{figure*}
 \begin{codetable}
-\T\begin{code}
+\T
+\begin{code}
 availRewrites :: ForwardRewrites Middle Last AvailVars
-availRewrites = ForwardRewrites first middle last
-!avail.rewrites.first!  where first _ _ = Nothing
-        middle m avail = maybe_reload_before avail m (mkMiddle m)
-!avail.rewrites.last!        last   l avail = maybe_reload_before avail l (mkLast l)
-!maybe.reload.before.1!        maybe_reload_before avail node tail =
-            let used = filterVarsUsed (elemAvail avail) node
+`availRewrites = ForwardRewrites first middle last
+!avail.rewrites.first!  where ^first _ _ = Nothing
+        ^middle m avail = maybe_reload_before avail m (mkMiddle m)
+!avail.rewrites.last!        ^last   l avail = maybe_reload_before avail l (mkLast l)
+!maybe.reload.before.1!        `maybe_reload_before avail node tail =
+            let ^used = filterVarsUsed (elemAvail avail) node
             in  if isEmptyVarSet used then Nothing
 !maybe.reload.before.2!                else Just $ reloadTail used tail
-        reloadTail vars t = foldl rel t $ varSetToList vars
-!mkMiddle!          where rel t r = mkMiddle (reload r) <*> t
+        `reloadTail vars t = foldl rel t $ varSetToList vars
+!mkMiddle!          where ^rel t r = mkMiddle (reload r) <*> t
 \end{code}
 \B
 & Rewrite \mbox{functions}\\
 \hline
 
-\T\begin{code}
+\T
+\begin{code}
 insertLateReloads :: (Graph Middle Last) -> FuelMonad (Graph Middle Last)
-insertLateReloads g = liftM zdfFpContents result
-!insertLateReloads.1!  where result = zdfRewriteFwd RewriteShallow "insert late reloads"
+`insertLateReloads g = liftM zdfFpContents result
+!insertLateReloads.1!  where ^result = zdfRewriteFwd RewriteShallow "insert late reloads"
                                availVarsLattice avail_vars_transfer
 !insertLateReloads.2!                               availRewrites (fact_bot availVarsLattice) g
 \end{code}
@@ -1882,7 +1902,7 @@ library function @zdfRewriteFwd@ (from our dataflow engine) to
 transform a control-flow 
 graph:
 \begin{code}
- zdfRewriteFwd 
+ `zdfRewriteFwd 
   :: RewritingDepth         -- Rewrite recursively?
   -> PassName               -- Name of this pass
   -> DataflowLattice a      -- Lattice
@@ -1916,11 +1936,13 @@ information:\seclabel{engine-truth}
 Function @zdfRewriteFwd@ requires rewrite functions as well as transfer
 functions.
 \item
-The @RewritingDepth@ parameter controls recursive rewriting;
+The @`RewritingDepth@ parameter controls recursive rewriting;
 if~a graph produced by a rewrite function should not be further rewritten,
 rewriting is \emph{shallow};
+%defn RewriteShallow
 if~a graph produced by a rewrite function can be rewritten again,
 rewriting is \emph{deep}.
+%defn RewriteDeep
 Deep rewriting is essential to achieve the results of
 \citet{lerner-grove-chambers:2002}, e.g., to remove the induction
 variable from the loop in the example in \secref{induction-var-elim}.
@@ -1930,7 +1952,7 @@ ensure that the graphs they produce are not rewritten indefinitely.
 The type constructor @FwdFixedPoint@ has a fourth
 type parameter,
 which is a value contained in the fixed point.
-The~value can be extracted using function @zdfFpContents@, which has
+The~value can be extracted using function @`zdfFpContents@, which has
 type @FwdFixedPoint m l a b -> b@.
 Here the type parameter~@b@ is instantiated to @Graph m l@: the fixed point
 contains the rewritten graph.
@@ -1942,7 +1964,7 @@ We are explaining the meaning of the final type parameter to
 @FwdFixedPoint@, as promised.}
 \item
 Rewriting is monadic.
-A~@FuelMonad@ holds resources needed to
+A~@`FuelMonad@ holds resources needed to
 rewrite graphs into subgraphs:
 a~supply of fresh labels and a supply of \emph{optimization fuel}
 (\secref{fuel}). 
@@ -2122,10 +2144,11 @@ sink reloads and produce programs like the example shown in
 
 \begin{figure*}
 \begin{codetable}
-\T\begin{code}
-deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing
-!deadRewrites.1!  where nothing _ _ = Nothing
-        middleRemoveDeads :: Middle -> CmmLive -> Maybe (Graph Middle Last)
+\T
+\begin{code}
+`deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing
+!deadRewrites.1!  where ^nothing _ _ = Nothing
+        `middleRemoveDeads :: Middle -> VarSet -> Maybe (Graph Middle Last)
 !elim.dead.1!        middleRemoveDeads (MidAssign (CmmLocal x) _) live
 !elim.dead.2!            | not (x `elemVarSet` live) = Just emptyGraph
 !deadRewrites.2!        middleRemoveDeads _ _ = Nothing
@@ -2134,9 +2157,10 @@ deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing
 & Rewrite \mbox{functions}\\
 \hline
 
-\T\begin{code}
+\T
+\begin{code}
 removeDeadAssignments :: (Graph Middle Last) -> FuelMonad (Graph Middle Last)
-removeDeadAssignments g = liftM zdfFpContents result
+`removeDeadAssignments g = liftM zdfFpContents result
 !rewriteBwd.1!     where result = zdfRewriteBwd RewriteDeep "dead-assignment elim"
 !rewriteBwd.2!                                  liveLattice liveTransfers rewrites emptyVarSet g
 \end{code}
@@ -2175,10 +2199,10 @@ preceded by a (redundant) reload for each variable in the set~@used@.
 Rewrite functions create graphs using functions like these
 (\figref{avail-rewrites}, \lineref{mkMiddle}):
 \begin{code}
-mkLabel  :: BlockId -> Graph m l
-mkMiddle :: m       -> Graph m l
-mkLast   :: l       -> Graph m l
-(<*>)    :: Graph m l -> Graph m l -> Graph m l
+`mkLabel  :: BlockId -> Graph m l
+`mkMiddle :: m       -> Graph m l
+`mkLast   :: l       -> Graph m l
+(`<*>)    :: Graph m l -> Graph m l -> Graph m l
 \end{code}
 %% \simon{Aha!  Here is where we lie by pretending that @Graph@ = @AGraph@.  Ok.}
 %% \simon{Does @mkLast@ really have a @LastNode l@ context? How does it use it?}
@@ -2235,27 +2259,27 @@ include \secref{induction-var-elim}.
 \begin{figure*}
 \setcounter{codeline}{0}
 \begin{numberedcode}
-!FactKont!type FactKont a b = a          -> DFM a b
-type LOFsKont a b = LastOuts a -> DFM a b
-!Kont!type Kont     a b =               DFM a b
+!FactKont!type `FactKont a b = a          -> DFM a b
+type `LOFsKont a b = LastOuts a -> DFM a b
+!Kont!type `Kont     a b =               DFM a b
 
-!forward.sol.sig!forward_sol :: forall m l a . LastNode l => (forall b . Maybe b -> DFM a (Maybe b))
+!forward.sol.sig!`forward_sol :: forall m l a . LastNode l => (forall b . Maybe b -> DFM a (Maybe b))
             -> RewritingDepth -> PassName -> BlockEnv a -> ForwardTransfers m l a
             -> ForwardRewrites m l a -> a -> Graph m l -> DFM a (Maybe a)
-!forward.sol.args!forward_sol with_fuel depth name start_facts transfers rewrites in_fact g =
+!forward.sol.args!forward_sol with_fuel depth name ^start_facts ^transfers ^rewrites ^in_fact g =
 !forward.sol.setAllFacts!     do { setAllFacts start_facts ; solve_Ox g in_fact }
    where 
-!solve.first.sig!     solve_first :: BlockId -> FactKont a b -> Kont     a b
+!solve.first.sig!     `solve_first :: BlockId -> FactKont a b -> Kont     a b
      solve_mid   :: m       -> FactKont a b -> FactKont a b
-!solve.last.sig!     solve_last  :: l       -> LOFsKont a b -> FactKont a b
+!solve.last.sig!     `solve_last  :: l       -> LOFsKont a b -> FactKont a b
 
 !set.last.sig!     set_last :: LOFsKont a ()
-!set.last.*!     set_last (LastOutFacts l) = mapM_ (uncurry setFact) l
+!set.last.*!     `set_last (LastOutFacts l) = mapM_ (uncurry setFact) l
 
-!solve.block!     solve_block :: Block m l -> Kont a ()
-!solve.Ox!     solve_Ox    :: Graph m l -> FactKont a (Maybe a)
+!solve.block!     `solve_block :: Block m l -> Kont a ()
+!solve.Ox!     `solve_Ox    :: Graph m l -> FactKont a (Maybe a)
 
-!solve.mid.1!     solve_mid m k in' =
+!solve.mid.1!     `solve_mid m k in' =
 !solve.mid.case!       (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
 !solve.mid.Nothing!         Nothing -> k (ft_middle_out transfers in' m)
 !solve.mid.Just!         Just g  -> do { a <- subAnalysis $ case depth of
@@ -2299,7 +2323,7 @@ dataflow engine.}
 
 The dataflow engine is implemented in two layers.
 The lower layer is the \emph{dataflow monad};
-it has type @DFM a@, where @a@~is the type of a
+it has type @`DFM a@, where @a@~is the type of a
 dataflow fact.
 It~is a state monad which keeps track of the values of dataflow facts
 as the engine iterates.
@@ -2311,12 +2335,12 @@ Finally, it keeps track of a supply of fresh labels.
 
 Operations on the dataflow monad include
 \begin{code}
-getFact           :: BlockId -> DFM a a
-setFact           :: BlockId -> a -> DFM a ()
-getAllFacts       :: DFM a (BlockEnv a)
-setAllFacts       :: BlockEnv a -> DFM a ()
-useOneFuel        :: DFM a ()
-fuelExhausted     :: DFM a Bool
+`getFact           :: BlockId -> DFM a a
+`setFact           :: BlockId -> a -> DFM a ()
+`getAllFacts       :: DFM a (BlockEnv a)
+`setAllFacts       :: BlockEnv a -> DFM a ()
+`useOneFuel        :: DFM a ()
+`fuelExhausted     :: DFM a Bool
 subAnalysis       :: DFM a b -> DFM a b
 withDuplicateFuel :: DFM a b -> DFM a b
 runDFM :: DataflowLattice a -> DFM a b -> FuelMonad b
@@ -2328,11 +2352,11 @@ The~two most interesting operations in the monad are used to control
 those effects:
 \begin{itemize}
 \item
-Computation @subAnalysis c@ computes the same results as~@c@ and
+Computation @`subAnalysis c@ computes the same results as~@c@ and
 consumes the same fuel as~@c@, but it does not change any stored
 dataflow facts.
 \item
-Computation @withDuplicateFuel c@ computes the same results as~@c@ and
+Computation @`withDuplicateFuel c@ computes the same results as~@c@ and
 changes the same stored facts as~@c@, but it consumes fuel from a
 \emph{copy} of the fuel supply.
 The inner computation~@c@ may therefore run out of fuel, but
@@ -2345,7 +2369,7 @@ fuel-passing computations we used in earlier implementations
 %%  right than our Objective Caml version
 %%  \cite{ramsey-dias:applicative-flow-graph}. 
 %%  \john{Presumably this sentence disappears if the italic text is made permanent.}
-Function @runDFM@ runs a single analysis or transformation, then
+Function @`runDFM@ runs a single analysis or transformation, then
 abandons the dataflow facts.
 The supplies of fuel and labels are kept (in the result of type
 @FuelMonad b@) because all analyses and transformations share a single
@@ -2385,7 +2409,7 @@ it automatically
 finds the first rewrite that introduces a fault.
 It works by giving the optimizer a finite supply of \emph{optimization
 fuel}.
-Each time a rewrite function proposes to replace a node, one unit of @Fuel@ is
+Each time a rewrite function proposes to replace a node, one unit of fuel is
 consumed.
 When the optimizer runs out of fuel, further rewrites are suppressed.
 Because each rewrite leaves the observable behavior of the
@@ -2570,7 +2594,7 @@ But sometimes we want to prevent a node from being rewritten,
 either because
 we are implementing a pure analysis, or because the optimizer
 is out of fuel. 
-We~do so using parameter @with_fuel@, which can prevent rewriting by
+We~do so using parameter @`with_fuel@, which can prevent rewriting by
 returning @return Nothing@.
 \item
 Analysis of a subgraph starts with known facts, not
@@ -2583,15 +2607,15 @@ and
 %A~fixed point is computed by initializing the facts using
 %@setAllFacts@, which is an operation in the dataflow monad.
 %
-\iffalse
-Function @solve@, on \linerangeref{solve.1}{solve.*} of
-\figref{solver-excerpts}, 
-takes an input fact, a graph, and a fuel supply; it~returns a pair
-containing the exit fact and the 
-remaining fuel supply.
-It~also has a side effect on the state stored in the inner dataflow monad:
-it brings the facts associated with labels up to a fixed point.
-\fi
+%\iffalse
+%Function @solve@, on \linerangeref{solve.1}{solve.*} of
+%\figref{solver-excerpts}, 
+%takes an input fact, a graph, and a fuel supply; it~returns a pair
+%containing the exit fact and the 
+%remaining fuel supply.
+%It~also has a side effect on the state stored in the inner dataflow monad:
+%it brings the facts associated with labels up to a fixed point.
+%\fi
 
 \remark{Need to say somewhere that @forward\_sol@ returns
 @Just a@ (the exit fact) for a graph that is open at the exit and
@@ -2630,14 +2654,14 @@ Any graph passed to @forward\_sol@ must be open at the entry.
 %%      rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
 \setcounter{codeline}{0}
 \begin{numberedcode}
-!GraphFactKont!type GraphFactKont  m l a b = Graph m l -> a -> DFM a b
-!GraphKont!type GraphKont      m l a b = Graph m l      -> DFM a b
+!GraphFactKont!type `GraphFactKont  m l a b = Graph m l -> a -> DFM a b
+!GraphKont!type `GraphKont      m l a b = Graph m l      -> DFM a b
 
-!rew.first!      rew_first :: BlockId -> GraphFactKont m l a b -> GraphKont     m l a b
+!rew.first!      `rew_first :: BlockId -> GraphFactKont m l a b -> GraphKont     m l a b
       rew_mid   :: m       -> GraphFactKont m l a b -> GraphFactKont m l a b
-!rew.last!      rew_last  :: l       -> GraphKont     m l a b -> GraphFactKont m l a b
+!rew.last!      `rew_last  :: l       -> GraphKont     m l a b -> GraphFactKont m l a b
 
-!rew.mid.1!      rew_mid m k head in' =
+!rew.mid.1!      `rew_mid m k head in' =
         (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
           Nothing -> k (head <*> mkMiddle m) (ft_middle_out transfers in' m)
           Just g  ->
@@ -2647,7 +2671,7 @@ Any graph passed to @forward\_sol@ must be open at the entry.
 !rew.anal.f.OO!                        RewriteShallow -> do { a <- anal_f_OO g in'; return (g, a) }
 !rew.mid.*!                 ; k (head <*> g) a }
 
-!sar.OO!      sar_OO :: Graph m l -> GraphFactKont m l a b -> FactKont a b
+!sar.OO!      `sar_OO :: Graph m l -> GraphFactKont m l a b -> FactKont a b
 \end{numberedcode}
 \caption{Excerpts from the forward rewriter}
 \figlabel{rewriter-excerpts}
@@ -2657,12 +2681,12 @@ Any graph passed to @forward\_sol@ must be open at the entry.
 
 The implementation of @zdfSolveFwd@ using @forward_sol@ looks
 like this:
-
+%
 \simon{Hang on!  What kind of graph does {\tt zdfSolveFwd} take?
 I assume a full graph, closed at the entry!  So what is this pesky {\tt in\_fact}??}
-
+%
 \begin{smallcode}
-zdfSolveFwd name lattice transfers in_fact g = 
+zdfSolveFwd name ^lattice ^transfers in_fact g = 
   runWithoutFuel $ runDFM lattice $ ffp () $ 
   fwd_pure_anal name emptyBlockEnv transfers in_fact g
 fwd_pure_anal name env transfers in_fact g =
@@ -2672,12 +2696,12 @@ fwd_pure_anal name env transfers in_fact g =
 ffp :: b -> DFM a (Maybe a) -> DFM a (FwdFixedPoint m l a b)
 runWithoutFuel :: FuelMonad a -> a
 \end{smallcode}
-Funtion @fwd_pure_anal@ is the special case of pure analysis; it is
-also used to implement function @anal_f_OO@ on
+Funtion @`fwd_pure_anal@ is the special case of pure analysis; it is
+also used to implement function @`anal_f_OO@ on
 \lineref{solve.rewrite.shallow.1} of \figref{solver-excerpts}.
-Function~@ffp@ (not shown) extracts a @FwdFixedPoint@ from the
+Function~@`ffp@ (not shown) extracts a @FwdFixedPoint@ from the
 state stored in the inner dataflow monad.
-Function @runWithoutFuel@ (not shown) exploits lazy evaluation to run
+Function @`runWithoutFuel@ (not shown) exploits lazy evaluation to run
 a computation in the fuel monad while guaranteeing that the
 computation uses no fuel and no labels.
 
@@ -2713,7 +2737,7 @@ Thus a @Kont@ expects no fact as argument; it gets its fact by
 calling the monadic operation @getFact@.
 \end{itemize}
 \delendum{I like these continuations, but I'm very puzzled about the
-fuel.  If @Kont@ takes @Fuel@ in, where does it return the depleted @Fuel@?
+fuel.  If @Kont@ takes fuel in, where does it return the depleted fuel?
 It must come out eventualy, because it's needed in the rest of the program.
 And if it always comes out, then we should say so:
 @Kont a b = DFM a b@.
@@ -2738,7 +2762,7 @@ the inner dataflow monad.
 Stored facts are updated by function @set_last@ on
 \linerangeref{set.last.sig}{set.last.*} of 
 \figref{solver-excerpts}, which calls @setFact@ on each fact
-flowing out of a block, then returns the remaining~@Fuel@.
+flowing out of a block.
 By applying the composition
 of @solve_first@, @solve_mid@, and @solve_last@ to @set_last@, we get
 function @solve_block@, whose type is given on \lineref{solve.block}.
@@ -2746,7 +2770,7 @@ Function @solve_block@ is given a block and it
 it runs for its side effects on the dataflow monad.
 
 In the rest of the solver,
-function @solve_blocks@ (not shown) takes a list of blocks and
+function @`solve_blocks@ (not shown) takes a list of blocks and
 produces a continuation of type @Kont a ()@, which
 runs @solve_block@ repeatedly,
 updating stored facts until they reach a
@@ -3378,6 +3402,83 @@ this information into the text.
 
 \appendix
 
+\section{Index of defined identifiers}
+
+\newcommand\hsprelude[2]{\noindent
+  \texttt{#1} defined in the Haskell Prelude\\}
+\newcommand\hspagedef[3][]{\noindent
+  \texttt{#2} defined on page~\pageref{#3}.\\}
+\newcommand\omithspagedef[3][]{\noindent
+  \texttt{#2} not shown (but see page~\pageref{#3}).\\}
+\newcommand\omithsfigdef[3][]{\noindent
+  \texttt{#2} not shown (but see Figure~\ref{#3} on page~\pageref{#3}).\\}
+\newcommand\hsfigdef[3][]{%
+  \noindent
+  \ifx!#1!%
+    \texttt{#2} defined in Figure~\ref{#3} on page~\pageref{#3}.\\
+  \else
+    \texttt{#2} defined on \lineref{#1} of Figure~\ref{#3} on page~\pageref{#3}.\\
+  \fi
+}    
+\newcommand\hstabdef[3][]{%
+  \noindent
+  \ifx!#1!
+    \texttt{#2} defined in Table~\ref{#3} on page~\pageref{#3}.\\
+  \else
+    \texttt{#2} defined on \lineref{#1} of Table~\ref{#3} on page~\pageref{#3}.\\
+  \fi
+}    
+\newcommand\hspagedefll[3][]{\noindent
+  \texttt{#2} \texttt{let}- or $\lambda$-bound on page~\pageref{#3}.\\}
+\newcommand\hsfigdefll[3][]{%
+  \noindent
+  \ifx!#1!%
+    \texttt{#2} \texttt{let}- or $\lambda$-bound in Figure~\ref{#3} on page~\pageref{#3}.\\
+  \else
+    \texttt{#2} \texttt{let}- or $\lambda$-bound on \lineref{#1} of Figure~\ref{#3} on page~\pageref{#3}.\\
+  \fi
+}    
+
+\newcommand\nothspagedef[3][]{\notdefd\ndpage{#1}{#2}{#3}}
+\newcommand\nothsfigdef[3][]{\notdefd\ndfig{#1}{#2}{#3}}
+\newcommand\nothslinedef[3][]{\notdefd\ndline{#1}{#2}{#3}}
+
+\newcommand\ndpage[3]{\texttt{#2}~(p\pageref{#3})}
+\newcommand\ndfig[3]{\texttt{#2}~(Fig~\ref{#3},~p\pageref{#3})}
+\newcommand\ndline[3]{%
+  \ifx!#1!%
+      \ndfig{#1}{#2}{#3}%
+  \else
+      \texttt{#2}~(Fig~\ref{#3}, line~\lineref{#1}, p\pageref{#3})%
+  \fi
+}
+
+
+
+\newif\ifundefinedsection\undefinedsectionfalse
+
+\newcommand\notdefd[4]{%
+  \ifundefinedsection
+    , #1{#2}{#3}{#4}%
+  \else
+    \undefinedsectiontrue
+    \par
+    \section{Undefined identifiers}
+    #1{#2}{#3}{#4}%
+  \fi
+}
+
+\begingroup
+\raggedright
+
+\input{defuse}%
+\ifundefinedsection.\fi
+
+\endgroup
+
+
+\iffalse
+
 \section{Dataflow-engine functions}
 
 
@@ -3396,7 +3497,7 @@ this information into the text.
 \end{figure*}
 
 
-
+\fi
 
 
 
