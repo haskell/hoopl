@@ -60,10 +60,15 @@ local figcontexts = table.set { 'figure', 'figure*', 'table', 'table*' }
 local figwaiting, figusewaiting = { }, { }
 
 
+local def_written = { }
+
 local function write_defn(id)
-  if figcontexts[context] then
+  if def_written[id] then
+    assert(marker[id] == '^', id .. " multiply defined with marker " .. marker[id])
+  elseif figcontexts[context] then
     table.insert(figwaiting, id)
   else
+    def_written[id] = true
     -- fprintf(io.stderr, 'DEF %q (%s)\n', id, context)
     io.write(stringf([[\label{%s}]], labelstring(id)), '% automated definition\n')
   end
