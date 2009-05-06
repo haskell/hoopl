@@ -407,10 +407,10 @@ The new variable~@p@ is intended to satisfy the invariant
 \end{verbatim}
 The variable @i@ is also used in the loop-termination test.
 To rewrite that test, 
-we introduce a new variable @lim@ satisfying
+we introduce a new variable \texttt{lim} satisfying
 the invariant % line breaking
-@lim == a + n * 24@,
-so that @i >= n@ if and only if @p >= lim@.
+\icode|lim == a + n * 24|,
+so that @i >= n@ if and only if \icode|p >= lim|.
 
 \ifpagetuning \enlargethispage{1\baselineskip} \fi 
 
@@ -418,7 +418,7 @@ so that @i >= n@ if and only if @p >= lim@.
 We implement the code improvement as a sequence of transformations.
 After each transformation, the observable behavior of the program is unchanged.
 %
-Our first transformation declares @p@ and @lim@ and inserts suitable
+Our first transformation declares @p@ and \texttt{lim} and inserts suitable
 assignments. 
 New code is \high{boxed}\,.
 \begin{alltt}
@@ -434,9 +434,9 @@ New code is \high{boxed}\,.
   \rbr
 \end{alltt}
 
-As written, the assignments to @p@~and~@lim@ have no
+As written, the assignments to @p@~and~\texttt{lim} have no
 effect on the program, but they enable the compiler to establish the assertions
-@p == a + i * 24@ and @(i >= n) == (p >= lim)@.
+@p == a + i * 24@ and \icode|(i >= n) == (p >= lim)|.
 On~the basis of these assertions, the compiler substitutes equals for
 equals, resulting in the new code in boxes below:
 \begin{alltt}
@@ -457,7 +457,7 @@ reasoning about continuations.
 In~particular, we reason about whether the value of a variable can be
 used by a continuation; this reasoning is called ``liveness analysis.''
 A~\naive\ analysis would show that although @i@~is not live at
-label~@L2@, it is nevertheless live immediately after 
+label~\texttt{L2}, it is nevertheless live immediately after 
 the assignment
 @i = i + 1@ in the loop body,
 because the value of~@i@ could be used by the next iteration of the
@@ -507,7 +507,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
 \rbr
 \end{alltt}
 
-After the insertion of assignments to @p@~and~@lim@, the substitution
+After the insertion of assignments to @p@~and~\texttt{lim}, the substitution
 of equals for equals, and the removal of newly dead assignments
 to~@i@, we have ``eliminated the induction variable:''
 \begin{alltt}
@@ -932,12 +932,12 @@ For example, in the basic block
 \end{verbatim}
 a forward analysis would propagate the fact 
 $@x == 7@ \land @y == 8@$, which we will call $f_{\mathit{new}}$,
-along the edge to~@L2@. 
+along the edge to~\texttt{L2}. 
 %%  \remark{We've elected not to get to the level of detail where
 %%  we show how propagating a fact~$f$ through \mbox{@x = 7;@} results in a new
 %%  fact either $(f \setminus @x@) \land @x == 7@$.}
 The dataflow engine then \emph{replaces} the current fact
-at~@L2@~($f_{\mathtt{L2}}$) with the lattice join $f_{\mathit{new}}
+at~\texttt{L2}~($f_{\mathtt{L2}}$) with the lattice join $f_{\mathit{new}}
 \join f_{\mathtt{L2}}$. 
 The dataflow engine iterates over the blocks repeatedly, creating new
 facts~$f$ and joining them with facts $f_{\mathit{id}}$ until
@@ -1243,7 +1243,7 @@ f (bits32 a) \lbr
   \rbr
 \rbr
 \end{alltt}
-Although the @SPILL@ and @RELOAD@ operations are introduced because of
+Although the \texttt{SPILL} and \texttt{RELOAD} operations are introduced because of
 the call to @g(a)@, they are moved as far from the call as possible:
 the variable~@x@ is spilled immediately after being assigned @a * a@,
 and @x@ is reloaded not
