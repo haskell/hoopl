@@ -17,6 +17,7 @@
 \hsfigdefll{add}{haskell.def.add}% context figure
 \hsfigdef{addUsed}{haskell.def.addUsed}% context figure
 \hspagedef{anal\_f\_OO}{haskell.def.anal:unf:unOO}% context document
+\hsfigdefll[reload1]{avail}{haskell.def.avail}% context figure
 \hsfigdef{availRewrites}{haskell.def.availRewrites}% context figure
 \hsfigdef[AvailVars]{AvailVars}{haskell.def.AvailVars}% context figure
 \hsfigdef{availVarsLattice}{haskell.def.availVarsLattice}% context figure
@@ -44,6 +45,7 @@
 \hspagedef{DefinerOfLocalVars}{haskell.def.DefinerOfLocalVars}% context document
 \hsfigdef{delFromAvail}{haskell.def.delFromAvail}% context figure
 \omithspagedef{delFromVarSet :: VarSet -> Var -> VarSet}{haskell.def.delFromVarSet}% context document
+\hsfigdefll[forward.sol.args]{depth}{haskell.def.depth}% context figure
 \hspagedef{DFM}{haskell.def.DFM}% context document
 \hsfigdef{elemAvail}{haskell.def.elemAvail}% context figure
 \omithspagedef{elemVarSet :: Var -> VarSet -> Bool}{haskell.def.elemVarSet}% context document
@@ -87,6 +89,7 @@
 \hspagedef{HavingSuccessors}{haskell.def.HavingSuccessors}% context document
 \hsprelude{head}{Prelude}% context prelude
 \hsprelude{id}{Prelude}% context prelude
+\hsfigdefll[solve.mid.1]{in'}{haskell.def.in'}% context figure
 \hsfigdefll[forward.sol.args]{in\_fact}{haskell.def.in:unfact}% context figure
 \hsfigdef{insertLateReloads}{haskell.def.insertLateReloads}% context figure
 \hsprelude{Int}{Prelude}% context prelude
@@ -105,12 +108,15 @@
 \hsfigdefll[assign.avail.1]{lhs}{haskell.def.lhs}% context figure
 \hsprelude{liftM}{Prelude}% context prelude
 \hsfigdef[Live]{Live}{haskell.def.Live}% context figure
+\hsfigdefll{live}{haskell.def.live}% context figure
 \hsfigdef[liveLattice]{liveLattice}{haskell.def.liveLattice}% context figure
 \hsfigdef{liveTransfers}{haskell.def.liveTransfers}% context figure
 \hsfigdef{LOFsKont}{haskell.def.LOFsKont}% context figure
+\hsprelude{map}{Prelude}% context prelude
 \hsprelude{mapM\_}{Prelude}% context prelude
 \hsprelude{Maybe}{Prelude}% context prelude
 \hsfigdef[maybe.reload.before.1]{maybe\_reload\_before}{haskell.def.maybe:unreload:unbefore}% context figure
+\hsfigdefll{mid}{haskell.def.mid}% context figure
 \hsfigdefll{middle}{haskell.def.middle}% context figure
 \hsfigdef{middleAvail}{haskell.def.middleAvail}% context figure
 \hsfigdef[middleLiveness]{middleLiveness}{haskell.def.middleLiveness}% context figure
@@ -118,8 +124,10 @@
 \hspagedef{mkLabel}{haskell.def.mkLabel}% context document
 \hspagedef{mkLast}{haskell.def.mkLast}% context document
 \hspagedef{mkMiddle}{haskell.def.mkMiddle}% context document
+\hsfigdefll[forward.sol.args]{name}{haskell.def.name}% context figure
 \hsfigdefll{new}{haskell.def.new}% context figure
 \hsfigdef{NoChange}{haskell.def.NoChange}% context figure
+\hsfigdefll[maybe.reload.before.1]{node}{haskell.def.node}% context figure
 \hsprelude{not}{Prelude}% context prelude
 \hsprelude{Nothing}{Prelude}% context prelude
 \hsfigdefll[deadRewrites.1]{nothing}{haskell.def.nothing}% context figure
@@ -173,28 +181,27 @@
 \hsfigdefll{used}{haskell.def.used}% context figure
 \hspagedef{useOneFuel}{haskell.def.useOneFuel}% context document
 \hspagedef{UserOfLocalVars}{haskell.def.UserOfLocalVars}% context document
+\hsfigdefll{vars}{haskell.def.vars}% context figure
 \omithspagedef{VarSet\textrm{~(a~type)}}{haskell.def.VarSet}% context document
 \hspagedef{withDuplicateFuel}{haskell.def.withDuplicateFuel}% context document
 \hspagedef{with\_fuel}{haskell.def.with:unfuel}% context document
 \hspagedef{zdfFpContents}{haskell.def.zdfFpContents}% context document
 \hspagedef{zdfFpFacts}{haskell.def.zdfFpFacts}% context document
+\hspagedef{zdfRewriteBwd}{haskell.def.zdfRewriteBwd}% context document
 \hspagedef{zdfRewriteFwd}{haskell.def.zdfRewriteFwd}% context document
+\hspagedef{zdfSolveBwd}{haskell.def.zdfSolveBwd}% context document
 \hspagedef{zdfSolveFwd}{haskell.def.zdfSolveFwd}% context document
-\nothspagedef{avail}{haskell.firstuse.avail}% used but not defined
 \nothslinedef{Block}{haskell.firstuse.Block}% used but not defined
 \nothspagedef{CmmLoad}{haskell.firstuse.CmmLoad}% used but not defined
 \nothspagedef{CmmLocal}{haskell.firstuse.CmmLocal}% used but not defined
 \nothspagedef{CmmReg}{haskell.firstuse.CmmReg}% used but not defined
 \nothspagedef{Const}{haskell.firstuse.Const}% used but not defined
-\nothslinedef{depth}{haskell.firstuse.depth}% used but not defined
 \nothspagedef{emptyGraph}{haskell.firstuse.emptyGraph}% used but not defined
 \nothspagedef{env}{haskell.firstuse.env}% used but not defined
 \nothspagedef{filterVarsUsed}{haskell.firstuse.filterVarsUsed}% used but not defined
 \nothspagedef{Graph}{haskell.firstuse.Graph}% used but not defined
-\nothslinedef{in'}{haskell.firstuse.in'}% used but not defined
 \nothspagedef{isStackSlot}{haskell.firstuse.isStackSlot}% used but not defined
 \nothspagedef{isStackSlotOf}{haskell.firstuse.isStackSlotOf}% used but not defined
-\nothspagedef{L2}{haskell.firstuse.L2}% used but not defined
 \nothspagedef{Last}{haskell.firstuse.Last}% used but not defined
 \nothspagedef{LastBranch}{haskell.firstuse.LastBranch}% used but not defined
 \nothspagedef{LastCall}{haskell.firstuse.LastCall}% used but not defined
@@ -202,24 +209,13 @@
 \nothslinedef{LastNode}{haskell.firstuse.LastNode}% used but not defined
 \nothslinedef{LastOutFacts}{haskell.firstuse.LastOutFacts}% used but not defined
 \nothspagedef{LastSwitch}{haskell.firstuse.LastSwitch}% used but not defined
-\nothspagedef{lim}{haskell.firstuse.lim}% used but not defined
-\nothspagedef{live}{haskell.firstuse.live}% used but not defined
 \nothslinedef{LocalVar}{haskell.firstuse.LocalVar}% used but not defined
-\nothspagedef{map}{haskell.firstuse.map}% used but not defined
-\nothspagedef{mid}{haskell.firstuse.mid}% used but not defined
 \nothspagedef{MidAssign}{haskell.firstuse.MidAssign}% used but not defined
 \nothspagedef{Middle}{haskell.firstuse.Middle}% used but not defined
 \nothspagedef{MidStore}{haskell.firstuse.MidStore}% used but not defined
-\nothslinedef{name}{haskell.firstuse.name}% used but not defined
-\nothspagedef{node}{haskell.firstuse.node}% used but not defined
 \nothspagedef{NoRewrite}{haskell.firstuse.NoRewrite}% used but not defined
-\nothspagedef{RELOAD}{haskell.firstuse.RELOAD}% used but not defined
 \nothspagedef{reload}{haskell.firstuse.reload}% used but not defined
 \nothslinedef{solve\_OO}{haskell.firstuse.solve:unOO}% used but not defined
-\nothspagedef{SPILL}{haskell.firstuse.SPILL}% used but not defined
 \nothspagedef{Var}{haskell.firstuse.Var}% used but not defined
 \nothspagedef{variableOfSlot}{haskell.firstuse.variableOfSlot}% used but not defined
-\nothspagedef{vars}{haskell.firstuse.vars}% used but not defined
 \nothspagedef{varSetToList}{haskell.firstuse.varSetToList}% used but not defined
-\nothspagedef{zdfRewriteBwd}{haskell.firstuse.zdfRewriteBwd}% used but not defined
-\nothspagedef{zdfSolveBwd}{haskell.firstuse.zdfSolveBwd}% used but not defined

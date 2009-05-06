@@ -417,12 +417,11 @@ The new variable~@p@ is intended to satisfy the invariant
 \end{verbatim}
 The variable @i@ is also used in the loop-termination test.
 To rewrite that test, 
-we introduce a new variable @lim@ satisfying
-\label{haskell.firstuse.lim}% automated use
+we introduce a new variable \texttt{lim} satisfying
 the invariant
-@lim == a + n * 24@,
+\icode|lim == a + n * 24|,
+so that @i >= n@ if and only if \icode|p >= lim|.
 \label{haskell.firstuse.n}% automated use
-so that @i >= n@ if and only if @p >= lim@.
 \label{haskell.firstuse.>=}% automated use
 
 \ifpagetuning \enlargethispage{1\baselineskip} \fi 
@@ -431,7 +430,7 @@ so that @i >= n@ if and only if @p >= lim@.
 We implement the code improvement as a sequence of transformations.
 After each transformation, the observable behavior of the program is unchanged.
 %
-Our first transformation declares @p@ and @lim@ and inserts suitable
+Our first transformation declares @p@ and \texttt{lim} and inserts suitable
 assignments. 
 New code is \high{boxed}\,.
 \begin{alltt}
@@ -447,9 +446,9 @@ New code is \high{boxed}\,.
   \rbr
 \end{alltt}
 
-As written, the assignments to @p@~and~@lim@ have no
+As written, the assignments to @p@~and~\texttt{lim} have no
 effect on the program, but they enable the compiler to establish the assertions
-@p == a + i * 24@ and @(i >= n) == (p >= lim)@.
+@p == a + i * 24@ and \icode|(i >= n) == (p >= lim)|.
 On~the basis of these assertions, the compiler substitutes equals for
 equals, resulting in the new code in boxes below:
 \begin{alltt}
@@ -470,8 +469,7 @@ reasoning about continuations.
 In~particular, we reason about whether the value of a variable can be
 used by a continuation; this reasoning is called ``liveness analysis.''
 A~\naive\ analysis would show that although @i@~is not live at
-label~@L2@, it is nevertheless live immediately after 
-\label{haskell.firstuse.L2}% automated use
+label~\texttt{L2}, it is nevertheless live immediately after 
 the assignment
 @i = i + 1@ in the loop body,
 because the value of~@i@ could be used by the next iteration of the
@@ -521,7 +519,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
 \rbr
 \end{alltt}
 
-After the insertion of assignments to @p@~and~@lim@, the substitution
+After the insertion of assignments to @p@~and~\texttt{lim}, the substitution
 of equals for equals, and the removal of newly dead assignments
 to~@i@, we have ``eliminated the induction variable:''
 \begin{alltt}
@@ -884,6 +882,8 @@ data BackTransfers mid last a = BackTransfers
 \label{haskell.def.ft:unlast:unouts}% automated definition
 \label{haskell.def.ft:unmiddle:unout}% automated definition
 \label{haskell.def.ft:unfirst:unout}% automated definition
+\label{haskell.def.last}% automated definition
+\label{haskell.def.mid}% automated definition
 \label{haskell.def.ForwardTransfers}% automated definition
 \label{haskell.def.LastOuts}% automated definition
 \label{haskell.firstuse.LastOuts}% automated use
@@ -891,6 +891,7 @@ data BackTransfers mid last a = BackTransfers
 \label{haskell.firstuse.ForwardTransfers}% automated use
 \label{haskell.firstuse.mid}% automated use
 \label{haskell.firstuse.last}% automated use
+\label{haskell.firstuse.^}% automated use
 \label{haskell.firstuse.ft:unfirst:unout}% automated use
 \label{haskell.firstuse.ft:unmiddle:unout}% automated use
 \label{haskell.firstuse.ft:unlast:unouts}% automated use
@@ -991,12 +992,12 @@ For example, in the basic block
 \end{verbatim}
 a forward analysis would propagate the fact 
 $@x == 7@ \land @y == 8@$, which we will call $f_{\mathit{new}}$,
-along the edge to~@L2@. 
+along the edge to~\texttt{L2}. 
 %%  \remark{We've elected not to get to the level of detail where
 %%  we show how propagating a fact~$f$ through \mbox{@x = 7;@} results in a new
 %%  fact either $(f \setminus @x@) \land @x == 7@$.}
 The dataflow engine then \emph{replaces} the current fact
-at~@L2@~($f_{\mathtt{L2}}$) with the lattice join $f_{\mathit{new}}
+at~\texttt{L2}~($f_{\mathtt{L2}}$) with the lattice join $f_{\mathit{new}}
 \join f_{\mathtt{L2}}$. 
 The dataflow engine iterates over the blocks repeatedly, creating new
 facts~$f$ and joining them with facts $f_{\mathit{id}}$ until
@@ -1019,8 +1020,11 @@ and transfer functions of type @ForwardTransfers m l a@,
 \label{haskell.firstuse.m}% automated use
 \label{haskell.firstuse.l}% automated use
 you can run the corresponding analysis by calling our library
-function @zdfSolveFwd@, a part of our dataflow engine:
+function @zdfSolveFwd@, a part of our dataflow engine
 \label{haskell.firstuse.zdfSolveFwd}% automated use
+(there is also a @zdfSolveBwd@ with a similar type):
+\label{haskell.def.zdfSolveBwd}% automated definition
+\label{haskell.firstuse.zdfSolveBwd}% automated use
 \begin{code}
  zdfSolveFwd 
   :: HavingSuccessors l
@@ -1224,6 +1228,7 @@ cmmAvailableVars g = zdfFpFacts soln
 \label{haskell.def.lastAvail}% automated definition
 \label{haskell.def.:unexpr}% automated definition
 \label{haskell.def.lhs}% automated definition
+\label{haskell.def.avail}% automated definition
 \label{haskell.def.middleAvail}% automated definition
 \label{haskell.def.avail:unvars:untransfer}% automated definition
 \label{haskell.def.join}% automated definition
@@ -1268,7 +1273,6 @@ cmmAvailableVars g = zdfFpFacts soln
 \label{haskell.firstuse.empty}% automated use
 \label{haskell.firstuse.add}% automated use
 \label{haskell.firstuse.emptyVarSet}% automated use
-\label{haskell.firstuse.^}% automated use
 \label{haskell.firstuse.new}% automated use
 \label{haskell.firstuse.old}% automated use
 \label{haskell.firstuse.join}% automated use
@@ -1385,9 +1389,7 @@ f (bits32 a) \lbr
   \rbr
 \rbr
 \end{alltt}
-Although the @SPILL@ and @RELOAD@ operations are introduced because of
-\label{haskell.firstuse.SPILL}% automated use
-\label{haskell.firstuse.RELOAD}% automated use
+Although the \texttt{SPILL} and \texttt{RELOAD} operations are introduced because of
 the call to @g(a)@, they are moved as far from the call as possible:
 the variable~@x@ is spilled immediately after being assigned @a * a@,
 and @x@ is reloaded not
@@ -1528,9 +1530,9 @@ cmmLiveness g = zdfFpFacts soln
 \label{haskell.def.cmmLiveness}% automated definition
 \label{haskell.def.catMaybes}% automated definition
 \label{haskell.def.tbl}% automated definition
-\label{haskell.def.last}% automated definition
 \label{haskell.def.lastLiveOut}% automated definition
 \label{haskell.def.remDefd}% automated definition
+\label{haskell.def.live}% automated definition
 \label{haskell.def.addUsed}% automated definition
 \label{haskell.def.lastLiveness}% automated definition
 \label{haskell.def.middleLiveness}% automated definition
@@ -1538,7 +1540,6 @@ cmmLiveness g = zdfFpFacts soln
 \label{haskell.def.liveLattice}% automated definition
 \label{haskell.def.Live}% automated definition
 \label{haskell.firstuse.cmmLiveness}% automated use
-\label{haskell.firstuse.zdfSolveBwd}% automated use
 \label{haskell.firstuse.liveTransfers}% automated use
 \label{haskell.firstuse.middleLiveness}% automated use
 \label{haskell.firstuse.lastLiveness}% automated use
@@ -2046,10 +2047,11 @@ insertLateReloads g = liftM zdfFpContents result
 \label{haskell.def.result}% automated definition
 \label{haskell.def.insertLateReloads}% automated definition
 \label{haskell.def.rel}% automated definition
+\label{haskell.def.vars}% automated definition
 \label{haskell.def.reloadTail}% automated definition
 \label{haskell.def.used}% automated definition
+\label{haskell.def.node}% automated definition
 \label{haskell.def.maybe:unreload:unbefore}% automated definition
-\label{haskell.def.last}% automated definition
 \label{haskell.def.middle}% automated definition
 \label{haskell.def.first}% automated definition
 \label{haskell.def.availRewrites}% automated definition
@@ -2148,7 +2150,10 @@ Create rewrite functions for first, middle, and last nodes.
 You can then use our
 library function @zdfRewriteFwd@ (from our dataflow engine) to
 transform a control-flow 
-graph:
+graph
+(there is also a @zdfRewriteBwd@ with a similar type):
+\label{haskell.def.zdfRewriteBwd}% automated definition
+\label{haskell.firstuse.zdfRewriteBwd}% automated use
 \begin{code}
  zdfRewriteFwd 
   :: RewritingDepth
@@ -2231,7 +2236,7 @@ Function
 interleaved analysis and transformation 
 \remark{First mention of
 interleaving is in \secref{interleave-introduced} on
-page~\pageref{interleave-introduced}.}
+page~\pageref{sec:interleave-introduced}.}
 in two phases \citep{lerner-grove-chambers:2002}:\seclabel{solver-phase}
 \begin{itemize}
 \item
@@ -2427,7 +2432,6 @@ removeDeadAssignments g = liftM zdfFpContents result
 \label{haskell.def.nothing}% automated definition
 \label{haskell.def.deadRewrites}% automated definition
 \label{haskell.firstuse.removeDeadAssignments}% automated use
-\label{haskell.firstuse.zdfRewriteBwd}% automated use
 \label{haskell.firstuse.RewriteDeep}% automated use
 \label{haskell.firstuse.rewrites}% automated use
 \label{haskell.firstuse.deadRewrites}% automated use
@@ -2561,6 +2565,7 @@ type LOFsKont a b = LastOuts a -> DFM a b
 \end{numberedcode}
 \caption{Excerpts from the forward solver}
 \figlabel{solver-excerpts}
+\label{haskell.def.in'}% automated definition
 \label{haskell.def.solve:unmid}% automated definition
 \label{haskell.def.solve:unOx}% automated definition
 \label{haskell.def.solve:unblock}% automated definition
@@ -2571,6 +2576,8 @@ type LOFsKont a b = LastOuts a -> DFM a b
 \label{haskell.def.rewrites}% automated definition
 \label{haskell.def.transfers}% automated definition
 \label{haskell.def.start:unfacts}% automated definition
+\label{haskell.def.name}% automated definition
+\label{haskell.def.depth}% automated definition
 \label{haskell.def.forward:unsol}% automated definition
 \label{haskell.def.Kont}% automated definition
 \label{haskell.def.LOFsKont}% automated definition
@@ -3044,7 +3051,6 @@ ffp :: b -> DFM a (Maybe a) -> DFM a (FwdFixedPoint m l a b)
 runWithoutFuel :: FuelMonad a -> a
 \end{smallcode}
 \label{haskell.def.lattice}% automated definition
-\label{haskell.def.transfers}% automated definition
 \label{haskell.firstuse.fst}% automated use
 \label{haskell.firstuse.undefined}% automated use
 \label{haskell.firstuse.emptyBlockEnv}% automated use

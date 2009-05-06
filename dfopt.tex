@@ -826,7 +826,7 @@ and @fact_name@  is used for debugging.
 \begin{figure}
 \begin{code}
 newtype `LastOuts a = LastOuts [(BlockId, a)]
-data `ForwardTransfers mid last a = ForwardTransfers
+data `ForwardTransfers ^mid ^last a = ForwardTransfers
  {`ft_first_out  :: BlockId -> a -> a,
   `ft_middle_out :: mid     -> a -> a,
   `ft_last_outs  :: last    -> a -> LastOuts a} 
@@ -958,7 +958,8 @@ engine has reached a fixed point.
 Given lattice operations of type @DataflowLattice a@
 and transfer functions of type @ForwardTransfers m l a@,
 you can run the corresponding analysis by calling our library
-function @zdfSolveFwd@, a part of our dataflow engine:
+function @zdfSolveFwd@, a part of our dataflow engine
+(there is also a @`zdfSolveBwd@ with a similar type):
 \begin{code}
  `zdfSolveFwd 
   :: HavingSuccessors l     -- Find successors of l
@@ -1102,7 +1103,7 @@ avail_vars_transfer :: ForwardTransfers Middle Last AvailVars
 !avail.first!`avail_vars_transfer = ForwardTransfers (flip const) middleAvail lastAvail
 
 `middleAvail :: Middle -> AvailVars -> AvailVars
-!reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail
+!reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) ^avail
 !reload2!                 | l `isStackSlotOf` x = extendAvail avail x
 !assign.avail.1!middleAvail (MidAssign ^lhs ^_expr) avail = 
 !assign.avail.2!  foldVarsDefd delFromAvail avail lhs  -- remove variables defined in 'lhs'
@@ -1351,7 +1352,7 @@ lastLiveness   :: Last -> (BlockId -> Live) -> Live
 
 !liveness.addUsed.sig!addUsed :: UserOfLocalVars    a => a -> Live -> Live
 remDefd :: DefinerOfLocalVars a => a -> Live -> Live 
-`addUsed a live = foldVarsUsed extendVarSet  live a
+`addUsed a ^live = foldVarsUsed extendVarSet  live a
 !liveness.remDefd.def!`remDefd a live = foldVarsDefd delFromVarSet live a
 
 lastLiveOut :: Last -> (BlockId -> Live) -> Live
@@ -1808,11 +1809,11 @@ availRewrites :: ForwardRewrites Middle Last AvailVars
 !avail.rewrites.first!  where ^first _ _ = Nothing
         ^middle m avail = maybe_reload_before avail m (mkMiddle m)
 !avail.rewrites.last!        ^last   l avail = maybe_reload_before avail l (mkLast l)
-!maybe.reload.before.1!        `maybe_reload_before avail node tail =
+!maybe.reload.before.1!        `maybe_reload_before avail ^node tail =
             let ^used = filterVarsUsed (elemAvail avail) node
             in  if isEmptyVarSet used then Nothing
 !maybe.reload.before.2!                else Just $ reloadTail used tail
-        `reloadTail vars t = foldl rel t $ varSetToList vars
+        `reloadTail ^vars t = foldl rel t $ varSetToList vars
 !mkMiddle!          where ^rel t r = mkMiddle (reload r) <*> t
 \end{code}
 \B
@@ -1900,7 +1901,8 @@ Create rewrite functions for first, middle, and last nodes.
 You can then use our
 library function @zdfRewriteFwd@ (from our dataflow engine) to
 transform a control-flow 
-graph:
+graph
+(there is also a @`zdfRewriteBwd@ with a similar type):
 \begin{code}
  `zdfRewriteFwd 
   :: RewritingDepth         -- Rewrite recursively?
@@ -1978,7 +1980,7 @@ Function
 interleaved analysis and transformation 
 \remark{First mention of
 interleaving is in \secref{interleave-introduced} on
-page~\pageref{interleave-introduced}.}
+page~\pageref{sec:interleave-introduced}.}
 in two phases \citep{lerner-grove-chambers:2002}:\seclabel{solver-phase}
 \begin{itemize}
 \item
@@ -2266,7 +2268,7 @@ type `LOFsKont a b = LastOuts a -> DFM a b
 !forward.sol.sig!`forward_sol :: forall m l a . LastNode l => (forall b . Maybe b -> DFM a (Maybe b))
             -> RewritingDepth -> PassName -> BlockEnv a -> ForwardTransfers m l a
             -> ForwardRewrites m l a -> a -> Graph m l -> DFM a (Maybe a)
-!forward.sol.args!forward_sol with_fuel depth name ^start_facts ^transfers ^rewrites ^in_fact g =
+!forward.sol.args!forward_sol with_fuel ^depth ^name ^start_facts ^transfers ^rewrites ^in_fact g =
 !forward.sol.setAllFacts!     do { setAllFacts start_facts ; solve_Ox g in_fact }
    where 
 !solve.first.sig!     `solve_first :: BlockId -> FactKont a b -> Kont     a b
@@ -2279,7 +2281,7 @@ type `LOFsKont a b = LastOuts a -> DFM a b
 !solve.block!     `solve_block :: Block m l -> Kont a ()
 !solve.Ox!     `solve_Ox    :: Graph m l -> FactKont a (Maybe a)
 
-!solve.mid.1!     `solve_mid m k in' =
+!solve.mid.1!     `solve_mid m k ^in' =
 !solve.mid.case!       (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
 !solve.mid.Nothing!         Nothing -> k (ft_middle_out transfers in' m)
 !solve.mid.Just!         Just g  -> do { a <- subAnalysis $ case depth of
