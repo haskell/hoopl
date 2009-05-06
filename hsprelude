@@ -39,3 +39,4 @@ foldl
 foldr
 fst
 snd
+map
