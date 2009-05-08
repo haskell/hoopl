@@ -33,6 +33,7 @@ local reserved =
   table.set { 'where', 'let', 'in', '_', '|', '->', '--', '=', '=>',
               'if', 'then', 'else', 'data', 'type', 'newtype', 'module',
               'import', 'case', 'of', ';', '{', '}', 'do', '<-', 'forall',
+              '...', -- not really a reserved word, but treated as such
             }
 
 for id in io.lines 'hsprelude' do
@@ -164,6 +165,23 @@ local function find_definitions_ats(defs)
          end
 end
 
+local function strip_def_markers(s)
+  local function got_def(d)
+    if d:find ('^[%`%^]' .. word .. '$') or d:find ('^[%`%^]' .. sym .. '$') then
+      local marker, d = d:match '^(.)(.*)$'
+      return d
+    else
+      return d
+    end
+  end
+  s = s:gsub('[`%^]' .. symbacktick, got_def)
+  s = s:gsub('[`%^]' .. wordbacktick, got_def)
+  return s
+end
+
+
+
+
 local function process_at_signs(l)
   local defns = { }
   if l:find '^%%' then
@@ -228,7 +246,7 @@ function special.code(line, env)
     pushcontext(env)
     find_uses(strip_comment(code))
     popcontext(env)
-    io.write(prefix, line, '\n')
+    io.write(prefix, strip_def_markers(code), '\n')
     line = io.read()
   end
   io.write(line, '\n')
