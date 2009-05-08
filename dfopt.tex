@@ -10,7 +10,7 @@
 
 
 \newif\ifgenkill\genkillfalse  % have a section on gen and kill
-\genkilltrue
+\genkillfalse
 
 
 \newif\ifnotesinmargin \notesinmargintrue 
@@ -239,46 +239,55 @@ transformations, each with its own name---and
 it's not always easy to % not everyone can easily
 remember how something like
 ``copy propagation'' differs from ``constant propagation.''
-Many presentations obscure fundamental principles of
-code improvement.
+%Many presentations obscure fundamental principles of
+%code improvement.
 
+The contribution of this paper is a Haskell library that makes it easy
+to implement dataflow analyses and the code-improving transformations
+that use them:
+%
 %The contribution of this paper is to elucidate a large body of work on code
 %improvement; the body of work known as ``dataflow optimization.''
-This paper makes two contributions:
+%This paper makes two contributions:
 \begin{itemize}
 \item
-To help practitioners make sense of the ad-hoc ``optimization zoo,''
-we argue that most optimizations
+The library's design makes it explicit that
+most optimizations
 work by applying reasoning techniques that have long been understood
 and used 
-by semanticists and functional programmers:
+to reason about programs:
 assertions about states, assertions about continuations, and
-substitution of equals for equals (\secref{next-700}).
+substitution of equals for equals.  % (\secref{next-700}).
 What distinguishes dataflow optimization from classic formal reasoning
 about programs is that in dataflow optimization, all assertions are
 computed automatically, and they are
 \emph{approximated}. 
 \item
-We embody our ideas in a library that makes it not just
-possible but \emph{easy} to adapt imperative, dataflow-based
-code-improvement techniques to a purely functional compiler.
+Our library is engineerd to make it \emph{easy} to implement
+dataflow-based 
+code-improvement techniques, even in a purely functional setting.
 Analyses and transformations, which use the library,
 are small, simple, and easy to get right.
+\item 
 The library itself
- is built around 
- a sophisticated algorithm which is
-hard to get right, but our implementation
-can be reused with many intermediate languages.
+is built around 
+a sophisticated algorithm can be difficult to implement
+\cite{lerner-grove-chambers:2002}.
+We~present a new implementation which uses generalized algebraic data
+types \cite{xi:guarded-recursive} and continuation-passing style.
+By combining the compositional approach of Christopher Strachey with
+the sophisticated type checking possible with GADTs, we implement this
+algorithm with a degree of clarity and static checking that has not
+previously been achieved.
 \end{itemize}
-
+%
 We consider code improvements over low-level
 imperative codes, including intermediate languages and machine
 languages.
 As \citet{benitez-davidson:portable-optimizer} have shown, all the
 classical scalar and loop optimizations can be performed over such
 codes.
-Moreover, any compiled functional program is
-translated to such a code.
+
 
 
 We introduce the subject by analyzing and transforming example code 
@@ -725,7 +734,7 @@ facts about a variable~$x$:
 \begin{itemize}
 \item
 The analysis shows that
-$x = k$, where $k$~is a compile-time constant of type @Const@.
+$x = k$, where $k$~is a compile-time constant of type \texttt{Const}.
 \item
 The analysis shows that $x$~is \emph{not} a compile-time constant.
 We~notate this fact as $x = \top$.
@@ -739,7 +748,7 @@ the join operation \emph{approximates} disjunction:\simon{No emphasis needed.}
 a~disjunction of two inconsistent facts is represented by~$x=\top$.
 \simon{I'd still like to give an intuition here about
 \emph{why} disjunction is the key operation, and/or where is is used.
-NR: Maybe in \secref{next-700}?
+NR: With ``the next 700'' gone, I'm not sure where\ldots
 %For example: ``Disjunction is to combine constant-propagation facts
 %arriving at a label; for example, if two blocks branch to L, and $x=7$ holds
 %at one branch, while $x=8$ holds at the, then the disjunction $x=7 \lor x=8$ holds
@@ -780,7 +789,7 @@ fixed point.
 The lattice  used by the analysis is the Cartesian product of the
 lattices for all the local variables.
 We~represent this lattice as a finite map from variable
-to a value of type @Maybe Const@.
+to a value of type \icode|Maybe Const|.
 If~a variable $x$ is not in the domain of the map then $x=\bot$;
 if $x$~maps to @Nothing@ then $x=\top$; if $x$~maps to $@Just@\;k$ then
 $x=k$.
@@ -866,7 +875,8 @@ a~typical middle node assigns to a register or memory
 location;
 a~typical last node is a conditional, unconditional, or indirect branch.
 You choose the types of middle and last nodes to suit your
-intermediate representation.
+intermediate representation; if these types are @m@~and~@l@, the type
+of a basic block is @`Block m l@.
 
 
 
@@ -1099,21 +1109,21 @@ availVarsLattice :: DataflowLattice AvailVars
 %%  
 \T
 \begin{code}
-avail_vars_transfer :: ForwardTransfers Middle Last AvailVars
+avail_vars_transfer :: ForwardTransfers CmmMiddle CmmLast AvailVars
 !avail.first!`avail_vars_transfer = ForwardTransfers (flip const) middleAvail lastAvail
 
-`middleAvail :: Middle -> AvailVars -> AvailVars
+`middleAvail :: CmmMiddle -> AvailVars -> AvailVars
 !reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) ^avail
 !reload2!                 | l `isStackSlotOf` x = extendAvail avail x
 !assign.avail.1!middleAvail (MidAssign ^lhs ^_expr) avail = 
 !assign.avail.2!  foldVarsDefd delFromAvail avail lhs  -- remove variables defined in 'lhs'
-!store.avail.spill.1!middleAvail (MidStore l (CmmReg (CmmLocal x))) avail
+!store.avail.spill.1!middleAvail (MidStore l (CmmVar (CmmLocal x))) avail
 !store.avail.spill.2!                 | l `isStackSlotOf` x = avail
 !store.avail.otherslot.1!middleAvail (MidStore l _) avail 
 !store.avail.otherslot.2!                 | isStackSlot l = delFromAvail avail (variableOfSlot l)
 !store.avail.other!middleAvail (MidStore {}) avail = avail
 
-`lastAvail :: Last -> AvailVars -> LastOuts AvailVars
+`lastAvail :: CmmLast -> AvailVars -> LastOuts AvailVars
 !avail.LastCall!lastAvail (LastCall _ (Just k) _ _) _ = LastOuts [(k, AvailVars emptyVarSet)]
 lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 \end{code}%
@@ -1123,7 +1133,7 @@ lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 
 \T
 \begin{code}
-`cmmAvailableVars :: Graph Middle Last -> BlockEnv AvailVars
+`cmmAvailableVars :: Graph CmmMiddle CmmLast -> BlockEnv AvailVars
 cmmAvailableVars g = zdfFpFacts soln
 !avail.solve.1!  where ^soln = zdfSolveFwd "available variables" availVarsLattice 
 !avail.solve.2!               avail_vars_transfer (fact_bot availVarsLattice) g
@@ -1342,11 +1352,11 @@ liveLattice = DataflowLattice "live LocalReg's" emptyVarSet add
 
 \T
 \begin{code}
-`liveTransfers :: BackTransfers Middle Last Live
+`liveTransfers :: BackTransfers CmmMiddle CmmLast Live
 liveTransfers = BackTransfers (flip const) middleLiveness lastLiveness
 
-middleLiveness :: Middle -> Live -> Live
-lastLiveness   :: Last -> (BlockId -> Live) -> Live
+middleLiveness :: CmmMiddle -> Live -> Live
+lastLiveness   :: CmmLast -> (BlockId -> Live) -> Live
 !middleLiveness!`middleLiveness m = addUsed m . remDefd m
 !lastLiveness!`lastLiveness   l = addUsed l . remDefd l . lastLiveOut l 
 
@@ -1355,8 +1365,8 @@ remDefd :: DefinerOfLocalVars a => a -> Live -> Live
 `addUsed a ^live = foldVarsUsed extendVarSet  live a
 !liveness.remDefd.def!`remDefd a live = foldVarsDefd delFromVarSet live a
 
-lastLiveOut :: Last -> (BlockId -> Live) -> Live
-!lastLiveOut.1!`lastLiveOut l env = last l 
+lastLiveOut :: CmmLast -> (BlockId -> Live) -> Live
+!lastLiveOut.1!`lastLiveOut l ^env = last l 
 !live.lastBranch!  where ^last (LastBranch id)        = env id 
 !live.condBranch!        last (LastCondBranch _ t f) = unionVarSets (env t) (env f)
 !live.lastSwitch!        last (LastSwitch _ ^tbl)     = unionManyVarSets $ map env (catMaybes tbl)
@@ -1369,7 +1379,7 @@ lastLiveOut :: Last -> (BlockId -> Live) -> Live
 
 \T
 \begin{code}
-cmmLiveness :: Graph Middle Last -> BlockEnv Live
+cmmLiveness :: Graph CmmMiddle CmmLast -> BlockEnv Live
 `cmmLiveness g = zdfFpFacts soln
 !live.zdfSolveBwd!   where soln = zdfSolveBwd "liveness" liveLattice liveTransfers emptyVarSet g
 \end{code}%
@@ -1392,6 +1402,9 @@ cmmLiveness :: Graph Middle Last -> BlockEnv Live
 To~understand the available-variables analysis, you must know that for
 each variable~$x$, 
 there is a stack slot~\slotof x that is used to save the value of~$x$.
+We probe this relation using Haskell functions @isStackSlot@,
+@variableOfSlot@, and @isStackSlotOf@.
+% need some omit's here
 %
 If the variable and the stack slot hold the same value,
 that is if $x = \slotof x$,
@@ -1461,14 +1474,14 @@ The bottom element is @UniverseMinus emptyVarSet@.
 To manipulate sets of variables, we provide the functions declared in
 \linerangeref{extendAvail}{smallerAvail} of \figref{avail}.
 %
-% omit delFromVarSet :: VarSet -> Var -> VarSet
-% omit extendVarSet :: VarSet -> Var -> VarSet
+% omit delFromVarSet :: VarSet -> LocalVar -> VarSet
+% omit extendVarSet :: VarSet -> LocalVar -> VarSet
 % omit unionVarSets :: VarSet -> VarSet -> VarSet
 % omit sizeVarSet :: VarSet -> Int
 % omit emptyVarSet :: VarSet
 % omit unionManyVarSets :: [VarSet] -> VarSet
 % omit isEmptyVarSet :: VarSet -> Bool
-% omit elemVarSet :: Var -> VarSet -> Bool
+% omit elemVarSet :: LocalVar -> VarSet -> Bool
 % omit VarSet :: *
 
 
@@ -1510,9 +1523,10 @@ The most interesting part of the pass is the @middleAvail@ transfer
 function in \figref{avail-transfers}.\finalremark
 {Let us revise the paper to pretend that global variables
 don't exist.}
-This transfer function is specialized to the type of @Middle@ node
+This transfer function is specialized to the type of @CmmMiddle@ node
 used in~GHC: either @MidAssign@, which assigns to a local
-or global variable, or @MidStore@, which assigns to memory.
+or global variable, or @MidStore@, which assigns to memory.\remark{Is
+this sentence now redundant?}
 %\par
 %\ifpagetuning{\enlargethispage{\baselineskip}}\fi
 %\kern-8pt
@@ -1536,9 +1550,9 @@ Function @foldVarsDefd@ is an overloaded function which, along with its dual,
 is used throughout the back end:
 \begin{code}
 `foldVarsUsed :: `UserOfLocalVars    a 
-             => (b -> Var -> b) -> b -> a -> b
+             => (b -> LocalVar -> b) -> b -> a -> b
 `foldVarsDefd :: `DefinerOfLocalVars a 
-             => (b -> Var -> b) -> b -> a -> b
+             => (b -> LocalVar -> b) -> b -> a -> b
 \end{code}
 On \lineref{assign.avail.2},  if @lhs@ is a local variable,
 @foldVarsDefd@ calls @delFromAvail@;
@@ -1727,53 +1741,53 @@ the dataflow-engine function @zdfSolveBwd@ (\figref{liveness},
 
 
 
-\ifgenkill
-\subsection{Writing transfer functions using {\mdseries\texttt{gen}} and
-{\mdseries\texttt{kill}}}
-
-%\remark{I've tried to rewrite this section without the abstract guff;
-%Simon, can you let us know what you think?}
-
-
-\seclabel{gen-kill}
-
-If you pick up a compiler textbook, you might see dataflow
-analysis explained in terms of functions called \texttt{gen} and
-\texttt{kill}, 
-which say what dataflow facts are ``generated'' and
-``killed'' by each node.
-Our design is compatible with explanations based on \texttt{gen} and
-\texttt{kill};
-first you define functions \texttt{gen} and \texttt{kill}, then you
-use them to write the transfer functions.
-%%  Using our design, you can stillIt's~possible to write transfer functions i thi
-%%  In~a forward analysis, for example an assignment might establish an
-%%  assertion (\texttt{gen}), or it might change state in such a way that an
-%%  assertion no longer holds (@kill@), or both.
-%%  If~you want to transliterate specifications that use @gen@ and @kill@,
-%%  it's easy.
-For example, the functions @addUsed@ and @remDefd@ in \figref{liveness}'s
-liveness analysis correspond directly to the traditional @gen@ and
-@kill@ functions.
-In the available-variables analysis of \figref{avail}, @gen@ and
-@kill@ can be defined as follows:
-\begin{smallcode}
-gen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
-kill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
-`gen  a avail = foldVarsUsed extendAvail  avail a
-`kill a avail = foldVarsDefd delFromAvail avail a
-\end{smallcode}
-Using @gen@ and @kill@ entails no loss of efficiency;
-for example, if the right-hand side of \lineref{reload2} of \figref{avail}
-were written
-@gen x avail@,
-then GHC~would 
-identify and % \ifpagetuning\else identify and \fi
-inline the type-specific instance of @foldVarsUsed@, which for 
-\ifpagetuning\else the case of \fi
-a local variable is the identity function, so @gen x avail@
-would reduce to @extendAvail avail x@.
-\fi
+%%%%    \ifgenkill
+%%%%    \subsection{Writing transfer functions using {\mdseries\texttt{gen}} and
+%%%%    {\mdseries\texttt{kill}}}
+%%%%    
+%%%%    %\remark{I've tried to rewrite this section without the abstract guff;
+%%%%    %Simon, can you let us know what you think?}
+%%%%    
+%%%%    
+%%%%    \seclabel{gen-kill}
+%%%%    
+%%%%    If you pick up a compiler textbook, you might see dataflow
+%%%%    analysis explained in terms of functions called \texttt{gen} and
+%%%%    \texttt{kill}, 
+%%%%    which say what dataflow facts are ``generated'' and
+%%%%    ``killed'' by each node.
+%%%%    Our design is compatible with explanations based on \texttt{gen} and
+%%%%    \texttt{kill};
+%%%%    first you define functions \texttt{gen} and \texttt{kill}, then you
+%%%%    use them to write the transfer functions.
+%%%%    %%  Using our design, you can stillIt's~possible to write transfer functions i thi
+%%%%    %%  In~a forward analysis, for example an assignment might establish an
+%%%%    %%  assertion (\texttt{gen}), or it might change state in such a way that an
+%%%%    %%  assertion no longer holds (@kill@), or both.
+%%%%    %%  If~you want to transliterate specifications that use @gen@ and @kill@,
+%%%%    %%  it's easy.
+%%%%    For example, the functions @addUsed@ and @remDefd@ in \figref{liveness}'s
+%%%%    liveness analysis correspond directly to the traditional @gen@ and
+%%%%    @kill@ functions.
+%%%%    In the available-variables analysis of \figref{avail}, @gen@ and
+%%%%    @kill@ can be defined as follows:
+%%%%    \begin{smallcode}
+%%%%    gen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
+%%%%    kill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
+%%%%    `gen  a avail = foldVarsUsed extendAvail  avail a
+%%%%    `kill a avail = foldVarsDefd delFromAvail avail a
+%%%%    \end{smallcode}
+%%%%    Using @gen@ and @kill@ entails no loss of efficiency;
+%%%%    for example, if the right-hand side of \lineref{reload2} of \figref{avail}
+%%%%    were written
+%%%%    @gen x avail@,
+%%%%    then GHC~would 
+%%%%    identify and % \ifpagetuning\else identify and \fi
+%%%%    inline the type-specific instance of @foldVarsUsed@, which for 
+%%%%    \ifpagetuning\else the case of \fi
+%%%%    a local variable is the identity function, so @gen x avail@
+%%%%    would reduce to @extendAvail avail x@.
+%%%%    \fi
 
 \section{Using dataflow facts to rewrite graphs\ifpagetuning\else, with examples\fi}
 
@@ -1783,17 +1797,28 @@ would reduce to @extendAvail avail x@.
 
 \begin{figure}
 \begin{code}
-type `Rewrite mid last = Maybe (Graph mid last)
-data `ForwardRewrites mid last a = ForwardRewrites
- {`fr_first  :: BlockId -> a -> Rewrite mid last,
-  `fr_middle :: mid     -> a -> Rewrite mid last,
-  `fr_last   :: last    -> a -> Rewrite mid last} 
+type `O  -- marks graph as open   at entry or exit
+type `C  -- marks graph as closed at entry or exit
+type `GF middle last ^entry ^exit -- graph or subgraph
+type `Graph middle last = GF middle last O C
+\end{code}
 
-data `BackwardRewrites mid last a = BackwardRewrites
- {`br_first  :: BlockId  -> a  -> Rewrite mid last,
-  `br_middle :: mid      -> a  -> Rewrite mid last,
-  `br_last   :: last ->
-               (BlockId -> a) -> Rewrite mid last} 
+\caption{Types of graphs and subgraphs}
+\figlabel{subgraphs}
+\end{figure}
+
+\begin{figure}
+\begin{code}
+type `Rewrite m l e x = Maybe (GF m l e x)
+data `ForwardRewrites m last a = ForwardRewrites
+ {`fr_first  :: BlockId -> a -> Rewrite m l C O,
+  `fr_middle :: m       -> a -> Rewrite m l O O,
+  `fr_last   :: l       -> a -> Rewrite m l O C} 
+
+data `BackwardRewrites m l a = BackwardRewrites
+ {`br_first  :: BlockId -> a  -> Rewrite m l C O,
+  `br_middle :: m       -> a  -> Rewrite m l O O,
+  `br_last   :: l -> (BlockId -> a) -> Rewrite m l O C} 
 \end{code}
 \caption{Types of forward and backward rewrite functions.}
 \figlabel{rewrites}
@@ -1804,7 +1829,7 @@ data `BackwardRewrites mid last a = BackwardRewrites
 \begin{codetable}
 \T
 \begin{code}
-availRewrites :: ForwardRewrites Middle Last AvailVars
+availRewrites :: ForwardRewrites CmmMiddle CmmLast AvailVars
 `availRewrites = ForwardRewrites first middle last
 !avail.rewrites.first!  where ^first _ _ = Nothing
         ^middle m avail = maybe_reload_before avail m (mkMiddle m)
@@ -1816,13 +1841,14 @@ availRewrites :: ForwardRewrites Middle Last AvailVars
         `reloadTail ^vars t = foldl rel t $ varSetToList vars
 !mkMiddle!          where ^rel t r = mkMiddle (reload r) <*> t
 \end{code}
+% omit varSetToList :: VarSet -> [LocalVar]
 \B
 & Rewrite \mbox{functions}\\
 \hline
 
 \T
 \begin{code}
-insertLateReloads :: (Graph Middle Last) -> FuelMonad (Graph Middle Last)
+insertLateReloads :: Graph CmmMiddle CmmLast -> FuelMonad (Graph CmmMiddle CmmLast)
 `insertLateReloads g = liftM zdfFpContents result
 !insertLateReloads.1!  where ^result = zdfRewriteFwd RewriteShallow "insert late reloads"
                                availVarsLattice avail_vars_transfer
@@ -1836,7 +1862,141 @@ insertLateReloads :: (Graph Middle Last) -> FuelMonad (Graph Middle Last)
 
 
 We compute dataflow facts in order to enable code-improving
-transformations. \simon{Our library provides a function
+transformations on control-flow graphs.
+A~novel feature of our library is the degree to which it distinguishes
+different graphs and subgraphs.
+
+\subsection{Representing graphs and subgraphs}
+
+\seclabel{subgraphs}
+
+As mentioned in \secref{graph.intro},
+a~graph is a collection of basic blocks, 
+and a typical basic block has a first node followed by zero or
+more middle nodes followed by a last node.
+Not mentioned in \secref{graph.intro},
+a graph may also contain two special, incomplete
+blocks:
+\begin{itemize}
+\item
+An \emph{entry sequence} is a sequence of zero or more middle nodes
+ending in a last node (i.e., a control transfer).
+If~a graph has an entry sequence it is
+\emph{open at the entry}.  
+\delendum{I find ``enterable'' ambiguous,
+becuase close graph can still bentered by a jump.  It's more like
+``fallable into'' because control can fall through into it. 
+So I suggest we major on ``open at entry'' and de-emphasise or
+nuke ``enterable''.  Its only (considerable) merit is brevity.
+At least put it second, not first.}
+\item
+An \emph{exit sequence} is a first node followed by zero or more
+middle nodes, but \emph{not} ending in a last node---control ``falls
+off the end.''
+If~a graph has an exit sequence it is
+\emph{open at the exit}.
+\end{itemize}
+Our general type of graph, called @GF@, therefore takes four
+parameters (\figref{subgraphs}):
+@middle@ is the type of a middle node;
+@last@ is the type of a last node;
+@entry@ is either type @O@~or type~@C@, depending on whether the graph
+is open or closed at the entry;
+and
+@entry@ is type @O@~or type~@C@, depending on whether the graph
+is open or closed at the exit.
+A~full @Graph@, which represents the implementation of a function or
+procedure, is always open at the entry and closed at the exit. 
+
+A graph is normally represented by a triple:
+an optional entry sequence, a @BlockEnv@ containing basic blocks,
+and an optional exit sequence.
+As~a special case, a single sequence of middle nodes also forms a
+graph open at both ends.
+This new representation significantly improves our previous work
+\cite{ramsey-dias:applicative-flow-graph}:
+\begin{itemize}
+\item
+Client code chooses the types of nodes.
+\item
+The new representation enables us to find the exit point of a graph in
+constant time.
+\item
+The new representation therefore also supports the composition of two graphs
+in constant amortized time.
+With the old representation, the only way to get constant-time
+composition was to resort to Hughes's
+\citeyearpar{hughes:lists-representation} technique of representing
+each graph as a function.
+\item
+Finally, errors in composition are ruled out by the static type system
+at compile-compile time.
+In~earlier implementations, such errors were not detected until
+the compiler ran, at which point the compiler attempted to compensate
+for them and then issued a warning message.
+Faults in the compensation code led to several subtle bugs in~GHC.
+\end{itemize}
+
+
+
+%% A~graph proposed by a rewrite function as a replacement for a node is
+%% a \emph{replacement graph}.
+%% Every replacement graph is also a \emph{subgraph}, i.e., a graph that
+%% can be analyzed or rewritten independently, but that is connected to
+%% an outer graph by control-flow edges.
+%% A~subgraph has the same representation as a graph, including 
+%% optional entry and exit sequences.
+%% \simon{I don't find the definition of replacement graph and 
+%% subgraph satisfactory.  Is the ONLY difference between a graph
+%% and a sub-graph its purpose in the eye of the beholder?  I think
+%% perhaps the key point is this: a full graph has no free labels, 
+%% whereas a subgraph may have
+%% free labels?  Are subgraphs o/c or c/c or anything like that?
+%% What about replacement graphs?}
+
+
+
+\subsection{Choosing a representation for GHC}
+
+To be confident that our example code is right,
+we present \emph{only} examples that
+  have been implemented and tested in GHC.  
+GHC's low-level intermediate code, called @`Cmm@, is a severely
+restricted subset of 
+the portable assembly language~{\PAL}
+\cite{peyton-jones-ramsey:exceptions}.
+A~middle node stores an expression in a variable (@MidAssign@) or in
+memory (@MidStore@):
+\begin{code}
+data `CmmMiddle 
+  = `MidAssign CmmVar CmmExpr
+  | `MidStore  CmmExpr CmmExpr
+\end{code}
+Type @`CmmVar@ represents a variable which may be local (@`CmmLocal@) or global
+(@`CmmGlobal@); a @`LocalVar@ is always local.
+Type @`CmmExpr@ represents a pure expression; its
+constructors include @`CmmLoad@ for a load from memory
+and @CmmVar@ for the value of a variable, among others.
+
+A~last node represents a control transfer; the constructors include
+unconditional, conditional, and indirect branches, as well as a call:
+\begin{code}
+data `CmmLast
+  = `LastBranch BlockId
+  | `LastCondBranch CmmExpr BlockId BlockId
+  | `LastSwitch CmmExpr [Maybe BlockId]
+  | `LastCall ...
+\end{code}
+
+
+
+
+
+
+\subsection{Rewrite functions}
+
+
+\simon{Our library provides a function
 that performs (interleaved) analysis and transformation on the
 graph, which we describe in this section. New paragraph.}
 The heart of a transformation is a triple of
@@ -1888,6 +2048,37 @@ determinism. ---NR)
 %%%%    means x cannot go live/dead/live/dead etc.  The only way we can think
 %%%%    of not to terminate is infinite ``deep rewriting.''
 %%%%    }
+
+To~describe the presence or absence of entry and exit sequences, we
+refer to a graph's \emph{shape} as open/open (enterable and exitable),
+open/closed (enterable but not exitable), or closed/open (not
+enterable, but exitable).  
+In
+the dataflow engine, the shape constrains the rewrite
+functions:\footnote {Shape is also used when graphs are constructed:
+% graphs provide a constant-time concatentation operator @<*>@, and 
+for
+example, if $g_1$'s shape is $e$/open and $g_2$'s shape is open/$x$,
+then the concatenation $g_1 \mathbin{\mbox{@<*>@}} g_2$ is well defined and has shape
+$e$/$x$.  (The exit sequence of~$g_1$ is spliced to the entry sequence
+of~$g_2$ to form a new, complete basic block.)}
+\begin{itemize}
+\item
+A first node with @BlockId@~$l$ must be rewritten to a closed/open
+replacement graph which also begins with @BlockId@~$l$.
+\simon{Whoa!  What does it mean to say that a graph ``begins with $l$''?
+Perhpas we just mean that the replacement grpah must include a block labelled $l$?}
+\item
+A middle node must be rewritten to an open/open graph.
+\item
+A last node must be rewritten to an open/closed graph, in 
+which all control-flow
+paths end in explicit control transfers.
+\simon{I'd nuke the ``in which all ...'' part, because it sounds like
+an additional condition, but actually it's a consequence of open/closed}.
+\end{itemize}
+These conditions are necessary and sufficient to ensure that 
+every replacement graph can be spliced in place of the node it is derived from.
 
 To write a program transformation,
 you must 
@@ -2150,7 +2341,7 @@ sink reloads and produce programs like the example shown in
 \begin{code}
 `deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing
 !deadRewrites.1!  where ^nothing _ _ = Nothing
-        `middleRemoveDeads :: Middle -> VarSet -> Maybe (Graph Middle Last)
+        `middleRemoveDeads :: CmmMiddle -> VarSet -> Maybe (Graph CmmMiddle CmmLast)
 !elim.dead.1!        middleRemoveDeads (MidAssign (CmmLocal x) _) live
 !elim.dead.2!            | not (x `elemVarSet` live) = Just emptyGraph
 !deadRewrites.2!        middleRemoveDeads _ _ = Nothing
@@ -2161,12 +2352,12 @@ sink reloads and produce programs like the example shown in
 
 \T
 \begin{code}
-removeDeadAssignments :: (Graph Middle Last) -> FuelMonad (Graph Middle Last)
+removeDeadAssignments :: Graph CmmMiddle CmmLast -> FuelMonad (Graph CmmMiddle CmmLast)
 `removeDeadAssignments g = liftM zdfFpContents result
 !rewriteBwd.1!     where result = zdfRewriteBwd RewriteDeep "dead-assignment elim"
 !rewriteBwd.2!                                  liveLattice liveTransfers rewrites emptyVarSet g
 \end{code}
-& \mbox{Dead-code} elimination\\
+& \vspace*{20pt}\mbox{Dead-code} elimination\\
 \end{codetable}
 \caption{Dead-assignment elimination, which relies on the analysis of
 \figref{liveness}} 
@@ -2192,6 +2383,9 @@ For middle and last nodes, @maybe_reload_before@
 computes @used@, which is the set
 of variables used in the node which are both safe and profitable to
 reload. 
+%
+% omit filterVarsUsed :: UserOfLocalVars e => (LocalVar -> Bool) -> e -> VarSet
+%
 If that set is not empty, function
 @reloadTail@ replaces @node@ with a new graph in which @node@ is
 preceded by a (redundant) reload for each variable in the set~@used@.
@@ -2201,10 +2395,12 @@ preceded by a (redundant) reload for each variable in the set~@used@.
 Rewrite functions create graphs using functions like these
 (\figref{avail-rewrites}, \lineref{mkMiddle}):
 \begin{code}
-`mkLabel  :: BlockId -> Graph m l
-`mkMiddle :: m       -> Graph m l
-`mkLast   :: l       -> Graph m l
-(`<*>)    :: Graph m l -> Graph m l -> Graph m l
+`mkLabel    :: BlockId -> Graph m l C O
+`mkMiddle   :: m       -> Graph m l O O
+`mkLast     :: l       -> Graph m l O C
+(`<*>)      :: Graph m l e a -> Graph m l a x 
+           -> Graph m l e x
+`emptyGraph :: Graph m l O O
 \end{code}
 %% \simon{Aha!  Here is where we lie by pretending that @Graph@ = @AGraph@.  Ok.}
 %% \simon{Does @mkLast@ really have a @LastNode l@ context? How does it use it?}
@@ -2212,6 +2408,10 @@ Rewrite functions create graphs using functions like these
 %%        the graph (for debugging).  So I've expunged it from the
 %%        paper. ---NR
 The infix @<*>@ function is graph concatenation.
+When two graphs are concatenated, the ends are either both open or
+both closed.
+The @emptyGraph@ is a left and right unit of concatenation
+(there is a similar unit which is closed at both ends).
 
 Our transformation is implemented by the call to @zdfRewriteFwd@
 on \linerangeref{insertLateReloads.1}{insertLateReloads.2} of \figref{avail-rewrites}.
@@ -2265,7 +2465,7 @@ include \secref{induction-var-elim}.
 type `LOFsKont a b = LastOuts a -> DFM a b
 !Kont!type `Kont     a b =               DFM a b
 
-!forward.sol.sig!`forward_sol :: forall m l a . LastNode l => (forall b . Maybe b -> DFM a (Maybe b))
+!forward.sol.sig!`forward_sol :: forall m l a . HavingSuccessors l => (forall b . Maybe b -> DFM a (Maybe b))
             -> RewritingDepth -> PassName -> BlockEnv a -> ForwardTransfers m l a
             -> ForwardRewrites m l a -> a -> Graph m l -> DFM a (Maybe a)
 !forward.sol.args!forward_sol with_fuel ^depth ^name ^start_facts ^transfers ^rewrites ^in_fact g =
@@ -2276,10 +2476,11 @@ type `LOFsKont a b = LastOuts a -> DFM a b
 !solve.last.sig!     `solve_last  :: l       -> LOFsKont a b -> FactKont a b
 
 !set.last.sig!     set_last :: LOFsKont a ()
-!set.last.*!     `set_last (LastOutFacts l) = mapM_ (uncurry setFact) l
+!set.last.*!     `set_last (LastOuts l) = mapM_ (uncurry setFact) l
 
 !solve.block!     `solve_block :: Block m l -> Kont a ()
 !solve.Ox!     `solve_Ox    :: Graph m l -> FactKont a (Maybe a)
+!solve.OO.def!     `solve_OO    :: GF m l O O -> FactKont a b -> FactKont a b
 
 !solve.mid.1!     `solve_mid m k ^in' =
 !solve.mid.case!       (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
@@ -2302,7 +2503,7 @@ type `LOFsKont a b = LastOuts a -> DFM a b
 \seclabel{dfengine}
 
 \simon{The earlier sections promised that we'd reveal the lies.
-Do we?  I see no mention of @LastNode@ for example, which is rather important
+Do we?  I see no mention of @HavingSuccessors@ for example, which is rather important
 for polymorphism.  Indeed, a subsection on that point might be a good way
 to substantiate the claims of the last bullet of the conclusion.}
 
@@ -2426,103 +2627,6 @@ the fuel monad.
 %% computations of type @Fuel -> (a, Fuel)@.
 
 
-\subsection{Aside: Representing graphs and subgraphs}
-
-\seclabel{subgraphs}
-
-\delendum{There is a confusion of terminology.  In this section 
-we say that a ``graph'' may also contain two special incomplete blocks.
-But later we use the terms ``subgraph'' and ``replacement graph'' to mean
-one of these more general graphs; and ``full graph'' to mean (I think)
-a closed/closed graph.   Let's define these terms, and use them consistently.
-I think we can define a ``full graph'' as closed/closed, and a ``subgraph'' as
-one of the other three combinations.
-}
-
-\remark{I've added a \P\ defining ``replacement graph'' and
-``subgraph.''
-A full graph is open/closed, but that's a somewhat arbitrary design
-choice that I'd prefer not to expose in this paper.}
-
-To explain how graphs are analyzed and rewritten, we must explain how
-they are represented.
-As mentioned in \secref{graph.intro},
-a~graph is a collection of basic blocks, 
-and a typical basic block has a first node followed by zero or
-more middle nodes followed by a last node.
-Not mentioned in \secref{graph.intro},
-a graph may also contain two special, incomplete
-blocks:
-\begin{itemize}
-\item
-An \emph{entry sequence} is a sequence of zero or more middle nodes
-ending in a last node (i.e., a control transfer).
-If~a graph has an entry sequence it is \emph{enterable} or
-\emph{open at the entry}.  \simon{I find ``enterable'' ambiguous,
-becuase close graph can still bentered by a jump.  It's more like
-``fallable into'' because control can fall through into it. 
-So I suggest we major on ``open at entry'' and de-emphasise or
-nuke ``enterable''.  Its only (considerable) merit is brevity.
-At least put it second, not first.}
-\item
-An \emph{exit sequence} is a first node followed by zero or more
-middle nodes, but \emph{not} ending in a last node---control ``falls
-off the end.''
-If~a graph has an exit sequence it is \emph{exitable} or
-\emph{open at the exit}.
-\end{itemize}
-The representation of a graph is therefore a triple:
-an optional entry sequence, a @BlockEnv@ containing basic blocks,
-and an optional exit sequence.
-As~a special case, a single sequence of middle nodes also forms a
-graph open at both ends.
-
-A~graph proposed by a rewrite function as a replacement for a node is
-a \emph{replacement graph}.
-Every replacement graph is also a \emph{subgraph}, i.e., a graph that
-can be analyzed or rewritten independently, but that is connected to
-an outer graph by control-flow edges.
-A~subgraph has the same representation as a graph, including 
-optional entry and exit sequences.
-\simon{I don't find the definition of replacement graph and 
-subgraph satisfactory.  Is the ONLY difference between a graph
-and a sub-graph its purpose in the eye of the beholder?  I think
-perhaps the key point is this: a full graph has no free labels, 
-whereas a subgraph may have
-free labels?  Are subgraphs o/c or c/c or anything like that?
-What about replacement graphs?}
-
-To~describe the presence or absence of entry and exit sequences, we
-refer to a graph's \emph{shape} as open/open (enterable and exitable),
-open/closed (enterable but not exitable), or closed/open (not
-enterable, but exitable).  
-In
-the dataflow engine, the shape constrains the rewrite
-functions:\footnote {Shape is also used when graphs are constructed:
-% graphs provide a constant-time concatentation operator @<*>@, and 
-for
-example, if $g_1$'s shape is $e$/open and $g_2$'s shape is open/$x$,
-then the concatenation $g_1 \mathbin{\mbox{@<*>@}} g_2$ is well defined and has shape
-$e$/$x$.  (The exit sequence of~$g_1$ is spliced to the entry sequence
-of~$g_2$ to form a new, complete basic block.)}
-\begin{itemize}
-\item
-A first node with @BlockId@~$l$ must be rewritten to a closed/open
-replacement graph which also begins with @BlockId@~$l$.
-\simon{Whoa!  What does it mean to say that a graph ``begins with $l$''?
-Perhpas we just mean that the replacement grpah must include a block labelled $l$?}
-\item
-A middle node must be rewritten to an open/open graph.
-\item
-A last node must be rewritten to an open/closed graph, in 
-which all control-flow
-paths end in explicit control transfers.
-\simon{I'd nuke the ``in which all ...'' part, because it sounds like
-an additional condition, but actually it's a consequence of open/closed}.
-\end{itemize}
-These conditions are necessary and sufficient to ensure that 
-every replacement graph can be spliced in place of the node it is derived from.
-
 
 \subsection{The forward solver}
 
@@ -2630,7 +2734,7 @@ Any graph passed to @forward\_sol@ must be open at the entry.
 \begin{figure*}
 %%  forward_rew
 %%          :: forall m l a . 
-%%             (DebugNodes m l, LastNode l, Outputable a)
+%%             (DebugNodes m l, HavingSuccessors l, Outputable a)
 %%          => (forall a . Fuel -> Maybe a -> Maybe a)
 %%          -> RewritingDepth
 %%          -> BlockEnv a
@@ -2837,12 +2941,12 @@ We compute that fixed point using @anal_f_OO@ (not shown), which  recursively ca
 thereby doing no rewriting and consuming no fuel
 (\lineref{solve.rewrite.shallow.1}).
 \simon{This business of passing in a different @with\_fuel@ seems terribly
-clumsy to me.  The obvious thing would be to add a third constructor @NoRewrite@
+clumsy to me.  The obvious thing would be to add a third constructor \texttt{NoRewrite}
 to the @RewritingDepth@ type, so that we could call @forward\_sol@ saying
 ``don't do any rewriting at all''.  Would that even elimiate the higher order
 @with\_fuel@ parameter altogether?  What is it used for? 
 NR:~If you re-examine the structure of the case expressions, you'll
-see that @NoRewrite@ as a third constructor would leave to
+see that \texttt{NoRewrite} as a third constructor would leave to
 inexhaustive pattern matching.  A Boolean would do.
 Function @with\_fuel@ is also
 used to decrement the fuel supply.
@@ -2985,215 +3089,215 @@ there are similar functions.
 
 
 
-\section{The next 700 dataflow analyses}
-
-\seclabel{logic}
-\seclabel{next-700}
-
-%%  \simon{I know that this section is Dear to the Ramsey Heart, but
-%%  I still can't figure out what it is trying to say to the reader.
-%%
-%%  [For the record: one reason this section is dear to my heart is
-%%  that after my talk at the Computing Lab in 2007, Alan Mycroft
-%%  encouraged me in the strongest possible terms to get this
-%%  explanation published. ---NR]
-%%  
-%%  Let me try one stab at what I think you might be trying to say.
-%%  In this paper we have described a re-usable, polymorphic 
-%%  framework (concretely, a library)
-%%  for the analysis and transformation of control flow graphs.
-%%  This is not a specialised tool; on the contrary we claim that
-%%  a huge variety of optimisations can be viewed through the lens of
-%%  dataflow optimisation.
-%%  
-%%  If that's the thrust, then the generalities of ths section would
-%%  be stronger if they were supported with a list of dragon-book stuff
-%%  that are all special cases. 
-%%  
-%%  But I may have misunderstood.}
-%%  
-%%  \remark{Here's what I'm trying to say: Gentle Reader,
-%%  Bad people may have told you that dataflow analysis is new,
-%%  special, difficult, and intimidating.  But it's not really---it's
-%%  stuff you knew about all along.  Why, if you already understand the
-%%  classic material on program correctness, you know how to write a new
-%%  dataflow analysis---just invent an approximation of logic that has no
-%%  infinite ascending chains.
-%%  
-%%  I could indeed go through the dragon book, but there's no time.}
-%%  \simon{Well that is certainly better. Why not say that?  It's much 
-%%  shorter too!  Evidence of the claim that data flow analysis is presented
-%%  as special difficult intimidating might be good.}
-
-
-Most of this paper is devoted to the implementation of dataflow
-analyses and their associated transformations.
-But we also promise ideas.
-The~main idea is that dataflow analysis is not unique,
-difficult, or intimidating---it's a special case of 
-the seminal work of
-\citet{floyd:assigning-meanings},
-\citet{hoare:axiomatic-basis},
-and
-\citet{dijkstra:discipline}
-on semantics of programming languages and
- formal methods of program construction.
-If~you like this work, you are ready to invent a new
-dataflow analysis:
-just define an approximation of program logic
-using a lattice with no infinite ascending chains.
-% just approximate program logic using a lattice with no infinite ascending chains.
-
-
-
-%%  \section{Logical view of optimization}
-%%  
-%%  Connection to Hoare logic:
-%%   - facts derived by forward analysis as assertions on state
-%%   - facts derived by backward analysis as assertions on continuation.
-%%  
-%%  Examples on board.
-
-To~illuminate the connection, let's compare the formal methods a 
-person uses to 
-\emph{construct} a new program with the formal methods a compiler uses
-to \emph{analyze} a program.
-%The comparison is a bit tricky,
-%because 
-%People and compilers 
-%typically work in opposite directions.
-Dijkstra says people should start with a specification (a postcondition
-we must establish and a precondition we may assume), then construct a
-procedure body from back 
-to front, computing weakest preconditions until one is implied by the
-procedure's precondition. 
-%%  
-%%  
-%%  
-%%  
-%%  The most highly developed
-%%  methodology for constructing a procedure (Dijkstra's) starts with a
-%%  postcondition~$Q$ that the procedure must establish and a
-%%  precondition~$P$ that the procedure may assume.
-%%  Using Dijkstra's method, a programmer 
-%%  works backwards, adding a statement, computing the weakest
-%%  precondition of that statement with respect to~$Q$,
-%%  and continuing with more statements until
-%%  eventually the weakest precondition of the procedure body is implied by~$P$.
-A~compiler, by contrast, is given a procedure with no specification,
-and most analyses reason forward,  starting with the
-weakest possible precondition and 
-computing strongest postconditions that hold at various points throughout the program.
-% using strongest postconditions to
-% compute assertions that hold at various points throughout the program.
-
-Computing strongest postconditions or weakest
-preconditions is a simple matter of calculation---except for loops.
-In~a loop, such as in the example of induction-variable elimination from
-\secref{induction-var-elim}, 
-%If~a compiler wants to know what @i@~is, it can easily see that on the
-%first trip $@i@=0$, on the second trip $@i@=1$, and so on.
-it's easy for a compiler to get stuck trying to compute an
-infinite disjunction like $\bigvee_{k=0}^{\infty} @i@=k$.
-Compilers are no good at solving recursion
-equations that require limits of infinite sequences.
-%
-People don't like infinite sequences either, which is why they invent
-\emph{loop invariants}. 
-%%  
-%%  In the classic situation, using weakest preconditions, a loop
-%%  invariant~$I$ is an assertion that is \emph{stronger} than the weakest
-%%  precondition, is invariant under the loop, and when conjoined with
-%%  the loop's termination condition, implies the weakest precondition of
-%%  what follows the loop.
-%%  %%   and has these properties:
-%%  %%  \begin{itemize}
-%%  %%  \item
-%%  %%  Together with the loop-termination condition, the invariant~$I$ implies the weakest
-%%  %%  precondition of the code following the loop.
-%%  %%  \item
-%%  %%  The invariant~$I$ implies the weakest precondition of the loop body
-%%  %%  with respect to~$I$.
-%%  %%  In other words, $I$~is strong enought so that having $I$ hold at the
-%%  %%  beginning of the loop body is enough to
-%%  %%  imply that $I$~also holds at the end of the loop body.
-%%  %%  \end{itemize}
-%%  To be useful, a loop invariant must be neither too strong nor too
-%%  weak.
-%Much like finding a useful induction hypothesis for a proof, 
-But finding a loop invariant requires art and intuition;
-in~all but the simplest cases, it is beyond
-what a compiler can do.
-
-
-%%  Strongest postconditions also require a loop invariant, but with dual
-%%  properties:
-%%  \begin{itemize}
-%%  \item
-%%  The invariant~$I$ is weaker than the true strongest postcondition,
-%%  but it is implied by the strongest postcondition of the code before
-%%  the loop.
-%%  \item
-%%  Assuming invariant~$I$ holds on entry to the loop, the strongest
-%%  postcondition of the loop body must imply~$I$.
-%%  \item
-%%  The strongest postcondition of the entire loop is deemed to be the
-%%  conjunction of invariant~$I$ and the termination condition.
-%%  \end{itemize}
-%%  
-
-
-So if we can't find loop invariants automatically, what's a poor
-compiler writer to do?
-We~want assertions that justify interesting program
-transformations. 
-Such assertions can often be established by a dataflow analysis.
-So to write a new dataflow analysis, we
-should \emph{invent a new logic} which is
-\emph{expressive enough to justify interesting transformations}
-but \emph{inexpressive enough that no fact can increase more than
-finitely many times}.
-With the logic in place, the transfer functions simply approximate
-  weakest preconditions (for a backward analysis) or strongest
-  postconditions (for a forward analysis) as best they can
-given the expressive power of the logic.
-From~this point of view, we can understand the traditional
-``optimization zoo'' as arising from a collection of approximate,
-inexpressive logics, each with its own implementation of strongest postcondition
-or weakest precondition. 
-The next 700 dataflow analyses may well
-arise from 700 more variations on 
-program logic, each of which can be inexpressive in a different way.
-
-%%  Let's review the examples of \secref{example:xforms} in that light.
-%%  \begin{itemize}
-%%  \item
-%%  Logic $\bigwedge_i x_i=k_i$.
-%%  \begin{itemize}
-%%  \item
-%%  $i = 7 \join \true \equiv \true$ (no loss of information)
-%%  \item
-%%  $i = 7 \join i= 7 \equiv  i=7$ (no loss of information)
-%%  \item
-%%  $i = 7 \join i = 8 \implies \true$ (loss of information)
-%%  \end{itemize}
-%%  Because there are only finitely many variables, we can say only
-%%  finitely many things at each program point, and we're guaranteed to
-%%  reach a fixed point.
-%%  \item
-%%  Example: induction-variable elimination.
-%%  \begin{itemize}
-%%  \item
-%%  What is the proposition?
-%%  \item
-%%  Key point: be able to express the intermediate state where the
-%%  invariant is temporarily violated (first add 1 to @i@, then add 4
-%%  to~@p@).
-%%  \end{itemize}
-%%  \end{itemize}
-
-
-%\clearpage
+%%%%    \section{The next 700 dataflow analyses}
+%%%%    
+%%%%    \seclabel{logic}
+%%%%    \seclabel{next-700}
+%%%%    
+%%%%    %%  \simon{I know that this section is Dear to the Ramsey Heart, but
+%%%%    %%  I still can't figure out what it is trying to say to the reader.
+%%%%    %%
+%%%%    %%  [For the record: one reason this section is dear to my heart is
+%%%%    %%  that after my talk at the Computing Lab in 2007, Alan Mycroft
+%%%%    %%  encouraged me in the strongest possible terms to get this
+%%%%    %%  explanation published. ---NR]
+%%%%    %%  
+%%%%    %%  Let me try one stab at what I think you might be trying to say.
+%%%%    %%  In this paper we have described a re-usable, polymorphic 
+%%%%    %%  framework (concretely, a library)
+%%%%    %%  for the analysis and transformation of control flow graphs.
+%%%%    %%  This is not a specialised tool; on the contrary we claim that
+%%%%    %%  a huge variety of optimisations can be viewed through the lens of
+%%%%    %%  dataflow optimisation.
+%%%%    %%  
+%%%%    %%  If that's the thrust, then the generalities of ths section would
+%%%%    %%  be stronger if they were supported with a list of dragon-book stuff
+%%%%    %%  that are all special cases. 
+%%%%    %%  
+%%%%    %%  But I may have misunderstood.}
+%%%%    %%  
+%%%%    %%  \remark{Here's what I'm trying to say: Gentle Reader,
+%%%%    %%  Bad people may have told you that dataflow analysis is new,
+%%%%    %%  special, difficult, and intimidating.  But it's not really---it's
+%%%%    %%  stuff you knew about all along.  Why, if you already understand the
+%%%%    %%  classic material on program correctness, you know how to write a new
+%%%%    %%  dataflow analysis---just invent an approximation of logic that has no
+%%%%    %%  infinite ascending chains.
+%%%%    %%  
+%%%%    %%  I could indeed go through the dragon book, but there's no time.}
+%%%%    %%  \simon{Well that is certainly better. Why not say that?  It's much 
+%%%%    %%  shorter too!  Evidence of the claim that data flow analysis is presented
+%%%%    %%  as special difficult intimidating might be good.}
+%%%%    
+%%%%    
+%%%%    Most of this paper is devoted to the implementation of dataflow
+%%%%    analyses and their associated transformations.
+%%%%    But we also promise ideas.
+%%%%    The~main idea is that dataflow analysis is not unique,
+%%%%    difficult, or intimidating---it's a special case of 
+%%%%    the seminal work of
+%%%%    \citet{floyd:assigning-meanings},
+%%%%    \citet{hoare:axiomatic-basis},
+%%%%    and
+%%%%    \citet{dijkstra:discipline}
+%%%%    on semantics of programming languages and
+%%%%     formal methods of program construction.
+%%%%    If~you like this work, you are ready to invent a new
+%%%%    dataflow analysis:
+%%%%    just define an approximation of program logic
+%%%%    using a lattice with no infinite ascending chains.
+%%%%    % just approximate program logic using a lattice with no infinite ascending chains.
+%%%%    
+%%%%    
+%%%%    
+%%%%    %%  \section{Logical view of optimization}
+%%%%    %%  
+%%%%    %%  Connection to Hoare logic:
+%%%%    %%   - facts derived by forward analysis as assertions on state
+%%%%    %%   - facts derived by backward analysis as assertions on continuation.
+%%%%    %%  
+%%%%    %%  Examples on board.
+%%%%    
+%%%%    To~illuminate the connection, let's compare the formal methods a 
+%%%%    person uses to 
+%%%%    \emph{construct} a new program with the formal methods a compiler uses
+%%%%    to \emph{analyze} a program.
+%%%%    %The comparison is a bit tricky,
+%%%%    %because 
+%%%%    %People and compilers 
+%%%%    %typically work in opposite directions.
+%%%%    Dijkstra says people should start with a specification (a postcondition
+%%%%    we must establish and a precondition we may assume), then construct a
+%%%%    procedure body from back 
+%%%%    to front, computing weakest preconditions until one is implied by the
+%%%%    procedure's precondition. 
+%%%%    %%  
+%%%%    %%  
+%%%%    %%  
+%%%%    %%  
+%%%%    %%  The most highly developed
+%%%%    %%  methodology for constructing a procedure (Dijkstra's) starts with a
+%%%%    %%  postcondition~$Q$ that the procedure must establish and a
+%%%%    %%  precondition~$P$ that the procedure may assume.
+%%%%    %%  Using Dijkstra's method, a programmer 
+%%%%    %%  works backwards, adding a statement, computing the weakest
+%%%%    %%  precondition of that statement with respect to~$Q$,
+%%%%    %%  and continuing with more statements until
+%%%%    %%  eventually the weakest precondition of the procedure body is implied by~$P$.
+%%%%    A~compiler, by contrast, is given a procedure with no specification,
+%%%%    and most analyses reason forward,  starting with the
+%%%%    weakest possible precondition and 
+%%%%    computing strongest postconditions that hold at various points throughout the program.
+%%%%    % using strongest postconditions to
+%%%%    % compute assertions that hold at various points throughout the program.
+%%%%    
+%%%%    Computing strongest postconditions or weakest
+%%%%    preconditions is a simple matter of calculation---except for loops.
+%%%%    In~a loop, such as in the example of induction-variable elimination from
+%%%%    \secref{induction-var-elim}, 
+%%%%    %If~a compiler wants to know what @i@~is, it can easily see that on the
+%%%%    %first trip $@i@=0$, on the second trip $@i@=1$, and so on.
+%%%%    it's easy for a compiler to get stuck trying to compute an
+%%%%    infinite disjunction like $\bigvee_{k=0}^{\infty} @i@=k$.
+%%%%    Compilers are no good at solving recursion
+%%%%    equations that require limits of infinite sequences.
+%%%%    %
+%%%%    People don't like infinite sequences either, which is why they invent
+%%%%    \emph{loop invariants}. 
+%%%%    %%  
+%%%%    %%  In the classic situation, using weakest preconditions, a loop
+%%%%    %%  invariant~$I$ is an assertion that is \emph{stronger} than the weakest
+%%%%    %%  precondition, is invariant under the loop, and when conjoined with
+%%%%    %%  the loop's termination condition, implies the weakest precondition of
+%%%%    %%  what follows the loop.
+%%%%    %%  %%   and has these properties:
+%%%%    %%  %%  \begin{itemize}
+%%%%    %%  %%  \item
+%%%%    %%  %%  Together with the loop-termination condition, the invariant~$I$ implies the weakest
+%%%%    %%  %%  precondition of the code following the loop.
+%%%%    %%  %%  \item
+%%%%    %%  %%  The invariant~$I$ implies the weakest precondition of the loop body
+%%%%    %%  %%  with respect to~$I$.
+%%%%    %%  %%  In other words, $I$~is strong enought so that having $I$ hold at the
+%%%%    %%  %%  beginning of the loop body is enough to
+%%%%    %%  %%  imply that $I$~also holds at the end of the loop body.
+%%%%    %%  %%  \end{itemize}
+%%%%    %%  To be useful, a loop invariant must be neither too strong nor too
+%%%%    %%  weak.
+%%%%    %Much like finding a useful induction hypothesis for a proof, 
+%%%%    But finding a loop invariant requires art and intuition;
+%%%%    in~all but the simplest cases, it is beyond
+%%%%    what a compiler can do.
+%%%%    
+%%%%    
+%%%%    %%  Strongest postconditions also require a loop invariant, but with dual
+%%%%    %%  properties:
+%%%%    %%  \begin{itemize}
+%%%%    %%  \item
+%%%%    %%  The invariant~$I$ is weaker than the true strongest postcondition,
+%%%%    %%  but it is implied by the strongest postcondition of the code before
+%%%%    %%  the loop.
+%%%%    %%  \item
+%%%%    %%  Assuming invariant~$I$ holds on entry to the loop, the strongest
+%%%%    %%  postcondition of the loop body must imply~$I$.
+%%%%    %%  \item
+%%%%    %%  The strongest postcondition of the entire loop is deemed to be the
+%%%%    %%  conjunction of invariant~$I$ and the termination condition.
+%%%%    %%  \end{itemize}
+%%%%    %%  
+%%%%    
+%%%%    
+%%%%    So if we can't find loop invariants automatically, what's a poor
+%%%%    compiler writer to do?
+%%%%    We~want assertions that justify interesting program
+%%%%    transformations. 
+%%%%    Such assertions can often be established by a dataflow analysis.
+%%%%    So to write a new dataflow analysis, we
+%%%%    should \emph{invent a new logic} which is
+%%%%    \emph{expressive enough to justify interesting transformations}
+%%%%    but \emph{inexpressive enough that no fact can increase more than
+%%%%    finitely many times}.
+%%%%    With the logic in place, the transfer functions simply approximate
+%%%%      weakest preconditions (for a backward analysis) or strongest
+%%%%      postconditions (for a forward analysis) as best they can
+%%%%    given the expressive power of the logic.
+%%%%    From~this point of view, we can understand the traditional
+%%%%    ``optimization zoo'' as arising from a collection of approximate,
+%%%%    inexpressive logics, each with its own implementation of strongest postcondition
+%%%%    or weakest precondition. 
+%%%%    The next 700 dataflow analyses may well
+%%%%    arise from 700 more variations on 
+%%%%    program logic, each of which can be inexpressive in a different way.
+%%%%    
+%%%%    %%  Let's review the examples of \secref{example:xforms} in that light.
+%%%%    %%  \begin{itemize}
+%%%%    %%  \item
+%%%%    %%  Logic $\bigwedge_i x_i=k_i$.
+%%%%    %%  \begin{itemize}
+%%%%    %%  \item
+%%%%    %%  $i = 7 \join \true \equiv \true$ (no loss of information)
+%%%%    %%  \item
+%%%%    %%  $i = 7 \join i= 7 \equiv  i=7$ (no loss of information)
+%%%%    %%  \item
+%%%%    %%  $i = 7 \join i = 8 \implies \true$ (loss of information)
+%%%%    %%  \end{itemize}
+%%%%    %%  Because there are only finitely many variables, we can say only
+%%%%    %%  finitely many things at each program point, and we're guaranteed to
+%%%%    %%  reach a fixed point.
+%%%%    %%  \item
+%%%%    %%  Example: induction-variable elimination.
+%%%%    %%  \begin{itemize}
+%%%%    %%  \item
+%%%%    %%  What is the proposition?
+%%%%    %%  \item
+%%%%    %%  Key point: be able to express the intermediate state where the
+%%%%    %%  invariant is temporarily violated (first add 1 to @i@, then add 4
+%%%%    %%  to~@p@).
+%%%%    %%  \end{itemize}
+%%%%    %%  \end{itemize}
+%%%%    
+%%%%    
+%%%%    %\clearpage
 
 \section{Conclusion}
 
@@ -3391,10 +3495,11 @@ That paper also presents an implementation of dataflow analysis,
 but the implementation described in \secref{engine} above is entirely
 new, and even
 the~interface has evolved significantly.
+The representation of the graph has changed; we use GADTs to control splising.
  The analyses of
 \secreftwo{create-analysis}{example-analyses}, the transformations of
-\secref{rewrites}, and the 
-explanation in \secref{next-700} are also entirely new.
+\secref{rewrites}, 
+are also entirely new.
 
 If~this submission is accepted, we will find a better way to work
 this information into the text.
@@ -3406,8 +3511,12 @@ this information into the text.
 
 \section{Index of defined identifiers}
 
+\newcommand\dropit[3][]{}
+
 \newcommand\hsprelude[2]{\noindent
   \texttt{#1} defined in the Haskell Prelude\\}
+\let\hsprelude\dropit
+
 \newcommand\hspagedef[3][]{\noindent
   \texttt{#2} defined on page~\pageref{#3}.\\}
 \newcommand\omithspagedef[3][]{\noindent
@@ -3475,6 +3584,35 @@ this information into the text.
 
 \input{defuse}%
 \ifundefinedsection.\fi
+
+\undefinedsectionfalse
+
+
+\renewcommand\hsprelude[2]{\noindent
+  \ifundefinedsection
+    , \texttt{#1}%
+  \else
+    \undefinedsectiontrue
+    \par
+    \section{Identifiers defined in Haskell Prelude}
+    \texttt{#1}%
+  \fi
+}
+\let\hspagedef\dropit
+\let\omithspagedef\dropit
+\let\omithsfigdef\dropit
+\let\hsfigdef\dropit
+\let\hstabdef\dropit
+\let\hspagedefll\dropit
+\let\hsfigdefll\dropit
+\let\nothspagedef\dropit
+\let\nothsfigdef\dropit
+\let\nothslinedef\dropit
+
+\input{defuse}
+\ifundefinedsection.\fi
+
+
 
 \endgroup
 

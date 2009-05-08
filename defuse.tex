@@ -24,6 +24,7 @@
 \hsfigdef[avail.first]{avail\_vars\_transfer}{haskell.def.avail:unvars:untransfer}% context figure
 \hsfigdef{BackTransfers}{haskell.def.BackTransfers}% context figure
 \hsfigdef{BackwardRewrites}{haskell.def.BackwardRewrites}% context figure
+\hspagedef{Block}{haskell.def.Block}% context document
 \hspagedef{BlockEnv}{haskell.def.BlockEnv}% context document
 \hspagedef{BlockId}{haskell.def.BlockId}% context document
 \hsprelude{Bool}{Prelude}% context prelude
@@ -33,10 +34,19 @@
 \hsfigdef{bt\_first\_in}{haskell.def.bt:unfirst:unin}% context figure
 \hsfigdef{bt\_last\_in}{haskell.def.bt:unlast:unin}% context figure
 \hsfigdef{bt\_middle\_in}{haskell.def.bt:unmiddle:unin}% context figure
+\hsfigdef{C}{haskell.def.C}% context figure
 \omithsfigdef{catMaybes :: [Maybe a] -> [a]}{haskell.def.catMaybes}% context figure
 \hsfigdef{ChangeFlag}{haskell.def.ChangeFlag}% context figure
+\hspagedef{Cmm}{haskell.def.Cmm}% context document
 \hsfigdef{cmmAvailableVars}{haskell.def.cmmAvailableVars}% context figure
+\hspagedef{CmmExpr}{haskell.def.CmmExpr}% context document
+\hspagedef{CmmGlobal}{haskell.def.CmmGlobal}% context document
+\hspagedef{CmmLast}{haskell.def.CmmLast}% context document
 \hsfigdef{cmmLiveness}{haskell.def.cmmLiveness}% context figure
+\hspagedef{CmmLoad}{haskell.def.CmmLoad}% context document
+\hspagedef{CmmLocal}{haskell.def.CmmLocal}% context document
+\hspagedef{CmmMiddle}{haskell.def.CmmMiddle}% context document
+\hspagedef{CmmVar}{haskell.def.CmmVar}% context document
 \hsprelude{const}{Prelude}% context prelude
 \hsprelude{curry}{Prelude}% context prelude
 \hsprelude{Data.Map}{Prelude}% context prelude
@@ -44,23 +54,28 @@
 \hsfigdef{deadRewrites}{haskell.def.deadRewrites}% context figure
 \hspagedef{DefinerOfLocalVars}{haskell.def.DefinerOfLocalVars}% context document
 \hsfigdef{delFromAvail}{haskell.def.delFromAvail}% context figure
-\omithspagedef{delFromVarSet :: VarSet -> Var -> VarSet}{haskell.def.delFromVarSet}% context document
+\omithspagedef{delFromVarSet :: VarSet -> LocalVar -> VarSet}{haskell.def.delFromVarSet}% context document
 \hsfigdefll[forward.sol.args]{depth}{haskell.def.depth}% context figure
 \hspagedef{DFM}{haskell.def.DFM}% context document
 \hsfigdef{elemAvail}{haskell.def.elemAvail}% context figure
-\omithspagedef{elemVarSet :: Var -> VarSet -> Bool}{haskell.def.elemVarSet}% context document
+\omithspagedef{elemVarSet :: LocalVar -> VarSet -> Bool}{haskell.def.elemVarSet}% context document
 \hsfigdefll{empty}{haskell.def.empty}% context figure
 \omithspagedef{emptyBlockEnv :: BlockEnv a}{haskell.def.emptyBlockEnv}% context document
+\hspagedef{emptyGraph}{haskell.def.emptyGraph}% context document
 \omithspagedef{emptyVarSet :: VarSet}{haskell.def.emptyVarSet}% context document
+\hsfigdefll{entry}{haskell.def.entry}% context figure
+\hsfigdefll[lastLiveOut.1]{env}{haskell.def.env}% context figure
+\hsfigdefll{exit}{haskell.def.exit}% context figure
 \hsfigdefll[assign.avail.1]{\_expr}{haskell.def.:unexpr}% context figure
 \hsfigdef[extendAvail]{extendAvail}{haskell.def.extendAvail}% context figure
-\omithspagedef{extendVarSet :: VarSet -> Var -> VarSet}{haskell.def.extendVarSet}% context document
+\omithspagedef{extendVarSet :: VarSet -> LocalVar -> VarSet}{haskell.def.extendVarSet}% context document
 \hsfigdef{fact\_add\_to}{haskell.def.fact:unadd:unto}% context figure
 \hsfigdef{fact\_bot}{haskell.def.fact:unbot}% context figure
 \hsfigdef[FactKont]{FactKont}{haskell.def.FactKont}% context figure
 \hsfigdef{fact\_name}{haskell.def.fact:unname}% context figure
 \hsprelude{False}{Prelude}% context prelude
 \hspagedef{ffp}{haskell.def.ffp}% context document
+\omithspagedef{filterVarsUsed :: UserOfLocalVars e => (LocalVar -> Bool) -> e -> VarSet}{haskell.def.filterVarsUsed}% context document
 \hsfigdefll[avail.rewrites.first]{first}{haskell.def.first}% context figure
 \hsprelude{flip}{Prelude}% context prelude
 \hsprelude{foldl}{Prelude}% context prelude
@@ -81,9 +96,10 @@
 \hspagedef{FuelMonad}{haskell.def.FuelMonad}% context document
 \hspagedef{FwdFixedPoint}{haskell.def.FwdFixedPoint}% context document
 \hspagedef{fwd\_pure\_anal}{haskell.def.fwd:unpure:unanal}% context document
-\hspagedef{gen}{haskell.def.gen}% context document
 \hspagedef{getAllFacts}{haskell.def.getAllFacts}% context document
 \hspagedef{getFact}{haskell.def.getFact}% context document
+\hsfigdef{GF}{haskell.def.GF}% context figure
+\hsfigdef{Graph}{haskell.def.Graph}% context figure
 \hsfigdef[GraphFactKont]{GraphFactKont}{haskell.def.GraphFactKont}% context figure
 \hsfigdef[GraphKont]{GraphKont}{haskell.def.GraphKont}% context figure
 \hspagedef{HavingSuccessors}{haskell.def.HavingSuccessors}% context document
@@ -97,13 +113,16 @@
 \omithspagedef{isEmptyVarSet :: VarSet -> Bool}{haskell.def.isEmptyVarSet}% context document
 \hsfigdefll{join}{haskell.def.join}% context figure
 \hsprelude{Just}{Prelude}% context prelude
-\hspagedef{kill}{haskell.def.kill}% context document
 \hsfigdef[Kont]{Kont}{haskell.def.Kont}% context figure
 \hsfigdefll[avail.rewrites.last]{last}{haskell.def.last}% context figure
 \hsfigdef{lastAvail}{haskell.def.lastAvail}% context figure
+\hspagedef{LastBranch}{haskell.def.LastBranch}% context document
+\hspagedef{LastCall}{haskell.def.LastCall}% context document
+\hspagedef{LastCondBranch}{haskell.def.LastCondBranch}% context document
 \hsfigdef[lastLiveness]{lastLiveness}{haskell.def.lastLiveness}% context figure
 \hsfigdef[lastLiveOut.1]{lastLiveOut}{haskell.def.lastLiveOut}% context figure
 \hsfigdef{LastOuts}{haskell.def.LastOuts}% context figure
+\hspagedef{LastSwitch}{haskell.def.LastSwitch}% context document
 \hspagedefll{lattice}{haskell.def.lattice}% context document
 \hsfigdefll[assign.avail.1]{lhs}{haskell.def.lhs}% context figure
 \hsprelude{liftM}{Prelude}% context prelude
@@ -111,16 +130,19 @@
 \hsfigdefll{live}{haskell.def.live}% context figure
 \hsfigdef[liveLattice]{liveLattice}{haskell.def.liveLattice}% context figure
 \hsfigdef{liveTransfers}{haskell.def.liveTransfers}% context figure
+\hspagedef{LocalVar}{haskell.def.LocalVar}% context document
 \hsfigdef{LOFsKont}{haskell.def.LOFsKont}% context figure
 \hsprelude{map}{Prelude}% context prelude
 \hsprelude{mapM\_}{Prelude}% context prelude
 \hsprelude{Maybe}{Prelude}% context prelude
 \hsfigdef[maybe.reload.before.1]{maybe\_reload\_before}{haskell.def.maybe:unreload:unbefore}% context figure
 \hsfigdefll{mid}{haskell.def.mid}% context figure
+\hspagedef{MidAssign}{haskell.def.MidAssign}% context document
 \hsfigdefll{middle}{haskell.def.middle}% context figure
 \hsfigdef{middleAvail}{haskell.def.middleAvail}% context figure
 \hsfigdef[middleLiveness]{middleLiveness}{haskell.def.middleLiveness}% context figure
 \hsfigdef{middleRemoveDeads}{haskell.def.middleRemoveDeads}% context figure
+\hspagedef{MidStore}{haskell.def.MidStore}% context document
 \hspagedef{mkLabel}{haskell.def.mkLabel}% context document
 \hspagedef{mkLast}{haskell.def.mkLast}% context document
 \hspagedef{mkMiddle}{haskell.def.mkMiddle}% context document
@@ -131,6 +153,7 @@
 \hsprelude{not}{Prelude}% context prelude
 \hsprelude{Nothing}{Prelude}% context prelude
 \hsfigdefll[deadRewrites.1]{nothing}{haskell.def.nothing}% context figure
+\hsfigdef{O}{haskell.def.O}% context figure
 \hsfigdefll{old}{haskell.def.old}% context figure
 \hspagedef{PassName}{haskell.def.PassName}% context document
 \hsfigdefll[mkMiddle]{rel}{haskell.def.rel}% context figure
@@ -162,6 +185,7 @@
 \hsfigdef[solve.first.sig]{solve\_first}{haskell.def.solve:unfirst}% context figure
 \hsfigdef[solve.last.sig]{solve\_last}{haskell.def.solve:unlast}% context figure
 \hsfigdef[solve.mid.1]{solve\_mid}{haskell.def.solve:unmid}% context figure
+\hsfigdef[solve.OO.def]{solve\_OO}{haskell.def.solve:unOO}% context figure
 \hsfigdef[solve.Ox]{solve\_Ox}{haskell.def.solve:unOx}% context figure
 \hsfigdef{SomeChange}{haskell.def.SomeChange}% context figure
 \hsfigdefll[forward.sol.args]{start\_facts}{haskell.def.start:unfacts}% context figure
@@ -183,6 +207,7 @@
 \hspagedef{UserOfLocalVars}{haskell.def.UserOfLocalVars}% context document
 \hsfigdefll{vars}{haskell.def.vars}% context figure
 \omithspagedef{VarSet\textrm{~(a~type)}}{haskell.def.VarSet}% context document
+\omithsfigdef{varSetToList :: VarSet -> [LocalVar]}{haskell.def.varSetToList}% context figure
 \hspagedef{withDuplicateFuel}{haskell.def.withDuplicateFuel}% context document
 \hspagedef{with\_fuel}{haskell.def.with:unfuel}% context document
 \hspagedef{zdfFpContents}{haskell.def.zdfFpContents}% context document
@@ -191,31 +216,7 @@
 \hspagedef{zdfRewriteFwd}{haskell.def.zdfRewriteFwd}% context document
 \hspagedef{zdfSolveBwd}{haskell.def.zdfSolveBwd}% context document
 \hspagedef{zdfSolveFwd}{haskell.def.zdfSolveFwd}% context document
-\nothslinedef{Block}{haskell.firstuse.Block}% used but not defined
-\nothspagedef{CmmLoad}{haskell.firstuse.CmmLoad}% used but not defined
-\nothspagedef{CmmLocal}{haskell.firstuse.CmmLocal}% used but not defined
-\nothspagedef{CmmReg}{haskell.firstuse.CmmReg}% used but not defined
-\nothspagedef{Const}{haskell.firstuse.Const}% used but not defined
-\nothspagedef{emptyGraph}{haskell.firstuse.emptyGraph}% used but not defined
-\nothspagedef{env}{haskell.firstuse.env}% used but not defined
-\nothspagedef{filterVarsUsed}{haskell.firstuse.filterVarsUsed}% used but not defined
-\nothspagedef{Graph}{haskell.firstuse.Graph}% used but not defined
 \nothspagedef{isStackSlot}{haskell.firstuse.isStackSlot}% used but not defined
 \nothspagedef{isStackSlotOf}{haskell.firstuse.isStackSlotOf}% used but not defined
-\nothspagedef{Last}{haskell.firstuse.Last}% used but not defined
-\nothspagedef{LastBranch}{haskell.firstuse.LastBranch}% used but not defined
-\nothspagedef{LastCall}{haskell.firstuse.LastCall}% used but not defined
-\nothspagedef{LastCondBranch}{haskell.firstuse.LastCondBranch}% used but not defined
-\nothslinedef{LastNode}{haskell.firstuse.LastNode}% used but not defined
-\nothslinedef{LastOutFacts}{haskell.firstuse.LastOutFacts}% used but not defined
-\nothspagedef{LastSwitch}{haskell.firstuse.LastSwitch}% used but not defined
-\nothslinedef{LocalVar}{haskell.firstuse.LocalVar}% used but not defined
-\nothspagedef{MidAssign}{haskell.firstuse.MidAssign}% used but not defined
-\nothspagedef{Middle}{haskell.firstuse.Middle}% used but not defined
-\nothspagedef{MidStore}{haskell.firstuse.MidStore}% used but not defined
-\nothspagedef{NoRewrite}{haskell.firstuse.NoRewrite}% used but not defined
 \nothspagedef{reload}{haskell.firstuse.reload}% used but not defined
-\nothslinedef{solve\_OO}{haskell.firstuse.solve:unOO}% used but not defined
-\nothspagedef{Var}{haskell.firstuse.Var}% used but not defined
 \nothspagedef{variableOfSlot}{haskell.firstuse.variableOfSlot}% used but not defined
-\nothspagedef{varSetToList}{haskell.firstuse.varSetToList}% used but not defined
