@@ -1,0 +1,186 @@
+Dear Prof. Norman Ramsey:
+
+Final versions of the reviews for your submission
+
+      Dataflow Optimization Made Simple
+
+are at the bottom of this mail. I hope you will find them
+useful.
+
+Please note that in some cases these reviews have been
+updated since the author response period.  Also, additional
+reviews may have been received after the response period 
+ended; if this was the case, the committee took note of the
+fact that you did not have the opportunity to respond to
+them.
+
+Again, if you have any additional questions, please feel free 
+to contact me.
+
+
+Sincerely,
+Andrew Tolmach 
+PC Chair
+
+============================================================================ 
+ICFP 2009 Reviews for Submission #8
+============================================================================ 
+
+Title: Dataflow Optimization Made Simple
+
+Authors: Norman Ramsey, Joao Dias and Simon Peyton Jones
+============================================================================
+                            REVIEWER #1
+============================================================================ 
+
+
+---------------------------------------------------------------------------
+Comments
+---------------------------------------------------------------------------
+
+The authors present "a Haskell library that makes it easy for compiler writers
+to implement program transformations based on dataflow analyses".
+
+Although the main goal of the paper is interesting, I think that the authors'
+proposal is not so general as claimed in the abstract (and 
+expected for a general Haskell library). 
+
+>From a theoretical point of view, it does not introduce anything really new
+(the theoretical basis comes from a POPL'02 paper by Lerner, Grove, and
+Chambers). 
+
+>From a practical point of view, I find the following drawbacks:
+
+1.- Although a general purpose library is claimed to be given, 
+the development focuses on some few (already known) program analyses 
+and optimizations which are defined and described for C--, 
+a particular compiler-target intermediate language  
+which (as far as I know) is not widely used.
+Actually, at the end of the abstract it is said that
+this library is the "workhorse of a new backend for GHC".
+
+2.- Many types, functions and data structures are not defined in the paper.
+For instance, the types VarSet or Middle (together with some data constructors
+like MidAssign, CmmLocal, CmmLoad, etc., and defined functions like aTx, noTx, 
+etc.) in Figures 3 to 7 seem to be part of the types which are used 
+in the current implementation of GHC (this is explicit for Middle as one can 
+read in the but last paragraph of the second column in page 5) or in a full
+description of the library which is not available anywhere (at least I found
+no link to any additional information about them). This makes the code in 
+Figures 3 to 7 more difficult to read and understand and, again, more difficult
+
+to generalize to compilers of other programming languages different from C—
+
+3.- It is unclear to me how the optimization of the target code is achieved
+by using the proposed functions. The focus is on the dataflow graph but 
+nothing is said about how this graph is obtained from the unoptimized code
+and how an optimized target code is obtained from the transformed/rewritten
+graph.
+
+Overall, the paper is very well-written. I also find interesting the 
+ideas dropped in the Conclusions, and have no doubt that FP can export 
+many ideas and techniques  for optimizing compilers of more 'traditional'
+programming languages.        However, I failed to see how the proposed 
+library helps to achieve this since, in my opinion, it
+seems to be conceived just to serve the GHC compiler.
+
+============================================================================
+                            REVIEWER #2
+============================================================================ 
+
+
+---------------------------------------------------------------------------
+Comments
+---------------------------------------------------------------------------
+
+This paper presents a Haskell library for implementing a general
+dataflow analysis and optimization through examples and describes 
+its  implementation. 
+
+The introductory part of sections 1 - 6 contains a nice introduction
+to dataflow optimization, and convincing argument on ease of
+developing variety of dataflow optimizers using the presented
+library. However, the presented library appears to be a
+straightforward porting of Ramsey and Dias's dataflow infrastructure
+based on applicative representation of control flow graph based on
+Huet's Zipper.        Data representation and the structures of the
+optimization engine appears to be quite similar, and it is unclear
+what the new technical contributions are. In addition, the description
+of the dataflow engine in Section 7 of is not very clear due to lack
+of proper explanation. For example, readers would have some difficulty
+in  understanding the importance and relevance of the data types such
+as "Block", "ZTail" and "Zhead" unless they were already familiar with
+the underlying Zipper style representation of control flow graph with
+the corresponding definitions (ie, "block", "head" and "tail") given
+in Ramsey and Dias's original article. 
+
+I understand that sometimes republishing a workshop paper in ICFP 
+would be appropriate especially when the workshop is limit visibility,
+but this may not be the case. The audience of ML workshop
+significantly overlap with those of ICFP and that the proceeding of ML
+2005 has been published in Elsevier's Electronic Notes in Theoretical
+Computer Science, which is widely available and archival publication. 
+
+As such, I doubt that this paper contains enough original contribution
+appropriate for publication in ICFP 2009.
+
+============================================================================
+                            REVIEWER #3
+============================================================================ 
+
+
+---------------------------------------------------------------------------
+Comments
+---------------------------------------------------------------------------
+
+This paper describes the design and Haskell implementation of a generic library
+for dataflow analysis and code transformations. Examples of classic dataflow
+analyses expressed using the library are shown and appear remarkably compact.  
+
+A distinguishing feature of this library is that it supports combined analysis
+and transformation, whereas the result of the analysis anticipates the effect
+of the code transformation.  This follows the approach proposed by Lerner et al
+in 2002.  It is pointed out that this enables combining several
+analysis/transformation passes in one, but no example is given.  The only
+example given where analyze&transform gives better results than
+analyze-then-transform is dead code elimination by liveness analysis, but as
+noted in footnote 1 it was already known how to achieve the same result using a
+standard analyze-only dataflow solver.
+
+80% of the paper describe the library and its use.  The remaining 20% read more
+like a lecture on dataflow analysis, presented as inference of (certain classes
+of) logical assertions.  I wasn't completely convinced by this presentation,
+which I found less penetrating than D. Schmidt's famous "Data flow analysis is
+model checking of abstract interpretations".  More generally, it is surprising
+that abstract interpretation is mentioned nowhere in this paper.
+
+All in all, this is a well-written paper describing a very solid piece of
+compiler engineering, but I didn't see a breakthrough.
+
+Minor comments:
+
+The example in section 4 is a bit mysterious.  Once the set of variables live
+across a function call has been computed (by a standard liveness analysis), it
+is a simple syntactic transformation to insert a spill after each definition
+(of one of those variables) and a reload before each use; no further dataflow
+analyses are needed.  Yes, this can give less precise results than the proposed
+approach if there are multiple definitions of a variable, some live across a
+call and some not (can this happen in GHC's intermediate code?).  But, still,
+the hard part about spilling and reloading is to eliminate multiple reloads in
+areas of code where register pressure is low, e.g.
+
+     x = ...
+
+     spill(x)
+
+     ...
+
+     reload(x)
+
+     y = ... x ...
+
+     // do not reload(x) again if register pressure is low
+
+     z = ... x ...
+
+I didn't see whether / how the proposed approach could do this.
