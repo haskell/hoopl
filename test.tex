@@ -1,0 +1,399 @@
+\newif\ifpagetuning \pagetuningtrue  % adjust page breaks
+
+\newif\ifnoauthornotes\noauthornotesfalse
+\newif\iftimestamp\timestamptrue  % show MD5 stamp of paper
+
+\IfFileExists{timestamp.tex}{}{\timestampfalse}
+
+\newif\ifcutting \cuttingtrue % cutting down to submission size
+
+
+\newif\ifgenkill\genkillfalse  % have a section on gen and kill
+\genkillfalse
+
+
+\newif\ifnotesinmargin \notesinmargintrue 
+\IfFileExists{notesinline.tex}{\notesinmarginfalse}{\relax}
+
+\documentclass[blockstyle,preprint,natbib,nocopyrightspace]{sigplanconf}
+
+\newcommand\ourlib{Hoople}  % also Hoppy, Hoopt, Hoopl
+   % higher-order optimization library
+\let\hoopl\ourlib
+
+\newcommand\vfilbreak[1][\baselineskip]{%
+  \vskip 0pt plus #1 \penalty -200 \vskip 0pt plus -#1 }
+
+\usepackage{alltt}
+\usepackage{array}
+\newcommand\lbr{\char`\{}
+\newcommand\rbr{\char`\}}
+ 
+\clubpenalty=10000
+\widowpenalty=10000
+
+\usepackage{verbatim} % allows to define \begin{smallcode}
+\newenvironment{smallcode}{\par\unskip\small\verbatim}{\endverbatim}
+
+\newcommand\lineref[1]{line~\ref{line:#1}}
+\newcommand\linepairref[2]{lines \ref{line:#1}~and~\ref{line:#2}}
+\newcommand\linerangeref[2]{\mbox{lines~\ref{line:#1}--\ref{line:#2}}}
+\newcommand\Lineref[1]{Line~\ref{line:#1}}
+\newcommand\Linepairref[2]{Lines \ref{line:#1}~and~\ref{line:#2}}
+\newcommand\Linerangeref[2]{\mbox{Lines~\ref{line:#1}--\ref{line:#2}}}
+
+\makeatletter
+
+\let\c@table=\c@figure % one counter for tables and figures, please
+
+\newcommand\setlabel[1]{%
+  \setlabel@#1!!\@endsetlabel
+}
+\def\setlabel@#1!#2!#3\@endsetlabel{%
+  \ifx*#1*% line begins with label or is empty
+     \ifx*#2*% line is empty
+        \verbatim@line{}%
+     \else
+       \@stripbangs#3\@endsetlabel%
+       \label{line:#2}%
+     \fi
+  \else
+     \@stripbangs#1!#2!#3\@endsetlabel%
+  \fi
+}
+\def\@stripbangs#1!!\@endsetlabel{%
+  \verbatim@line{#1}%
+}
+
+
+\verbatim@line{hello mama}
+
+\newcounter{codeline}
+\newenvironment{numberedcode}
+  {\endgraf
+     \def\verbatim@processline{%
+        \noindent
+        \expandafter\ifx\expandafter+\the\verbatim@line+  % blank line
+               {\small\textit{\def\rmdefault{cmr}\rmfamily\phantom{00}\phantom{: \,}}}%
+            \else
+               \refstepcounter{codeline}%
+               {\small\textit{\def\rmdefault{cmr}\rmfamily\phantom{00}\llap{\arabic{codeline}}: \,}}%
+            \fi
+        \expandafter\setlabel\expandafter{\the\verbatim@line}%
+        \the\verbatim@line\par}%
+   \verbatim
+   }
+   {\endverbatim}
+
+\makeatother
+
+\newcommand\arrow{\rightarrow}
+
+\newcommand\join{\sqcup}
+\newcommand\slotof[1]{\ensuremath{s_{#1}}}
+\newcommand\tempof[1]{\ensuremath{t_{#1}}}
+\let\tempOf=\tempof
+\let\slotOf=\slotof
+
+\makeatletter
+\newcommand{\nrmono}[1]{%
+  {\@tempdima = \fontdimen2\font\relax
+   \texttt{\spaceskip = 1.1\@tempdima #1}}}
+\makeatother
+
+\usepackage{times}  % denser fonts
+\renewcommand{\ttdefault}{aett} % \texttt that goes better with times fonts
+\usepackage{enumerate}
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{natbib}  % redundant for Simon
+\bibpunct();A{},
+\let\cite\citep
+\let\citeyearnopar=\citeyear
+\let\citeyear=\citeyearpar
+
+\usepackage[ps2pdf,bookmarksopen,breaklinks,pdftitle=dataflow-made-simple]{hyperref}
+
+\newcommand\naive{na\"\i ve}
+
+\usepackage{amsfonts}
+\newcommand\naturals{\ensuremath{\mathbb{N}}}
+\newcommand\true{\ensuremath{\mathbf{true}}}
+\newcommand\implies{\supseteq}  % could use \Rightarrow?
+
+\newcommand\PAL{\mbox{C{\texttt{-{}-}}}}
+\newcommand\high[1]{\mbox{\fboxsep=1pt \smash{\fbox{\vrule height 6pt
+   depth 0pt width 0pt \leavevmode \kern 1pt #1}}}}
+
+\usepackage{tabularx}
+
+% Put figures in boxes --- WHY??? --NR
+\usepackage{float}
+\floatstyle{boxed}
+\restylefloat{figure}
+\restylefloat{table}
+
+
+
+% ONE LINE THREE, set \noauthornotestrue to suppress notes (or not)
+
+%\newcommand{\qed}{QED}
+\ifnotesinmargin
+  \long\def\authornote#1{%
+      \ifvmode
+         \marginpar{\raggedright\hbadness=10000
+         \parindent=8pt \parskip=2pt
+         \def\baselinestretch{0.8}\tiny
+         \itshape\noindent #1\par}%
+      \else
+          \unskip\raisebox{-3.5pt}{\rlap{$\scriptstyle\diamond$}}%
+          \marginpar{\raggedright\hbadness=10000
+         \parindent=8pt \parskip=2pt
+         \def\baselinestretch{0.8}\tiny
+         \itshape\noindent #1\par}%
+      \fi}
+\else
+  % Simon: please set \notesinmarginfalse on the first line
+  \long\def\authornote#1{{\em #1\/}}
+\fi
+\ifnoauthornotes
+  \def\authornote#1{\unskip\relax}
+\fi
+
+\newcommand{\simon}[1]{\authornote{SLPJ: #1}}
+\newcommand{\norman}[1]{\authornote{NR: #1}}
+\let\remark\norman
+\def\finalremark#1{\relax}
+% \let \finalremark \remark % uncomment after submission
+\newcommand{\john}[1]{\authornote{JD: #1}}
+\newcommand{\todo}[1]{\textbf{To~do:} \emph{#1}}
+\newcommand\delendum[1]{\unskip\relax}
+
+\newcommand\secref[1]{Section~\ref{sec:#1}}
+\newcommand\secreftwo[2]{Sections \ref{sec:#1}~and~\ref{sec:#2}}
+\newcommand\seclabel[1]{\label{sec:#1}}
+
+\newcommand\figref[1]{Figure~\ref{fig:#1}}
+\newcommand\figlabel[1]{\label{fig:#1}}
+
+\newcommand\tabref[1]{Table~\ref{tab:#1}}
+\newcommand\tablabel[1]{\label{tab:#1}}
+
+
+\newcommand{\CPS}{\textbf{StkMan}}    % Not sure what to call it.
+
+
+\usepackage{code}   % At-sign notation
+
+\iftimestamp
+\input{timestamp}
+\preprintfooter{\mdfivestamp}
+\fi
+
+\begin{document}
+\title{\ourlib: Dataflow Optimization Made Simple}
+%\subtitle{\today}
+
+\authorinfo{Norman Ramsey}{Tufts University}{nr@cs.tufts.edu}
+\authorinfo{Jo\~ao Dias}{Tufts University}{dias@cs.tufts.edu}
+\authorinfo{Simon Peyton Jones}{Microsoft Research}{simonpj@microsoft.com}
+
+
+\maketitle
+ 
+\begin{abstract}
+We present \ourlib, a Haskell library that makes it easy for compiler writers
+to implement program transformations based on dataflow analyses.
+The compiler writer must identify (a)~a family of logical assertions
+on which the transformation will be based;
+(b)~an {approximate}
+representation of such assertions, which
+must have a lattice structure such that every assertion can be increased at
+most finitely many times;
+(c)~transfer functions that approximate weakest preconditions or
+strongest postconditions over the assertions; and
+(d)~rewrite functions whose soundness is justified by the assertions.
+%%  To~guide compiler writers,
+%%  we show how dataflow analyses are related to
+%%  seminal work on program 
+%%  correctness. \simon{The ``next 700'' section sort of does so, but I'm not 
+%%  sure it deserves mention in the abstract.}
+\ourlib\ uses the algorithm of 
+\citet{lerner-grove-chambers:2002}, which enables compiler writers to
+compose very simple analyses and transformations in a way that achieves
+the same precision as complex, handwritten
+``super-analyses.''
+\ourlib\ is the workhorse of a new
+back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
+\end{abstract}
+
+\makeatactive  
+
+\section{Introduction}
+
+If you write a compiler for an imperative language, you can exploit
+many years' work on code improvement, also called
+``optimization.''
+But the work is typically presented
+as a collection of apparently unrelated analyses and
+transformations, each with its own name---and 
+it's not always easy to
+remember how something like
+``copy propagation'' differs from ``constant propagation.''
+%Many presentations obscure fundamental principles of
+%code improvement.
+%
+But~most optimizations
+work by applying reasoning techniques that have long been understood
+and used 
+to reason about programs:
+assertions about states, assertions about continuations, and
+substitution of equals for equals. 
+What distinguishes dataflow optimization from classic formal reasoning
+about programs is that in dataflow optimization, all assertions are
+computed automatically, and they are
+\emph{approximated}. 
+
+This paper presents \ourlib\ (higher-order optimization library), 
+a Haskell library the implements dataflow optimizations using
+simple representations of assertions and the functions that transform
+them.
+Its contributions are as follows:
+%The contribution of this paper is to elucidate a large body of work on code
+%improvement; the body of work known as ``dataflow optimization.''
+%This paper makes two contributions:
+\begin{itemize}
+\item
+\ourlib\ is engineered to make it \emph{easy} to implement
+dataflow-based 
+code-improvement techniques, even in a purely functional setting.
+When built on \ourlib, analyses and transformations
+are small, simple, and easy to get right.
+\item 
+Using the sophisticated algorithm of \citet{lerner-grove-chambers:2002},
+ which is \emph{not} easy to get right,
+\ourlib\ \emph{interleaves} analysis and transformation.
+Our new implementation, which uses generalized
+algebraic data 
+types
+and continuation-passing style,
+%By~exploiting Strachey's ideas about compositional semantics and
+%the extra type checking possible with GADTs, we implement
+expresses the algorithm with a clarity and a degree of
+static checking that has not 
+previously been achieved.
+\item
+\ourlib's polymorphic, higher-order design makes it easier to reuse
+these techniques than ever before.
+\end{itemize}
+%
+\hoopl\ is designed to help optimize imperative procedures (after
+inlining). 
+\ourlib\ supports local-level codes with arbitrary control flow,
+including intermediate 
+languages and machine 
+languages.
+As \citet{benitez-davidson:portable-optimizer} have shown, all the
+classical scalar and loop optimizations can be performed over such
+codes.
+
+
+
+We introduce the subject by analyzing and transforming example code 
+(\secref{example:xforms}),
+thinking about and justifying classical optimizations using
+Hoare logic and substitution of equals for equals.
+To~support our claim that \ourlib\ makes dataflow optimization easy, 
+we explain how
+to create new dataflow analyses and transformations
+(\secref{making-simple}), and we show complete implementations of significant
+analyses (\secref{example-analyses}) and transformations
+(\secref{example-rewrites}) from the Glasgow Haskell Compiler.
+We spend less space on our new implementation of interleaving (\secref{engine}).
+
+
+\section{Dataflow analysis {\&} transformation by \rlap{example}}
+
+\seclabel{example:transforms}
+\seclabel{example:xforms}
+
+In dataflow optimization, code-improving transformations are justified
+by assertions about programs;
+such assertions are often computed using
+strongest postconditions or weakest liberal preconditions.
+Typical transformations are
+insert assignments to unobserved variables,
+substitute equals for equals, 
+and
+remove assignments to unobserved variables.
+Insertion and removal can be composed to achieve 
+``code motion.''
+The examples below express classical code
+improvements by composing small analyses and transformations.
+
+
+
+\begin{figure}
+\begin{code}
+type O  -- marks graph as open   at entry or exit
+type C  -- marks graph as closed at entry or exit
+type GF middle last entry exit -- graph or subgraph
+type Graph middle last = GF middle last O C
+\end{code}
+
+\caption{Types of graphs and subgraphs}
+\figlabel{subgraphs}
+%\end{figure}
+
+%\begin{figure}
+\begin{code}
+type Rewrite m l e x = Maybe (GF m l e x)
+data ForwardRewrites m last a = ForwardRewrites
+ {fr_first  :: BlockId -> a -> Rewrite m l C O,
+  fr_middle :: m       -> a -> Rewrite m l O O,
+  fr_last   :: l       -> a -> Rewrite m l O C} 
+
+data BackwardRewrites m l a = BackwardRewrites
+ {br_first  :: BlockId -> a  -> Rewrite m l C O,
+  br_middle :: m       -> a  -> Rewrite m l O O,
+  br_last   :: l -> (BlockId -> a) -> Rewrite m l O C} 
+\end{code}
+\caption{Types of forward and backward rewrite functions.}
+\figlabel{rewrites}
+\label{haskell.def.br:unlast}% automated definition
+\label{haskell.def.br:unmiddle}% automated definition
+\label{haskell.def.br:unfirst}% automated definition
+\label{haskell.def.BackwardRewrites}% automated definition
+\label{haskell.def.fr:unlast}% automated definition
+\label{haskell.def.fr:unmiddle}% automated definition
+\label{haskell.def.fr:unfirst}% automated definition
+\label{haskell.def.ForwardRewrites}% automated definition
+\label{haskell.def.Rewrite}% automated definition
+\label{haskell.def.Graph}% automated definition
+\label{haskell.def.exit}% automated definition
+\label{haskell.def.entry}% automated definition
+\label{haskell.def.GF}% automated definition
+\label{haskell.def.C}% automated definition
+\label{haskell.def.O}% automated definition
+\label{haskell.firstuse.Rewrite}% automated use
+\label{haskell.firstuse.e}% automated use
+\label{haskell.firstuse.ForwardRewrites}% automated use
+\label{haskell.firstuse.fr:unfirst}% automated use
+\label{haskell.firstuse.fr:unmiddle}% automated use
+\label{haskell.firstuse.fr:unlast}% automated use
+\label{haskell.firstuse.BackwardRewrites}% automated use
+\label{haskell.firstuse.br:unfirst}% automated use
+\label{haskell.firstuse.br:unmiddle}% automated use
+\label{haskell.firstuse.br:unlast}% automated use
+\label{haskell.firstuse.O}% automated use
+\label{haskell.firstuse.C}% automated use
+\label{haskell.firstuse.GF}% automated use
+\label{haskell.firstuse.middle}% automated use
+\label{haskell.firstuse.entry}% automated use
+\label{haskell.firstuse.exit}% automated use
+\end{figure}
+
+
+
+\end{document}
+
