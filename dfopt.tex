@@ -243,18 +243,8 @@ remember how something like
 ``copy propagation'' differs from ``constant propagation.''
 %Many presentations obscure fundamental principles of
 %code improvement.
-
-The contribution of this paper is a Haskell library that makes it easy
-to implement dataflow analyses and the code-improving transformations
-that use them:
 %
-%The contribution of this paper is to elucidate a large body of work on code
-%improvement; the body of work known as ``dataflow optimization.''
-%This paper makes two contributions:
-\begin{itemize}
-\item
-The library's design makes it explicit that
-most optimizations
+But~most optimizations
 work by applying reasoning techniques that have long been understood
 and used 
 to reason about programs:
@@ -264,31 +254,47 @@ What distinguishes dataflow optimization from classic formal reasoning
 about programs is that in dataflow optimization, all assertions are
 computed automatically, and they are
 \emph{approximated}. 
+
+This paper presents \ourlib\ (higher-order optimization library), 
+a Haskell library the implements dataflow optimizations using
+simple representations of assertions and the functions that transform
+them.
+Its contributions are as follows:
+%The contribution of this paper is to elucidate a large body of work on code
+%improvement; the body of work known as ``dataflow optimization.''
+%This paper makes two contributions:
+\begin{itemize}
 \item
-Our library is engineerd to make it \emph{easy} to implement
+\ourlib\ is engineered to make it \emph{easy} to implement
 dataflow-based 
 code-improvement techniques, even in a purely functional setting.
 Analyses and transformations, which use the library,
 are small, simple, and easy to get right.
 \item 
-The library itself
-is built around 
-a sophisticated algorithm can be difficult to implement
-\cite{lerner-grove-chambers:2002}.
-We~present a new implementation which uses generalized algebraic data
-types \cite{xi:guarded-recursive} and continuation-passing style.
-By combining the compositional approach of Christopher Strachey with
-the sophisticated type checking possible with GADTs, we implement this
-algorithm with a degree of clarity and static checking that has not
+Using a sophisticated algorithm which can be difficult to implement
+\cite{lerner-grove-chambers:2002},
+\ourlib\ \emph{interleaves} analysis and transformation.
+We present a new implementation, which by exploiting generalized
+algebraic data 
+types % \cite{xi:guarded-recursive} 
+and continuation-passing style,
+%By~exploiting Strachey's ideas about compositional semantics and
+%the extra type checking possible with GADTs, we implement
+interleaves analyis and transformation with a degree of clarity and
+static checking that has not 
 previously been achieved.
+\item
+\ourlib's polymorphic, higher-order design makes it easier to reuse
+these techniques than ever before.
 \end{itemize}
 %
-We consider code improvements over low-level
-imperative codes, including intermediate languages and machine
+\hoopl\ is designed for
+imperative codes with arbitrary control flow, including intermediate
+languages and machine 
 languages.
-As \citet{benitez-davidson:portable-optimizer} have shown, all the
-classical scalar and loop optimizations can be performed over such
-codes.
+%As \citet{benitez-davidson:portable-optimizer} have shown, all the
+%classical scalar and loop optimizations can be performed over such
+%codes.
 
 
 
@@ -327,8 +333,6 @@ improvements by composing small analyses and transformations.
 
 
 
-\ifpagetuning \enlargethispage{1\baselineskip} \fi 
-    % gets bottoms of columns to match
 
 \subsection{Simple transformations}
 
