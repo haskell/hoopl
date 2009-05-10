@@ -18,6 +18,10 @@
 
 \documentclass[blockstyle,preprint,natbib,nocopyrightspace]{sigplanconf}
 
+\newcommand\ourlib{Hoople}  % also Hoppy, Hoopt, Hoopl
+   % higher-order optimization library
+\let\hoopl\ourlib
+
 \newcommand\vfilbreak[1][\baselineskip]{%
   \vskip 0pt plus #1 \penalty -200 \vskip 0pt plus -#1 }
 
@@ -199,7 +203,7 @@
 \maketitle
  
 \begin{abstract}
-We present a Haskell library that makes it easy for compiler writers
+We present \ourlib, a Haskell library that makes it easy for compiler writers
 to implement program transformations based on dataflow analyses.
 The compiler writer must identify (a)~a family of logical assertions
 on which the transformation will be based;
@@ -215,20 +219,18 @@ strongest postconditions over the assertions; and
 %%  seminal work on program 
 %%  correctness. \simon{The ``next 700'' section sort of does so, but I'm not 
 %%  sure it deserves mention in the abstract.}
-Our library uses the algorithm of 
+\ourlib\ uses the algorithm of 
 \citet{lerner-grove-chambers:2002}, which enables compiler writers to
 compose very simple analyses and transformations in a way that achieves
 the same precision as complex, handwritten
 ``super-analyses.''
-Our library is the workhorse of a new
+\ourlib\ is the workhorse of a new
 back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
 \end{abstract}
 
 \makeatactive   %  Enable @foo@ notation
 
 \section{Introduction}
-
-\ifpagetuning\enlargethispage{\baselineskip}\fi
 
 If you write a compiler for an imperative language, you can exploit
 many years' work on code improvement, also called
@@ -673,7 +675,7 @@ Solve-and-rewrite functions & Us & Us & Two (forward \&\ backward) \\
 
 
 
-Our library defines the types of
+\ourlib\ defines the types of
 control-flow graphs, 
 lattice operations,
 transfer functions, 
@@ -1996,7 +1998,7 @@ data `CmmLast
 \subsection{Rewrite functions}
 
 
-\simon{Our library provides a function
+\simon{\ourlib\ provides a function
 that performs (interleaved) analysis and transformation on the
 graph, which we describe in this section. New paragraph.}
 The heart of a transformation is a triple of
