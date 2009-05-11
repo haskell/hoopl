@@ -258,6 +258,20 @@ function special.code(line, env)
   end
 end
 
+function special.verbatim(line, env)
+  io.write(line, '\n')
+  pushcontext 'verbatim'
+end
+function endspecial.verbatim(line, env)
+  io.write(line, '\n')
+  popcontext 'verbatim'
+end
+for _, env in ipairs { 'smallverbatim', 'alltt' } do
+  special[env] = special.verbatim
+  endspecial[env] = endspecial.verbatim
+end
+
+
 special.numberedcode  = special.code
 special.smallcode     = special.code
 
@@ -300,6 +314,8 @@ while line do
       else
         io.write(line, '\n')
       end
+    elseif context == 'verbatim' then
+      io.write(line, '\n')  -- do not look for defs or uses in verbatim environments
     elseif def then
       add_defn(def)
       write_defn(def)
