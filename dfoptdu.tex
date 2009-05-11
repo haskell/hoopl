@@ -7,7 +7,7 @@
 
 \IfFileExists{timestamp.tex}{}{\timestampfalse}
 
-
+\newif\ifcutting \cuttingtrue % cutting down to submission size
 
 
 \newif\ifgenkill\genkillfalse  % have a section on gen and kill
@@ -19,8 +19,9 @@
 
 \documentclass[blockstyle,preprint,natbib,nocopyrightspace]{sigplanconf}
 
-\newcommand\ourlib{Hoople}  % also Hoppy, Hoopt, Hoopl
+\newcommand\ourlib{Hoopl}  % also Hoppy, Hoopt, Hoopl
    % higher-order optimization library
+   % ('Hoople' was taken -- see hoople.org)
 \let\hoopl\ourlib
 
 \newcommand\vfilbreak[1][\baselineskip]{%
@@ -76,13 +77,17 @@
      \def\verbatim@processline{%
         \noindent
         \expandafter\ifx\expandafter+\the\verbatim@line+  % blank line
-               {\small\textit{\def\rmdefault{cmr}\rmfamily\phantom{00}\phantom{: \,}}}%
+               %{\small\textit{\def\rmdefault{cmr}\rmfamily\phantom{00}\phantom{: \,}}}%
             \else
                \refstepcounter{codeline}%
                {\small\textit{\def\rmdefault{cmr}\rmfamily\phantom{00}\llap{\arabic{codeline}}: \,}}%
             \fi
         \expandafter\setlabel\expandafter{\the\verbatim@line}%
-        \the\verbatim@line\par}%
+        \expandafter\ifx\expandafter+\the\verbatim@line+  % blank line
+          \vspace*{-0.5\baselineskip}\par%
+        \else
+          \the\verbatim@line\par
+        \fi}%
    \verbatim
    }
    {\endverbatim}
@@ -129,11 +134,15 @@
 
 \usepackage{tabularx}
 
-% Put figures in boxes --- WHY??? --NR
-\usepackage{float}
-\floatstyle{boxed}
-\restylefloat{figure}
-\restylefloat{table}
+%%
+%% 2009/05/10: removed 'float' package because it breaks multiple
+%% \caption's per {figure} environment.   ---NR
+%%
+%%  % Put figures in boxes --- WHY??? --NR
+%%  \usepackage{float}
+%%  \floatstyle{boxed}
+%%  \restylefloat{figure}
+%%  \restylefloat{table}
 
 
 
@@ -169,7 +178,7 @@
 % \let \finalremark \remark % uncomment after submission
 \newcommand{\john}[1]{\authornote{JD: #1}}
 \newcommand{\todo}[1]{\textbf{To~do:} \emph{#1}}
-\newcommand\delendum[1]{\unskip\relax}
+\newcommand\delendum[1]{\relax\ifvmode\else\unskip\fi\relax}
 
 \newcommand\secref[1]{Section~\ref{sec:#1}}
 \newcommand\secreftwo[2]{Sections \ref{sec:#1}~and~\ref{sec:#2}}
@@ -193,7 +202,7 @@
 \fi
 
 \begin{document}
-\title{Dataflow Optimization Made Simple}
+\title{\ourlib: Dataflow Optimization Made Simple}
 %\subtitle{\today}
 
 \authorinfo{Norman Ramsey}{Tufts University}{nr@cs.tufts.edu}
@@ -269,19 +278,19 @@ Its contributions are as follows:
 \ourlib\ is engineered to make it \emph{easy} to implement
 dataflow-based 
 code-improvement techniques, even in a purely functional setting.
-Analyses and transformations, which use the library,
+When built on \ourlib, analyses and transformations
 are small, simple, and easy to get right.
 \item 
-Using a sophisticated algorithm which can be difficult to implement
-\cite{lerner-grove-chambers:2002},
+Using the sophisticated algorithm of \citet{lerner-grove-chambers:2002},
+ which is \emph{not} easy to get right,
 \ourlib\ \emph{interleaves} analysis and transformation.
-We present a new implementation, which by exploiting generalized
+Our new implementation, which uses generalized
 algebraic data 
 types
 and continuation-passing style,
 %By~exploiting Strachey's ideas about compositional semantics and
 %the extra type checking possible with GADTs, we implement
-interleaves analyis and transformation with a degree of clarity and
+expresses the algorithm with a clarity and a degree of
 static checking that has not 
 previously been achieved.
 \item
@@ -289,13 +298,15 @@ previously been achieved.
 these techniques than ever before.
 \end{itemize}
 %
-\hoopl\ is designed for
-imperative codes with arbitrary control flow, including intermediate
+\hoopl\ is designed to help optimize imperative procedures (after
+inlining). 
+\ourlib\ supports local-level codes with arbitrary control flow,
+including intermediate 
 languages and machine 
 languages.
-%As \citet{benitez-davidson:portable-optimizer} have shown, all the
-%classical scalar and loop optimizations can be performed over such
-%codes.
+As \citet{benitez-davidson:portable-optimizer} have shown, all the
+classical scalar and loop optimizations can be performed over such
+codes.
 
 
 
@@ -303,13 +314,13 @@ We introduce the subject by analyzing and transforming example code
 (\secref{example:xforms}),
 thinking about and justifying classical optimizations using
 Hoare logic and substitution of equals for equals.
-To~support our claim that we make dataflow optimization easy, 
-we spend most of the paper explaining how
-to create new dataflow analyses or transformations
-(\secref{making-simple}) and showing complete implementations of significant
+To~support our claim that \ourlib\ makes dataflow optimization easy, 
+we explain how
+to create new dataflow analyses and transformations
+(\secref{making-simple}), and we show complete implementations of significant
 analyses (\secref{example-analyses}) and transformations
 (\secref{example-rewrites}) from the Glasgow Haskell Compiler.
-We spend less space on our library's implementation (\secref{engine}).
+We spend less space on our new implementation of interleaving (\secref{engine}).
 
 
 \section{Dataflow analysis {\&} transformation by \rlap{example}}
@@ -321,13 +332,12 @@ In dataflow optimization, code-improving transformations are justified
 by assertions about programs;
 such assertions are often computed using
 strongest postconditions or weakest liberal preconditions.
-The most typical transformations are
-insertion of assignments to unobserved variables,
-substitution of equals for equals, 
+Typical transformations are
+insert assignments to unobserved variables,
+substitute equals for equals, 
 and
-removal of assignments to unobserved variables,
-all of which preserve semantics.
-Insertion and removal can be composed to achieve the effect called
+remove assignments to unobserved variables.
+Insertion and removal can be composed to achieve 
 ``code motion.''
 The examples below express classical code
 improvements by composing small analyses and transformations.
@@ -340,7 +350,10 @@ improvements by composing small analyses and transformations.
 \seclabel{constant-propagation}
 
 Here is a sequence of assignments separated by assertions.
-We compute the assertions by starting with the weakest possible
+We~compute assertions by starting with the weakest 
+\ifcutting\else
+possible
+\fi
 assertion (\texttt{true}) and computing strongest postconditions.
 % \footnote
 {Variables do not alias.}
@@ -362,7 +375,7 @@ In the assignment to~@z@, the assertion @x == 7@ justifies
 \label{haskell.firstuse.z}% automated use
 \label{haskell.firstuse.x}% automated use
 \label{haskell.firstuse.==}% automated use
-substituting 7~for~@x@, leaving @z = 7 + y@.  
+substituting~7 for~@x@, leaving @z = 7 + y@.  
 \label{haskell.firstuse.y}% automated use
 \label{haskell.firstuse.+}% automated use
 This transformation is traditionally called ``constant propagation.''
@@ -372,7 +385,7 @@ equals, leaving the final assignment as
 \begin{verbatim}
   z = 15;
 \end{verbatim}
-The final transformation, although also an instance of substituting equals
+The final transformation, although also it also substitutes equals
 for equals, has a different name: ``constant folding.''
 
 \subsection{A complex transformation}
@@ -404,16 +417,16 @@ although the code is~C:
 \end{verbatim}
 To explain the improvement we wish to make, we show the same
 code at the machine level.
-We write machine-level examples using our low-level compiler-target
+Our examples use our low-level compiler-target
 language,~{\PAL}
-\cite{peyton-jones-ramsey:garbage-collection:inproceedings,peyton-jones-ramsey:exceptions}: 
+\cite{peyton-jones-ramsey:exceptions}: 
 \begin{verbatim}
   sum_r("address" bits32 a, bits32 n) {
        bits64 x; bits32 i;
        x = 0.0;
        i = 0;
    L1: if (i >= n) goto L2;
-       x =
+       x = %fadd(x, bits64[a+i*24]);
        i = i + 1;
        goto L1;
    L2: return x; 
@@ -454,7 +467,7 @@ New code is \high{boxed}\,.
        x = 0.0;
        i = 0; \high{p = a; lim = a + n * 24;}
    L1: if (i >= n) goto L2;
-       x =
+       x = %fadd(x, bits64[a+i*24]);
        i = i + 1; \high{p = p + 24;}
        goto L1;
    L2: return x; 
@@ -472,7 +485,7 @@ equals, resulting in the new code in boxes below:
        x = 0.0;
        i = 0; p = a; lim = a + n * 24;
    L1: if (\high{p >= lim}) goto L2;
-       x =
+       x = %fadd(x, bits64[\kern1pt{}\high{p}\kern1pt{}]);
        i = i + 1; p = p + 24;
        goto L1;
    L2: return x; 
@@ -489,7 +502,7 @@ the assignment
 @i = i + 1@ in the loop body,
 because the value of~@i@ could be used by the next iteration of the
 loop.
-But we use Lerner, Grove, and Chambers's
+But~we use Lerner, Grove, and Chambers's
 \citeyearpar{lerner-grove-chambers:2002} algorithm to
 \emph{interleave} liveness analysis with 
 ``dead-assignment elimination.'' \seclabel{interleave-introduced}%
@@ -527,7 +540,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
      x = 0.0;
      \high{i = 0;} p = a; lim = a + n * 24;
  L1: if ({p >= lim}) goto L2;
-     x =
+     x = %fadd(x, bits64[{p}]);
      \high{i = i + 1;} p = p + 24;
      goto L1;
  L2: return x; 
@@ -543,7 +556,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
      x = 0.0;
      p = a; lim = a + n * 24;
  L1: if ({p >= lim}) goto L2;
-     x =
+     x = %fadd(x, bits64[{p}]);
      p = p + 24;
      goto L1;
  L2: return x; 
@@ -623,8 +636,9 @@ state at that point.
 
 
 A~program point is represented as an edge in
-a \emph{control-flow graph}.\footnote
-{We discuss only intraprocedural optimization, done after inlining.}
+a \emph{control-flow graph}.
+%%\footnote
+%%{We discuss only intraprocedural optimization, done after inlining.}
 %%
 %%interprocedural optimizations are the work of the GHC~inliner
 %%\cite{peyton-jones:secrets-inliner}.} 
@@ -659,7 +673,7 @@ create a \emph{rewrite function}, which is presented with a
 flow-graph node and with the dataflow facts on the edges coming
 into that node.
 The function either suggests that the node should be replaced with a
-fresh subgraph, or it leaves the node alone.
+fresh subgraph, or it leaves the node alone (\secref{rewrites}).
 The rewrite function uses incoming facts to guarantee that
 any proposed replacement preserves semantics.
 For example, in \secref{constant-propagation} the fact @x == 7@ is
@@ -685,7 +699,7 @@ Iterative solver functions & Us & Us & Two (forward \&\ backward) \\
 Solve-and-rewrite functions & Us & Us & Two (forward \&\ backward) \\
 \end{tabular}%
 }
-\caption{Parts of an optimizer}
+\caption{Parts of an optimizer built with \ourlib}
 \tablabel{parts}
 \end{table}
 
@@ -699,16 +713,16 @@ and
 rewrite functions.
 {All}~these types are parameterized by the types of
 nodes in the control-flow graph, which \emph{you} get to define, so you can use
-the library with many intermediate languages (\tabref{parts}).
+\ourlib\ with many intermediate languages (\tabref{parts}).
 Function types are also parameterized by the type of dataflow
 facts, so you can define different analyses, 
 using different types of facts,
 all operating over one type of graph. 
 
-\tabref{parts} shows how our code interacts with your client code.
+\tabref{parts} shows how \ourlib\ interacts with your client code.
 You~pass lattice
 operations, transfer functions, and rewrite functions
-to the part of our library we call the \emph{dataflow engine}.
+to the part of \ourlib\ we call the \emph{dataflow engine}.
 The dataflow engine includes
 \emph{solver functions}, 
 which use a forward or backward \emph{analysis} to compute 
@@ -777,8 +791,6 @@ We~notate this fact as $x = \top$.
 The analysis shows nothing about~$x$, which we notate $x=\bot$.
 \end{itemize}
 The bottom element of the lattice is~$x=\bot$, and
-\remark{I have a note saying ``it turns out that,'' but I've forgotten where
-this phrase was supposed to be inserted.}
 the join operation \emph{approximates} disjunction:\simon{No emphasis needed.}
 a~disjunction of two inconsistent facts is represented by~$x=\top$.
 \simon{I'd still like to give an intuition here about
@@ -818,15 +830,14 @@ fixed point.
 %%  choose a lattice which can say
 %%  that the value of a variable is one of,
 %%  say, at most three constants.
-
 \end{itemize}
 
 The lattice  used by the analysis is the Cartesian product of the
 lattices for all the local variables.
 We~represent this lattice as a finite map from variable
 to a value of type \icode|Maybe Const|.
-If~a variable $x$ is not in the domain of the map then $x=\bot$;
-if $x$~maps to @Nothing@ then $x=\top$; if $x$~maps to $@Just@\;k$ then
+A~variable $x$ is not in the domain of the map iff $x=\bot$;
+$x$~maps to @Nothing@ iff $x=\top$; $x$~maps to $@Just@\;k$ iff
 \label{haskell.firstuse.Nothing}% automated use
 \label{haskell.firstuse.Just}% automated use
 $x=k$.
@@ -841,7 +852,7 @@ reach a fixed point.
 
 
 
-The dataflow engine uses the lattice join operation in a stylized way.
+The dataflow engine uses the lattice's join operation in a stylized way.
 Joins occur at labels.
 If~$f_{\mathit{id}}$ is the fact currently associated with the
 label~$\mathit{id}$, 
@@ -872,18 +883,19 @@ and @fact_name@  is used for debugging.
 \begin{figure}
 \begin{code}
 newtype LastOuts a = LastOuts [(BlockId, a)]
-data ForwardTransfers mid last a = ForwardTransfers
+data ForwardTransfers m l a = ForwardTransfers
  {ft_first_out  :: BlockId -> a -> a,
-  ft_middle_out :: mid     -> a -> a,
-  ft_last_outs  :: last    -> a -> LastOuts a} 
+  ft_middle_out :: m       -> a -> a,
+  ft_last_outs  :: l       -> a -> LastOuts a} 
 
-data BackTransfers mid last a = BackTransfers
+data BackTransfers m l a = BackTransfers
  {bt_first_in  :: BlockId -> a              -> a,
-  bt_middle_in :: mid     -> a              -> a,
-  bt_last_in   :: last    -> (BlockId -> a) -> a} 
+  bt_middle_in :: m       -> a              -> a,
+  bt_last_in   :: l       -> (BlockId -> a) -> a} 
 \end{code}
 \caption{Transfer functions for forward and backward analyses.}
 \figlabel{transfers}
+\ifpagetuning\vspace*{-1ex}\fi
 %
 % elided: 
 %    ft_exit_out   ::            a -> a
@@ -895,15 +907,15 @@ data BackTransfers mid last a = BackTransfers
 \label{haskell.def.ft:unlast:unouts}% automated definition
 \label{haskell.def.ft:unmiddle:unout}% automated definition
 \label{haskell.def.ft:unfirst:unout}% automated definition
-\label{haskell.def.last}% automated definition
-\label{haskell.def.mid}% automated definition
+\label{haskell.def.l}% automated definition
+\label{haskell.def.m}% automated definition
 \label{haskell.def.ForwardTransfers}% automated definition
 \label{haskell.def.LastOuts}% automated definition
 \label{haskell.firstuse.LastOuts}% automated use
 \label{haskell.firstuse.BlockId}% automated use
 \label{haskell.firstuse.ForwardTransfers}% automated use
-\label{haskell.firstuse.mid}% automated use
-\label{haskell.firstuse.last}% automated use
+\label{haskell.firstuse.m}% automated use
+\label{haskell.firstuse.l}% automated use
 \label{haskell.firstuse.^}% automated use
 \label{haskell.firstuse.ft:unfirst:unout}% automated use
 \label{haskell.firstuse.ft:unmiddle:unout}% automated use
@@ -921,24 +933,26 @@ data BackTransfers mid last a = BackTransfers
 A~transfer function is presented with dataflow facts on edges coming
 into a node, and it computes dataflow facts on outgoing edges.
 To~understand transfer functions, we must 
-understand how the library organize the nodes and edges of a control-flow graph.
+understand how \ourlib\ organizes the nodes and edges of a control-flow graph.
 
 \seclabel{graph.intro}
 
-A~control-flow graph is a collection of labelled \emph{basic blocks}.
-Each basic block is a sequence beginning with a \emph{first node},
+A~control-flow graph is a collection of \emph{basic blocks}, each
+labelled with a~@BlockId@.
+\label{haskell.def.BlockId}% automated definition
+A~basic block is a sequence beginning with a \emph{first node},
 containing zero or more \emph{middle nodes},
 and ending in a \emph{last node}.
-(An~optimizer also works with \emph{subgraphs}, which may be missing a
-first node or a last node, as discussed in \secref{subgraphs}.)
-A~first node is always a label;
+(An~optimizer also works with \emph{subgraphs}, which,
+as~discussed in \secref{subgraphs},  may omit an initial
+first node or a final last node.)
+A~first node is always a @BlockId@;
 a~typical middle node assigns to a register or memory
 location;
+and
 a~typical last node is a conditional, unconditional, or indirect branch.
 You choose the types of middle and last nodes to suit your
-intermediate representation; if these types are @m@~and~@l@, the type
-\label{haskell.firstuse.m}% automated use
-\label{haskell.firstuse.l}% automated use
+intermediate representation; if~these types are @m@~and~@l@, the type
 of a basic block is @Block m l@.
 \label{haskell.def.Block}% automated definition
 \label{haskell.firstuse.Block}% automated use
@@ -964,25 +978,22 @@ For each type of node (first, middle, last) and for each kind of
 analysis (forward, backward), there is a distinct transfer function.
 Functions are grouped by kind of analysis, and each group is
 parameterized over a dataflow fact of type~@a@ and over the types
-@mid@ and @last@ of middle and last nodes.  
+@m@~and~@l@ of middle and last nodes.  
 
 
-The type @BlockId@ represents a label.
-\label{haskell.def.BlockId}% automated definition
-Because a fact in a forward analysis typically represents an assertion
+A fact in a forward analysis typically represents an assertion
 about program state,
- and because passing a label does not change
-program state, the transfer function @ft_first_out@ is typically 
+ and because a label does not change
+program state, the transfer function @ft_first_out@ is often
 @flip const@---a variation on
 \label{haskell.firstuse.flip}% automated use
 \label{haskell.firstuse.const}% automated use
 the
 identity function.\footnote
-{One counterexample is an atypical
-analysis, similar to a dominator analysis,
-which helps us convert {\PAL} to continuation-passing style.
-The  analysis
-helps us avoid duplicating code that is common to multiple continuations.
+{Not every fact is about program state,
+so not every forward analysis can ignore labels.
+For example, dominator analysis and other all-paths analyses often
+compute a set of labels through which control may (or must) pass.
 }
 For a middle node, the transfer function @ft_middle_out@ is given a
 node and a precondition and returns an approximation of the strongest
@@ -1035,10 +1046,10 @@ engine has reached a fixed point.
 
 Given lattice operations of type @DataflowLattice a@
 and transfer functions of type @ForwardTransfers m l a@,
-you can run the corresponding analysis by calling our library
-function @zdfSolveFwd@, a part of our dataflow engine
+you can run the corresponding analysis by calling \ourlib\
+function @zdfSolveFwd@, a~part of our dataflow engine
 \label{haskell.firstuse.zdfSolveFwd}% automated use
-(there is also a @zdfSolveBwd@ with a similar type):
+(backward analyses call @zdfSolveBwd@, which has a similar type):
 \label{haskell.def.zdfSolveBwd}% automated definition
 \label{haskell.firstuse.zdfSolveBwd}% automated use
 \begin{code}
@@ -1059,7 +1070,7 @@ function @zdfSolveFwd@, a part of our dataflow engine
 \label{haskell.firstuse.HavingSuccessors}% automated use
 The function is polymorphic in the types of middle and last nodes
 @m@~and~@l@ and in the type of the dataflow fact~@a@.
-Polymorphism allows our library to work with any intermediate
+Polymorphism allows \ourlib\ to work with any intermediate
 language, but there is a constraint: @HavingSuccessors l@ is satisfied
 \label{haskell.def.HavingSuccessors}% automated definition
 only if there is a function 
@@ -1068,7 +1079,7 @@ only if there is a function
 \end{code}
 \label{haskell.def.succs}% automated definition
 \label{haskell.firstuse.succs}% automated use
-which gives the identifiers of the blocks to which a node of type~@l@
+which gives the labels of the blocks to which a last node of type~@l@
 might transfer control.
 
 After the type constraint, 
@@ -1145,10 +1156,83 @@ zdfFpFacts :: FwdFixedPoint m l a g -> BlockEnv a
 
 
 
+
+\section{Example analysis passes}
+
+\seclabel{example-analyses}
+
+
+We claim that \ourlib\
+makes it easy to write compiler passes based on dataflow.
+Here we support that claim by showing
+implementations of two analyses;
+related transformations appear in \secref{example-rewrites}. 
+The example analyses help solve a real problem in the Glasgow Haskell
+Compiler:
+because most calls are tail calls, GHC uses no 
+callee-saves registers.
+Therefore, at each (rare) non-tail call, all live
+variables must be spilled to the stack.
+In order to reduce register pressure,
+such variables are spilled as early as possible and reloaded as late as possible.
+
+To illustrate the results of the example analyses and transformations,
+here is a contrived example program in the style of \secref{example:xforms}:
+\begin{alltt}
+f (bits32 a) \lbr
+  bits32 w, x, y, z;  // local variables
+  x = a * a;
+  w = a + a + a;
+  y = g(w);           // call; x must be spilled
+  z = y + y;
+  if (y > 0) \lbr
+    return z;
+  \rbr else \lbr
+    return z + x;
+  \rbr
+\rbr
+\end{alltt}
+%\ifpagetuning\par\vfilbreak\fi % this is hell, but if we break here,
+%  downstream suffers
+A~spill and a reload should be inserted as follows:%
+\seclabel{spill-reload-example}
+\newcommand\bigstrut{%
+  \leavevmode\vrule width 0pt height 11pt depth 6pt }
+\begin{alltt}
+f (bits32 a) \lbr
+  bits32 w, x, y, z;  
+  x = a * a;
+  \high{SPILL x;}
+  w = a + a + a;    // no register pressure from x
+  y = g(w);
+  z = y + y;        // no register pressure from x
+  if (y > 0) \lbr
+    return z;       // x does not need reloading
+  \rbr else \lbr
+    \high{RELOAD x;}
+    return z + x;
+  \rbr
+\rbr
+\end{alltt}
+Although the \texttt{SPILL} and \texttt{RELOAD} operations are introduced because of
+the call to @g(a)@, they are moved as far from the call as possible:
+the variable~@x@ is spilled immediately after being assigned @a * a@,
+and @x@ is reloaded not
+immediately after the call to~@g@, but just before its use in the
+expression @z + x@.
+ On the control-flow path to @return z@, @x@~needn't be reloaded
+\label{haskell.firstuse.return}% automated use
+at all.
+
+
 \newcommand\T{\rule{0pt}{0.6ex}}
 \newcommand\B{\rule[-0.05ex]{0pt}{0pt}}
+\renewcommand\B{\relax\par\unskip\vspace*{0.8ex}%
+  \hrule height 0pt depth 0pt \relax}
+\renewcommand\T{\relax\par\unskip\vspace*{1.0ex}%
+  \hrule height 0pt depth 0pt \relax}
 \newcolumntype{C}{>{\begin{minipage}{5.35in}}l<{\end{minipage}}}
-\newcolumntype{L}{>{\Large\bfseries}m{1.3in}<{\centering}}      
+\newcolumntype{L}{>{\T\Large\bfseries}m{1.3in}<{\centering}}      
 \newenvironment{codetable}
   {\setcounter{codeline}{0}%
    \let\code=\numberedcode
@@ -1168,7 +1252,7 @@ delFromAvail :: AvailVars -> LocalVar  -> AvailVars  -- remove var from set
 elemAvail    :: AvailVars -> LocalVar  -> Bool       -- set membership
 interAvail   :: AvailVars -> AvailVars -> AvailVars  -- set intersection
 !smallerAvail!smallerAvail :: AvailVars -> AvailVars -> Bool       -- compare sizes
-\end{numberedcode}%
+\end{numberedcode}
 \B
 & Dataflow fact and operations\\
 \hline
@@ -1180,7 +1264,7 @@ availVarsLattice = DataflowLattice "reloaded registers" empty add
     where empty = UniverseMinus emptyVarSet
           add new old = let join = interAvail new old in
                         if join `smallerAvail` old then TxRes NoChange join else TxRes SomeChange join
-\end{code}%
+\end{code}
 \B
 & Lattice\\
 \hline
@@ -1214,7 +1298,7 @@ middleAvail :: CmmMiddle -> AvailVars -> AvailVars
 lastAvail :: CmmLast -> AvailVars -> LastOuts AvailVars
 !avail.LastCall!lastAvail (LastCall _ (Just k) _ _) _ = LastOuts [(k, AvailVars emptyVarSet)]
 lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
-\end{code}%
+\end{code}
 \B
 & Transfer \mbox{functions}\\
 \hline
@@ -1225,9 +1309,12 @@ cmmAvailableVars :: Graph CmmMiddle CmmLast -> BlockEnv AvailVars
 cmmAvailableVars g = zdfFpFacts soln
 !avail.solve.1!  where soln = zdfSolveFwd "available variables" availVarsLattice 
 !avail.solve.2!               avail_vars_transfer (fact_bot availVarsLattice) g
-\end{code}%
+\end{code}
 \B
-& Available-variables analysis\\
+&
+\def\baselinestretch{0.8}Available-variables analysis
+%\B
+\\
 %\hline
 
 \end{codetable}
@@ -1303,117 +1390,7 @@ cmmAvailableVars g = zdfFpFacts soln
 \label{haskell.firstuse.interAvail}% automated use
 \label{haskell.firstuse.smallerAvail}% automated use
 \end{figure*}
-% Old captions' text:
-% The dataflow fact for the available-reload analysis describes
-%   the set of registers for which a reload is available.
-%   We list the types of the functions that manipuate sets of available registers,
-%   as well as the definition of the lattice.
-% The standard gen and kill functions for available expressions
-% The transfer functions for the available-reloads analysis.
-% Running the available-reloads analysis and extracting the results with \texttt{zdfFpFacts}
-% The rewrite functions to insert redundant reloads immediately before uses
 
-% Probably no space for the implementations:
-% interAvail (UniverseMinus s) (UniverseMinus s') =
-%   UniverseMinus (s `plusVarSet`  s')
-% interAvail (AvailVars     s) (AvailVars     s') =
-%   AvailVars (s `timesVarSet` s')
-% interAvail (AvailVars     s) (UniverseMinus s') =
-%   AvailVars (s  `minusVarSet` s')
-% interAvail (UniverseMinus s) (AvailVars     s') =
-%   AvailVars (s' `minusVarSet` s )
-% 
-% smallerAvail (AvailVars _) (UniverseMinus _) = True
-% smallerAvail (UniverseMinus _) (AvailVars _) = False
-% smallerAvail (AvailVars     s) (AvailVars    s')  =
-%   sizeVarSet s < sizeVarSet s'
-% smallerAvail (UniverseMinus s) (UniverseMinus s') =
-%   sizeVarSet s > sizeVarSet s'
-% 
-% extendAvail (UniverseMinus s) r =
-%   UniverseMinus (deleteFromVarSet s r)
-% extendAvail (AvailVars     s) r =
-%   AvailVars (extendVarSet s r)
-% 
-% delFromAvail (UniverseMinus s) r =
-%   UniverseMinus (extendVarSet s r)
-% delFromAvail (AvailVars     s) r =
-%   AvailVars (deleteFromVarSet s r)
-% 
-% elemAvail (UniverseMinus s) r =
-%   not $ elemVarSet r s
-% elemAvail (AvailVars     s) r =
-%   elemVarSet r s
-
-
-
-
-\section{Example analysis passes}
-
-\seclabel{example-analyses}
-
-
-We claim that our library
-makes it easy to write compiler passes based on dataflow.
-Here we support that claim by showing
-implementations of two analyses;
-related transformations appear in \secref{example-rewrites}. 
-The example analyses help solve a real problem in the Glasgow Haskell
-Compiler:
-because most calls are tail calls, GHC uses no 
-callee-saves registers.
-Therefore, at each (rare) non-tail call, all live
-variables must be spilled to the stack.
-In order to reduce register pressure,
-such variables are spilled as early as possible and reloaded as late as possible.
-
-To illustrate the results of the example analyses and transformations,
-here is a contrived example program in the style of \secref{example:xforms}:
-\begin{alltt}
-f (bits32 a) \lbr
-  bits32 w, x, y, z;  // local variables
-  x = a * a;
-  w = a + a + a;
-  y = g(w);           // call; x must be spilled
-  z = y + y;
-  if (y > 0) \lbr
-    return z;
-  \rbr else \lbr
-    return z + x;
-  \rbr
-\rbr
-\end{alltt}
-%\ifpagetuning\par\vfilbreak\fi % this is hell, but if we break here,
-%  downstream suffers
-A~spill and a reload should be inserted as follows:%
-\seclabel{spill-reload-example}
-\newcommand\bigstrut{%
-  \leavevmode\vrule width 0pt height 11pt depth 6pt }
-\begin{alltt}
-f (bits32 a) \lbr
-  bits32 w, x, y, z;  
-  x = a * a;
-  \high{SPILL x;}
-  w = a + a + a;    // no register pressure from x
-  y = g(w);
-  z = y + y;        // no register pressure from x
-  if (y > 0) \lbr
-    return z;       // x does not need reloading
-  \rbr else \lbr
-    \high{RELOAD x;}
-    return z + x;
-  \rbr
-\rbr
-\end{alltt}
-Although the \texttt{SPILL} and \texttt{RELOAD} operations are introduced because of
-the call to @g(a)@, they are moved as far from the call as possible:
-the variable~@x@ is spilled immediately after being assigned @a * a@,
-and @x@ is reloaded not
-immediately after the call to~@g@, but just before its use in the
-expression @z + x@.
- On the control-flow path to @return z@, @x@~needn't be reloaded
-\label{haskell.firstuse.return}% automated use
-at all.
 
 
 Spills and reloads are inserted in the right places
@@ -1421,15 +1398,18 @@ by a sequence of three dataflow passes:
 \begin{enumerate}
 \item
 \label{insert-spills}
-A backward analysis computes liveness
+A backward analysis (\figref{liveness} in \secref{liveness}) computes liveness
 to identify the variables that should be spilled at call sites.
-An accompanying transformation inserts reloads immediately after each call
+An accompanying transformation (not shown) inserts reloads immediately
+after each call 
 site and inserts spills not immediately before call sites, but
 rather immediately after the appropriate reaching definitions.
 \item
 \label{reload-duplication}
-A forward analysis finds ``available variables'' which have been reloaded
+A forward analysis (\figref{avail} in \secref{avail}) finds
+``available variables'' which have been reloaded 
 from the stack, and an accompanying transformation
+(\figref{avail-rewrites} in \secref{sink-reloads}) 
 inserts redundant reloads before their uses.
 By keeping variables on the stack longer, this pass reduces register pressure.
 % \simon{Why is the second pass a second pass?  The first
@@ -1441,23 +1421,83 @@ By keeping variables on the stack longer, this pass reduces register pressure.
 % have an up-to-date stack slot.}
 \item
 \label{remove-dead-reloads}
-A backward analysis computes liveness,
-and an accompanying transformation, dead-assignment elimination,
+A backward analysis (the same as in pass~\ref{insert-spills}) computes
+liveness, 
+and an accompanying transformation (\figref{dead-elim} in
+\secref{dead-code-elimination}), dead-assignment elimination, 
 removes redundant reloads.
 \end{enumerate}
-Pass~\ref{insert-spills} is not shown in this paper.
+%%%%%Pass~\ref{insert-spills} is not shown in this paper.
 Passes
 \ref{reload-duplication}~and~\ref{remove-dead-reloads} cooperate to ``sink''
-the reloads as far as possible from the call site.
-The analyses used in
-passes~\ref{reload-duplication}~and~\ref{remove-dead-reloads}
-are described in \secreftwo{avail}{liveness};
-the transformations are described in
-\secreftwo{sink-reloads}{dead-code-elimination}.
-%\simon{I would put the forward references
-%to the sub-sections in the bullets themselves; they are more easy to
-%find there.
-%  No room, and not worthy of a bullet! ---NR}
+reloads away from the call site.
+%%  The analyses used in
+%%  passes~\ref{reload-duplication}~and~\ref{remove-dead-reloads}
+%%  are described in \secreftwo{avail}{liveness};
+%%  the transformations are described in
+%%  \secreftwo{sink-reloads}{dead-code-elimination}.
+
+
+\ifpagetuning \enlargethispage\baselineskip \fi
+
+\subsection{Choosing node types for GHC}
+
+To be confident that our example code is right,
+we present \emph{only} examples that
+have been implemented and tested in GHC.  
+GHC's low-level intermediate code, called @Cmm@, is a severely
+\label{haskell.def.Cmm}% automated definition
+\label{haskell.firstuse.Cmm}% automated use
+restricted subset of 
+the portable assembly language~{\PAL}
+\cite{peyton-jones-ramsey:exceptions}.
+We~specialize \ourlib\ to GHC by instantiating type parameters
+@m@~and~@l@ with GHC's types @CmmMiddle@ and @CmmLast@.
+
+A~middle node stores the value of an expression:
+\begin{code}
+data CmmMiddle 
+  = MidAssign CmmVar  CmmExpr -- store in variable
+  | MidStore  CmmExpr CmmExpr -- store in memory
+\end{code}
+\label{haskell.def.CmmMiddle}% automated definition
+\label{haskell.def.MidAssign}% automated definition
+\label{haskell.def.MidStore}% automated definition
+\label{haskell.firstuse.CmmExpr}% automated use
+Type @CmmVar@ represents a variable which is local (@CmmLocal@) or global
+\label{haskell.def.CmmVar}% automated definition
+\label{haskell.def.CmmLocal}% automated definition
+(@CmmGlobal@); a @LocalVar@ is always local.
+\label{haskell.def.CmmGlobal}% automated definition
+\label{haskell.def.LocalVar}% automated definition
+\label{haskell.firstuse.CmmGlobal}% automated use
+Type @CmmExpr@ represents a pure expression; 
+\label{haskell.def.CmmExpr}% automated definition
+constructors include @CmmLoad@ (a~value from memory)
+\label{haskell.def.CmmLoad}% automated definition
+and @CmmVar@ (the value of a variable), among others.
+
+A~last node represents a control transfer; constructors include
+unconditional, conditional, and indirect branches, as well as a call:
+\begin{code}
+data CmmLast
+  = LastBranch     BlockId
+  | LastCondBranch CmmExpr BlockId BlockId
+  | LastSwitch     CmmExpr [Maybe BlockId]
+  | LastCall ...
+\end{code}
+\label{haskell.def.CmmLast}% automated definition
+\label{haskell.def.LastBranch}% automated definition
+\label{haskell.def.LastCondBranch}% automated definition
+\label{haskell.def.LastSwitch}% automated definition
+\label{haskell.def.LastCall}% automated definition
+\label{haskell.firstuse.Maybe}% automated use
+\label{haskell.firstuse.LastSwitch}% automated use
+\label{haskell.firstuse.LastCondBranch}% automated use
+\label{haskell.firstuse.LastBranch}% automated use
+
+
+
 
 
 
@@ -1475,7 +1515,7 @@ the transformations are described in
 \T
 \begin{code}
 !Live!type Live = VarSet
-\end{code}%
+\end{code}
 \B
 & Dataflow fact\\
 \hline
@@ -1487,7 +1527,7 @@ liveLattice = DataflowLattice "live LocalReg's" emptyVarSet add
   where add new old =
           let join = unionVarSets new old in
 !liveLattice.end!          TxRes (if sizeVarSet join > sizeVarSet old then SomeChange else NoChange) join
-\end{code}%
+\end{code}
 \B
 & Lattice\\
 \hline
@@ -1523,7 +1563,7 @@ lastLiveOut :: CmmLast -> (BlockId -> Live) -> Live
 !live.condBranch!        last (LastCondBranch _ t f) = unionVarSets (env t) (env f)
 !live.lastSwitch!        last (LastSwitch _ tbl)     = unionManyVarSets $ map env (catMaybes tbl)
 !live.lastCall!        last (LastCall { })         = emptyVarSet
-\end{code}%
+\end{code}
 \B
 & Transfer \mbox{functions}\\
 \hline
@@ -1533,7 +1573,7 @@ lastLiveOut :: CmmLast -> (BlockId -> Live) -> Live
 cmmLiveness :: Graph CmmMiddle CmmLast -> BlockEnv Live
 cmmLiveness g = zdfFpFacts soln
 !live.zdfSolveBwd!   where soln = zdfSolveBwd "liveness" liveLattice liveTransfers emptyVarSet g
-\end{code}%
+\end{code}
 \B
 & Liveness \mbox{analysis}\\
 \end{codetable}
@@ -1546,6 +1586,7 @@ cmmLiveness g = zdfFpFacts soln
 \label{haskell.def.cmmLiveness}% automated definition
 \label{haskell.def.catMaybes}% automated definition
 \label{haskell.def.tbl}% automated definition
+\label{haskell.def.last}% automated definition
 \label{haskell.def.env}% automated definition
 \label{haskell.def.lastLiveOut}% automated definition
 \label{haskell.def.remDefd}% automated definition
@@ -1570,11 +1611,9 @@ cmmLiveness g = zdfFpFacts soln
 \label{haskell.firstuse.extendVarSet}% automated use
 \label{haskell.firstuse.delFromVarSet}% automated use
 \label{haskell.firstuse.env}% automated use
-\label{haskell.firstuse.LastBranch}% automated use
-\label{haskell.firstuse.LastCondBranch}% automated use
+\label{haskell.firstuse.last}% automated use
 \label{haskell.firstuse.t}% automated use
 \label{haskell.firstuse.f}% automated use
-\label{haskell.firstuse.LastSwitch}% automated use
 \label{haskell.firstuse.tbl}% automated use
 \label{haskell.firstuse.unionManyVarSets}% automated use
 \label{haskell.firstuse.catMaybes}% automated use
@@ -1590,19 +1629,18 @@ cmmLiveness g = zdfFpFacts soln
 
 
 
-To~understand the available-variables analysis, you must know that for
-each variable~$x$, 
-there is a stack slot~\slotof x that is used to save the value of~$x$.
-We probe this relation using Haskell functions @isStackSlot@,
-@variableOfSlot@, and @isStackSlotOf@.
+To~understand the available-variables analysis, you must know that 
+each variable~$x$ is related to a stack slot~\slotof x that is used to
+save the value of~$x$. 
+(GHC~represents 
+the relation using Haskell functions @isStackSlot@,
+@variableOfSlot@, and @isStackSlotOf@.)
 % need some omit's here
 %
 If the variable and the stack slot hold the same value,
 that is if $x = \slotof x$,
 then it is \emph{safe} to insert a reload.
 
-
-%\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
 To sink a reload of a variable $x$, we insert redundant reloads immediately
 before uses of~$x$.
@@ -1618,7 +1656,7 @@ assignment to~$x$ followed by a store to $\slotof x$.}
 Safety and profitability are incomparable;
 the dataflow fact computed by our analysis is the set we call
 \emph{available} variables, for
-which it is \emph{both}
+which it is
 safe \emph{and} profitable to insert a reload.
 Because the assertion of interest is an ``all-paths'' property, 
 the lattice-join operation is set intersection,
@@ -1710,17 +1748,10 @@ To manipulate sets of variables, we provide the functions declared in
 
 % \ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
-The most interesting part of the pass is the @middleAvail@ transfer
+The most interesting part of the analysis is the @middleAvail@ transfer
 function in \figref{avail-transfers}.\finalremark
 {Let us revise the paper to pretend that global variables
 don't exist.}
-This transfer function is specialized to the type of @CmmMiddle@ node
-used in~GHC: either @MidAssign@, which assigns to a local
-or global variable, or @MidStore@, which assigns to memory.\remark{Is
-this sentence now redundant?}
-%\par
-%\ifpagetuning{\enlargethispage{\baselineskip}}\fi
-%\kern-8pt
 \begin{itemize}
 \item
 Lines \ref{line:reload1} and \ref{line:reload2}
@@ -1740,10 +1771,10 @@ available variables.
 Function @foldVarsDefd@ is an overloaded function which, along with its dual,
 is used throughout the back end:
 \begin{code}
-foldVarsUsed :: UserOfLocalVars    a 
-             => (b -> LocalVar -> b) -> b -> a -> b
+foldVarsUsed :: UserOfLocalVars a 
+        => (b -> LocalVar -> b) -> b -> a -> b
 foldVarsDefd :: DefinerOfLocalVars a 
-             => (b -> LocalVar -> b) -> b -> a -> b
+        => (b -> LocalVar -> b) -> b -> a -> b
 \end{code}
 \label{haskell.def.foldVarsUsed}% automated definition
 \label{haskell.def.UserOfLocalVars}% automated definition
@@ -1830,10 +1861,10 @@ is @flip const@ (\lineref{avail.first}).
 %%\end{itemize}
 
 Given the lattice and the transfer functions,
-we perform the available-variables analysis by calling
-the dataflow-engine function @zdfSolveFwd@ (\figref{avail},
+awe can perform the analysis by calling
+the \ourlib\ function @zdfSolveFwd@ (\figref{avail},
 \linerangeref{avail.solve.1}{avail.solve.2}). 
-\simon{But this is really a lie. We actually call the transformation 
+\delendum{But this is really a lie. We actually call the transformation 
 function!  I'm not quite sure how to fix this pedagogical point.
 NR: It's true that we don't actually have a use for the results of an
 independent available-variables analysis, other than to drive the
@@ -1890,6 +1921,7 @@ going out of the node.
 It~removes from that set any variable
 defined by the node, then adds any variable used by the
 node.
+\ifcutting\else
 For~example, if the node is
 \begin{verbatim}
   i = n - 1;
@@ -1909,6 +1941,7 @@ before the assignment.
 The transfer functions
 therefore
 remove defined variables \emph{before} adding used variables
+\fi
 (\figref{liveness}, \linepairref{middleLiveness}{lastLiveness}). 
 
 For a last node, function @lastLiveOut@ consults the solution in
@@ -1995,38 +2028,29 @@ the dataflow-engine function @zdfSolveBwd@ (\figref{liveness},
 \begin{code}
 type O  -- marks graph as open   at entry or exit
 type C  -- marks graph as closed at entry or exit
-type GF middle last entry exit -- graph or subgraph
-type Graph middle last = GF middle last O C
+type GF m l entry exit -- graph or subgraph
+type Graph m l = GF m l O C
 \end{code}
 
 \caption{Types of graphs and subgraphs}
 \figlabel{subgraphs}
-\label{haskell.def.Graph}% automated definition
-\label{haskell.def.exit}% automated definition
-\label{haskell.def.entry}% automated definition
-\label{haskell.def.GF}% automated definition
-\label{haskell.def.C}% automated definition
-\label{haskell.def.O}% automated definition
-\label{haskell.firstuse.O}% automated use
-\label{haskell.firstuse.C}% automated use
-\label{haskell.firstuse.GF}% automated use
-\label{haskell.firstuse.middle}% automated use
-\label{haskell.firstuse.entry}% automated use
-\label{haskell.firstuse.exit}% automated use
-\end{figure}
 
-\begin{figure}
+\bigskip 
+
+%\end{figure}
+
+%\begin{figure}
 \begin{code}
 type Rewrite m l e x = Maybe (GF m l e x)
-data ForwardRewrites m last a = ForwardRewrites
+data ForwardRewrites m l a = ForwardRewrites
  {fr_first  :: BlockId -> a -> Rewrite m l C O,
   fr_middle :: m       -> a -> Rewrite m l O O,
   fr_last   :: l       -> a -> Rewrite m l O C} 
 
 data BackwardRewrites m l a = BackwardRewrites
- {br_first  :: BlockId -> a  -> Rewrite m l C O,
-  br_middle :: m       -> a  -> Rewrite m l O O,
-  br_last   :: l -> (BlockId -> a) -> Rewrite m l O C} 
+ {br_first  :: BlockId -> a      -> Rewrite m l C O,
+  br_middle :: m       -> a      -> Rewrite m l O O,
+  br_last   :: l -> (BlockId->a) -> Rewrite m l O C} 
 \end{code}
 \caption{Types of forward and backward rewrite functions.}
 \figlabel{rewrites}
@@ -2039,9 +2063,14 @@ data BackwardRewrites m l a = BackwardRewrites
 \label{haskell.def.fr:unfirst}% automated definition
 \label{haskell.def.ForwardRewrites}% automated definition
 \label{haskell.def.Rewrite}% automated definition
+\label{haskell.def.Graph}% automated definition
+\label{haskell.def.exit}% automated definition
+\label{haskell.def.entry}% automated definition
+\label{haskell.def.GF}% automated definition
+\label{haskell.def.C}% automated definition
+\label{haskell.def.O}% automated definition
 \label{haskell.firstuse.Rewrite}% automated use
 \label{haskell.firstuse.e}% automated use
-\label{haskell.firstuse.Maybe}% automated use
 \label{haskell.firstuse.ForwardRewrites}% automated use
 \label{haskell.firstuse.fr:unfirst}% automated use
 \label{haskell.firstuse.fr:unmiddle}% automated use
@@ -2050,85 +2079,25 @@ data BackwardRewrites m l a = BackwardRewrites
 \label{haskell.firstuse.br:unfirst}% automated use
 \label{haskell.firstuse.br:unmiddle}% automated use
 \label{haskell.firstuse.br:unlast}% automated use
+\label{haskell.firstuse.O}% automated use
+\label{haskell.firstuse.C}% automated use
+\label{haskell.firstuse.GF}% automated use
+\label{haskell.firstuse.entry}% automated use
+\label{haskell.firstuse.exit}% automated use
 \end{figure}
 
-
-\begin{figure*}
-\begin{codetable}
-\T
-\begin{code}
-availRewrites :: ForwardRewrites CmmMiddle CmmLast AvailVars
-availRewrites = ForwardRewrites first middle last
-!avail.rewrites.first!  where first _ _ = Nothing
-        middle m avail = maybe_reload_before avail m (mkMiddle m)
-!avail.rewrites.last!        last   l avail = maybe_reload_before avail l (mkLast l)
-!maybe.reload.before.1!        maybe_reload_before avail node tail =
-            let used = filterVarsUsed (elemAvail avail) node
-            in  if isEmptyVarSet used then Nothing
-!maybe.reload.before.2!                else Just $ reloadTail used tail
-        reloadTail vars t = foldl rel t $ varSetToList vars
-!mkMiddle!          where rel t r = mkMiddle (reload r) <*> t
-\end{code}
-\B
-& Rewrite \mbox{functions}\\
-\hline
-
-\T
-\begin{code}
-insertLateReloads :: Graph CmmMiddle CmmLast -> FuelMonad (Graph CmmMiddle CmmLast)
-insertLateReloads g = liftM zdfFpContents result
-!insertLateReloads.1!  where result = zdfRewriteFwd RewriteShallow "insert late reloads"
-                               availVarsLattice avail_vars_transfer
-!insertLateReloads.2!                               availRewrites (fact_bot availVarsLattice) g
-\end{code}
-& Late-reload insertion\\
-\end{codetable}
-\caption{Late-reload insertion, which relies on the analysis of \figref{avail}}
-\figlabel{avail-rewrites}
-\label{haskell.def.result}% automated definition
-\label{haskell.def.insertLateReloads}% automated definition
-\label{haskell.def.varSetToList}% automated definition
-\label{haskell.def.rel}% automated definition
-\label{haskell.def.vars}% automated definition
-\label{haskell.def.reloadTail}% automated definition
-\label{haskell.def.used}% automated definition
-\label{haskell.def.node}% automated definition
-\label{haskell.def.maybe:unreload:unbefore}% automated definition
-\label{haskell.def.middle}% automated definition
-\label{haskell.def.first}% automated definition
-\label{haskell.def.availRewrites}% automated definition
-\label{haskell.firstuse.insertLateReloads}% automated use
-\label{haskell.firstuse.FuelMonad}% automated use
-\label{haskell.firstuse.liftM}% automated use
-\label{haskell.firstuse.zdfFpContents}% automated use
-\label{haskell.firstuse.result}% automated use
-\label{haskell.firstuse.zdfRewriteFwd}% automated use
-\label{haskell.firstuse.RewriteShallow}% automated use
-\label{haskell.firstuse.availRewrites}% automated use
-\label{haskell.firstuse.first}% automated use
-\label{haskell.firstuse.maybe:unreload:unbefore}% automated use
-\label{haskell.firstuse.mkMiddle}% automated use
-\label{haskell.firstuse.mkLast}% automated use
-\label{haskell.firstuse.node}% automated use
-\label{haskell.firstuse.tail}% automated use
-\label{haskell.firstuse.used}% automated use
-\label{haskell.firstuse.filterVarsUsed}% automated use
-\label{haskell.firstuse.isEmptyVarSet}% automated use
-\label{haskell.firstuse.reloadTail}% automated use
-\label{haskell.firstuse.vars}% automated use
-\label{haskell.firstuse.foldl}% automated use
-\label{haskell.firstuse.rel}% automated use
-\label{haskell.firstuse.varSetToList}% automated use
-\label{haskell.firstuse.r}% automated use
-\label{haskell.firstuse.reload}% automated use
-\label{haskell.firstuse.<*>}% automated use
-\end{figure*}
 
 
 We compute dataflow facts in order to enable code-improving
 transformations on control-flow graphs.
-A~novel feature of our library is the degree to which it distinguishes
-different graphs and subgraphs.
+A~dataflow fact may enable a rewrite function to replace a node by a
+\emph{subgraph}. 
+A~novel and valuable property of our implementation is that it uses
+Haskell's static type system to control which subgraphs may replace
+which nodes.
+We~therefore begin by explaining the types and representation of
+graphs and subgraphs before moving on to rewrite functions and example
+transformations. 
 
 \subsection{Representing graphs and subgraphs}
 
@@ -2136,69 +2105,103 @@ different graphs and subgraphs.
 
 As mentioned in \secref{graph.intro},
 a~graph is a collection of basic blocks, 
-and a typical basic block has a first node followed by zero or
+and a basic block is normally a first node followed by zero or
 more middle nodes followed by a last node.
-Not mentioned in \secref{graph.intro},
+But
 a graph may also contain two special, incomplete
 blocks:
 \begin{itemize}
 \item
-An \emph{entry sequence} is a sequence of zero or more middle nodes
-ending in a last node (i.e., a control transfer).
-If~a graph has an entry sequence it is
-\emph{open at the entry}.  
-\delendum{I find ``enterable'' ambiguous,
-becuase close graph can still bentered by a jump.  It's more like
-``fallable into'' because control can fall through into it. 
-So I suggest we major on ``open at entry'' and de-emphasise or
-nuke ``enterable''.  Its only (considerable) merit is brevity.
-At least put it second, not first.}
+A~graph may begin with 
+an \emph{entry sequence}: zero or more middle nodes
+followed by a last node (i.e., a control transfer).
+Such a graph is \emph{open at the entry}.  
+
+\ifpagetuning \enlargethispage{0.5\baselineskip} \fi
+
 \item
-An \emph{exit sequence} is a first node followed by zero or more
-middle nodes, but \emph{not} ending in a last node---control ``falls
-off the end.''
-If~a graph has an exit sequence it is
-\emph{open at the exit}.
+A~graph may end with
+an \emph{exit sequence}: a first node followed by zero or more
+middle nodes, but \emph{not} followed by a last node.
+Such a graph is \emph{open at the exit} 
+(control ``falls
+off the end'').
 \end{itemize}
-Our general type of graph, called @GF@, therefore takes four
-parameters (\figref{subgraphs}):
-@middle@ is the type of a middle node;
-@last@ is the type of a last node;
-@entry@ is either type @O@~or type~@C@, depending on whether the graph
+Our general type of graph, called @GF@, therefore takes \emph{four}
+type parameters (\figref{subgraphs}):
+@m@~is the type of a middle node;
+@l@~is the type of a last node;
+@entry@ is either type~@O@ or type~@C@, depending on whether the graph
 is open or closed at the entry;
 and
-@entry@ is type @O@~or type~@C@, depending on whether the graph
+@exit@ is type~@O@ or type~@C@, depending on whether the graph
 is open or closed at the exit.
-A~full @Graph@, which represents the implementation of a function or
-procedure, is always open at the entry and closed at the exit. 
+The instantiations of type parameters @entry@ and @exit@ specify the
+graph's \emph{shape}, which we refer to in shorthand.
+For example,
+a~full @Graph@, which represents the a function or
+procedure, is open at the entry and closed at the exit, or
+simply ``open/closed.''
+
+Graphs are created using these functions:
+\begin{code}
+mkLabel    :: BlockId -> Graph m l C O
+mkMiddle   :: m       -> Graph m l O O
+mkLast     :: l       -> Graph m l O C
+(<*>)      :: Graph m l e a -> Graph m l a x 
+           -> Graph m l e x
+emptyGraph :: Graph m l O O
+\end{code}
+\label{haskell.def.mkLabel}% automated definition
+\label{haskell.def.mkMiddle}% automated definition
+\label{haskell.def.mkLast}% automated definition
+\label{haskell.def.<*>}% automated definition
+\label{haskell.def.emptyGraph}% automated definition
+\label{haskell.firstuse.emptyGraph}% automated use
+\label{haskell.firstuse.<*>}% automated use
+\label{haskell.firstuse.mkLast}% automated use
+\label{haskell.firstuse.mkMiddle}% automated use
+\label{haskell.firstuse.mkLabel}% automated use
+The infix @<*>@ function is graph concatenation; the exit of the first
+argument must match the entry of the next (both open or both closed).
+The @emptyGraph@ is a left and right unit of concatenation.
+(There is a similar unit which is closed at both entry and exit.)
+
+%% If $g_1$'s shape is $e$/open and $g_2$'s shape is open/$x$,
+%% then the concatenation $g_1 \mathbin{\mbox{@<*>@}} g_2$ is well
+%% defined and has shape 
+%% $e$/$x$.  (The exit sequence of~$g_1$ is spliced to the entry sequence
+%% of~$g_2$ to form a new, complete basic block.)
+
+
+\ifpagetuning \enlargethispage{0.5\baselineskip} \fi
 
 A graph is normally represented by a triple:
 an optional entry sequence, a @BlockEnv@ containing basic blocks,
 and an optional exit sequence.
 As~a special case, a single sequence of middle nodes also forms a
-graph open at both ends.
-This new representation significantly improves our previous work
+graph open at both entry and exit.
+
+This new representation improves significantly on our previous work
 \cite{ramsey-dias:applicative-flow-graph}:
 \begin{itemize}
 \item
-Client code chooses the types of nodes.
+We can find the exit point of a graph in constant time.
 \item
-The new representation enables us to find the exit point of a graph in
-constant time.
-\item
-The new representation therefore also supports the composition of two graphs
+We can concatenate graphs
 in constant amortized time.
-With the old representation, the only way to get constant-time
-composition was to resort to Hughes's
-\citeyearpar{hughes:lists-representation} technique of representing
-each graph as a function.
+Previously, we got constant-time
+concatenation by resorting to Hughes's
+\citeyearpar{hughes:lists-representation} technique, representing
+a graph as a function.
 \item
-Finally, errors in composition are ruled out by the static type system
-at compile-compile time.
+Most important, errors in concatenation are ruled out at
+compile-compile time, by Haskell's static
+type system.
 In~earlier implementations, such errors were not detected until
-the compiler ran, at which point the compiler attempted to compensate
-for them and then issued a warning message.
-Faults in the compensation code led to several subtle bugs in~GHC.
+the compiler ran, at which point \ourlib\ code tried to compensate
+for the errors and then issued a warning message.
+Subtle faults in the compensation code led to several bugs in~GHC.
 \end{itemize}
 
 
@@ -2217,59 +2220,6 @@ Faults in the compensation code led to several subtle bugs in~GHC.
 %% whereas a subgraph may have
 %% free labels?  Are subgraphs o/c or c/c or anything like that?
 %% What about replacement graphs?}
-
-
-
-\subsection{Choosing a representation for GHC}
-
-To be confident that our example code is right,
-we present \emph{only} examples that
-  have been implemented and tested in GHC.  
-GHC's low-level intermediate code, called @Cmm@, is a severely
-\label{haskell.def.Cmm}% automated definition
-\label{haskell.firstuse.Cmm}% automated use
-restricted subset of 
-the portable assembly language~{\PAL}
-\cite{peyton-jones-ramsey:exceptions}.
-A~middle node stores an expression in a variable (@MidAssign@) or in
-memory (@MidStore@):
-\begin{code}
-data CmmMiddle 
-  = MidAssign CmmVar CmmExpr
-  | MidStore  CmmExpr CmmExpr
-\end{code}
-\label{haskell.def.CmmMiddle}% automated definition
-\label{haskell.def.MidAssign}% automated definition
-\label{haskell.def.MidStore}% automated definition
-\label{haskell.firstuse.CmmExpr}% automated use
-Type @CmmVar@ represents a variable which may be local (@CmmLocal@) or global
-\label{haskell.def.CmmVar}% automated definition
-\label{haskell.def.CmmLocal}% automated definition
-(@CmmGlobal@); a @LocalVar@ is always local.
-\label{haskell.def.CmmGlobal}% automated definition
-\label{haskell.def.LocalVar}% automated definition
-\label{haskell.firstuse.CmmGlobal}% automated use
-Type @CmmExpr@ represents a pure expression; its
-\label{haskell.def.CmmExpr}% automated definition
-constructors include @CmmLoad@ for a load from memory
-\label{haskell.def.CmmLoad}% automated definition
-and @CmmVar@ for the value of a variable, among others.
-
-A~last node represents a control transfer; the constructors include
-unconditional, conditional, and indirect branches, as well as a call:
-\begin{code}
-data CmmLast
-  = LastBranch BlockId
-  | LastCondBranch CmmExpr BlockId BlockId
-  | LastSwitch CmmExpr [Maybe BlockId]
-  | LastCall ...
-\end{code}
-\label{haskell.def.CmmLast}% automated definition
-\label{haskell.def.LastBranch}% automated definition
-\label{haskell.def.LastCondBranch}% automated definition
-\label{haskell.def.LastSwitch}% automated definition
-\label{haskell.def.LastCall}% automated definition
-
 
 
 
@@ -2337,29 +2287,28 @@ open/closed (enterable but not exitable), or closed/open (not
 enterable, but exitable).  
 In
 the dataflow engine, the shape constrains the rewrite
-functions:\footnote {Shape is also used when graphs are constructed:
-% graphs provide a constant-time concatentation operator @<*>@, and 
-for
-example, if $g_1$'s shape is $e$/open and $g_2$'s shape is open/$x$,
-then the concatenation $g_1 \mathbin{\mbox{@<*>@}} g_2$ is well defined and has shape
-$e$/$x$.  (The exit sequence of~$g_1$ is spliced to the entry sequence
-of~$g_2$ to form a new, complete basic block.)}
+functions:
 \begin{itemize}
 \item
-A first node with @BlockId@~$l$ must be rewritten to a closed/open
-replacement graph which also begins with @BlockId@~$l$.
-\simon{Whoa!  What does it mean to say that a graph ``begins with $l$''?
-Perhpas we just mean that the replacement grpah must include a block labelled $l$?}
+\iffalse
+A first node with @BlockId@~$L$ must be rewritten to a closed/open
+replacement graph which also begins with @BlockId@~$L$.
+\delendum{Whoa!  What does it mean to say that a graph ``begins with $L$''?
+Perhpas we just mean that the replacement grpah must include a block labelled $L$?}
+%% Simon's right---but the details are too grotty to include. ---NR
+\else
+A first node must be rewritten to a closed/open
+ graph.
+\finalremark{Revisit graphs ``beginning with $L$''}
+\fi
 \item
 A middle node must be rewritten to an open/open graph.
 \item
-A last node must be rewritten to an open/closed graph, in 
-which all control-flow
-paths end in explicit control transfers.
-\simon{I'd nuke the ``in which all ...'' part, because it sounds like
-an additional condition, but actually it's a consequence of open/closed}.
+A last node must be rewritten to an open/closed graph.
 \end{itemize}
-These conditions are necessary and sufficient to ensure that 
+These conditions, which are enforced by the static type system
+ (\figref{rewrites}), 
+ are necessary and sufficient to ensure that 
 every replacement graph can be spliced in place of the node it is derived from.
 
 To write a program transformation,
@@ -2371,13 +2320,12 @@ analysis, as described in \secref{create-analysis}.
 \item
 Create rewrite functions for first, middle, and last nodes.
 \end{itemize}
-You can then use our
-library function @zdfRewriteFwd@ (from our dataflow engine) to
-transform a control-flow 
-graph
-(there is also a @zdfRewriteBwd@ with a similar type):
+You can then use \ourlib\ function @zdfRewriteFwd@ to transform a
+\label{haskell.firstuse.zdfRewriteFwd}% automated use
+control-flow graph (backward transformations use @zdfRewriteBwd@,
 \label{haskell.def.zdfRewriteBwd}% automated definition
 \label{haskell.firstuse.zdfRewriteBwd}% automated use
+which has a similar type):
 \begin{code}
  zdfRewriteFwd 
   :: RewritingDepth         -- Rewrite recursively?
@@ -2386,10 +2334,11 @@ graph
   -> ForwardTransfers m l a -- Transfer functions
   -> ForwardRewrites  m l a -- Rewrite functions
   -> a                      -- Input fact
-  -> Graph m l              -- Control-flow graph
+  -> Graph m l              -- Graph or subgraph
   -> FuelMonad (FwdFixedPoint m l a (Graph m l))
 \end{code}
 \label{haskell.def.zdfRewriteFwd}% automated definition
+\label{haskell.firstuse.FuelMonad}% automated use
 \label{haskell.firstuse.RewritingDepth}% automated use
 %%  
 %%  class DataflowSolverDirectiontransfers fixedpt =>
@@ -2426,31 +2375,102 @@ rewriting is \emph{deep}.
 Deep rewriting is essential to achieve the results of
 \citet{lerner-grove-chambers:2002}, e.g., to remove the induction
 variable from the loop in the example in \secref{induction-var-elim}.
+\ifcutting\else
 When deep rewriting is used, the rewrite functions must
 ensure that the graphs they produce are not rewritten indefinitely.
+\fi
 \item
-The type constructor @FwdFixedPoint@ has a fourth
-type parameter,
+The result type uses the fourth type parameter of type constructor
+@FwdFixedPoint@, 
 which is a value contained in the fixed point.
-The~value can be extracted using function @zdfFpContents@, which has
+The~value is extracted using function @zdfFpContents@, which has
 \label{haskell.def.zdfFpContents}% automated definition
+\label{haskell.firstuse.zdfFpContents}% automated use
 type @FwdFixedPoint m l a b -> b@.
 Here the type parameter~@b@ is instantiated to @Graph m l@: the fixed point
 contains the rewritten graph.
-In~@zdfSolveFwd@, @b@~is instantiated with
-the unit type~@()@.
-\simon{We can't make this point until later, where we say that solve is
-implemented using rewrite.  NR: I don't understand why not.
-We are explaining the meaning of the final type parameter to
-@FwdFixedPoint@, as promised.}
+%%  In~@zdfSolveFwd@, @b@~is instantiated with
+%%  the unit type~@()@.
+%%  \simon{We can't make this point until later, where we say that solve is
+%%  implemented using rewrite.  NR: I don't understand why not.
+%%  We are explaining the meaning of the final type parameter to
+%%  @FwdFixedPoint@, as promised.}
 \item
 Rewriting is monadic.
 A~@FuelMonad@ holds resources needed to
 \label{haskell.def.FuelMonad}% automated definition
-rewrite graphs into subgraphs:
+rewrite nodes into subgraphs:
 a~supply of fresh labels and a supply of \emph{optimization fuel}
 (\secref{fuel}). 
 \end{itemize}
+
+
+
+\begin{figure*}
+\begin{codetable}
+\T
+\begin{code}
+availRewrites :: ForwardRewrites CmmMiddle CmmLast AvailVars
+availRewrites = ForwardRewrites first middle last
+!avail.rewrites.first!  where first _ _ = Nothing
+        middle m avail = maybe_reload_before avail m (mkMiddle m)
+!avail.rewrites.last!        last   l avail = maybe_reload_before avail l (mkLast l)
+!maybe.reload.before.1!        maybe_reload_before avail node tail =
+            let used = filterVarsUsed (elemAvail avail) node
+            in  if isEmptyVarSet used then Nothing
+!maybe.reload.before.2!                else Just $ reloadTail used tail
+        reloadTail vars t = foldl rel t $ varSetToList vars
+!mkMiddle!          where rel t r = mkMiddle (reload r) <*> t
+\end{code}
+\B
+& Rewrite \mbox{functions}\\
+\hline
+
+\T
+\begin{code}
+insertLateReloads :: Graph CmmMiddle CmmLast -> FuelMonad (Graph CmmMiddle CmmLast)
+insertLateReloads g = liftM zdfFpContents result
+!insertLateReloads.1!  where result = zdfRewriteFwd RewriteShallow "insert late reloads"
+                               availVarsLattice avail_vars_transfer
+!insertLateReloads.2!                               availRewrites (fact_bot availVarsLattice) g
+\end{code}
+& Late-reload insertion\\
+\end{codetable}
+\caption{Late-reload insertion, which relies on the analysis of \figref{avail}}
+\figlabel{avail-rewrites}
+\label{haskell.def.result}% automated definition
+\label{haskell.def.insertLateReloads}% automated definition
+\label{haskell.def.varSetToList}% automated definition
+\label{haskell.def.rel}% automated definition
+\label{haskell.def.vars}% automated definition
+\label{haskell.def.reloadTail}% automated definition
+\label{haskell.def.used}% automated definition
+\label{haskell.def.node}% automated definition
+\label{haskell.def.maybe:unreload:unbefore}% automated definition
+\label{haskell.def.middle}% automated definition
+\label{haskell.def.first}% automated definition
+\label{haskell.def.availRewrites}% automated definition
+\label{haskell.firstuse.insertLateReloads}% automated use
+\label{haskell.firstuse.liftM}% automated use
+\label{haskell.firstuse.result}% automated use
+\label{haskell.firstuse.RewriteShallow}% automated use
+\label{haskell.firstuse.availRewrites}% automated use
+\label{haskell.firstuse.first}% automated use
+\label{haskell.firstuse.middle}% automated use
+\label{haskell.firstuse.maybe:unreload:unbefore}% automated use
+\label{haskell.firstuse.node}% automated use
+\label{haskell.firstuse.tail}% automated use
+\label{haskell.firstuse.used}% automated use
+\label{haskell.firstuse.filterVarsUsed}% automated use
+\label{haskell.firstuse.isEmptyVarSet}% automated use
+\label{haskell.firstuse.reloadTail}% automated use
+\label{haskell.firstuse.vars}% automated use
+\label{haskell.firstuse.foldl}% automated use
+\label{haskell.firstuse.rel}% automated use
+\label{haskell.firstuse.varSetToList}% automated use
+\label{haskell.firstuse.r}% automated use
+\label{haskell.firstuse.reload}% automated use
+\end{figure*}
 
 
 \seclabel{dfengine-spec}
@@ -2473,8 +2493,8 @@ graph is \emph{thrown away}; only the facts remain.
 If,~during iteration, the original node is analyzed again, perhaps
 with a different input fact, the rewrite function may propose
 a different replacement or even no replacement at all.
-As described in \secref{subgraphs}, every replacement graph is a
-\emph{subgraph}, not a complete graph.
+%%As described in \secref{subgraphs}, every replacement graph is a
+%%\emph{subgraph}, not a complete graph.
 
 The first phase is called the \emph{solver}.
 It computes a fixed point of the dataflow analysis
@@ -2540,6 +2560,7 @@ or the client code must specify shallow rewriting, which tells the
 dataflow engine never to rewrite a replacement graph.
 
 Why bother with such a complex algorithm?
+\ifcutting\else
 \citet{lerner-grove-chambers:2002} write
 \begin{quote}
 \emph{Previous efforts to exploit [the mutually beneficial
@@ -2578,7 +2599,7 @@ super-analysis.}
 %%  
 %%  \textbf{NR}: Good questions, but let's have a forward reference to \secref{dfengine}}
 
-
+\fi
 Interleaving analysis with transformation makes it
 possible to create startlingly simple transformations.
 In the rest of this section we present two examples:
@@ -2646,7 +2667,7 @@ removeDeadAssignments g = liftM zdfFpContents result
 !rewriteBwd.1!     where result = zdfRewriteBwd RewriteDeep "dead-assignment elim"
 !rewriteBwd.2!                                  liveLattice liveTransfers rewrites emptyVarSet g
 \end{code}
-& \vspace*{20pt}\mbox{Dead-code} elimination\\
+& \vspace*{12pt}\mbox{Dead-code} elimination\\
 \end{codetable}
 \caption{Dead-assignment elimination, which relies on the analysis of
 \figref{liveness}} 
@@ -2663,7 +2684,6 @@ removeDeadAssignments g = liftM zdfFpContents result
 \label{haskell.firstuse.middleRemoveDeads}% automated use
 \label{haskell.firstuse.not}% automated use
 \label{haskell.firstuse.elemVarSet}% automated use
-\label{haskell.firstuse.emptyGraph}% automated use
 \end{figure*}
 
 
@@ -2694,33 +2714,6 @@ preceded by a (redundant) reload for each variable in the set~@used@.
 %%%%% This rewrite function \emph{must} be used with shallow
 %%%%% rewriting. % redundant
 
-Rewrite functions create graphs using functions like these
-(\figref{avail-rewrites}, \lineref{mkMiddle}):
-\begin{code}
-mkLabel    :: BlockId -> Graph m l C O
-mkMiddle   :: m       -> Graph m l O O
-mkLast     :: l       -> Graph m l O C
-(<*>)      :: Graph m l e a -> Graph m l a x 
-           -> Graph m l e x
-emptyGraph :: Graph m l O O
-\end{code}
-\label{haskell.def.mkLabel}% automated definition
-\label{haskell.def.mkMiddle}% automated definition
-\label{haskell.def.mkLast}% automated definition
-\label{haskell.def.<*>}% automated definition
-\label{haskell.def.emptyGraph}% automated definition
-\label{haskell.firstuse.mkLabel}% automated use
-%% \simon{Aha!  Here is where we lie by pretending that @Graph@ = @AGraph@.  Ok.}
-%% \simon{Does @mkLast@ really have a @LastNode l@ context? How does it use it?}
-%%        Yes, it really does, but it's used only for prettyprinting
-%%        the graph (for debugging).  So I've expunged it from the
-%%        paper. ---NR
-The infix @<*>@ function is graph concatenation.
-When two graphs are concatenated, the ends are either both open or
-both closed.
-The @emptyGraph@ is a left and right unit of concatenation
-(there is a similar unit which is closed at both ends).
-
 Our transformation is implemented by the call to @zdfRewriteFwd@
 on \linerangeref{insertLateReloads.1}{insertLateReloads.2} of \figref{avail-rewrites}.
 Rewriting is shallow, so a graph returned by
@@ -2743,7 +2736,13 @@ next transformation, dead-assignment elimination.
 \def\liveout{$\mathit{live_{out}}$}
 
 We use the liveness analysis of \secref{liveness} to identify
-assignments which modify only variables that are not used.
+assignments
+\ifpagetuning
+whose left-hand sides
+\else
+which modify only variables that 
+\fi
+are not used.
 Such \emph{dead assignments} can be removed without changing the
 observable behavior of the program.
 The removal is implemented by the rewrite functions on
@@ -2769,16 +2768,19 @@ include \secref{induction-var-elim}.
 \begin{figure*}
 \setcounter{codeline}{0}
 \begin{numberedcode}
-!FactKont!type FactKont a b = a          -> DFM a b
-type LOFsKont a b = LastOuts a -> DFM a b
-!Kont!type Kont     a b =               DFM a b
+!FactKont!type FactKont a b = a           -> DFM a b
+type LOFsKont a b = LastOuts a  -> DFM a b
+!Kont!type Kont     a b =                DFM a b
+!ZKont!type ZKont ex a b = ZMaybe ex a -> DFM a b
 
-!forward.sol.sig!forward_sol :: forall m l a . HavingSuccessors l => (forall b . Maybe b -> DFM a (Maybe b))
+!forward.sol.sig!forward_sol :: forall m l e x a . HavingSuccessors l => (forall b . Maybe b -> DFM a (Maybe b))
             -> RewritingDepth -> PassName -> BlockEnv a -> ForwardTransfers m l a
-            -> ForwardRewrites m l a -> a -> Graph m l -> DFM a (Maybe a)
+!forward.sol.zmaybe!            -> ForwardRewrites m l a -> ZMaybe e a -> GF m l e x -> DFM a (ZMaybe x a)
 !forward.sol.args!forward_sol with_fuel depth name start_facts transfers rewrites in_fact g =
-!forward.sol.setAllFacts!     do { setAllFacts start_facts ; solve_Ox g in_fact }
+!forward.sol.setAllFacts!     do { setAllFacts start_facts ; solve_ex g in_fact }
    where 
+!solve.ex.sig!     solve_ex    :: GF m l e x -> ZKont e a (ZMaybe x a)
+
 !solve.first.sig!     solve_first :: BlockId -> FactKont a b -> Kont     a b
      solve_mid   :: m       -> FactKont a b -> FactKont a b
 !solve.last.sig!     solve_last  :: l       -> LOFsKont a b -> FactKont a b
@@ -2786,28 +2788,28 @@ type LOFsKont a b = LastOuts a -> DFM a b
 !set.last.sig!     set_last :: LOFsKont a ()
 !set.last.*!     set_last (LastOuts l) = mapM_ (uncurry setFact) l
 
-!solve.block!     solve_block :: Block m l -> Kont a ()
-!solve.Ox!     solve_Ox    :: Graph m l -> FactKont a (Maybe a)
+!solve.block.sig!     solve_block :: Block m l -> Kont a ()
 !solve.OO.def!     solve_OO    :: GF m l O O -> FactKont a b -> FactKont a b
 
 !solve.mid.1!     solve_mid m k in' =
 !solve.mid.case!       (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
 !solve.mid.Nothing!         Nothing -> k (ft_middle_out transfers in' m)
 !solve.mid.Just!         Just g  -> do { a <- subAnalysis $ case depth of
-!solve.OO!                                              RewriteDeep    -> solve_OO g (uncurry return) in'
+!solve.OO!                                              RewriteDeep    -> solve_OO g return in'
 !solve.rewrite.shallow.1!                                              RewriteShallow -> anal_f_OO g in'
 !solve.mid.*!                       ; k a }
 \end{numberedcode}
 \caption{Excerpts from the forward solver}
 \figlabel{solver-excerpts}
+% !solve.block!     `solve_block (Block id tail) = solve_first id $ solve_tail tail $ set_last
+% omitted, much as I would have liked to include it...
 \label{haskell.def.in'}% automated definition
 \label{haskell.def.solve:unmid}% automated definition
 \label{haskell.def.solve:unOO}% automated definition
-\label{haskell.def.solve:unOx}% automated definition
-\label{haskell.def.solve:unblock}% automated definition
 \label{haskell.def.set:unlast}% automated definition
 \label{haskell.def.solve:unlast}% automated definition
 \label{haskell.def.solve:unfirst}% automated definition
+\label{haskell.def.solve:unex}% automated definition
 \label{haskell.def.in:unfact}% automated definition
 \label{haskell.def.rewrites}% automated definition
 \label{haskell.def.transfers}% automated definition
@@ -2815,6 +2817,8 @@ type LOFsKont a b = LastOuts a -> DFM a b
 \label{haskell.def.name}% automated definition
 \label{haskell.def.depth}% automated definition
 \label{haskell.def.forward:unsol}% automated definition
+\label{haskell.def.ex}% automated definition
+\label{haskell.def.ZKont}% automated definition
 \label{haskell.def.Kont}% automated definition
 \label{haskell.def.LOFsKont}% automated definition
 \label{haskell.def.FactKont}% automated definition
@@ -2822,6 +2826,9 @@ type LOFsKont a b = LastOuts a -> DFM a b
 \label{haskell.firstuse.DFM}% automated use
 \label{haskell.firstuse.LOFsKont}% automated use
 \label{haskell.firstuse.Kont}% automated use
+\label{haskell.firstuse.ZKont}% automated use
+\label{haskell.firstuse.ex}% automated use
+\label{haskell.firstuse.ZMaybe}% automated use
 \label{haskell.firstuse.forward:unsol}% automated use
 \label{haskell.firstuse.with:unfuel}% automated use
 \label{haskell.firstuse.depth}% automated use
@@ -2830,7 +2837,7 @@ type LOFsKont a b = LastOuts a -> DFM a b
 \label{haskell.firstuse.transfers}% automated use
 \label{haskell.firstuse.in:unfact}% automated use
 \label{haskell.firstuse.setAllFacts}% automated use
-\label{haskell.firstuse.solve:unOx}% automated use
+\label{haskell.firstuse.solve:unex}% automated use
 \label{haskell.firstuse.solve:unfirst}% automated use
 \label{haskell.firstuse.solve:unmid}% automated use
 \label{haskell.firstuse.solve:unlast}% automated use
@@ -2861,15 +2868,16 @@ to substantiate the claims of the last bullet of the conclusion.}
 
 Above, in sections \ref{sec:making-simple}
 through~\ref{sec:rewrites},
-we use our library to create analyses and transformations.
-In this section, we sketch the implementation of the main part of our
-library: the dataflow engine.
-The dataflow engine is not as simple as the title of this paper might
+we use \ourlib\ to create analyses and transformations.
+In this section, we sketch the implementation of the main part of \ourlib:
+the dataflow engine.
+The dataflow engine is less simple than the title of this paper might
 lead you to expect.
-The \emph{interface} (lattice, transfer functions, rewrite functions) is simple;
-as shown above, compiler passes written \emph{using} the engine
-are simple;
-and even the individual parts of the engine are simple---but the
+Although
+the \emph{interface} (lattice, transfer functions, rewrite functions) is simple,
+compiler passes written \emph{using} the engine
+are simple,
+and even the individual parts of the engine are simple, the
 totality is complex.
 
 \remark{Simon asked what new insights are gained.
@@ -2891,7 +2899,7 @@ Finally, it keeps track of a supply of fresh labels.
 
 Operations on the dataflow monad include
 \begin{code}
-getFact           :: BlockId -> DFM a a
+getFact           :: BlockId ->      DFM a a
 setFact           :: BlockId -> a -> DFM a ()
 getAllFacts       :: DFM a (BlockEnv a)
 setAllFacts       :: BlockEnv a -> DFM a ()
@@ -2930,11 +2938,12 @@ Computation @withDuplicateFuel c@ computes the same results as~@c@ and
 \label{haskell.def.withDuplicateFuel}% automated definition
 changes the same stored facts as~@c@, but it consumes fuel from a
 \emph{copy} of the fuel supply.
-The inner computation~@c@ may therefore run out of fuel, but
+The inner computation~@c@ may run out of fuel, but
 @withDuplicateFuel c@ restores the original fuel supply.
-By using @withDuplicateFuel@, we have eliminated the elaborate
-fuel-passing computations we used in earlier implementations
-\cite{ramsey-dias:applicative-flow-graph}. 
+Using @withDuplicateFuel@ has enabled us to eliminate fuel from
+arguments and results, making an implementation which
+is less error-prone and \emph{much} easier to
+read than the one of \citet{ramsey-dias:applicative-flow-graph}. 
 \end{itemize}
 %%  Using pure code and a monad makes this version much easier to get
 %%  right than our Objective Caml version
@@ -2947,8 +2956,7 @@ The supplies of fuel and labels are kept (in the result of type
 @FuelMonad b@) because all analyses and transformations share a single
 supply of fuel and fresh labels.
 %
-The dataflow monad is private to the
-implementation of the library; 
+The dataflow monad is private to \ourlib;
 only @FuelMonad@ is exposed in the interface.
 
 The upper layer of the dataflow engine comprises four functions:
@@ -2977,7 +2985,7 @@ We have extended Lerner, Grove, and Chambers's optimization-combining algorithm 
 Whalley's \citeyearpar{whalley:isolation} algorithm for isolating
 faults.
 Whalley's algorithm is used to test a faulty optimizer;
-it automatically
+it~automatically
 finds the first rewrite that introduces a fault.
 It works by giving the optimizer a finite supply of \emph{optimization
 fuel}.
@@ -3058,19 +3066,20 @@ NR: \emph{Incorrect}.  The rewriter calls the solver to do most of the work.
 @zdfSolveFwd@.
 Because @forward_sol@ is used to solve replacement graphs as well as
 full graphs, it
-takes a few more parameters than @zdfSolveFwd@
+takes a more parameters than @zdfSolveFwd@, and it is more polymorphic
 (\figref{solver-excerpts}, \linerangeref{forward.sol.sig}{forward.sol.args}).
 \begin{itemize}
 \item
-In the solver phase described in \secref{solver-phase},
-if a node is rewritten, the replacement graph is used to compute new
-dataflow facts, and then the replacement graph is thrown away.
-But sometimes we want to prevent a node from being rewritten,
+%In the solver phase described in \secref{solver-phase},
+%if a node is rewritten, the replacement graph is used to compute new
+%dataflow facts, and then the replacement graph is thrown away.
+To prevent a node from being rewritten,
 either because
 we are implementing a pure analysis, or because the optimizer
-is out of fuel. 
-We~do so using parameter @with_fuel@, which can prevent rewriting by
+is out of fuel, we  use parameter @with_fuel@
 \label{haskell.def.with:unfuel}% automated definition
+(\lineref{forward.sol.args}, called on \lineref{solve.mid.case}),
+which can prevent rewriting by 
 returning @return Nothing@.
 \item
 Analysis of a subgraph starts with known facts, not
@@ -3079,6 +3088,26 @@ bottom facts; they are passed as
 % (\lineref{forward.sol.args}) 
 and
  set on \lineref{forward.sol.setAllFacts}.
+\item
+A~forward analysis requires an entry fact @in_fact@ if and only if the
+graph being analyzed is open at the entry.
+Similarly, the analysis produces an output fact if and only if the
+graph being analyzed is open at the exit.
+We~express these constraints using the generalized algebraic data type
+@ZMaybe@ (\figref{solver-excerpts}, \lineref{forward.sol.zmaybe}):
+\begin{code}
+data ZMaybe ex a where
+  ZJust    :: a -> ZMaybe O a
+  ZNothing ::      ZMaybe C a
+\end{code}
+\label{haskell.def.ZMaybe}% automated definition
+\label{haskell.def.ZJust}% automated definition
+\label{haskell.def.ZNothing}% automated definition
+\label{haskell.firstuse.ZNothing}% automated use
+\label{haskell.firstuse.ZJust}% automated use
+Using @ZMaybe@ to construct the types of the input and output facts
+has simplified our implementation of the dataflow engine and has
+helped us eliminate dynamic tests of the shapes of subgraphs.
 \end{itemize}
 %A~fixed point is computed by initializing the facts using
 %@setAllFacts@, which is an operation in the dataflow monad.
@@ -3093,11 +3122,6 @@ and
 %it brings the facts associated with labels up to a fixed point.
 %\fi
 
-\remark{Need to say somewhere that @forward\_sol@ returns
-@Just a@ (the exit fact) for a graph that is open at the exit and
-@Nothing@ for a graph that is closed at the exit.
-Any graph passed to @forward\_sol@ must be open at the entry.
-}
 
 
 
@@ -3130,12 +3154,12 @@ Any graph passed to @forward\_sol@ must be open at the entry.
 %%      rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
 \setcounter{codeline}{0}
 \begin{numberedcode}
-!GraphFactKont!type GraphFactKont  m l a b = Graph m l -> a -> DFM a b
-!GraphKont!type GraphKont      m l a b = Graph m l      -> DFM a b
+!GraphFactKont!type GraphFactKont  m l e x a b = GF m l e x -> a -> DFM a b
+!GraphKont!type GraphKont      m l e x a b = GF m l e x      -> DFM a b
 
-!rew.first!      rew_first :: BlockId -> GraphFactKont m l a b -> GraphKont     m l a b
-      rew_mid   :: m       -> GraphFactKont m l a b -> GraphFactKont m l a b
-!rew.last!      rew_last  :: l       -> GraphKont     m l a b -> GraphFactKont m l a b
+!rew.first!      rew_first :: BlockId -> GraphFactKont m l e O a b -> GraphKont     m le C a b
+      rew_mid   :: m       -> GraphFactKont m l e O a b -> GraphFactKont m l e O a b
+!rew.last!      rew_last  :: l       -> GraphKont     m l e C a b -> GraphFactKont m l e O a b
 
 !rew.mid.1!      rew_mid m k head in' =
         (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
@@ -3147,7 +3171,7 @@ Any graph passed to @forward\_sol@ must be open at the entry.
 !rew.anal.f.OO!                        RewriteShallow -> do { a <- anal_f_OO g in'; return (g, a) }
 !rew.mid.*!                 ; k (head <*> g) a }
 
-!sar.OO!      sar_OO :: Graph m l -> GraphFactKont m l a b -> FactKont a b
+!sar.OO!      sar_OO :: GF m l O O -> GraphFactKont m l O O a b -> FactKont a b
 \end{numberedcode}
 \caption{Excerpts from the forward rewriter}
 \figlabel{rewriter-excerpts}
@@ -3160,6 +3184,7 @@ Any graph passed to @forward\_sol@ must be open at the entry.
 \label{haskell.firstuse.GraphFactKont}% automated use
 \label{haskell.firstuse.GraphKont}% automated use
 \label{haskell.firstuse.rew:unfirst}% automated use
+\label{haskell.firstuse.le}% automated use
 \label{haskell.firstuse.rew:unmid}% automated use
 \label{haskell.firstuse.rew:unlast}% automated use
 \label{haskell.firstuse.head}% automated use
@@ -3169,25 +3194,24 @@ Any graph passed to @forward\_sol@ must be open at the entry.
 
 \vfilbreak[3\baselineskip]
 
-The implementation of @zdfSolveFwd@ using @forward_sol@ looks
-like this:
 %
-\simon{Hang on!  What kind of graph does {\tt zdfSolveFwd} take?
+\delendum{Hang on!  What kind of graph does {\tt zdfSolveFwd} take?
 I assume a full graph, closed at the entry!  So what is this pesky {\tt in\_fact}??}
 %
+
+Function @zdfSolveFwd@ calls @forward_sol@:
 \begin{smallcode}
 zdfSolveFwd name lattice transfers in_fact g = 
   runWithoutFuel $ runDFM lattice $ ffp () $ 
   fwd_pure_anal name emptyBlockEnv transfers in_fact g
 fwd_pure_anal name env transfers in_fact g =
   forward_sol (\_ _ -> Nothing) undefined name env 
-              transfers undefined in_fact g undefined >>= 
-  return . fst
-ffp :: b -> DFM a (Maybe a) -> DFM a (FwdFixedPoint m l a b)
+              transfers undefined in_fact g
+ffp :: b -> DFM a (ZMaybe x a) 
+    -> DFM a (FwdFixedPoint m l a b)
 runWithoutFuel :: FuelMonad a -> a
 \end{smallcode}
 \label{haskell.def.lattice}% automated definition
-\label{haskell.firstuse.fst}% automated use
 \label{haskell.firstuse.undefined}% automated use
 \label{haskell.firstuse.emptyBlockEnv}% automated use
 \label{haskell.firstuse.fwd:unpure:unanal}% automated use
@@ -3210,7 +3234,7 @@ computation uses no fuel and no labels.
 Function @forward_sol@ is composed of many parts, all written in
 continuation-passing style.
 The types of the
-continuations are shown on \linerangeref{FactKont}{Kont} of
+continuations are shown on \linerangeref{FactKont}{ZKont} of
 \figref{solver-excerpts}. 
 \begin{itemize}
 \item
@@ -3237,6 +3261,9 @@ fact flowing in; it starts with the fact associated with that block's
 label in the inner dataflow monad.
 Thus a @Kont@ expects no fact as argument; it gets its fact by
 calling the monadic operation @getFact@.
+\item
+Type @ZKont e a b@ describes a context \emph{before} the graph
+being analyzed, where @e@~tells whether the graph is open at the entry.
 \end{itemize}
 \delendum{I like these continuations, but I'm very puzzled about the
 fuel.  If @Kont@ takes fuel in, where does it return the depleted fuel?
@@ -3251,8 +3278,8 @@ and I can't see why it isn't part of @DFM@ in the first place.}
 solvers for first, middle, and last nodes.
 These types show that we have written dataflow analysis in Strachey's
 style:
-the analysis of each kind of thing is a function from continuations to
-continuations. 
+the result of analyzing a subpart of a block is a function from
+continuations to continuations. 
 
 The result types of @solve_first@, @solve_mid@, and @solve_last@
 compose nicely, so that for any basic block we can compute a function
@@ -3267,7 +3294,7 @@ Stored facts are updated by function @set_last@ on
 flowing out of a block.
 By applying the composition
 of @solve_first@, @solve_mid@, and @solve_last@ to @set_last@, we get
-function @solve_block@, whose type is given on \lineref{solve.block}.
+function @solve_block@, whose type is given on \lineref{solve.block.sig}.
 Function @solve_block@ is given a block and it
 it runs for its side effects on the dataflow monad.
 
@@ -3285,13 +3312,12 @@ not actually consume any fuel.
 Using @solve_blocks@, we have written solvers for subgraphs which are open/open,
 open/closed, or closed/open.
 
-Finally, @solve_Ox@ (type on \lineref{solve.Ox}, implementation not
+Finally, @solve_ex@ (type on \lineref{solve.ex.sig}, implementation not
 shown), which provides the external interface, 
-solves a graph~@g@ which is open/open or open/closed.
-This function is run primarily for its
-side effects on the inner
-dataflow monad, but if the graph is open at the exit, it also produces
-an exit fact.
+solves the full graph~@g@.
+Where the graph is open, it converts @ZMaybe@ facts to actual
+facts---the static type system precludes the possibility of a missing
+or superfluous fact.
 
 Ultimately, \emph{all} solver functions
 are composed of applications of @solve_first@,
@@ -3303,7 +3329,7 @@ On~\lineref{solve.mid.case}, a rewrite function is passed an
 input fact~@in'@ and a middle node~@m@.
 If~the rewrite function proposes no replacement graph, 
 or if no more fuel is available, the application of @with_fuel@
-returns @Nothing@, and continuation~@k@ is given the output fact
+returns @return Nothing@, and continuation~@k@ is given the output fact
 (computed by @ft_middle_out@ on \lineref{solve.mid.Nothing}) and
 the current supply of fuel.
 
@@ -3701,7 +3727,9 @@ there are similar functions.
 
 Compiler textbooks make dataflow analysis and optimization appear
 difficult and complicated.
-We make dataflow simple not by using a single magic
+In~this paper, we show how to engineer a library, \ourlib, which makes
+it easy to build analyses and transformations based on dataflow.
+\ourlib\ makes dataflow simple not by using a single magic
 ingredient, but by applying ideas that are well understood by functional
 programmers.
 These ideas
@@ -3749,7 +3777,7 @@ neither, just by way of contrast; ie this we cannot do.}
 \item
 Although our implementation allows graph nodes to be rewritten in any
 way that preserves semantics, we concentrate on
-only three program-transformation techniques:
+three program-transformation techniques:
 substitution of equals for equals, 
 insertion of assignments to unobserved variables, 
 and removal of assignments to unobserved variables. 
@@ -3798,11 +3826,14 @@ compose analyses and transformations.
 This~algorithm makes it easy to compose complex transformations
 from simple ones.
 
-We have create a new implementation of the algorithm, which uses
-continuation-passing style.
-Written in this style, each part of algorithm is implemented by many
+Using continuation-passing style and generalized algebraic data types,
+we have created a new implementation of the algorithm, 
+which works by successive
 compositions of three relatively simple functions.
-Because the individual functions are simple, and because we can
+Because the individual functions are simple, 
+because the static types encode the single-successor and
+single-predecessor properties, and
+because we can
 compare our code with standard denotational semantics for imperative
 languages, we have more confidence in this new implementation than in
 any previous implementation. 
@@ -3813,14 +3844,15 @@ we use an applicative representation of
 control-flow graphs
 \cite{ramsey-dias:applicative-flow-graph}. 
 We~improve on our prior work by making the state of analysis
-explicit in the inner dataflow monad;
-these two functional data structures make it easy to implement the hard
-part of Lerner, Grove, and Chamber's algorithm: discarding replacement
-graphs and their associated state at need.
+explicit in the inner dataflow monad.
+%%  these two functional data structures make it easy to implement the hard
+%%  part of Lerner, Grove, and Chamber's algorithm: discarding replacement
+%%  graphs and their associated state at need.
 Managing state explicitly, instead of
 using ML's built-in state monad, 
 makes it especially easy to implement such
-operations as independent sub-analysis of a replacement graph. \simon{This 
+operations as independent sub-analysis of a replacement graph. 
+\delendum{This 
 last sentence is a repeat of the previous one.}
 %
 % important, but no longer mentioned in this paper:
@@ -3833,8 +3865,7 @@ last sentence is a repeat of the previous one.}
 %%  It is inspired in part by Hughes's \citeyearpar{hughes:novel-lists}
 %%  representation of lists, which supports a constant-time append operation.
 \item
-We also make 
-the interface to our dataflow library polymorphic in the
+\ourlib\ is polymorphic in the
 representations of 
 assignments and control-flow operations.
 %%  Although our polymorphic representations have been instantiated only
@@ -3849,11 +3880,11 @@ separate concerns.
 Introducing polymorphism has made the code simpler, easier
 to understand, and easier to maintain.\finalremark
 {SLPJ: Is it possible to substantiate this claim by [more] examples?}
-In particular, it forced us to make explicit \emph{exactly} what the
-dataflow engine must know about flow-graph nodes.
-(It must be able to enumerate the successors of a last
-node, and it must be able to create an unconditional branch to the
-label of its choice.)
+In particular, it forced us to make explicit \emph{exactly} what
+\ourlib\ 
+ must know about flow-graph nodes:
+it must be able to find
+targets of control-flow operations.
 \end{itemize}
 %
 % gen and kill are history
@@ -3865,7 +3896,7 @@ label of its choice.)
 %%If you like, you can even write overloaded @gen@ and @kill@ functions.
 %%The benefit is that it is easy to compare the actual code with the
 %%abstract treatments found in textbooks\ifgenkill \ (\secref{gen-kill})\fi.
-Using our tools,
+Using \ourlib,
 you can create a new code improvement in three steps:
 create a lattice representation for the assertions you want to
 express;
@@ -3883,24 +3914,6 @@ transformations and the assertions that can justify them.
 \providecommand\includeftpref{\relax}
 \IfFileExists{nrbib.tex}{\bibliography{cs,ramsey}}{\bibliography{cs,ramsey,simon,jd}}
 \bibliographystyle{plainnatx}
-
-\subsubsection*{Relationship to previously published work}
-
-Our ML~workshop paper \citep{ramsey-dias:applicative-flow-graph} describes
-an applicative flow graph which is
-an ancestor of the one used in this paper. 
-That paper also presents an implementation of dataflow analysis,
-but the implementation described in \secref{engine} above is entirely
-new, and even
-the~interface has evolved significantly.
-The representation of the graph has changed; we use GADTs to control splising.
- The analyses of
-\secreftwo{create-analysis}{example-analyses}, the transformations of
-\secref{rewrites}, 
-are also entirely new.
-
-If~this submission is accepted, we will find a better way to work
-this information into the text.
 
 
 \clearpage
@@ -4040,3 +4053,47 @@ this information into the text.
 
 
 \end{document}
+
+
+
+% Old captions' text:
+% The dataflow fact for the available-reload analysis describes
+%   the set of registers for which a reload is available.
+%   We list the types of the functions that manipuate sets of available registers,
+%   as well as the definition of the lattice.
+% The standard gen and kill functions for available expressions
+% The transfer functions for the available-reloads analysis.
+% Running the available-reloads analysis and extracting the results with \texttt{zdfFpFacts}
+% The rewrite functions to insert redundant reloads immediately before uses
+
+% Probably no space for the implementations:
+% interAvail (UniverseMinus s) (UniverseMinus s') =
+%   UniverseMinus (s `plusVarSet`  s')
+% interAvail (AvailVars     s) (AvailVars     s') =
+%   AvailVars (s `timesVarSet` s')
+% interAvail (AvailVars     s) (UniverseMinus s') =
+%   AvailVars (s  `minusVarSet` s')
+% interAvail (UniverseMinus s) (AvailVars     s') =
+%   AvailVars (s' `minusVarSet` s )
+% 
+% smallerAvail (AvailVars _) (UniverseMinus _) = True
+% smallerAvail (UniverseMinus _) (AvailVars _) = False
+% smallerAvail (AvailVars     s) (AvailVars    s')  =
+%   sizeVarSet s < sizeVarSet s'
+% smallerAvail (UniverseMinus s) (UniverseMinus s') =
+%   sizeVarSet s > sizeVarSet s'
+% 
+% extendAvail (UniverseMinus s) r =
+%   UniverseMinus (deleteFromVarSet s r)
+% extendAvail (AvailVars     s) r =
+%   AvailVars (extendVarSet s r)
+% 
+% delFromAvail (UniverseMinus s) r =
+%   UniverseMinus (extendVarSet s r)
+% delFromAvail (AvailVars     s) r =
+%   AvailVars (deleteFromVarSet s r)
+% 
+% elemAvail (UniverseMinus s) r =
+%   not $ elemVarSet r s
+% elemAvail (AvailVars     s) r =
+%   elemVarSet r s

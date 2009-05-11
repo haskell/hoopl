@@ -3,6 +3,14 @@
 \expandafter\ifx\csname url\endcsname\relax
   \def\url#1{{\tt #1}}\fi
 
+\bibitem[Benitez and Davidson(1988)]{benitez-davidson:portable-optimizer}
+Manuel~E. Benitez and Jack~W. Davidson.
+\newblock 1988 (July).
+\newblock A portable global optimizer and linker.
+\newblock \emph{Proceedings of the ACM SIGPLAN '88 Conference on Programming
+  Language Design and Implementation, {\em in} SIGPLAN Notices}, 23\penalty0
+  (7):\penalty0 329--338.
+
 \bibitem[Click and Cooper(1995)]{click-cooper}
 Cliff Click and Keith~D. Cooper.
 \newblock 1995 (March).
@@ -33,19 +41,6 @@ Sorin Lerner, David Grove, and Craig Chambers.
 \newblock \emph{Conference Record of the 29th Annual ACM Symposium on
   Principles of Programming Languages, {\em in} SIGPLAN Notices}, 31\penalty0
   (1):\penalty0 270--282.
-
-\bibitem[Peyton~Jones, Ramsey, and
-  Reig(1999)]{peyton-jones-ramsey:garbage-collection:inproceedings}
-Simon~L. Peyton~Jones, Norman Ramsey, and Fermin Reig.
-\newblock 1999 (September).
-\newblock {\texttt{C{-}{-}}}: A portable assembly language that supports
-  garbage collection.
-\newblock In \emph{International Conference on Principles and Practice of
-  Declarative Programming}, \emph{LNCS} volume 1702, pages~\mbox{1--28}.
-  Springer Verlag.
-\newblock \ifx\position\undefined\def\gobbledot#1.{}\let\next\gobbledot \else
-  Invited paper\let\next\relax\fi
-  \ifx\invitedtrue\undefined\else\invitedtrue\fi \next.
 
 \bibitem[Ramsey and Dias(2005)]{ramsey-dias:applicative-flow-graph}
 Norman Ramsey and {Jo\~ao} Dias.

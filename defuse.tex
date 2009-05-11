@@ -65,6 +65,7 @@
 \omithspagedef{emptyVarSet :: VarSet}{haskell.def.emptyVarSet}% context document
 \hsfigdefll{entry}{haskell.def.entry}% context figure
 \hsfigdefll[lastLiveOut.1]{env}{haskell.def.env}% context figure
+\hsfigdefll[ZKont]{ex}{haskell.def.ex}% context figure
 \hsfigdefll{exit}{haskell.def.exit}% context figure
 \hsfigdefll[assign.avail.1]{\_expr}{haskell.def.:unexpr}% context figure
 \hsfigdef[extendAvail]{extendAvail}{haskell.def.extendAvail}% context figure
@@ -114,6 +115,7 @@
 \hsfigdefll{join}{haskell.def.join}% context figure
 \hsprelude{Just}{Prelude}% context prelude
 \hsfigdef[Kont]{Kont}{haskell.def.Kont}% context figure
+\hsfigdefll{l}{haskell.def.l}% context figure
 \hsfigdefll[avail.rewrites.last]{last}{haskell.def.last}% context figure
 \hsfigdef{lastAvail}{haskell.def.lastAvail}% context figure
 \hspagedef{LastBranch}{haskell.def.LastBranch}% context document
@@ -132,11 +134,11 @@
 \hsfigdef{liveTransfers}{haskell.def.liveTransfers}% context figure
 \hspagedef{LocalVar}{haskell.def.LocalVar}% context document
 \hsfigdef{LOFsKont}{haskell.def.LOFsKont}% context figure
+\hsfigdefll{m}{haskell.def.m}% context figure
 \hsprelude{map}{Prelude}% context prelude
 \hsprelude{mapM\_}{Prelude}% context prelude
 \hsprelude{Maybe}{Prelude}% context prelude
 \hsfigdef[maybe.reload.before.1]{maybe\_reload\_before}{haskell.def.maybe:unreload:unbefore}% context figure
-\hsfigdefll{mid}{haskell.def.mid}% context figure
 \hspagedef{MidAssign}{haskell.def.MidAssign}% context document
 \hsfigdefll{middle}{haskell.def.middle}% context figure
 \hsfigdef{middleAvail}{haskell.def.middleAvail}% context figure
@@ -180,13 +182,12 @@
 \hsfigdef[smallerAvail]{smallerAvail}{haskell.def.smallerAvail}% context figure
 \hsprelude{snd}{Prelude}% context prelude
 \hsfigdefll[avail.solve.1]{soln}{haskell.def.soln}% context figure
-\hsfigdef[solve.block]{solve\_block}{haskell.def.solve:unblock}% context figure
 \hspagedef{solve\_blocks}{haskell.def.solve:unblocks}% context document
+\hsfigdef[solve.ex.sig]{solve\_ex}{haskell.def.solve:unex}% context figure
 \hsfigdef[solve.first.sig]{solve\_first}{haskell.def.solve:unfirst}% context figure
 \hsfigdef[solve.last.sig]{solve\_last}{haskell.def.solve:unlast}% context figure
 \hsfigdef[solve.mid.1]{solve\_mid}{haskell.def.solve:unmid}% context figure
 \hsfigdef[solve.OO.def]{solve\_OO}{haskell.def.solve:unOO}% context figure
-\hsfigdef[solve.Ox]{solve\_Ox}{haskell.def.solve:unOx}% context figure
 \hsfigdef{SomeChange}{haskell.def.SomeChange}% context figure
 \hsfigdefll[forward.sol.args]{start\_facts}{haskell.def.start:unfacts}% context figure
 \hsprelude{String}{Prelude}% context prelude
@@ -216,7 +217,13 @@
 \hspagedef{zdfRewriteFwd}{haskell.def.zdfRewriteFwd}% context document
 \hspagedef{zdfSolveBwd}{haskell.def.zdfSolveBwd}% context document
 \hspagedef{zdfSolveFwd}{haskell.def.zdfSolveFwd}% context document
+\hspagedef{ZJust}{haskell.def.ZJust}% context document
+\hsfigdef[ZKont]{ZKont}{haskell.def.ZKont}% context figure
+\hspagedef{ZMaybe}{haskell.def.ZMaybe}% context document
+\hspagedef{ZNothing}{haskell.def.ZNothing}% context document
 \nothspagedef{isStackSlot}{haskell.firstuse.isStackSlot}% used but not defined
 \nothspagedef{isStackSlotOf}{haskell.firstuse.isStackSlotOf}% used but not defined
+\nothslinedef{le}{haskell.firstuse.le}% used but not defined
 \nothspagedef{reload}{haskell.firstuse.reload}% used but not defined
+\nothslinedef{solve\_block}{haskell.firstuse.solve:unblock}% used but not defined
 \nothspagedef{variableOfSlot}{haskell.firstuse.variableOfSlot}% used but not defined
