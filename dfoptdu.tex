@@ -2806,6 +2806,7 @@ type LOFsKont a b = LastOuts a  -> DFM a b
 \label{haskell.def.in'}% automated definition
 \label{haskell.def.solve:unmid}% automated definition
 \label{haskell.def.solve:unOO}% automated definition
+\label{haskell.def.solve:unblock}% automated definition
 \label{haskell.def.set:unlast}% automated definition
 \label{haskell.def.solve:unlast}% automated definition
 \label{haskell.def.solve:unfirst}% automated definition
@@ -3157,7 +3158,7 @@ helped us eliminate dynamic tests of the shapes of subgraphs.
 !GraphFactKont!type GraphFactKont  m l e x a b = GF m l e x -> a -> DFM a b
 !GraphKont!type GraphKont      m l e x a b = GF m l e x      -> DFM a b
 
-!rew.first!      rew_first :: BlockId -> GraphFactKont m l e O a b -> GraphKont     m le C a b
+!rew.first!      rew_first :: BlockId -> GraphFactKont m l e O a b -> GraphKont     m l e C a b
       rew_mid   :: m       -> GraphFactKont m l e O a b -> GraphFactKont m l e O a b
 !rew.last!      rew_last  :: l       -> GraphKont     m l e C a b -> GraphFactKont m l e O a b
 
@@ -3184,7 +3185,6 @@ helped us eliminate dynamic tests of the shapes of subgraphs.
 \label{haskell.firstuse.GraphFactKont}% automated use
 \label{haskell.firstuse.GraphKont}% automated use
 \label{haskell.firstuse.rew:unfirst}% automated use
-\label{haskell.firstuse.le}% automated use
 \label{haskell.firstuse.rew:unmid}% automated use
 \label{haskell.firstuse.rew:unlast}% automated use
 \label{haskell.firstuse.head}% automated use

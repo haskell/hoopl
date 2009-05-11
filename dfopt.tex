@@ -2486,7 +2486,7 @@ type `LOFsKont a b = LastOuts a  -> DFM a b
 !set.last.sig!     set_last :: LOFsKont a ()
 !set.last.*!     `set_last (LastOuts l) = mapM_ (uncurry setFact) l
 
-!solve.block.sig!     solve_block :: Block m l -> Kont a ()
+!solve.block.sig!     `solve_block :: Block m l -> Kont a ()
 !solve.OO.def!     `solve_OO    :: GF m l O O -> FactKont a b -> FactKont a b
 
 !solve.mid.1!     `solve_mid m k ^in' =
@@ -2784,7 +2784,7 @@ helped us eliminate dynamic tests of the shapes of subgraphs.
 !GraphFactKont!type `GraphFactKont  m l e x a b = GF m l e x -> a -> DFM a b
 !GraphKont!type `GraphKont      m l e x a b = GF m l e x      -> DFM a b
 
-!rew.first!      `rew_first :: BlockId -> GraphFactKont m l e O a b -> GraphKont     m le C a b
+!rew.first!      `rew_first :: BlockId -> GraphFactKont m l e O a b -> GraphKont     m l e C a b
       rew_mid   :: m       -> GraphFactKont m l e O a b -> GraphFactKont m l e O a b
 !rew.last!      `rew_last  :: l       -> GraphKont     m l e C a b -> GraphFactKont m l e O a b
 
