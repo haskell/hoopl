@@ -1431,12 +1431,12 @@ save the value of~$x$.
 (GHC~represents 
 the relation using Haskell functions @isStackSlot@,
 @variableOfSlot@, and @isStackSlotOf@.)
-% need some omit's here
-%
+% omit isStackSlotOf :: CmmExpr -> LocalVar -> Bool
+% omit isStackSlot :: CmmExpr -> Bool
+% omit variableOfSlot :: CmmExpr -> LocalVar
 If the variable and the stack slot hold the same value,
 that is if $x = \slotof x$,
 then it is \emph{safe} to insert a reload.
-
 
 To sink a reload of a variable $x$, we insert redundant reloads immediately
 before uses of~$x$.
@@ -2414,8 +2414,10 @@ preceded by a (redundant) reload for each variable in the set~@used@.
 
 Our transformation is implemented by the call to @zdfRewriteFwd@
 on \linerangeref{insertLateReloads.1}{insertLateReloads.2} of \figref{avail-rewrites}.
-Rewriting is shallow, so a graph returned by
-@maybe_reload_before@ is not itself rewritten.
+A~reload node is created by function @`reload@ (\lineref{mkMiddle}),
+which has type @LocalVar -> CmmMiddle@.
+Rewriting is shallow, so a graph containing reload nodes
+is not itself rewritten.
 (If~it \emph{were} rewritten, a nonempty @used@ set would make the
 compiler insert an infinite sequence of reloads before @node@.)
 Once the reloads are inserted, the original reloads immediately

@@ -112,6 +112,8 @@
 \hsprelude{Int}{Prelude}% context prelude
 \hsfigdef{interAvail}{haskell.def.interAvail}% context figure
 \omithspagedef{isEmptyVarSet :: VarSet -> Bool}{haskell.def.isEmptyVarSet}% context document
+\omithspagedef{isStackSlot :: CmmExpr -> Bool}{haskell.def.isStackSlot}% context document
+\omithspagedef{isStackSlotOf :: CmmExpr -> LocalVar -> Bool}{haskell.def.isStackSlotOf}% context document
 \hsfigdefll{join}{haskell.def.join}% context figure
 \hsprelude{Just}{Prelude}% context prelude
 \hsfigdef[Kont]{Kont}{haskell.def.Kont}% context figure
@@ -159,6 +161,7 @@
 \hsfigdefll{old}{haskell.def.old}% context figure
 \hspagedef{PassName}{haskell.def.PassName}% context document
 \hsfigdefll[mkMiddle]{rel}{haskell.def.rel}% context figure
+\hspagedef{reload}{haskell.def.reload}% context document
 \hsfigdef{reloadTail}{haskell.def.reloadTail}% context figure
 \hsfigdef[liveness.remDefd.def]{remDefd}{haskell.def.remDefd}% context figure
 \hsfigdef{removeDeadAssignments}{haskell.def.removeDeadAssignments}% context figure
@@ -207,6 +210,7 @@
 \hsfigdefll{used}{haskell.def.used}% context figure
 \hspagedef{useOneFuel}{haskell.def.useOneFuel}% context document
 \hspagedef{UserOfLocalVars}{haskell.def.UserOfLocalVars}% context document
+\omithspagedef{variableOfSlot :: CmmExpr -> LocalVar}{haskell.def.variableOfSlot}% context document
 \hsfigdefll{vars}{haskell.def.vars}% context figure
 \omithspagedef{VarSet\textrm{~(a~type)}}{haskell.def.VarSet}% context document
 \omithsfigdef{varSetToList :: VarSet -> [LocalVar]}{haskell.def.varSetToList}% context figure
@@ -222,7 +226,3 @@
 \hsfigdef[ZKont]{ZKont}{haskell.def.ZKont}% context figure
 \hspagedef{ZMaybe}{haskell.def.ZMaybe}% context document
 \hspagedef{ZNothing}{haskell.def.ZNothing}% context document
-\nothspagedef{isStackSlot}{haskell.firstuse.isStackSlot}% used but not defined
-\nothspagedef{isStackSlotOf}{haskell.firstuse.isStackSlotOf}% used but not defined
-\nothspagedef{reload}{haskell.firstuse.reload}% used but not defined
-\nothspagedef{variableOfSlot}{haskell.firstuse.variableOfSlot}% used but not defined
