@@ -1974,12 +1974,12 @@ simply ``open/closed.''
 
 Graphs are created using these functions:
 \begin{code}
-`mkLabel    :: BlockId -> Graph m l C O
-`mkMiddle   :: m       -> Graph m l O O
-`mkLast     :: l       -> Graph m l O C
-(`<*>)      :: Graph m l e a -> Graph m l a x 
-           -> Graph m l e x
-`emptyGraph :: Graph m l O O
+`mkLabel    :: BlockId -> GF m l C O
+`mkMiddle   :: m       -> GF m l O O
+`mkLast     :: l       -> GF m l O C
+(`<*>)      :: GF m l e a -> GF m l a x 
+           -> GF m l e x
+`emptyGraph :: GF m l O O
 \end{code}
 The infix @<*>@ function is graph concatenation; the exit of the first
 argument must match the entry of the next (both open or both closed).
@@ -2102,13 +2102,15 @@ determinism. ---NR)
 %%%%    of not to terminate is infinite ``deep rewriting.''
 %%%%    }
 
-To~describe the presence or absence of entry and exit sequences, we
-refer to a graph's \emph{shape} as open/open (enterable and exitable),
-open/closed (enterable but not exitable), or closed/open (not
-enterable, but exitable).  
-In
-the dataflow engine, the shape constrains the rewrite
-functions:
+% Redundant with earlier text:
+% To~describe the presence or absence of entry and exit sequences, we
+% refer to a graph's \emph{shape} as open/open (enterable and exitable),
+% open/closed (enterable but not exitable), or closed/open (not
+% enterable, but exitable).  
+% In
+% the dataflow engine, the shape constrains the rewrite
+% functions:
+Each rewrite function is constrained by the shape of the graph it returns:
 \begin{itemize}
 \item
 \iffalse
@@ -2131,6 +2133,8 @@ These conditions, which are enforced by the static type system
  (\figref{rewrites}), 
  are necessary and sufficient to ensure that 
 every replacement graph can be spliced in place of the node it is derived from.
+
+\subsection{Running the dataflow engine}
 
 To write a program transformation,
 you must 
@@ -2899,7 +2903,7 @@ Funtion @`fwd_pure_anal@ is the special case of pure analysis; it is
 also used to implement function @`anal_f_OO@ on
 \lineref{solve.rewrite.shallow.1} of \figref{solver-excerpts}.
 Function~@`ffp@ (not shown) extracts a @FwdFixedPoint@ from the
-state stored in the inner dataflow monad.
+state stored in the dataflow monad.
 Function @`runWithoutFuel@ (not shown) exploits lazy evaluation to run
 a computation in the fuel monad while guaranteeing that the
 computation uses no fuel and no labels.
@@ -2921,7 +2925,7 @@ Type @FactKont a b@ describes a context following a first node or middle
 node: in a forward analysis, the context expects a fact of type~@a@
 to flow out of the node.
 The rest of the analysis consumes that
-fact and the remaining fuel and produces a computation in the inner
+fact and the remaining fuel and produces a computation in the
 dataflow monad (@DFM a@) whose answer type is type~@b@.
 %Type @FactKont a b@ also describes the context following the analysis of
 %any replacement graph that is open at the exit.
@@ -2937,7 +2941,7 @@ Type @Kont a b@ describes a context \emph{before} a first node (or a
 basic block).
 The forward analysis of a basic block does \emph{not} start with a
 fact flowing in; it starts with the fact associated with that block's
-label in the inner dataflow monad.
+label in the dataflow monad.
 Thus a @Kont@ expects no fact as argument; it gets its fact by
 calling the monadic operation @getFact@.
 \item
@@ -2966,7 +2970,7 @@ of type
 @LOFsKont a b -> Kont a b@.
 But once we have analyzed a block, we no longer want to pass facts
 from one function to another---we want to update the facts stored in
-the inner dataflow monad.
+the dataflow monad.
 Stored facts are updated by function @set_last@ on
 \linerangeref{set.last.sig}{set.last.*} of 
 \figref{solver-excerpts}, which calls @setFact@ on each fact
@@ -3101,7 +3105,7 @@ different, as shown on \linepairref{GraphFactKont}{GraphKont} of
 \figref{rewriter-excerpts}. 
 \Linerangeref{rew.first}{rew.last} give the types of the base-case
 rewriting functions; because these functions are called \emph{after}
-the solver has set the state of the inner dataflow monad to a fixed
+the solver has set the state of the dataflow monad to a fixed
 point, they need not propagate facts out of a last node, so there is
 no analog of @LOFsKont@.
 
@@ -3521,7 +3525,7 @@ we use an applicative representation of
 control-flow graphs
 \cite{ramsey-dias:applicative-flow-graph}. 
 We~improve on our prior work by making the state of analysis
-explicit in the inner dataflow monad.
+explicit in the dataflow monad.
 %%  these two functional data structures make it easy to implement the hard
 %%  part of Lerner, Grove, and Chamber's algorithm: discarding replacement
 %%  graphs and their associated state at need.
