@@ -245,68 +245,135 @@ back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
 If you write a compiler for an imperative language, you can exploit
 many years' work on code improvement, also called
 ``optimization.''
-But the work is typically presented
+But writing these optimizations is complicated
+because the work is typically presented
 as a collection of apparently unrelated analyses and
 transformations, each with its own name---and 
 it's not always easy to
 remember how something like
 ``copy propagation'' differs from ``constant propagation.''
-%Many presentations obscure fundamental principles of
-%code improvement.
-%
-But~most optimizations
-work by applying reasoning techniques that have long been understood
-and used 
-to reason about programs:
+Further complications arise if you want to implement a ``super-analysis,''
+which can improve the code further by
+combining symbiotic analyses in a monolithic pass.
+
+But optimization doesn't have to be complicated.
+Most optimizations
+work by applying well-understood techniques for
+reasoning about programs:
 assertions about states, assertions about continuations, and
 substitution of equals for equals. 
 What distinguishes dataflow optimization from classic formal reasoning
-about programs is that in dataflow optimization, all assertions are
-computed automatically, and they are
-\emph{approximated}. 
+about programs is that in dataflow optimization, assertions are approximated,
+and all assertions are computed automatically by setting up recursion
+equations and solving for a fixed point.
 
 This paper presents \ourlib\ (higher-order optimization library), 
-a Haskell library the implements dataflow optimizations using
-simple representations of assertions and the functions that transform
-them.
-Its contributions are as follows:
-%The contribution of this paper is to elucidate a large body of work on code
-%improvement; the body of work known as ``dataflow optimization.''
-%This paper makes two contributions:
+a Haskell library that makes it easy to implement dataflow optimizations,
+even in a purely functional setting.
+Our contributions are as follows:
 \begin{itemize}
 \item
-\ourlib\ is engineered to make it \emph{easy} to implement
-dataflow-based 
-code-improvement techniques, even in a purely functional setting.
+\ourlib\ defines a simple interface for implementing analyses and transformations:
+you provide the representation for assertions and the functions that transform assertions,
+and \ourlib\ sets up and solves the necessary recursion equations.
 When built on \ourlib, analyses and transformations
 are small, simple, and easy to get right.
-\item 
+\item
+% using LGC, simple implementations of complicated super-analyses using interleaving and speculative
+% rewriting
 Using the sophisticated algorithm of \citet{lerner-grove-chambers:2002},
- which is \emph{not} easy to get right,
-\ourlib\ \emph{interleaves} analysis and transformation.
-Our new implementation, which uses generalized
-algebraic data 
-types
+%which is \emph{not} easy to get right,
+\ourlib\ can perform a super-analysis by \emph{interleaving}
+simple analyses and transformations.
+The interleaving algorithm is tricky to implement correctly,
+but by using
+generalized algebraic data types
 and continuation-passing style,
-%By~exploiting Strachey's ideas about compositional semantics and
-%the extra type checking possible with GADTs, we implement
-expresses the algorithm with a clarity and a degree of
+our new implementation expresses the algorithm with a clarity and a degree of
 static checking that has not 
 previously been achieved.
+%By~exploiting Strachey's ideas about compositional semantics and
+%the extra type checking possible with GADTs, we implement
 \item
-\ourlib's polymorphic, higher-order design makes it easier to reuse
-these techniques than ever before.
-\end{itemize}
-%
-\hoopl\ is designed to help optimize imperative procedures (after
-inlining). 
-\ourlib\ supports local-level codes with arbitrary control flow,
-including intermediate 
-languages and machine 
-languages.
+\ourlib\ helps the user write correct optimizations both by
+statically ruling out transformations that violate invariants
+of the control-flow graph,
+and 
+by identifying the first transformation that introduces a fault
+in a test program (using an adaptation of Whalley's \citeyearpar{whalley:isolation} algorithm).
+\item
+\ourlib's polymorphic, higher-order design makes it possible to reuse
+the library with many low-level codes.
+\hoopl\ is designed to help optimize imperative procedures
+(after inlining)\john{Why the ``after inlining'' restriction?}
+with arbitrary control flow,
+including intermediate languages and machine languages.
 As \citet{benitez-davidson:portable-optimizer} have shown, all the
 classical scalar and loop optimizations can be performed over such
 codes.
+\end{itemize}
+
+
+
+
+
+
+% %Many presentations obscure fundamental principles of
+% %code improvement.
+% %
+% But~most optimizations
+% work by applying reasoning techniques that have long been understood
+% and used 
+% to reason about programs:
+% assertions about states, assertions about continuations, and
+% substitution of equals for equals.  % (\secref{next-700}).
+% % What distinguishes dataflow optimization from classic formal reasoning
+% % about programs is that in dataflow optimization, all assertions are
+% % computed automatically, and they are
+% % \emph{approximated}. 
+% 
+% This paper presents \ourlib\ (higher-order optimization library), 
+% a Haskell library the implements dataflow optimizations using
+% simple representations of assertions and the functions that transform
+% them.
+% Its contributions are as follows:
+% %The contribution of this paper is to elucidate a large body of work on code
+% %improvement; the body of work known as ``dataflow optimization.''
+% %This paper makes two contributions:
+% \begin{itemize}
+% \item
+% \ourlib\ is engineered to make it \emph{easy} to implement
+% dataflow-based 
+% code-improvement techniques, even in a purely functional setting.
+% When built on \ourlib, analyses and transformations
+% are small, simple, and easy to get right.
+% \item 
+% Using the sophisticated algorithm of \citet{lerner-grove-chambers:2002},
+%  which is \emph{not} easy to get right,
+% \ourlib\ \emph{interleaves} analysis and transformation.
+% Our new implementation, which uses generalized
+% algebraic data 
+% types % \cite{xi:guarded-recursive} 
+% and continuation-passing style,
+% %By~exploiting Strachey's ideas about compositional semantics and
+% %the extra type checking possible with GADTs, we implement
+% expresses the algorithm with a clarity and a degree of
+% static checking that has not 
+% previously been achieved.
+% \item
+% \ourlib's polymorphic, higher-order design makes it easier to reuse
+% these techniques than ever before.
+% \end{itemize}
+% %
+% \hoopl\ is designed to help optimize imperative procedures (after
+% inlining). 
+% \ourlib\ supports local-level codes with arbitrary control flow,
+% including intermediate 
+% languages and machine 
+% languages.
+% As \citet{benitez-davidson:portable-optimizer} have shown, all the
+% classical scalar and loop optimizations can be performed over such
+% codes.
 
 
 
@@ -333,10 +400,10 @@ by assertions about programs;
 such assertions are often computed using
 strongest postconditions or weakest liberal preconditions.
 Typical transformations are
-insert assignments to unobserved variables,
-substitute equals for equals, 
+to insert assignments to unobserved variables,
+to substitute equals for equals, 
 and
-remove assignments to unobserved variables.
+to remove assignments to unobserved variables.
 Insertion and removal can be composed to achieve 
 ``code motion.''
 The examples below express classical code
@@ -385,7 +452,7 @@ equals, leaving the final assignment as
 \begin{verbatim}
   z = 15;
 \end{verbatim}
-The final transformation, although also it also substitutes equals
+The final transformation, although it also substitutes equals
 for equals, has a different name: ``constant folding.''
 
 \subsection{A complex transformation}
@@ -475,7 +542,7 @@ New code is \high{boxed}\,.
 \end{alltt}
 
 As written, the assignments to @p@~and~\texttt{lim} have no
-effect on the program, but they enable the compiler to establish the assertions
+effect on the program, but they establish the assertions
 @p == a + i * 24@ and \icode|(i >= n) == (p >= lim)|.
 On~the basis of these assertions, the compiler substitutes equals for
 equals, resulting in the new code in boxes below:
@@ -630,9 +697,9 @@ An~assertion about paths \emph{to} a program point from the procedure
 {entry} is established by a \emph{forward dataflow analysis}.
 In an important special case,
 an assertion may say simply
-that all paths to a point establish a predicate, such as @x == 7@
-above, which describes the program 
-state at that point.
+that all paths to a point establish a predicate
+which describes the program state at that point,
+such as @x == 7@ above.
 
 
 A~program point is represented as an edge in
@@ -673,9 +740,9 @@ create a \emph{rewrite function}, which is presented with a
 flow-graph node and with the dataflow facts on the edges coming
 into that node.
 The function either suggests that the node should be replaced with a
-fresh subgraph, or it leaves the node alone (\secref{rewrites}).
-The rewrite function uses incoming facts to guarantee that
-any proposed replacement preserves semantics.
+fresh subgraph, or it leaves the node alone (\secref{rewrite-functions}).
+The rewrite function uses incoming facts to propose a replacement
+that preserves semantics.
 For example, in \secref{constant-propagation} the fact @x == 7@ is
 used to justify replacing @z = x + y@ with @z = 7 + y@.
 
@@ -705,6 +772,7 @@ Solve-and-rewrite functions & Us & Us & Two (forward \&\ backward) \\
 
 
 
+\tabref{parts} shows how \ourlib\ interacts with your client code.
 \ourlib\ defines the types of
 control-flow graphs, 
 lattice operations,
@@ -719,15 +787,15 @@ facts, so you can define different analyses,
 using different types of facts,
 all operating over one type of graph. 
 
-\tabref{parts} shows how \ourlib\ interacts with your client code.
-You~pass lattice
+To run an~optimization, you~pass lattice
 operations, transfer functions, and rewrite functions
 to the part of \ourlib\ we call the \emph{dataflow engine}.
-The dataflow engine includes
-\emph{solver functions}, 
-which use a forward or backward \emph{analysis} to compute 
+The dataflow engine defines
+\emph{solver functions} and \emph{rewrite functions}.
+The solver functions 
+use a forward or backward \emph{analysis} to compute 
 a dataflow fact for each program point (\secref{zdfSolveFwd}).
-It also includes \emph{rewrite functions}, which
+The rewrite functions
 use a forward or backward \emph{transformation} to compute facts and to
 rewrite a control-flow graph in light of those facts
 (\secref{rewrites}).
@@ -832,9 +900,9 @@ fixed point.
 %%  say, at most three constants.
 \end{itemize}
 
-The lattice  used by the analysis is the Cartesian product of the
+The lattice used by the analysis is the Cartesian product of the
 lattices for all the local variables.
-We~represent this lattice as a finite map from variable
+We~represent this lattice as a finite map from a variable
 to a value of type \icode|Maybe Const|.
 A~variable $x$ is not in the domain of the map iff $x=\bot$;
 $x$~maps to @Nothing@ iff $x=\top$; $x$~maps to $@Just@\;k$ iff
@@ -862,7 +930,7 @@ the dataflow engine replaces $f_{\mathit{id}}$ with
 the join  $f_{\mathit{new}} \join f_{\mathit{id}}$.
 Furthermore, the dataflow engine wants to know if
   $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$,
-because if not, it has not reached a fixed point.
+because if not, the analysis has not reached a fixed point.
 
 
 
@@ -1047,7 +1115,7 @@ engine has reached a fixed point.
 Given lattice operations of type @DataflowLattice a@
 and transfer functions of type @ForwardTransfers m l a@,
 you can run the corresponding analysis by calling \ourlib\
-function @zdfSolveFwd@, a~part of our dataflow engine
+function @zdfSolveFwd@, which is a~part of our dataflow engine
 \label{haskell.firstuse.zdfSolveFwd}% automated use
 (backward analyses call @zdfSolveBwd@, which has a similar type):
 \label{haskell.def.zdfSolveBwd}% automated definition
@@ -1071,9 +1139,9 @@ function @zdfSolveFwd@, a~part of our dataflow engine
 The function is polymorphic in the types of middle and last nodes
 @m@~and~@l@ and in the type of the dataflow fact~@a@.
 Polymorphism allows \ourlib\ to work with any intermediate
-language, but there is a constraint: @HavingSuccessors l@ is satisfied
+language, as long as the type of last node @l@ satisfies the constraint
+@HavingSuccessors l@ by providing a function
 \label{haskell.def.HavingSuccessors}% automated definition
-only if there is a function 
 \begin{code}
   succs :: l -> [BlockId]
 \end{code}
@@ -1093,7 +1161,7 @@ is not always~$\bot$.
 The last argument to @zdfSolveFwd@ is the graph, and the result is a 
 fixed point.
 ({The final type parameter~@()@ is 
-is explained in~\secref{engine-truth}.})
+explained in~\secref{engine-truth}.})
 
 
 The @FwdFixedPoint@ data structure is a big bag
@@ -1293,7 +1361,7 @@ middleAvail :: CmmMiddle -> AvailVars -> AvailVars
 !store.avail.spill.2!                 | l `isStackSlotOf` x = avail
 !store.avail.otherslot.1!middleAvail (MidStore l _) avail 
 !store.avail.otherslot.2!                 | isStackSlot l = delFromAvail avail (variableOfSlot l)
-!store.avail.other!middleAvail (MidStore {}) avail = avail
+!store.avail.other!middleAvail (MidStore _ _) avail = avail
 
 lastAvail :: CmmLast -> AvailVars -> LastOuts AvailVars
 !avail.LastCall!lastAvail (LastCall _ (Just k) _ _) _ = LastOuts [(k, AvailVars emptyVarSet)]
@@ -1308,7 +1376,7 @@ lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 cmmAvailableVars :: Graph CmmMiddle CmmLast -> BlockEnv AvailVars
 cmmAvailableVars g = zdfFpFacts soln
 !avail.solve.1!  where soln = zdfSolveFwd "available variables" availVarsLattice 
-!avail.solve.2!               avail_vars_transfer (fact_bot availVarsLattice) g
+!avail.solve.2!                 avail_vars_transfer (fact_bot availVarsLattice) g
 \end{code}
 \B
 &
@@ -1861,7 +1929,7 @@ is @flip const@ (\lineref{avail.first}).
 %%\end{itemize}
 
 Given the lattice and the transfer functions,
-awe can perform the analysis by calling
+we can perform the analysis by calling
 the \ourlib\ function @zdfSolveFwd@ (\figref{avail},
 \linerangeref{avail.solve.1}{avail.solve.2}). 
 \delendum{But this is really a lie. We actually call the transformation 
@@ -2139,18 +2207,18 @@ is open or closed at the exit.
 The instantiations of type parameters @entry@ and @exit@ specify the
 graph's \emph{shape}, which we refer to in shorthand.
 For example,
-a~full @Graph@, which represents the a function or
+a~full @Graph@, which represents a function or
 procedure, is open at the entry and closed at the exit, or
 simply ``open/closed.''
 
 Graphs are created using these functions:
 \begin{code}
-mkLabel    :: BlockId -> Graph m l C O
-mkMiddle   :: m       -> Graph m l O O
-mkLast     :: l       -> Graph m l O C
-(<*>)      :: Graph m l e a -> Graph m l a x 
-           -> Graph m l e x
-emptyGraph :: Graph m l O O
+mkLabel    :: BlockId -> GF m l C O
+mkMiddle   :: m       -> GF m l O O
+mkLast     :: l       -> GF m l O C
+(<*>)      :: GF m l e a -> GF m l a x 
+           -> GF m l e x
+emptyGraph :: GF m l O O
 \end{code}
 \label{haskell.def.mkLabel}% automated definition
 \label{haskell.def.mkMiddle}% automated definition
@@ -2200,8 +2268,9 @@ compile-compile time, by Haskell's static
 type system.
 In~earlier implementations, such errors were not detected until
 the compiler ran, at which point \ourlib\ code tried to compensate
-for the errors and then issued a warning message.
-Subtle faults in the compensation code led to several bugs in~GHC.
+for the errors by inserting branch instructions and then issued a warning message.
+Subtle faults in the compensation code led to several bugs
+while developing a new back end for~GHC.
 \end{itemize}
 
 
@@ -2226,6 +2295,7 @@ Subtle faults in the compensation code led to several bugs in~GHC.
 
 
 \subsection{Rewrite functions}
+\seclabel{rewrite-functions}
 
 
 \simon{\ourlib\ provides a function
@@ -2281,13 +2351,15 @@ determinism. ---NR)
 %%%%    of not to terminate is infinite ``deep rewriting.''
 %%%%    }
 
-To~describe the presence or absence of entry and exit sequences, we
-refer to a graph's \emph{shape} as open/open (enterable and exitable),
-open/closed (enterable but not exitable), or closed/open (not
-enterable, but exitable).  
-In
-the dataflow engine, the shape constrains the rewrite
-functions:
+% Redundant with earlier text:
+% To~describe the presence or absence of entry and exit sequences, we
+% refer to a graph's \emph{shape} as open/open (enterable and exitable),
+% open/closed (enterable but not exitable), or closed/open (not
+% enterable, but exitable).  
+% In
+% the dataflow engine, the shape constrains the rewrite
+% functions:
+Each rewrite function is constrained by the shape of the graph it returns:
 \begin{itemize}
 \item
 \iffalse
@@ -2310,6 +2382,8 @@ These conditions, which are enforced by the static type system
  (\figref{rewrites}), 
  are necessary and sufficient to ensure that 
 every replacement graph can be spliced in place of the node it is derived from.
+
+\subsection{Running the dataflow engine}
 
 To write a program transformation,
 you must 
@@ -2374,15 +2448,14 @@ rewriting is \emph{deep}.
 \label{haskell.def.RewriteDeep}% automated definition
 Deep rewriting is essential to achieve the results of
 \citet{lerner-grove-chambers:2002}, e.g., to remove the induction
-variable from the loop in the example in \secref{induction-var-elim}.
+variable from the loop in the example in \secref{induction-var-elim}.\john{Deep rewriting isn't needed for this example; interleaving is...}
 \ifcutting\else
 When deep rewriting is used, the rewrite functions must
 ensure that the graphs they produce are not rewritten indefinitely.
 \fi
 \item
-The result type uses the fourth type parameter of type constructor
-@FwdFixedPoint@, 
-which is a value contained in the fixed point.
+In the result type, the fourth type parameter of type constructor
+@FwdFixedPoint@ is a value contained in the fixed point.
 The~value is extracted using function @zdfFpContents@, which has
 \label{haskell.def.zdfFpContents}% automated definition
 \label{haskell.firstuse.zdfFpContents}% automated use
@@ -2493,6 +2566,7 @@ graph is \emph{thrown away}; only the facts remain.
 If,~during iteration, the original node is analyzed again, perhaps
 with a different input fact, the rewrite function may propose
 a different replacement or even no replacement at all.
+\john{Check: does the reader already have enough intuition for this paragraph?}
 %%As described in \secref{subgraphs}, every replacement graph is a
 %%\emph{subgraph}, not a complete graph.
 
@@ -2534,7 +2608,7 @@ This phase is called the \emph{rewriter}.
 Facts computed by the solver depend on graphs produced by rewrite
 functions, which in turn depend on facts computed by the solver.
 How~do we know this algorithm is sound, or even if it terminates?
-A~proof requires a POPL paper
+A~proof requires its own POPL paper
 \cite{lerner-grove-chambers:2002}, but we can give some
 intuition:
 \begin{itemize} 
@@ -2703,7 +2777,7 @@ A~first node uses no variables and so is never rewritten.
 For middle and last nodes, @maybe_reload_before@ 
 (\linerangeref{maybe.reload.before.1}{maybe.reload.before.2})
 computes @used@, which is the set
-of variables used in the node which are both safe and profitable to
+of variables used in the node that are both safe and profitable to
 reload. 
 %
 \label{haskell.def.filterVarsUsed}% automated definition
@@ -2877,29 +2951,87 @@ In this section, we sketch the implementation of the main part of \ourlib:
 the dataflow engine.
 The dataflow engine is less simple than the title of this paper might
 lead you to expect.
-Although
-the \emph{interface} (lattice, transfer functions, rewrite functions) is simple,
+The \emph{interface} (lattice, transfer functions, rewrite functions) is simple,
 compiler passes written \emph{using} the engine
 are simple,
-and even the individual parts of the engine are simple, the
-totality is complex.
+and even the individual parts of the engine are simple,
+but the totality of the dataflow engine is complex.
 
 \remark{Simon asked what new insights are gained.
 Compared with our earlier work, using CPS dramatically simplifies the
 dataflow engine.}
 
-The dataflow engine is implemented in two layers.
-The lower layer is the \emph{dataflow monad};
-it has type @DFM a@, where @a@~is the type of a
+The dataflow engine comprises four functions:
+a forward solver, a forward rewriter,
+a backward solver, and a backward rewriter.
+The solvers perform iterative dataflow analyses.
+Each analysis begins with an environment mapping all labels to bottom facts.
+For each block in the control-flow graph, the solver begins with the dataflow facts
+flowing into one end of the block (the first node in a forward analysis or the last node in a
+backward analysis),
+then uses the transfer functions to compute the dataflow facts flowing out the other
+end of the block.
+The outflowing facts are joined with the facts previously stored in the environment,
+and when the facts in the environment have converged, the analysis terminates.
+
+Rewriting is similar to solving, with two differences:
+\begin{itemize}
+\item Rewriting begins with an interleaved analysis, according to the algorithm of
+     \citet{lerner-grove-chambers:2002}:
+     at each node, the analysis passes the node and
+     the incoming dataflow facts to a rewriting function.
+     If the node is rewritten, then the analysis continues with the same dataflow facts
+     flowing into the rewritten node.
+     After the rewritten node is analyzed,
+     it is discarded, and the original node is restored;
+     only the dataflow facts persist.
+\item After the analysis terminates, one more pass visits the blocks,
+      and this time, the results of the rewriting functions are kept.
+\end{itemize}
+
+\subsection{Throttling the dataflow engine using ``optimization fuel''}
+
+\seclabel{vpoiso}
+\seclabel{fuel}
+
+We have extended Lerner, Grove, and Chambers's optimization-combining algorithm with
+Whalley's \citeyearpar{whalley:isolation} algorithm for isolating
+faults.
+Whalley's algorithm is used to test a faulty optimizer;
+it~automatically
+finds the first rewrite that introduces a fault in a test program.
+It works by giving the optimizer a finite supply of \emph{optimization fuel}.
+Each time a rewrite function proposes to replace a node, one unit of fuel is
+consumed.
+When the optimizer runs out of fuel, further rewrites are suppressed.
+Because each rewrite leaves the observable behavior of the
+program unchanged, it is safe to suppress rewrites at
+any point.
+In~normal operation, the optimizer has unlimited fuel, but during
+debugging, a fault can be isolated quickly by doing a binary search on
+the size of the fuel supply.
+% To control the fuel supply in a purely functional setting, we use
+% the fuel monad.
+%% , which works with
+%% computations of type @Fuel -> (a, Fuel)@.
+
+
+\subsection{Monads for dataflow effects}
+
+Because all transformations share a single
+supply of fuel and fresh labels (for making new blocks),
+the supplies of fuel and labels are kept
+in the fuel monad.
+Therefore, the rewriter functions provided by the dataflow engine
+both return results in the fuel monad.
+But to simplify the implementation of the dataflow engine,
+we use a \emph{dataflow monad}, which is a state monad
+that keeps track of the values of dataflow facts as the engine iterates.
+A value in the dataflow monad has type @DFM a b@, where @a@~is the type of a
 \label{haskell.def.DFM}% automated definition
-dataflow fact.
-It~is a state monad which keeps track of the values of dataflow facts
-as the engine iterates.
-It also keeps track of a supply of ``optimization fuel,'' which
-helps the compiler isolate faults by selectively suppressing
-optimization, as discussed
-below (\secref{vpoiso}). 
-Finally, it keeps track of a supply of fresh labels.
+dataflow fact and @b@ is the type of the value computed by the monadic action.
+The dataflow monad also maintains the supply of optimization fuel
+and the supply of fresh labels.
 
 Operations on the dataflow monad include
 \begin{code}
@@ -2955,18 +3087,13 @@ read than the one of \citet{ramsey-dias:applicative-flow-graph}.
 %%  \john{Presumably this sentence disappears if the italic text is made permanent.}
 Function @runDFM@ runs a single analysis or transformation, then
 \label{haskell.def.runDFM}% automated definition
-abandons the dataflow facts.
-The supplies of fuel and labels are kept (in the result of type
-@FuelMonad b@) because all analyses and transformations share a single
-supply of fuel and fresh labels.
+abandons the dataflow facts and returns the result in the fuel monad.
 %
+
 The dataflow monad is private to \ourlib;
 only @FuelMonad@ is exposed in the interface.
-
-The upper layer of the dataflow engine comprises four functions:
-a forward solver, a forward rewriter,
-a backward solver, and a backward rewriter.
-These functions are new and are significantly simpler than in our
+Using the dataflow monad in \ourlib, the solvers and rewriters
+are significantly simpler than in our
 previous work \cite{ramsey-dias:applicative-flow-graph}.
 In~\secreftwo{forward-solver}{forward-rewriter},
 we show parts of the forward solver and rewriter. 
@@ -2978,35 +3105,6 @@ we show parts of the forward solver and rewriter.
 %%  easy (and indeed is just logic, strongest postcondition, or weakest
 %%  precondition). 
 %%  
-
-\subsection{Throttling the dataflow engine using ``optimization
-  fuel''}
-
-\seclabel{vpoiso}
-\seclabel{fuel}
-
-We have extended Lerner, Grove, and Chambers's optimization-combining algorithm with
-Whalley's \citeyearpar{whalley:isolation} algorithm for isolating
-faults.
-Whalley's algorithm is used to test a faulty optimizer;
-it~automatically
-finds the first rewrite that introduces a fault.
-It works by giving the optimizer a finite supply of \emph{optimization
-fuel}.
-Each time a rewrite function proposes to replace a node, one unit of fuel is
-consumed.
-When the optimizer runs out of fuel, further rewrites are suppressed.
-Because each rewrite leaves the observable behavior of the
-program unchanged, it is safe to suppress rewrites at
-any point.
-In~normal operation, the optimizer has unlimited fuel, but during
-debugging, a fault can be isolated quickly by doing a binary search on
-the size of the fuel supply.
-To control the fuel supply in a purely functional setting, we use
-the fuel monad.
-%% , which works with
-%% computations of type @Fuel -> (a, Fuel)@.
-
 
 
 \subsection{The forward solver}
@@ -3065,12 +3163,12 @@ NR: \emph{Incorrect}.  The rewriter calls the solver to do most of the work.
 
 
 \figref{solver-excerpts} shows excerpts from the forward solver 
-@forward_sol@, which is used to implement the solver phase of
-@zdfRewriteFwd@ and also to implement
-@zdfSolveFwd@.
+@forward_sol@, 
+which is used to implement @zdfSolveFwd@,
+and also to implement the solver phase of @zdfRewriteFwd@.
 Because @forward_sol@ is used to solve replacement graphs as well as
 full graphs, it
-takes a more parameters than @zdfSolveFwd@, and it is more polymorphic
+takes more parameters than @zdfSolveFwd@, and it is more polymorphic
 (\figref{solver-excerpts}, \linerangeref{forward.sol.sig}{forward.sol.args}).
 \begin{itemize}
 \item
@@ -3202,37 +3300,33 @@ helped us eliminate dynamic tests of the shapes of subgraphs.
 I assume a full graph, closed at the entry!  So what is this pesky {\tt in\_fact}??}
 %
 
-Function @zdfSolveFwd@ calls @forward_sol@:
-\begin{smallcode}
-zdfSolveFwd name lattice transfers in_fact g = 
-  runWithoutFuel $ runDFM lattice $ ffp () $ 
-  fwd_pure_anal name emptyBlockEnv transfers in_fact g
-fwd_pure_anal name env transfers in_fact g =
-  forward_sol (\_ _ -> Nothing) undefined name env 
-              transfers undefined in_fact g
-ffp :: b -> DFM a (ZMaybe x a) 
-    -> DFM a (FwdFixedPoint m l a b)
-runWithoutFuel :: FuelMonad a -> a
-\end{smallcode}
-\label{haskell.def.lattice}% automated definition
-\label{haskell.firstuse.undefined}% automated use
-\label{haskell.firstuse.emptyBlockEnv}% automated use
-\label{haskell.firstuse.fwd:unpure:unanal}% automated use
-\label{haskell.firstuse.ffp}% automated use
-\label{haskell.firstuse.runWithoutFuel}% automated use
-\label{haskell.firstuse.lattice}% automated use
-Funtion @fwd_pure_anal@ is the special case of pure analysis; it is
-\label{haskell.def.fwd:unpure:unanal}% automated definition
-also used to implement function @anal_f_OO@ on
-\label{haskell.def.anal:unf:unOO}% automated definition
-\lineref{solve.rewrite.shallow.1} of \figref{solver-excerpts}.
-Function~@ffp@ (not shown) extracts a @FwdFixedPoint@ from the
-\label{haskell.def.ffp}% automated definition
-state stored in the inner dataflow monad.
-Function @runWithoutFuel@ (not shown) exploits lazy evaluation to run
-\label{haskell.def.runWithoutFuel}% automated definition
-a computation in the fuel monad while guaranteeing that the
-computation uses no fuel and no labels.
+% JD didn't see the point:
+% Function @zdfSolveFwd@ calls @forward_sol@:
+% \begin{smallcode}
+% zdfSolveFwd name ^lattice ^transfers in_fact g = 
+%   runWithoutFuel $ runDFM lattice $ ffp () $ 
+%   fwd_pure_anal name emptyBlockEnv transfers in_fact g
+% fwd_pure_anal name env transfers in_fact g =
+%   forward_sol (\_ _ -> Nothing) undefined name env 
+%               transfers undefined in_fact g
+% ffp :: b -> DFM a (ZMaybe x a) 
+%     -> DFM a (FwdFixedPoint m l a b)
+% runWithoutFuel :: FuelMonad a -> a
+% \end{smallcode}
+% Funtion @`fwd_pure_anal@ is the special case of pure analysis; it is
+% also used to implement function @`anal_f_OO@ on
+% \lineref{solve.rewrite.shallow.1} of \figref{solver-excerpts}.
+% Function~@`ffp@ (not shown) extracts a @FwdFixedPoint@ from the
+% state stored in the dataflow monad.
+% Function @`runWithoutFuel@ (not shown) exploits lazy evaluation to run
+% a computation in the fuel monad while guaranteeing that the
+% computation uses no fuel and no labels.
+% \john{The previous paragraph was a big interruption in my reading.
+% Is it serving a Higher Purpose,
+% or can we put this code at the bottom of Figure 10
+% and give a briefer description inline? It seems to me that the only salient points
+% are that zdfSolveFwd calls forwardsol with empty rewrites,
+% then extracts the results.}
 
 Function @forward_sol@ is composed of many parts, all written in
 continuation-passing style.
@@ -3245,8 +3339,8 @@ Type @FactKont a b@ describes a context following a first node or middle
 node: in a forward analysis, the context expects a fact of type~@a@
 to flow out of the node.
 The rest of the analysis consumes that
-fact and the remaining fuel and produces a computation in the inner
-dataflow monad (@DFM a@) whose answer type is type~@b@.
+fact and the remaining fuel and produces a computation in the
+dataflow monad (@DFM a@) with an answer of type~@b@.
 %Type @FactKont a b@ also describes the context following the analysis of
 %any replacement graph that is open at the exit.
 \item
@@ -3260,10 +3354,10 @@ edges leaving that node, the context expects those facts to have type
 Type @Kont a b@ describes a context \emph{before} a first node (or a
 basic block).
 The forward analysis of a basic block does \emph{not} start with a
-fact flowing in; it starts with the fact associated with that block's
-label in the inner dataflow monad.
-Thus a @Kont@ expects no fact as argument; it gets its fact by
-calling the monadic operation @getFact@.
+fact flowing in.
+Instead, it gets the fact associated with that block's label by calling
+the monadic operation @getFact@.
+Thus, a @Kont@ expects no fact as argument.
 \item
 Type @ZKont e a b@ describes a context \emph{before} the graph
 being analyzed, where @e@~tells whether the graph is open at the entry.
@@ -3290,7 +3384,7 @@ of type
 @LOFsKont a b -> Kont a b@.
 But once we have analyzed a block, we no longer want to pass facts
 from one function to another---we want to update the facts stored in
-the inner dataflow monad.
+the dataflow monad.
 Stored facts are updated by function @set_last@ on
 \linerangeref{set.last.sig}{set.last.*} of 
 \figref{solver-excerpts}, which calls @setFact@ on each fact
@@ -3298,7 +3392,7 @@ flowing out of a block.
 By applying the composition
 of @solve_first@, @solve_mid@, and @solve_last@ to @set_last@, we get
 function @solve_block@, whose type is given on \lineref{solve.block.sig}.
-Function @solve_block@ is given a block and it
+Function @solve_block@ is given a block and
 it runs for its side effects on the dataflow monad.
 
 In the rest of the solver,
@@ -3348,7 +3442,7 @@ Analysis with rewriting is done
 on~\lineref{solve.OO}
 by a recursive call to @solve_OO@ (not shown).
 (Because @g@~replaces a middle node, it is open at entry and exit.)
-The recursive call gets continuation @uncurry return@, and the
+The recursive call gets continuation @uncurry return@,\john{Which one is wrong here: text or figure?} and the
 resulting @FactKont a a@ is given
 the input fact.
 The output fact is computed in a sub-analysis
@@ -3357,9 +3451,9 @@ and bound on
 %
 Function @subAnalysis@ rolls back the facts mutated
 by @solve_OO@ as it iterates to a fixed point, but it accounts for
-the fuel consumed in the final iteration.
+the fuel consumed in the final iteration.\john{The final iteration of what? This sentence suggests that subAnalysis recognizes the final iteration of whatever it's running; surely it doesn't.}
 \item
-If we are doing \emph{shallow} rewriting,  new graph~@g@ must not be
+If we are doing \emph{shallow} rewriting,  the new graph~@g@ must not be
 rewritten, but we must still find a fixed point of the transfer
 equations.
 We compute that fixed point using @anal_f_OO@ (not shown), which  recursively calls
@@ -3427,7 +3521,7 @@ different, as shown on \linepairref{GraphFactKont}{GraphKont} of
 \figref{rewriter-excerpts}. 
 \Linerangeref{rew.first}{rew.last} give the types of the base-case
 rewriting functions; because these functions are called \emph{after}
-the solver has set the state of the inner dataflow monad to a fixed
+the solver has set the state of the dataflow monad to a fixed
 point, they need not propagate facts out of a last node, so there is
 no analog of @LOFsKont@.
 
@@ -3779,7 +3873,7 @@ neither, just by way of contrast; ie this we cannot do.}
 %%    transformation locally.}
 \item
 Although our implementation allows graph nodes to be rewritten in any
-way that preserves semantics, we concentrate on
+way that preserves semantics, we describe
 three program-transformation techniques:
 substitution of equals for equals, 
 insertion of assignments to unobserved variables, 
@@ -3833,7 +3927,7 @@ Using continuation-passing style and generalized algebraic data types,
 we have created a new implementation of the algorithm, 
 which works by successive
 compositions of three relatively simple functions.
-Because the individual functions are simple, 
+The individual functions are simple
 because the static types encode the single-successor and
 single-predecessor properties, and
 because we can
@@ -3847,7 +3941,7 @@ we use an applicative representation of
 control-flow graphs
 \cite{ramsey-dias:applicative-flow-graph}. 
 We~improve on our prior work by making the state of analysis
-explicit in the inner dataflow monad.
+explicit in the dataflow monad.
 %%  these two functional data structures make it easy to implement the hard
 %%  part of Lerner, Grove, and Chamber's algorithm: discarding replacement
 %%  graphs and their associated state at need.

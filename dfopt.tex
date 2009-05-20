@@ -2599,28 +2599,86 @@ In this section, we sketch the implementation of the main part of \ourlib:
 the dataflow engine.
 The dataflow engine is less simple than the title of this paper might
 lead you to expect.
-Although
-the \emph{interface} (lattice, transfer functions, rewrite functions) is simple,
+The \emph{interface} (lattice, transfer functions, rewrite functions) is simple,
 compiler passes written \emph{using} the engine
 are simple,
-and even the individual parts of the engine are simple, the
-totality is complex.
+and even the individual parts of the engine are simple,
+but the totality of the dataflow engine is complex.
 
 \remark{Simon asked what new insights are gained.
 Compared with our earlier work, using CPS dramatically simplifies the
 dataflow engine.}
 
-The dataflow engine is implemented in two layers.
-The lower layer is the \emph{dataflow monad};
-it has type @`DFM a@, where @a@~is the type of a
-dataflow fact.
-It~is a state monad which keeps track of the values of dataflow facts
-as the engine iterates.
-It also keeps track of a supply of ``optimization fuel,'' which
-helps the compiler isolate faults by selectively suppressing
-transformations, as discussed
-below (\secref{vpoiso}). 
-Finally, it keeps track of a supply of fresh labels.
+The dataflow engine comprises four functions:
+a forward solver, a forward rewriter,
+a backward solver, and a backward rewriter.
+The solvers perform iterative dataflow analyses.
+Each analysis begins with an environment mapping all labels to bottom facts.
+For each block in the control-flow graph, the solver begins with the dataflow facts
+flowing into one end of the block (the first node in a forward analysis or the last node in a
+backward analysis),
+then uses the transfer functions to compute the dataflow facts flowing out the other
+end of the block.
+The outflowing facts are joined with the facts previously stored in the environment,
+and when the facts in the environment have converged, the analysis terminates.
+
+Rewriting is similar to solving, with two differences:
+\begin{itemize}
+\item Rewriting begins with an interleaved analysis, according to the algorithm of
+     \citet{lerner-grove-chambers:2002}:
+     at each node, the analysis passes the node and
+     the incoming dataflow facts to a rewriting function.
+     If the node is rewritten, then the analysis continues with the same dataflow facts
+     flowing into the rewritten node.
+     After the rewritten node is analyzed,
+     it is discarded, and the original node is restored;
+     only the dataflow facts persist.
+\item After the analysis terminates, one more pass visits the blocks,
+      and this time, the results of the rewriting functions are kept.
+\end{itemize}
+
+\subsection{Throttling the dataflow engine using ``optimization fuel''}
+
+\seclabel{vpoiso}
+\seclabel{fuel}
+
+We have extended Lerner, Grove, and Chambers's optimization-combining algorithm with
+Whalley's \citeyearpar{whalley:isolation} algorithm for isolating
+faults.
+Whalley's algorithm is used to test a faulty optimizer;
+it~automatically
+finds the first rewrite that introduces a fault in a test program.
+It works by giving the optimizer a finite supply of \emph{optimization fuel}.
+Each time a rewrite function proposes to replace a node, one unit of fuel is
+consumed.
+When the optimizer runs out of fuel, further rewrites are suppressed.
+Because each rewrite leaves the observable behavior of the
+program unchanged, it is safe to suppress rewrites at
+any point.
+In~normal operation, the optimizer has unlimited fuel, but during
+debugging, a fault can be isolated quickly by doing a binary search on
+the size of the fuel supply.
+% To control the fuel supply in a purely functional setting, we use
+% the fuel monad.
+%% , which works with
+%% computations of type @Fuel -> (a, Fuel)@.
+
+
+\subsection{Monads for dataflow effects}
+
+Because all transformations share a single
+supply of fuel and fresh labels (for making new blocks),
+the supplies of fuel and labels are kept
+in the fuel monad.
+Therefore, the rewriter functions provided by the dataflow engine
+return results in the fuel monad.
+To further simplify the implementation of the dataflow engine,
+we use a \emph{dataflow monad}, which is a state monad
+that keeps track of the values of dataflow facts as the engine iterates.
+A value in the dataflow monad has type @`DFM a b@, where @a@~is the type of a
+dataflow fact and @b@ is the type of the value returned by the monadic action.
+The dataflow monad also maintains the supply of optimization fuel
+and the supply of fresh labels.
 
 Operations on the dataflow monad include
 \begin{code}
@@ -2660,18 +2718,13 @@ read than the one of \citet{ramsey-dias:applicative-flow-graph}.
 %%  \cite{ramsey-dias:applicative-flow-graph}. 
 %%  \john{Presumably this sentence disappears if the italic text is made permanent.}
 Function @`runDFM@ runs a single analysis or transformation, then
-abandons the dataflow facts.
-The supplies of fuel and labels are kept (in the result of type
-@FuelMonad b@) because all analyses and transformations share a single
-supply of fuel and fresh labels.
+abandons the dataflow facts and returns the result in the fuel monad.
 %
+
 The dataflow monad is private to \ourlib;
 only @FuelMonad@ is exposed in the interface.
-
-The upper layer of the dataflow engine comprises four functions:
-a forward solver, a forward rewriter,
-a backward solver, and a backward rewriter.
-These functions are new and are significantly simpler than in our
+Using the dataflow monad in \ourlib, the solvers and rewriters
+are significantly simpler than in our
 previous work \cite{ramsey-dias:applicative-flow-graph}.
 In~\secreftwo{forward-solver}{forward-rewriter},
 we show parts of the forward solver and rewriter. 
@@ -2683,35 +2736,6 @@ we show parts of the forward solver and rewriter.
 %%  easy (and indeed is just logic, strongest postcondition, or weakest
 %%  precondition). 
 %%  
-
-\subsection{Throttling the dataflow engine using ``optimization
-  fuel''}
-
-\seclabel{vpoiso}
-\seclabel{fuel}
-
-We have extended Lerner, Grove, and Chambers's optimization-combining algorithm with
-Whalley's \citeyearpar{whalley:isolation} algorithm for isolating
-faults.
-Whalley's algorithm is used to test a faulty optimizer;
-it~automatically
-finds the first rewrite that introduces a fault.
-It works by giving the optimizer a finite supply of \emph{optimization
-fuel}.
-Each time a rewrite function proposes to replace a node, one unit of fuel is
-consumed.
-When the optimizer runs out of fuel, further rewrites are suppressed.
-Because each rewrite leaves the observable behavior of the
-program unchanged, it is safe to suppress rewrites at
-any point.
-In~normal operation, the optimizer has unlimited fuel, but during
-debugging, a fault can be isolated quickly by doing a binary search on
-the size of the fuel supply.
-To control the fuel supply in a purely functional setting, we use
-the fuel monad.
-%% , which works with
-%% computations of type @Fuel -> (a, Fuel)@.
-
 
 
 \subsection{The forward solver}
@@ -2887,32 +2911,33 @@ helped us eliminate dynamic tests of the shapes of subgraphs.
 I assume a full graph, closed at the entry!  So what is this pesky {\tt in\_fact}??}
 %
 
-Function @zdfSolveFwd@ calls @forward_sol@:
-\begin{smallcode}
-zdfSolveFwd name ^lattice ^transfers in_fact g = 
-  runWithoutFuel $ runDFM lattice $ ffp () $ 
-  fwd_pure_anal name emptyBlockEnv transfers in_fact g
-fwd_pure_anal name env transfers in_fact g =
-  forward_sol (\_ _ -> Nothing) undefined name env 
-              transfers undefined in_fact g
-ffp :: b -> DFM a (ZMaybe x a) 
-    -> DFM a (FwdFixedPoint m l a b)
-runWithoutFuel :: FuelMonad a -> a
-\end{smallcode}
-Funtion @`fwd_pure_anal@ is the special case of pure analysis; it is
-also used to implement function @`anal_f_OO@ on
-\lineref{solve.rewrite.shallow.1} of \figref{solver-excerpts}.
-Function~@`ffp@ (not shown) extracts a @FwdFixedPoint@ from the
-state stored in the dataflow monad.
-Function @`runWithoutFuel@ (not shown) exploits lazy evaluation to run
-a computation in the fuel monad while guaranteeing that the
-computation uses no fuel and no labels.
-\john{The previous paragraph was a big interruption in my reading.
-Is it serving a Higher Purpose,
-or can we put this code at the bottom of Figure 10
-and give a briefer description inline? It seems to me that the only salient points
-are that zdfSolveFwd calls forwardsol with empty rewrites,
-then extracts the results.}
+% JD didn't see the point:
+% Function @zdfSolveFwd@ calls @forward_sol@:
+% \begin{smallcode}
+% zdfSolveFwd name ^lattice ^transfers in_fact g = 
+%   runWithoutFuel $ runDFM lattice $ ffp () $ 
+%   fwd_pure_anal name emptyBlockEnv transfers in_fact g
+% fwd_pure_anal name env transfers in_fact g =
+%   forward_sol (\_ _ -> Nothing) undefined name env 
+%               transfers undefined in_fact g
+% ffp :: b -> DFM a (ZMaybe x a) 
+%     -> DFM a (FwdFixedPoint m l a b)
+% runWithoutFuel :: FuelMonad a -> a
+% \end{smallcode}
+% Funtion @`fwd_pure_anal@ is the special case of pure analysis; it is
+% also used to implement function @`anal_f_OO@ on
+% \lineref{solve.rewrite.shallow.1} of \figref{solver-excerpts}.
+% Function~@`ffp@ (not shown) extracts a @FwdFixedPoint@ from the
+% state stored in the dataflow monad.
+% Function @`runWithoutFuel@ (not shown) exploits lazy evaluation to run
+% a computation in the fuel monad while guaranteeing that the
+% computation uses no fuel and no labels.
+% \john{The previous paragraph was a big interruption in my reading.
+% Is it serving a Higher Purpose,
+% or can we put this code at the bottom of Figure 10
+% and give a briefer description inline? It seems to me that the only salient points
+% are that zdfSolveFwd calls forwardsol with empty rewrites,
+% then extracts the results.}
 
 Function @forward_sol@ is composed of many parts, all written in
 continuation-passing style.
@@ -2926,7 +2951,7 @@ node: in a forward analysis, the context expects a fact of type~@a@
 to flow out of the node.
 The rest of the analysis consumes that
 fact and the remaining fuel and produces a computation in the
-dataflow monad (@DFM a@) whose answer type is type~@b@.
+dataflow monad (@DFM a@) with an answer of type~@b@.
 %Type @FactKont a b@ also describes the context following the analysis of
 %any replacement graph that is open at the exit.
 \item
@@ -2940,10 +2965,10 @@ edges leaving that node, the context expects those facts to have type
 Type @Kont a b@ describes a context \emph{before} a first node (or a
 basic block).
 The forward analysis of a basic block does \emph{not} start with a
-fact flowing in; it starts with the fact associated with that block's
-label in the dataflow monad.
-Thus a @Kont@ expects no fact as argument; it gets its fact by
-calling the monadic operation @getFact@.
+fact flowing in.
+Instead, it gets the fact associated with that block's label by calling
+the monadic operation @getFact@.
+Thus, a @Kont@ expects no fact as argument.
 \item
 Type @ZKont e a b@ describes a context \emph{before} the graph
 being analyzed, where @e@~tells whether the graph is open at the entry.
