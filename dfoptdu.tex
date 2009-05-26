@@ -496,7 +496,7 @@ language,~{\PAL}
        x = %fadd(x, bits64[a+i*24]);
        i = i + 1;
        goto L1;
-   L2: return x; 
+   L2: return x;
   }
 \end{verbatim}
 The code improvement called ``induction-variable elimination''
@@ -537,7 +537,7 @@ New code is \high{boxed}\,.
        x = %fadd(x, bits64[a+i*24]);
        i = i + 1; \high{p = p + 24;}
        goto L1;
-   L2: return x; 
+   L2: return x;
   \rbr
 \end{alltt}
 
@@ -555,7 +555,7 @@ equals, resulting in the new code in boxes below:
        x = %fadd(x, bits64[\kern1pt{}\high{p}\kern1pt{}]);
        i = i + 1; p = p + 24;
        goto L1;
-   L2: return x; 
+   L2: return x;
   \rbr
 \end{alltt}
 
@@ -610,7 +610,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
      x = %fadd(x, bits64[{p}]);
      \high{i = i + 1;} p = p + 24;
      goto L1;
- L2: return x; 
+ L2: return x;
 \rbr
 \end{alltt}
 
@@ -626,7 +626,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
      x = %fadd(x, bits64[{p}]);
      p = p + 24;
      goto L1;
- L2: return x; 
+ L2: return x;
 \rbr
 \end{alltt}
 
@@ -1380,7 +1380,7 @@ cmmAvailableVars g = zdfFpFacts soln
 \end{code}
 \B
 &
-\def\baselinestretch{0.8}Available-variables analysis
+\def\baselinestretch{0.8}\hspace{-0.3in}\parbox{1.6in}{\center Available-variables analysis}
 %\B
 \\
 %\hline
@@ -2092,6 +2092,67 @@ the dataflow-engine function @zdfSolveBwd@ (\figref{liveness},
 
 \seclabel{example-rewrites}
 
+
+We compute dataflow facts in order to enable code-improving
+transformations on control-flow graphs.
+A~dataflow fact may enable a rewrite function to replace a node by a
+\emph{subgraph}. 
+A~novel and valuable property of our implementation is that it uses
+Haskell's static type system to control which subgraphs may replace
+which nodes.
+We~therefore begin by explaining the types and representation of
+graphs and subgraphs before moving on to rewrite functions and example
+transformations. 
+
+\subsection{Representing graphs and subgraphs}
+
+\seclabel{subgraphs}
+
+As mentioned in \secref{graph.intro},
+a~graph is a collection of basic blocks, 
+and a basic block is normally a first node followed by zero or
+more middle nodes followed by a last node.
+But
+a graph may also contain two special, incomplete
+blocks:
+\begin{itemize}
+\item
+A~graph may begin with 
+an \emph{entry sequence}: zero or more middle nodes
+followed by a last node (i.e., a control transfer).
+Such a graph is \emph{open at the entry}.  
+
+\ifpagetuning \enlargethispage{0.5\baselineskip} \fi
+
+\item
+A~graph may end with
+an \emph{exit sequence}: a first node followed by zero or more
+middle nodes, but \emph{not} followed by a last node.
+Such a graph is \emph{open at the exit} 
+(control ``falls
+off the end'').
+\end{itemize}
+Our general type of graph, called @GF@, therefore takes \emph{four}
+\label{haskell.firstuse.GF}% automated use
+type parameters (\figref{subgraphs}):
+@m@~is the type of a middle node;
+@l@~is the type of a last node;
+@entry@ is either type~@O@ or type~@C@, depending on whether the graph
+\label{haskell.firstuse.entry}% automated use
+\label{haskell.firstuse.O}% automated use
+\label{haskell.firstuse.C}% automated use
+is open or closed at the entry;
+and
+@exit@ is type~@O@ or type~@C@, depending on whether the graph
+\label{haskell.firstuse.exit}% automated use
+is open or closed at the exit.
+The instantiations of type parameters @entry@ and @exit@ specify the
+graph's \emph{shape}, which we refer to in shorthand.
+For example,
+a~full @Graph@, which represents a function or
+procedure, is open at the entry and closed at the exit, or
+simply ``open/closed.''
+
 \begin{figure}
 \begin{code}
 type O  -- marks graph as open   at entry or exit
@@ -2147,77 +2208,17 @@ data BackwardRewrites m l a = BackwardRewrites
 \label{haskell.firstuse.br:unfirst}% automated use
 \label{haskell.firstuse.br:unmiddle}% automated use
 \label{haskell.firstuse.br:unlast}% automated use
-\label{haskell.firstuse.O}% automated use
-\label{haskell.firstuse.C}% automated use
-\label{haskell.firstuse.GF}% automated use
-\label{haskell.firstuse.entry}% automated use
-\label{haskell.firstuse.exit}% automated use
 \end{figure}
 
 
 
-We compute dataflow facts in order to enable code-improving
-transformations on control-flow graphs.
-A~dataflow fact may enable a rewrite function to replace a node by a
-\emph{subgraph}. 
-A~novel and valuable property of our implementation is that it uses
-Haskell's static type system to control which subgraphs may replace
-which nodes.
-We~therefore begin by explaining the types and representation of
-graphs and subgraphs before moving on to rewrite functions and example
-transformations. 
-
-\subsection{Representing graphs and subgraphs}
-
-\seclabel{subgraphs}
-
-As mentioned in \secref{graph.intro},
-a~graph is a collection of basic blocks, 
-and a basic block is normally a first node followed by zero or
-more middle nodes followed by a last node.
-But
-a graph may also contain two special, incomplete
-blocks:
-\begin{itemize}
-\item
-A~graph may begin with 
-an \emph{entry sequence}: zero or more middle nodes
-followed by a last node (i.e., a control transfer).
-Such a graph is \emph{open at the entry}.  
-
-\ifpagetuning \enlargethispage{0.5\baselineskip} \fi
-
-\item
-A~graph may end with
-an \emph{exit sequence}: a first node followed by zero or more
-middle nodes, but \emph{not} followed by a last node.
-Such a graph is \emph{open at the exit} 
-(control ``falls
-off the end'').
-\end{itemize}
-Our general type of graph, called @GF@, therefore takes \emph{four}
-type parameters (\figref{subgraphs}):
-@m@~is the type of a middle node;
-@l@~is the type of a last node;
-@entry@ is either type~@O@ or type~@C@, depending on whether the graph
-is open or closed at the entry;
-and
-@exit@ is type~@O@ or type~@C@, depending on whether the graph
-is open or closed at the exit.
-The instantiations of type parameters @entry@ and @exit@ specify the
-graph's \emph{shape}, which we refer to in shorthand.
-For example,
-a~full @Graph@, which represents a function or
-procedure, is open at the entry and closed at the exit, or
-simply ``open/closed.''
-
 Graphs are created using these functions:
 \begin{code}
-mkLabel    :: BlockId -> GF m l C O
-mkMiddle   :: m       -> GF m l O O
-mkLast     :: l       -> GF m l O C
+mkLabel    :: BlockId    -> GF m l C O
+mkMiddle   :: m          -> GF m l O O
+mkLast     :: l          -> GF m l O C
 (<*>)      :: GF m l e a -> GF m l a x 
-           -> GF m l e x
+                         -> GF m l e x
 emptyGraph :: GF m l O O
 \end{code}
 \label{haskell.def.mkLabel}% automated definition
@@ -2845,36 +2846,34 @@ include \secref{induction-var-elim}.
 \begin{figure*}
 \setcounter{codeline}{0}
 \begin{numberedcode}
-!FactKont!type FactKont a b = a           -> DFM a b
-type LOFsKont a b = LastOuts a  -> DFM a b
-!Kont!type Kont     a b =                DFM a b
-!ZKont!type ZKont ex a b = ZMaybe ex a -> DFM a b
+!FactKont!type FactKont a b = a          -> DFM a b
+type LOFsKont a b = LastOuts a -> DFM a b
+!Kont!type Kont     a b =               DFM a b
 
 !forward.sol.sig!forward_sol :: forall m l e x a . HavingSuccessors l => (forall b . Maybe b -> DFM a (Maybe b))
             -> RewritingDepth -> PassName -> BlockEnv a -> ForwardTransfers m l a
 !forward.sol.zmaybe!            -> ForwardRewrites m l a -> ZMaybe e a -> GF m l e x -> DFM a (ZMaybe x a)
 !forward.sol.args!forward_sol with_fuel depth name start_facts transfers rewrites in_fact g =
 !forward.sol.setAllFacts!     do { setAllFacts start_facts ; solve_ex g in_fact }
-   where 
-!solve.ex.sig!     solve_ex    :: GF m l e x -> ZKont e a (ZMaybe x a)
+!solve.ex.sig!   where solve_ex    :: GF m l e x -> ZMaybe e a -> DFM a (ZMaybe x a)
 
-!solve.first.sig!     solve_first :: BlockId -> FactKont a b -> Kont     a b
-     solve_mid   :: m       -> FactKont a b -> FactKont a b
-!solve.last.sig!     solve_last  :: l       -> LOFsKont a b -> FactKont a b
+!solve.first.sig!         solve_first :: BlockId -> FactKont a b -> Kont     a b
+         solve_mid   :: m       -> FactKont a b -> FactKont a b
+!solve.last.sig!         solve_last  :: l       -> LOFsKont a b -> FactKont a b
 
-!set.last.sig!     set_last :: LOFsKont a ()
-!set.last.*!     set_last (LastOuts l) = mapM_ (uncurry setFact) l
+!set.last.sig!         set_last :: LOFsKont a ()
+!set.last.*!         set_last (LastOuts l) = mapM_ (uncurry setFact) l
 
-!solve.block.sig!     solve_block :: Block m l -> Kont a ()
-!solve.OO.def!     solve_OO    :: GF m l O O -> FactKont a b -> FactKont a b
+!solve.block.sig!         solve_block :: Block m l -> Kont a ()
+!solve.OO.def!         solve_OO    :: GF m l O O -> FactKont a b -> FactKont a b
 
-!solve.mid.1!     solve_mid m k in' =
-!solve.mid.case!       (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
-!solve.mid.Nothing!         Nothing -> k (ft_middle_out transfers in' m)
-!solve.mid.Just!         Just g  -> do { a <- subAnalysis $ case depth of
-!solve.OO!                                              RewriteDeep    -> solve_OO g return in'
-!solve.rewrite.shallow.1!                                              RewriteShallow -> anal_f_OO g in'
-!solve.mid.*!                       ; k a }
+!solve.mid.1!         solve_mid m k in' =
+!solve.mid.case!           (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
+!solve.mid.Nothing!             Nothing -> k (ft_middle_out transfers in' m)
+!solve.mid.Just!             Just g  -> do { a <- subAnalysis $ case depth of
+!solve.OO!                                                  RewriteDeep    -> solve_OO g return in'
+!solve.rewrite.shallow.1!                                                  RewriteShallow -> anal_f_OO g in'
+!solve.mid.*!                           ; k a }
 \end{numberedcode}
 \caption{Excerpts from the forward solver}
 \figlabel{solver-excerpts}
@@ -2895,8 +2894,6 @@ type LOFsKont a b = LastOuts a  -> DFM a b
 \label{haskell.def.name}% automated definition
 \label{haskell.def.depth}% automated definition
 \label{haskell.def.forward:unsol}% automated definition
-\label{haskell.def.ex}% automated definition
-\label{haskell.def.ZKont}% automated definition
 \label{haskell.def.Kont}% automated definition
 \label{haskell.def.LOFsKont}% automated definition
 \label{haskell.def.FactKont}% automated definition
@@ -2904,10 +2901,8 @@ type LOFsKont a b = LastOuts a  -> DFM a b
 \label{haskell.firstuse.DFM}% automated use
 \label{haskell.firstuse.LOFsKont}% automated use
 \label{haskell.firstuse.Kont}% automated use
-\label{haskell.firstuse.ZKont}% automated use
-\label{haskell.firstuse.ex}% automated use
-\label{haskell.firstuse.ZMaybe}% automated use
 \label{haskell.firstuse.forward:unsol}% automated use
+\label{haskell.firstuse.ZMaybe}% automated use
 \label{haskell.firstuse.with:unfuel}% automated use
 \label{haskell.firstuse.depth}% automated use
 \label{haskell.firstuse.name}% automated use
@@ -2949,13 +2944,14 @@ through~\ref{sec:rewrites},
 we use \ourlib\ to create analyses and transformations.
 In this section, we sketch the implementation of the main part of \ourlib:
 the dataflow engine.
-The dataflow engine is less simple than the title of this paper might
+The dataflow engine 
+is less simple than the title of this paper might
 lead you to expect.
 The \emph{interface} (lattice, transfer functions, rewrite functions) is simple,
 compiler passes written \emph{using} the engine
 are simple,
 and even the individual parts of the engine are simple,
-but the totality of the dataflow engine is complex.
+but the totality is complex.
 
 \remark{Simon asked what new insights are gained.
 Compared with our earlier work, using CPS dramatically simplifies the
@@ -2974,20 +2970,17 @@ end of the block.
 The outflowing facts are joined with the facts previously stored in the environment,
 and when the facts in the environment have converged, the analysis terminates.
 
-Rewriting is similar to solving, with two differences:
-\begin{itemize}
-\item Rewriting begins with an interleaved analysis, according to the algorithm of
-     \citet{lerner-grove-chambers:2002}:
+Unlike solving, rewriting interleaves analysis and transformation
+     \cite{lerner-grove-chambers:2002}:
      at each node, the analysis passes the node and
      the incoming dataflow facts to a rewriting function.
-     If the node is rewritten, then the analysis continues with the same dataflow facts
+     If the node is rewritten, the analysis continues with the same dataflow facts
      flowing into the rewritten node.
      After the rewritten node is analyzed,
      it is discarded, and the original node is restored;
      only the dataflow facts persist.
-\item After the analysis terminates, one more pass visits the blocks,
+After the analysis terminates, one more pass visits the blocks,
       and this time, the results of the rewriting functions are kept.
-\end{itemize}
 
 \subsection{Throttling the dataflow engine using ``optimization fuel''}
 
@@ -3023,15 +3016,15 @@ supply of fuel and fresh labels (for making new blocks),
 the supplies of fuel and labels are kept
 in the fuel monad.
 Therefore, the rewriter functions provided by the dataflow engine
-both return results in the fuel monad.
-But to simplify the implementation of the dataflow engine,
+return results in the fuel monad.
+To further simplify the implementation of the dataflow engine,
 we use a \emph{dataflow monad}, which is a state monad
 that keeps track of the values of dataflow facts as the engine iterates.
 A value in the dataflow monad has type @DFM a b@, where @a@~is the type of a
 \label{haskell.def.DFM}% automated definition
-dataflow fact and @b@ is the type of the value computed by the monadic action.
-The dataflow monad also maintains the supply of optimization fuel
-and the supply of fresh labels.
+dataflow fact and @b@ is the type of the value returned by the monadic action.
+The dataflow monad also maintains the supplies of fuel
+and labels.
 
 Operations on the dataflow monad include
 \begin{code}
@@ -3088,10 +3081,8 @@ read than the one of \citet{ramsey-dias:applicative-flow-graph}.
 Function @runDFM@ runs a single analysis or transformation, then
 \label{haskell.def.runDFM}% automated definition
 abandons the dataflow facts and returns the result in the fuel monad.
-%
-
-The dataflow monad is private to \ourlib;
-only @FuelMonad@ is exposed in the interface.
+Only @FuelMonad@ is exposed in the interface;
+the dataflow monad is private to \ourlib.
 Using the dataflow monad in \ourlib, the solvers and rewriters
 are significantly simpler than in our
 previous work \cite{ramsey-dias:applicative-flow-graph}.
@@ -3175,14 +3166,12 @@ takes more parameters than @zdfSolveFwd@, and it is more polymorphic
 %In the solver phase described in \secref{solver-phase},
 %if a node is rewritten, the replacement graph is used to compute new
 %dataflow facts, and then the replacement graph is thrown away.
-To prevent a node from being rewritten,
-either because
-we are implementing a pure analysis, or because the optimizer
-is out of fuel, we  use parameter @with_fuel@
+The @with_fuel@ parameter 
 \label{haskell.def.with:unfuel}% automated definition
-(\lineref{forward.sol.args}, called on \lineref{solve.mid.case}),
-which can prevent rewriting by 
-returning @return Nothing@.
+is called on the result of each rewriting function (e.g. \lineref{solve.mid.case}).
+It consumes fuel and may prevent a node from being rewritten,
+either because the optimizer is out of fuel,
+or because we are implementing a pure analysis.
 \item
 Analysis of a subgraph starts with known facts, not
 bottom facts; they are passed as
@@ -3207,9 +3196,10 @@ data ZMaybe ex a where
 \label{haskell.def.ZNothing}% automated definition
 \label{haskell.firstuse.ZNothing}% automated use
 \label{haskell.firstuse.ZJust}% automated use
+\label{haskell.firstuse.ex}% automated use
 Using @ZMaybe@ to construct the types of the input and output facts
 has simplified our implementation of the dataflow engine and has
-helped us eliminate dynamic tests of the shapes of subgraphs.
+eliminated dynamic tests of the shapes of subgraphs.
 \end{itemize}
 %A~fixed point is computed by initializing the facts using
 %@setAllFacts@, which is an operation in the dataflow monad.
@@ -3266,12 +3256,11 @@ helped us eliminate dynamic tests of the shapes of subgraphs.
 !rew.mid.1!      rew_mid m k head in' =
         (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
           Nothing -> k (head <*> mkMiddle m) (ft_middle_out transfers in' m)
-          Just g  ->
-!rew.subAnalysis!              do { (g, a) <- subAnalysis $
-                      case depth of
-                        RewriteDeep    -> sar_OO g (curry return) in'
-!rew.anal.f.OO!                        RewriteShallow -> do { a <- anal_f_OO g in'; return (g, a) }
-!rew.mid.*!                 ; k (head <*> g) a }
+!rew.subAnalysis!          Just g  -> do { (g, a) <- subAnalysis $
+                             case depth of
+                               RewriteDeep    -> sar_OO g (curry return) in'
+!rew.anal.f.OO!                               RewriteShallow -> do { a <- anal_f_OO g in'; return (g, a) }
+!rew.mid.*!                        ; k (head <*> g) a }
 
 !sar.OO!      sar_OO :: GF m l O O -> GraphFactKont m l O O a b -> FactKont a b
 \end{numberedcode}
@@ -3328,10 +3317,29 @@ I assume a full graph, closed at the entry!  So what is this pesky {\tt in\_fact
 % are that zdfSolveFwd calls forwardsol with empty rewrites,
 % then extracts the results.}
 
-Function @forward_sol@ is composed of many parts, all written in
-continuation-passing style.
+
+The function @solve_ex@ (type on \lineref{solve.ex.sig}, implementation not
+shown), solves the full graph~@g@.
+Where the graph is open, it converts @ZMaybe@ facts to actual
+facts---the static type system precludes the possibility of a missing
+or superfluous fact.
+The solver iterates
+over the basic blocks in the control-flow graph until the analysis reaches a fixed point.
+Each iteration over the control-flow graph runs under @withDuplicateFuel@, so that the analysis
+\emph{simulates} the effects of a fuel limit on the rewriter, but does
+not actually consume any fuel.
+
+At each basic block, the function @solve_block@ (type on \lineref{solve.block.sig})
+computes the dataflow solution for the block.
+The function @solve_block@ is the composition of
+smaller functions that solve individual nodes
+(types on \linerangeref{solve.first.sig}{solve.last.sig}).
+These functions are written in continuation-passing style,
+which means that they implement the dataflow analysis in Strachey's style:
+the result of analyzing a subpart of a block is a function from
+continuations to continuations. 
 The types of the
-continuations are shown on \linerangeref{FactKont}{ZKont} of
+continuations are shown on \linerangeref{FactKont}{Kont} of
 \figref{solver-excerpts}. 
 \begin{itemize}
 \item
@@ -3339,7 +3347,7 @@ Type @FactKont a b@ describes a context following a first node or middle
 node: in a forward analysis, the context expects a fact of type~@a@
 to flow out of the node.
 The rest of the analysis consumes that
-fact and the remaining fuel and produces a computation in the
+fact and produces a computation in the
 dataflow monad (@DFM a@) with an answer of type~@b@.
 %Type @FactKont a b@ also describes the context following the analysis of
 %any replacement graph that is open at the exit.
@@ -3358,9 +3366,6 @@ fact flowing in.
 Instead, it gets the fact associated with that block's label by calling
 the monadic operation @getFact@.
 Thus, a @Kont@ expects no fact as argument.
-\item
-Type @ZKont e a b@ describes a context \emph{before} the graph
-being analyzed, where @e@~tells whether the graph is open at the entry.
 \end{itemize}
 \delendum{I like these continuations, but I'm very puzzled about the
 fuel.  If @Kont@ takes fuel in, where does it return the depleted fuel?
@@ -3370,56 +3375,124 @@ And if it always comes out, then we should say so:
 And once you do that, it's plain that @Kont@ is just a state monad,
 and I can't see why it isn't part of @DFM@ in the first place.}
 
-\Linerangeref{solve.first.sig}{solve.last.sig} of
-\figref{solver-excerpts} give the types of
-solvers for first, middle, and last nodes.
-These types show that we have written dataflow analysis in Strachey's
-style:
-the result of analyzing a subpart of a block is a function from
-continuations to continuations. 
-
-The result types of @solve_first@, @solve_mid@, and @solve_last@
-compose nicely, so that for any basic block we can compute a function
-of type
-@LOFsKont a b -> Kont a b@.
-But once we have analyzed a block, we no longer want to pass facts
-from one function to another---we want to update the facts stored in
+% The result types of @solve_first@, @solve_mid@, and @solve_last@
+% compose nicely, so that for any basic block we can compute a function
+% of type
+% @LOFsKont a b -> Kont a b@.
+Once we have analyzed a block, we update the facts stored in
 the dataflow monad.
-Stored facts are updated by function @set_last@ on
-\linerangeref{set.last.sig}{set.last.*} of 
-\figref{solver-excerpts}, which calls @setFact@ on each fact
+The facts are updated by function @set_last@
+(\linerangeref{set.last.sig}{set.last.*}), which calls @setFact@ on each fact
 flowing out of a block.
 By applying the composition
 of @solve_first@, @solve_mid@, and @solve_last@ to @set_last@, we get
-function @solve_block@, whose type is given on \lineref{solve.block.sig}.
-Function @solve_block@ is given a block and
-it runs for its side effects on the dataflow monad.
+the implementation of @solve_block@.
+\footnote{Similar
+  compositions of @solve\_first@, @solve\_mid@, and @solve\_last@
+  can solve the partial blocks in a graph that is open
+  at entry or exit.}
 
-In the rest of the solver,
-function @solve_blocks@ (not shown) takes a list of blocks and
-\label{haskell.def.solve:unblocks}% automated definition
-\label{haskell.firstuse.solve:unblocks}% automated use
-produces a continuation of type @Kont a ()@, which
-runs @solve_block@ repeatedly,
-updating stored facts until they reach a
-fixed point.
-Each iteration runs under @withDuplicateFuel@, so that the analysis
-\emph{simulates} the effects of a fuel limit on the rewriter, but does
-not actually consume any fuel.
-Using @solve_blocks@, we have written solvers for subgraphs which are open/open,
-open/closed, or closed/open.
 
-Finally, @solve_ex@ (type on \lineref{solve.ex.sig}, implementation not
-shown), which provides the external interface, 
-solves the full graph~@g@.
-Where the graph is open, it converts @ZMaybe@ facts to actual
-facts---the static type system precludes the possibility of a missing
-or superfluous fact.
 
-Ultimately, \emph{all} solver functions
-are composed of applications of @solve_first@,
-@solve_mid@, and @solve_last@.
-These functions are similar, so we show just one,
+
+
+
+
+
+
+
+
+
+% Function @forward_sol@ is composed of many parts, all written in
+% continuation-passing style.
+% The types of the
+% continuations are shown on \linerangeref{FactKont}{Kont} of
+% \figref{solver-excerpts}. 
+% \begin{itemize}
+% \item
+% Type @FactKont a b@ describes a context following a first node or middle
+% node: in a forward analysis, the context expects a fact of type~@a@
+% to flow out of the node.
+% The rest of the analysis consumes that
+% fact and the remaining fuel and produces a computation in the
+% dataflow monad (@DFM a@) with an answer of type~@b@.
+% %Type @FactKont a b@ also describes the context following the analysis of
+% %any replacement graph that is open at the exit.
+% \item
+% Type @LOFsKont a b@ describes a context following a last node.
+% The type is dictated by the type of the transfer function
+% @ft_last_outs@ in \figref{transfers}:
+% since as many facts flow out of a last node as there are control-flow
+% edges leaving that node, the context expects those facts to have type
+% @LastOuts a@.
+% \item
+% Type @Kont a b@ describes a context \emph{before} a first node (or a
+% basic block).
+% The forward analysis of a basic block does \emph{not} start with a
+% fact flowing in.
+% Instead, it gets the fact associated with that block's label by calling
+% the monadic operation @getFact@.
+% Thus, a @Kont@ expects no fact as argument.
+% \end{itemize}
+% \delendum{I like these continuations, but I'm very puzzled about the
+% fuel.  If @Kont@ takes fuel in, where does it return the depleted fuel?
+% It must come out eventualy, because it's needed in the rest of the program.
+% And if it always comes out, then we should say so:
+% @Kont a b = DFM a b@.
+% And once you do that, it's plain that @Kont@ is just a state monad,
+% and I can't see why it isn't part of @DFM@ in the first place.}
+% 
+% \Linerangeref{solve.first.sig}{solve.last.sig} of
+% \figref{solver-excerpts} give the types of
+% solvers for first, middle, and last nodes.
+% These types show that we have written dataflow analysis in Strachey's
+% style:
+% the result of analyzing a subpart of a block is a function from
+% continuations to continuations. 
+% 
+% The result types of @solve_first@, @solve_mid@, and @solve_last@
+% compose nicely, so that for any basic block we can compute a function
+% of type
+% @LOFsKont a b -> Kont a b@.
+% But once we have analyzed a block, we no longer want to pass facts
+% from one function to another---we want to update the facts stored in
+% the dataflow monad.
+% Stored facts are updated by function @set_last@ on
+% \linerangeref{set.last.sig}{set.last.*} of 
+% \figref{solver-excerpts}, which calls @setFact@ on each fact
+% flowing out of a block.
+% By applying the composition
+% of @solve_first@, @solve_mid@, and @solve_last@ to @set_last@, we get
+% function @solve_block@, whose type is given on \lineref{solve.block.sig}.
+% Function @solve_block@ is given a block and
+% it runs for its side effects on the dataflow monad.
+% 
+% In the rest of the solver,
+% function @`solve_blocks@ (not shown) takes a list of blocks and
+% produces a continuation of type @Kont a ()@, which
+% runs @solve_block@ repeatedly,
+% updating stored facts until they reach a
+% fixed point.
+% Each iteration runs under @withDuplicateFuel@, so that the analysis
+% \emph{simulates} the effects of a fuel limit on the rewriter, but does
+% not actually consume any fuel.
+% Using @solve_blocks@, we have written solvers for subgraphs which are open/open,
+% open/closed, or closed/open.
+% 
+% Finally, @solve_ex@ (type on \lineref{solve.ex.sig}, implementation not
+% shown), which provides the external interface, 
+% solves the full graph~@g@.
+% Where the graph is open, it converts @ZMaybe@ facts to actual
+% facts---the static type system precludes the possibility of a missing
+% or superfluous fact.
+
+The solver functions for nodes
+% @solve_first@, @solve_mid@, and @solve_last@
+are similar, so we show only
+% Ultimately, \emph{all} solver functions
+% are composed of applications of @solve_first@,
+% @solve_mid@, and @solve_last@.
+% These functions are similar, so we show just one,
 @solve_mid@, on
 \linerangeref{solve.mid.1}{solve.mid.*} of \figref{solver-excerpts}.
 On~\lineref{solve.mid.case}, a rewrite function is passed an
@@ -3427,8 +3500,8 @@ input fact~@in'@ and a middle node~@m@.
 If~the rewrite function proposes no replacement graph, 
 or if no more fuel is available, the application of @with_fuel@
 returns @return Nothing@, and continuation~@k@ is given the output fact
-(computed by @ft_middle_out@ on \lineref{solve.mid.Nothing}) and
-the current supply of fuel.
+(computed by @ft_middle_out@ on \lineref{solve.mid.Nothing}).
+% and the current supply of fuel.
 
 The interesting case occurs on \linerangeref{solve.mid.Just}{solve.mid.*},
 when the rewrite function 
@@ -3436,7 +3509,7 @@ proposes a replacement graph~@g@.
 Function @with_fuel@ decrements the fuel supply and produces~@g@.
 \begin{enumerate}
 \item
-If we are doing \emph{deep} rewriting, then as @g@~is analyzed
+If we are doing \emph{deep} rewriting, then as @g@~is analyzed,
 it may be rewritten further.
 Analysis with rewriting is done
 on~\lineref{solve.OO}
@@ -3451,7 +3524,7 @@ and bound on
 %
 Function @subAnalysis@ rolls back the facts mutated
 by @solve_OO@ as it iterates to a fixed point, but it accounts for
-the fuel consumed in the final iteration.\john{The final iteration of what? This sentence suggests that subAnalysis recognizes the final iteration of whatever it's running; surely it doesn't.}
+the fuel consumed.
 \item
 If we are doing \emph{shallow} rewriting,  the new graph~@g@ must not be
 rewritten, but we must still find a fixed point of the transfer
@@ -3822,7 +3895,7 @@ there are similar functions.
 
 \section{Conclusion}
 
-Compiler textbooks make dataflow analysis and optimization appear
+Compiler textbooks make dataflow optimization appear
 difficult and complicated.
 In~this paper, we show how to engineer a library, \ourlib, which makes
 it easy to build analyses and transformations based on dataflow.
@@ -3830,7 +3903,9 @@ it easy to build analyses and transformations based on dataflow.
 ingredient, but by applying ideas that are well understood by functional
 programmers.
 These ideas
-make it possible to think simple thoughts about classical code improvements.
+make it possible 
+to think simple thoughts about classical code improvements.
+% to think simple thoughts about classical code improvements.
 \simon{It would be good to give cross-refs to plces in the paper that
 substantiate these claims.}
 \begin{itemize}
@@ -3839,16 +3914,16 @@ We acknowledge only one program-analysis technique: the solution of
 recursion equations.
 Like our colleagues working in imperative languages, we solve
 recursion equations by iterating to a fixed point.
-Many equations relate
-properties of program states; some relate properties of paths through
-programs. 
+% Many equations relate
+% properties of program states; some relate properties of paths through
+% programs. 
 \item
 We consider only two
 relations: weakest liberal precondition and strongest 
 postcondition, which
  correspond 
 %\ifpagetuning\else
-respectively
+%respectively
 %\fi
 to
 ``backward dataflow problems'' and ``forward dataflow
@@ -3909,7 +3984,7 @@ we can use
 ``optimization fuel'' to limit the number of rewrites.
  When we isolate a fault in the optimizer
 (\secref{vpoiso}), we therefore have the luxury of debugging a single
- rewrite, not a complex transformation.
+ rewrite, not a complex optimization.
 \end{itemize}
 
 We also blend proven implementation techniques
@@ -3925,12 +4000,12 @@ from simple ones.
 
 Using continuation-passing style and generalized algebraic data types,
 we have created a new implementation of the algorithm, 
-which works by successive
-compositions of three relatively simple functions.
-The individual functions are simple
+which works by 
+composing three relatively simple functions.
+The functions are simple
 because the static types encode the single-successor and
-single-predecessor properties, and
-because we can
+single-predecessor properties.
+And because we can
 compare our code with standard denotational semantics for imperative
 languages, we have more confidence in this new implementation than in
 any previous implementation. 
@@ -3941,14 +4016,15 @@ we use an applicative representation of
 control-flow graphs
 \cite{ramsey-dias:applicative-flow-graph}. 
 We~improve on our prior work by making the state of analysis
-explicit in the dataflow monad.
+explicit in the dataflow monad,
 %%  these two functional data structures make it easy to implement the hard
 %%  part of Lerner, Grove, and Chamber's algorithm: discarding replacement
 %%  graphs and their associated state at need.
-Managing state explicitly, instead of
-using ML's built-in state monad, 
+% Managing state explicitly %,
+% instead of using ML's built-in state monad, 
+which
 makes it especially easy to implement such
-operations as independent sub-analysis of a replacement graph. 
+operations as sub-analysis of a replacement graph. 
 \delendum{This 
 last sentence is a repeat of the previous one.}
 %
@@ -3971,11 +4047,14 @@ assignments and control-flow operations.
 %%  machine-dependent representations of target-machine instructions, as
 %%  part of a larger project of refactoring GHC's back ends.
 %
-This design seems obvious in retrospect,
-but we underestimated the degree to which polymorphism would force us to
-separate concerns.
-Introducing polymorphism has made the code simpler, easier
-to understand, and easier to maintain.\finalremark
+%This design seems obvious in retrospect,
+%but we underestimated the degree to which polymorphism would force us to
+%separate concerns.
+%Introducing polymorphism has made the code simpler, easier
+%to understand, and easier to maintain.
+By forcing us to separate concerns, introducing polymorphism
+made the code simpler, easier to understand, and easier to maintain.
+\finalremark
 {SLPJ: Is it possible to substantiate this claim by [more] examples?}
 In particular, it forced us to make explicit \emph{exactly} what
 \ourlib\ 
@@ -4001,10 +4080,10 @@ create transfer functions that approximate weakest preconditions or
 strongest postconditions;
 and 
 create rewrite functions that use your assertions to justify
-interesting program transformations.  
+program transformations.  
 You can get quickly to the real 
 intellectual work of code improvement: identifying interesting
-transformations and the assertions that can justify them.
+transformations and the assertions that justify them.
 
 \makeatother
 
