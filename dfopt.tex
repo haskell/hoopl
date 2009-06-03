@@ -642,6 +642,8 @@ speculative rewrites might not be performed on later iterations.
 \remark{Kam and Ullman showed that iterative analysis computers
 maximum fixed point; Kildall showed that if transfer functions are
 distributive this is equal to the meet-over-all-paths solution.
+(Strong distributivity: $f(x \sqcup y) = f(x) \sqcup f(y)$
+and $f(x \sqcap y) = f(x) \sqcap f(y)$.)
 In Hoopl we ignore the meet operation, but the theorem holds.}
 
 
