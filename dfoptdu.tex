@@ -633,6 +633,31 @@ sum_r("address" bits32 a, bits32 n) \lbr
   
 \ifpagetuning \enlargethispage{1\baselineskip} \fi 
 
+
+\subsection{Related work}
+
+The professional literature on general dataflow optimization is primarily
+about foundations or about particular analyses, not about reusability
+or implementation technique. 
+Muchnick's \citeyearpar{muchnick:compiler-implementation} textbook
+introduces both fundamental principles and several important analyses.
+In the most closely related work, 
+\citet{kildall:unified-optimization} showed that iterative dataflow analysis computes a
+meet-over-all paths solution to recursive dataflow equations.
+\citet{schmidt:dataflow-analysis-abstract-interpretation} showed that
+an all-paths dataflow problem can be viewed as model checking an
+abstract interpretation of the program.
+\citet{lerner-grove-chambers:2002} showed that their iterative
+algorithm for 
+interleaving analysis with rewriting is sound, even when some
+speculative rewrites might not be performed on later iterations.
+\remark{Kam and Ullman showed that iterative analysis computers
+maximum fixed point; Kildall showed that if transfer functions are
+distributive this is equal to the meet-over-all-paths solution.
+In Hoopl we ignore the meet operation, but the theorem holds.}
+
+
+
 \section {Making dataflow simple}
 
 \seclabel{making-simple}
@@ -731,6 +756,7 @@ after each type of node (\secref{tffuns}).
 It's not a question of bullets; the key concepts which are possibly
 new to readers are transfer
 functions and rewrite functions, which is why they are italicized.}
+\remark{As usual, transfer functions must be monotone}
 \end{itemize}
 
 To write a \emph{transformation}
