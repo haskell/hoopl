@@ -1,4 +1,4 @@
-\begin{thebibliography}{8}
+\begin{thebibliography}{9}
 \expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
 \expandafter\ifx\csname url\endcsname\relax
   \def\url#1{{\tt #1}}\fi
@@ -41,6 +41,13 @@ Sorin Lerner, David Grove, and Craig Chambers.
 \newblock \emph{Conference Record of the 29th Annual ACM Symposium on
   Principles of Programming Languages, {\em in} SIGPLAN Notices}, 31\penalty0
   (1):\penalty0 270--282.
+
+\bibitem[Muchnick(1997)]{muchnick:compiler-implementation}
+Steven~S. Muchnick.
+\newblock 1997.
+\newblock \emph{Advanced compiler design and implementation}.
+\newblock Morgan Kaufmann, San Mateo, CA.
+\newblock ISBN 1-55860-320-4.
 
 \bibitem[Ramsey and Dias(2005)]{ramsey-dias:applicative-flow-graph}
 Norman Ramsey and {Jo\~ao} Dias.
