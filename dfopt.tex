@@ -313,11 +313,11 @@ with many languages.
 \hoopl\ is designed to help optimize imperative code
 with arbitrary control flow,
 including low-level intermediate languages and machine languages.
-\ifcutting\else
+%%\ifcutting\else
 As \citet{benitez-davidson:portable-optimizer} have shown, all the
 classical scalar and loop optimizations can be performed over such
 codes.
-\fi
+%% \fi
 \end{itemize}
 
 
@@ -3370,7 +3370,7 @@ point, they need not propagate facts out of a last node, so there is
 no analog of @LOFsKont@.
 
 Function @rew_mid@ on \linerangeref{rew.mid.1}{rew.mid.*} of
-\figref{rewriter-excerpts} is very similar to function @solve_mid@ on 
+\figref{rewriter-excerpts} is much like function @solve_mid@ on 
 \linerangeref{solve.mid.1}{solve.mid.*} of \figref{solver-excerpts}.
 \Lineref{rew.mid.1} shows the additional parameter @head@, which
 contains the (rewritten) graph preceding middle node~@m@.
@@ -3682,23 +3682,29 @@ substantiate these claims.}
 \begin{itemize}
 \item
 We acknowledge only one program-analysis technique: the solution of
-recursion equations.
-Like our colleagues working in imperative languages, we solve
-recursion equations by iterating to a fixed point.
+recursion equations over assertions.
+%Like our colleagues working in imperative languages, 
+We solve the equations by iterating to a fixed point.
 % Many equations relate
 % properties of program states; some relate properties of paths through
 % programs. 
 \item
 We consider only two
-relations: weakest liberal precondition and strongest 
+ways of relating assertions: weakest liberal precondition and strongest 
 postcondition, which
  correspond 
 %\ifpagetuning\else
 %respectively
 %\fi
 to
+\ifcutting
+``backward and ``forward'' dataflow
+problems.
+\else
 ``backward dataflow problems'' and ``forward dataflow
-problems.''\finalremark
+problems.''
+\fi
+\finalremark
 {Can we give an example of a property of program states which is
 neither, just by way of contrast; ie this we cannot do.}
 %%  \item
@@ -3755,7 +3761,7 @@ we can use
 ``optimization fuel'' to limit the number of rewrites.
  When we isolate a fault in the optimizer
 (\secref{vpoiso}), we therefore have the luxury of debugging a single
- rewrite, not a complex optimization.
+ rewrite, not a complex transformation.
 \end{itemize}
 
 We also blend proven implementation techniques
@@ -3770,12 +3776,13 @@ This~algorithm makes it easy to compose complex transformations
 from simple ones.
 
 Using continuation-passing style and generalized algebraic data types,
-we have created a new implementation of the algorithm, 
+we have created a new implementation%
+\ifcutting\else\ of the algorithm\fi, 
 which works by 
 composing three relatively simple functions.
 The functions are simple
-because the static types encode the single-successor and
-single-predecessor properties.
+because the static type of a node constrains the number of predecessors
+and successors it may have.
 And because we can
 compare our code with standard denotational semantics for imperative
 languages, we have more confidence in this new implementation than in
