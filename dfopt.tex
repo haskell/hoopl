@@ -514,7 +514,7 @@ the invariant % line breaking
 \icode|lim == a + n * 24|,
 so that @i >= n@ if and only if \icode|p >= lim|.
 
-\ifpagetuning \enlargethispage{1\baselineskip} \fi 
+%\ifpagetuning \enlargethispage{0.9\baselineskip} \fi 
 
 
 We implement the code improvement as a sequence of transformations.
@@ -635,7 +635,7 @@ sum_r("address" bits32 a, bits32 n) \lbr
 \end{alltt}
 
   
-\ifpagetuning \enlargethispage{1\baselineskip} \fi 
+%\ifpagetuning \enlargethispage{0.9\baselineskip} \fi 
 
 
 \section {Making dataflow simple}
@@ -700,11 +700,11 @@ to the procedure {exit};
 such assertions are established by a \emph{backward dataflow analysis}.
 An~assertion about paths \emph{to} a program point from the procedure
 {entry} is established by a \emph{forward dataflow analysis}.
-In an important special case,
-an assertion may say simply
+As~an important special case,
+an assertion, such as @x == 7@ above,
+ may say simply
 that all paths to a point establish a predicate
 which describes the program state at that point,
-such as @x == 7@ above.
 
 
 A~program point is represented as an edge in
@@ -719,7 +719,7 @@ a \emph{control-flow graph}.
 %%  conceived for and limited to GHC.  S&S's citation count must
 %%  suffer.  ---NR
 %%
-The edges connect nodes, each of which represents a label, an assignment, or
+Edges connect nodes, each of which represents a label, an assignment, or
 a control transfer.
 
 To write a dataflow \emph{analysis}, you must 
@@ -736,7 +736,6 @@ after each type of node (\secref{tffuns}).
 It's not a question of bullets; the key concepts which are possibly
 new to readers are transfer
 functions and rewrite functions, which is why they are italicized.}
-\remark{As usual, transfer functions must be monotone}
 \end{itemize}
 
 To write a \emph{transformation}
@@ -745,12 +744,12 @@ must also
 create a \emph{rewrite function}, which is presented with a
 flow-graph node and with the dataflow facts on the edges coming
 into that node.
-The function either suggests that the node should be replaced with a
+The function either proposes to replace the node with a
 fresh subgraph, or it leaves the node alone (\secref{rewrite-functions}).
 The rewrite function uses incoming facts to propose a replacement
 that preserves semantics.
 For example, in \secref{constant-propagation} the fact @x == 7@ is
-used to justify replacing @z = x + y@ with @z = 7 + y@.
+used to propose replacing @z = x + y@ with @z = 7 + y@.
 
 \begin{table}
 \centerline{%
@@ -794,19 +793,23 @@ facts, so you can define different analyses,
 using different types of facts,
 all operating over one type of graph. 
 
+\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
+
 To run an~optimization, you~pass lattice
 operations, transfer functions, and rewrite functions
-to the part of \ourlib\ we call the \emph{dataflow engine}.
-The dataflow engine defines
-\emph{solver functions} and \emph{rewrite functions}.
-The solver functions 
-use a forward or backward \emph{analysis} to compute 
+to one of \ourlib's
+\emph{solver functions} or \emph{rewrite functions}---\ourlib's 
+\emph{dataflow engine}.
+A~solver function 
+uses a forward or backward \emph{analysis} to compute 
 a dataflow fact for each program point (\secref{zdfSolveFwd}).
-The rewrite functions
-use a forward or backward \emph{transformation} to compute facts and to
+A~rewrite function
+uses a forward or backward \emph{transformation} to compute facts and to
 rewrite a control-flow graph in light of those facts
 (\secref{rewrites}).
+\ifcutting\else
 The engine's implementation is sketched in \secref{dfengine}.
+\fi
 \delendum{Interface?  Perhpas ``The signatures and expected usage of these
 functions is described in xxx, while their implementation is sketched
 in yyy''.  NR: I like the idea of parallel structure, but the paper is
@@ -817,14 +820,24 @@ chosen instead to abandon parallel structure.}
 
 
 \begin{figure}
+\ifcutting
 \begin{code}
 data `ChangeFlag = `NoChange | `SomeChange
 data `TxRes a    = TxRes ChangeFlag a
 data `DataflowLattice a = DataflowLattice
  {`fact_bot        :: a,
-  `fact_add_to     :: a -> a -> TxRes a,
-  `fact_name       :: String } -- for debugging
+  `fact_add_to     :: a -> a -> TxRes a}
 \end{code}
+\else
+\begin{code}
+data ChangeFlag = NoChange | SomeChange
+data TxRes a    = TxRes ChangeFlag a
+data DataflowLattice a = DataflowLattice
+ {fact_bot        :: a,
+  fact_add_to     :: a -> a -> TxRes a,
+  fact_name       :: String } -- for debugging
+\end{code}
+\fi
 \caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
 \end{figure}
 
@@ -850,7 +863,7 @@ The analysis shows nothing about~$x$, which we notate $x=\bot$.
 \end{itemize}
 The bottom element of the lattice is~$x=\bot$, and
 the join operation \emph{approximates} disjunction:\simon{No emphasis needed.}
-a~disjunction of two inconsistent facts is represented by~$x=\top$.
+a~disjunction 
 \simon{I'd still like to give an intuition here about
 \emph{why} disjunction is the key operation, and/or where is is used.
 NR: With ``the next 700'' gone, I'm not sure where\ldots
@@ -861,6 +874,12 @@ NR: With ``the next 700'' gone, I'm not sure where\ldots
 %approximated by $x=\top$.''  
 }%
 \simon{This would be a better place for the footnote. NR: Which footnote?}
+of two inconsistent facts is represented by~$x=\top$%
+\ifcutting,
+so for example 
+$x = 7 \lor x = 8$ is appropximated by $x = \top$, 
+losing information.%
+\else
 Here are some examples:
 \begin{itemize}
 \item
@@ -868,11 +887,15 @@ $i = 7 \lor i=\bot \equiv i=7$ (no loss of information)
 \item
 $i = 7 \lor i= 7 \equiv  i=7$ (no loss of information)
 \item
-$i = 7 \lor i = 8 \equiv i = \top$ (loss of information)\footnote
+$i = 7 \lor i = 8 \equiv i = \top$ (loss of information)%
+\fi
+\footnote
 {Your client code determines how much information is lost.
 For example, in a similar analysis for a functional language,
-you might wish to track whether a value~$v$ is known to
-be the application of a value constructor~$C_i$.
+you might track whether a value\ifcutting\else~$v$\fi\ is 
+the result of applying a constructor from any finite set~$\{C_i\}$.
+\ifcutting
+\else
 In this analysis, you needn't limit the representation to a
 single constructor or to~$\top$;
 you could choose to represent such facts as ``$v$~is
@@ -882,13 +905,16 @@ Because every algebraic data type has finitely many constructors,
 there are finitely many sets and therefore finitely many facts in the
 lattice, so a dataflow analysis over this lattice would always reach a
 fixed point.
+\fi
 }
 %%  The compiler writer gets to choose how much information is lost;
 %%  in a different analysis, it might be useful to 
 %%  choose a lattice which can say
 %%  that the value of a variable is one of,
 %%  say, at most three constants.
+\ifcutting\else
 \end{itemize}
+\fi
 
 The lattice used by the analysis is the Cartesian product of the
 lattices for all the local variables.
@@ -899,16 +925,20 @@ $x$~maps to @Nothing@ iff $x=\top$; $x$~maps to $@Just@\;k$ iff
 $x=k$.
 
 
+\ifcutting\else
 Any one procedure has only finitely many variables;
 only finitely many facts are computed at any program point;
 and in this lattice any one fact can increase at most twice.
 These properties
 ensure that the dataflow engine will
 reach a fixed point.
+\fi
 
 
-
-The dataflow engine uses the lattice's join operation in a stylized way.
+\ourlib's dataflow engine uses
+\ifcutting joins
+\else the lattice's join operation
+\fi in a stylized way.
 Joins occur at labels.
 If~$f_{\mathit{id}}$ is the fact currently associated with the
 label~$\mathit{id}$, 
@@ -923,18 +953,24 @@ because if not, the analysis has not reached a fixed point.
 
 
 When computing a join, 
-it is typically cheap to learn if the join
+it is often cheap to learn if the join
 is equal to one of the arguments.
-We therefore use the nonstandard representation of lattice operations
-shown in \figref{lattice}.
+We therefore use a nonstandard representation of lattice operations,
+\iffalse
+(\figref{lattice}).
+\else
+as shown in \figref{lattice}.
+\fi
 The join operation~$\join$ and equality test~$=$ are represented by a
 single function called @fact_add_to@.
 The term $@fact_add_to@\;f_{\mathit{new}}\;f_{\mathit{id}}$ is equal to
 $@TxRes NoChange@\; f_{\mathit{id}}$ if $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$
 and is equal to
 $@TxRes SomeChange@\; (f_{\mathit{new}} \join f_{\mathit{id}})$ otherwise.
-The @fact_bot@ value is the bottom element, 
+The @fact_bot@ value is the bottom element\ifcutting.
+\else, 
 and @fact_name@  is used for debugging.
+\fi
 
 \begin{figure}
 \begin{code}
@@ -957,6 +993,8 @@ data `BackTransfers m l a = BackTransfers
 %    ft_exit_out   ::            a -> a
 %
 \end{figure}
+
+\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
 
 
@@ -993,7 +1031,7 @@ First nodes are the only targets of control transfers;
 middle nodes never perform control transfers;
 and
 last nodes always perform control transfers.
-Hence, a~first node has arbitrarily many predecessors and exactly one
+So~a~first node has arbitrarily many predecessors and exactly one
 successor;
 a~middle node has exactly one predecessor and one successor;
 and a last node has exactly one predecessor and arbitrarily many
@@ -1039,7 +1077,7 @@ In a forward analysis, the dataflow engine starts with the fact at the
 beginning of a block and applies transfer functions to the nodes in
 that block until eventually the transfer function for the last node
 computes the facts that are propagated to the block's successors.
-For example, in the basic block
+For example, in the block
 \begin{verbatim}
   L1: x = 7;
       y = 8;
@@ -1064,7 +1102,7 @@ engine has reached a fixed point.
 %transformations: constant propagation and constant folding}
 
 
-%% \ifpagetuning\enlargethispage{0.5\baselineskip}\fi
+\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
 
 \subsection{Running the dataflow engine}
@@ -1091,9 +1129,13 @@ The function is polymorphic in the types of middle and last nodes
 Polymorphism allows \ourlib\ to work with any intermediate
 language, as long as the type of last node @l@ satisfies the constraint
 @`HavingSuccessors l@ by providing a function
+\ifcutting
+@`succs@ of type @l -> [BlockId]@,
+\else
 \begin{code}
-  `succs :: l -> [BlockId]
+  succs :: l -> [BlockId]
 \end{code}
+\fi
 which gives the labels of the blocks to which a last node of type~@l@
 might transfer control.
 
@@ -1107,12 +1149,15 @@ this fact
 is not always~$\bot$.
 The last argument to @zdfSolveFwd@ is the graph, and the result is a 
 fixed point.
-({The final type parameter~@()@ is 
-explained in~\secref{engine-truth}.})
+
+\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
 
-The @`FwdFixedPoint@ data structure is a big bag
-of information about the solution.
+The @`FwdFixedPoint@ data structure,
+whose final type parameter~@()@ is 
+explained in~\secref{engine-truth},
+ is a big bag
+of information about a solution.
 The most significant information is
 a finite map from each block label to the dataflow fact that holds at
 the label, which is extracted using function @zdfFpFacts@:
