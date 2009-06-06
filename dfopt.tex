@@ -1323,14 +1323,10 @@ avail_vars_transfer :: ForwardTransfers CmmMiddle CmmLast AvailVars
 !avail.first!`avail_vars_transfer = ForwardTransfers (flip const) middleAvail lastAvail
 
 `middleAvail :: CmmMiddle -> AvailVars -> AvailVars
-!reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) ^avail
-!reload2!                 | l `isStackSlotOf` x = extendAvail avail x
-!assign.avail.1!middleAvail (MidAssign ^lhs ^_expr) avail = 
-!assign.avail.2!  foldVarsDefd delFromAvail avail lhs  -- remove variables defined in 'lhs'
-!store.avail.spill.1!middleAvail (MidStore l (CmmVar (CmmLocal x))) avail
-!store.avail.spill.2!                 | l `isStackSlotOf` x = avail
-!store.avail.otherslot.1!middleAvail (MidStore l _) avail 
-!store.avail.otherslot.2!                 | isStackSlot l = delFromAvail avail (variableOfSlot l)
+!reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) ^avail | l `isStackSlotOf` x = extendAvail avail x
+!assign.avail.1!middleAvail (MidAssign ^lhs ^_expr) avail = foldVarsDefd delFromAvail avail lhs
+!store.avail.spill.1!middleAvail (MidStore l (CmmVar (CmmLocal x))) avail | l `isStackSlotOf` x = avail
+!store.avail.otherslot.1!middleAvail (MidStore l _) avail | isStackSlot l = delFromAvail avail (varOfSlot l)
 !store.avail.other!middleAvail (MidStore _ _) avail = avail
 
 `lastAvail :: CmmLast -> AvailVars -> LastOuts AvailVars
@@ -1338,7 +1334,9 @@ avail_vars_transfer :: ForwardTransfers CmmMiddle CmmLast AvailVars
 lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 \end{code}
 \B
-& Transfer \mbox{functions}\\
+& \mbox{\phantom{SPACE}}
+\mbox{\phantom{XXXX}Transfer} \mbox{\phantom{XXXX}functions}\\
+% \ltab{Transfer \\Functions}\\
 \hline
 
 \T
@@ -1746,8 +1744,8 @@ function in \figref{avail-transfers}.\finalremark
 don't exist.}
 \begin{itemize}
 \item
-Lines \ref{line:reload1} and \ref{line:reload2}
-identify an assignment that reloads local
+\Lineref{reload1} 
+identifies an assignment that reloads local
 variable~@x@ from its stack slot.\finalremark{I propose the compiler be
 modified to use @isStackSlotOf@ as I've written. JD~approves.}
 After such an assignment, $x = \slotof x$,
@@ -1755,12 +1753,13 @@ and the last definition of $x$ is a reload,
 so @x@~is added to the set of available variables.
 % No other variable is affected.
 \item
-On \linepairref{assign.avail.1}{assign.avail.2},
+On \lineref{assign.avail.1},
 an assignment to a local variable means that the
 variable need not be equal to the value in its stack
 slot, so if @lhs@ is a local variable, it is removed from the set of
 available variables.
-Function @foldVarsDefd@ is an overloaded function which, along with its dual,
+The conditional removal is done by applying @foldVarsDefd@ to @delFromAvail@;
+@foldVarsDefd@ is an overloaded function which, along with its dual,
 is used throughout the back end:
 \begin{code}
 `foldVarsUsed :: `UserOfLocalVars a 
@@ -1768,9 +1767,9 @@ is used throughout the back end:
 `foldVarsDefd :: `DefinerOfLocalVars a 
         => (b -> LocalVar -> b) -> b -> a -> b
 \end{code}
-On \lineref{assign.avail.2},  if @lhs@ is a local variable,
+On \lineref{assign.avail.1},  if @lhs@ is a local variable,
 @foldVarsDefd@ calls @delFromAvail@;
- if @lhs@ is global, @foldVarsDefd@ does nothing.
+if @lhs@ is global, @foldVarsDefd@ does nothing.
 
 
 %\ifpagetuning\smallskip\fi  
@@ -1781,14 +1780,14 @@ On \lineref{assign.avail.2},  if @lhs@ is a local variable,
 %% had thought to signpost it here.  Your thoughts?}
 \item 
 There are three cases for @MidStore@ nodes.
-\Linepairref{store.avail.spill.1}{store.avail.spill.2}
-match a node that spills a variable~$\mathtt{x}$ to the stack.
+\Lineref{store.avail.spill.1}
+matches a node that spills a variable~$\mathtt{x}$ to the stack.
 After such a node, $\mathtt{x} = \slotOf {\mathtt{x}}$,
 but the node is not a reload instruction,
 so @x@~is not added to the set of available variables.
 %
-\Linepairref{store.avail.otherslot.1}{store.avail.otherslot.2}
-match a node that writes any \emph{other} value to a stack slot,
+\Lineref{store.avail.otherslot.1}
+matches a node that writes any \emph{other} value to a stack slot,
 after which the variable associated with that slot is no longer available.
 %
 \Lineref{store.avail.other} matches a store to a location that is not
