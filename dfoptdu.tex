@@ -1422,8 +1422,8 @@ lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 \T
 \begin{code}
 cmmAvailableVars :: Graph CmmMiddle CmmLast -> BlockEnv AvailVars
-cmmAvailableVars g = zdfFpFacts soln
-!avail.solve.1!  where soln = zdfSolveFwd "available variables" availVarsLattice 
+cmmAvailableVars g = zdfFpFacts fp
+!avail.solve.1!  where fp = zdfSolveFwd "available variables" availVarsLattice 
 !avail.solve.2!                 avail_vars_transfer (fact_bot availVarsLattice) g
 \end{code}
 \B
@@ -1442,7 +1442,7 @@ cmmAvailableVars g = zdfFpFacts soln
 \figlabel{avail-gen-kill}
 \figlabel{avail-transfers}
 \figlabel{avail-running}
-\label{haskell.def.soln}% automated definition
+\label{haskell.def.fp}% automated definition
 \label{haskell.def.cmmAvailableVars}% automated definition
 \label{haskell.def.lastAvail}% automated definition
 \label{haskell.def.:unexpr}% automated definition
@@ -1464,7 +1464,7 @@ cmmAvailableVars g = zdfFpFacts soln
 \label{haskell.def.UniverseMinus}% automated definition
 \label{haskell.def.AvailVars}% automated definition
 \label{haskell.firstuse.cmmAvailableVars}% automated use
-\label{haskell.firstuse.soln}% automated use
+\label{haskell.firstuse.fp}% automated use
 \label{haskell.firstuse.avail:unvars:untransfer}% automated use
 \label{haskell.firstuse.CmmMiddle}% automated use
 \label{haskell.firstuse.CmmLast}% automated use
@@ -1697,8 +1697,8 @@ lastLiveOut :: CmmLast -> (BlockId -> Live) -> Live
 \T
 \begin{code}
 cmmLiveness :: Graph CmmMiddle CmmLast -> BlockEnv Live
-cmmLiveness g = zdfFpFacts soln
-!live.zdfSolveBwd!   where soln = zdfSolveBwd "liveness" liveLattice liveTransfers emptyVarSet g
+cmmLiveness g = zdfFpFacts fp
+!live.zdfSolveBwd!   where fp = zdfSolveBwd "liveness" liveLattice liveTransfers emptyVarSet g
 \end{code}
 \B
 & Liveness \mbox{analysis}\\
@@ -2639,16 +2639,15 @@ availRewrites = ForwardRewrites first middle last
 \T
 \begin{code}
 insertLateReloads :: Graph CmmMiddle CmmLast -> FuelMonad (Graph CmmMiddle CmmLast)
-insertLateReloads g = liftM zdfFpContents result
-!insertLateReloads.1!  where result = zdfRewriteFwd RewriteShallow "insert late reloads"
-                               availVarsLattice avail_vars_transfer
-!insertLateReloads.2!                               availRewrites (fact_bot availVarsLattice) g
+insertLateReloads g = liftM zdfFpContents fp
+!insertLateReloads.1!  where fp = zdfRewriteFwd RewriteShallow "insert late reloads" availVarsLattice
+               avail_vars_transfer availRewrites (fact_bot availVarsLattice) g
+!insertLateReloads.2!                           X
 \end{code}
 & Late-reload insertion\\
 \end{codetable}
 \caption{Late-reload insertion, which relies on the analysis of \figref{avail}}
 \figlabel{avail-rewrites}
-\label{haskell.def.result}% automated definition
 \label{haskell.def.insertLateReloads}% automated definition
 \label{haskell.def.varSetToList}% automated definition
 \label{haskell.def.rel}% automated definition
@@ -2662,8 +2661,8 @@ insertLateReloads g = liftM zdfFpContents result
 \label{haskell.def.availRewrites}% automated definition
 \label{haskell.firstuse.insertLateReloads}% automated use
 \label{haskell.firstuse.liftM}% automated use
-\label{haskell.firstuse.result}% automated use
 \label{haskell.firstuse.RewriteShallow}% automated use
+\label{haskell.firstuse.X}% automated use
 \label{haskell.firstuse.availRewrites}% automated use
 \label{haskell.firstuse.first}% automated use
 \label{haskell.firstuse.middle}% automated use
@@ -2884,9 +2883,9 @@ deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing
 \T
 \begin{code}
 removeDeadAssignments :: Graph CmmMiddle CmmLast -> FuelMonad (Graph CmmMiddle CmmLast)
-removeDeadAssignments g = liftM zdfFpContents result
-!rewriteBwd.1!     where result = zdfRewriteBwd RewriteDeep "dead-assignment elim"
-!rewriteBwd.2!                                  liveLattice liveTransfers rewrites emptyVarSet g
+removeDeadAssignments g = liftM zdfFpContents fp
+!rewriteBwd.1!     where fp = zdfRewriteBwd RewriteDeep "dead-assignment elim" liveLattice
+!rewriteBwd.2!                  liveTransfers rewrites emptyVarSet g
 \end{code}
 & \vspace*{12pt}\mbox{Dead-code} elimination\\
 \end{codetable}
