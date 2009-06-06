@@ -774,10 +774,11 @@ used to justify replacing @z = x + y@ with @z = 7 + y@.
 \multicolumn1{c}{\emph{How many}}%
 \\[5pt]
 Control-flow graphs& Us & Us & One \\
-Nodes in a control-flow graph & You & You & Two types per intermediate language \\[3pt]
-Dataflow lattice & Us & You & One per logic \\[3pt]
+Nodes in a control-flow graph & You & You & Two datatypes per intermediate language \\[3pt]
+Dataflow fact~$F$    & You & You & One datatype per logic \\
+Lattice operations & Us & You & One set per logic \\[3pt]
 Transfer functions & Us & You & One set per analysis \\
-Rewrite functions & Us & You & One set per transformation \\[3pt]
+Rewrite functions & Us & You & One set per \rlap{transformation} \\[3pt]
 Iterative solver functions & Us & Us & Two (forward \&\ backward) \\
 Solve-and-rewrite functions & Us & Us & Two (forward \&\ backward) \\
 \end{tabular}%
