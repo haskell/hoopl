@@ -122,6 +122,7 @@
 \usepackage[ps2pdf,bookmarksopen,breaklinks,pdftitle=dataflow-made-simple]{hyperref}
 
 \newcommand\naive{na\"\i ve}
+\newcommand\Naive{Na\"\i ve}
 
 \usepackage{amsfonts}
 \newcommand\naturals{\ensuremath{\mathbb{N}}}
@@ -215,12 +216,17 @@
 \begin{abstract}
 We present \ourlib, a Haskell library that makes it easy for compiler writers
 to implement program transformations based on dataflow analyses.
-The compiler writer must identify (a)~a family of logical assertions
+The compiler writer must identify (a)~logical assertions
 on which the transformation will be based;
 (b)~an {approximate}
 representation of such assertions, which
-must have a lattice structure such that every assertion can be increased at
+\ifcutting
+should form a lattice of finite height;
+\else
+must have a lattice structure
+ such that every assertion can be increased at
 most finitely many times;
+\fi
 (c)~transfer functions that approximate weakest preconditions or
 strongest postconditions over the assertions; and
 (d)~rewrite functions whose soundness is justified by the assertions.
@@ -230,12 +236,16 @@ strongest postconditions over the assertions; and
 %%  correctness. \simon{The ``next 700'' section sort of does so, but I'm not 
 %%  sure it deserves mention in the abstract.}
 \ourlib\ uses the algorithm of 
-\citet{lerner-grove-chambers:2002}, which enables compiler writers to
+\citet{lerner-grove-chambers:2002}, which 
+% enables compiler writers to
+can
 compose very simple analyses and transformations in a way that achieves
 the same precision as complex, handwritten
 ``super-analyses.''
-\ourlib\ is the workhorse of a new
+\ourlib\ will be the workhorse of a new
 back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
+
+\emph{Reviewers:} code examples are indexed at {\small\url{http://bit.ly/xxxxxxx}.}
 \end{abstract}
 
 \makeatactive  
@@ -245,16 +255,13 @@ back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
 If you write a compiler for an imperative language, you can exploit
 many years' work on code improvement, also called
 ``optimization.''
-But writing these optimizations is complicated
-because the work is typically presented
-as a collection of apparently unrelated analyses and
-transformations, each with its own name---and 
-it's not always easy to
-remember how something like
-``copy propagation'' differs from ``constant propagation.''
-Further complications arise if you want to implement a ``super-analysis,''
-which can improve the code further by
-combining symbiotic analyses in a monolithic pass.
+The work is typically presented
+as a flat collection of analyses and
+transformations, each with a different name.
+A~flat structure makes optimization appear complex and difficult.
+Further complexities arise if you want to combine optimizations
+synergistically; you may have to write one ``super-analysis'' per
+combination. 
 
 But optimization doesn't have to be complicated.
 Most optimizations
@@ -262,20 +269,21 @@ work by applying well-understood techniques for
 reasoning about programs:
 assertions about states, assertions about continuations, and
 substitution of equals for equals. 
-What distinguishes dataflow optimization from classic formal reasoning
-about programs is that in dataflow optimization, assertions are approximated,
-and all assertions are computed automatically by setting up recursion
-equations and solving for a fixed point.
+What makes optimization different from classic reasoning techniques
+is that in dataflow optimization, assertions are approximated,
+and all assertions are computed automatically.
 
 This paper presents \ourlib\ (higher-order optimization library), 
-a Haskell library that makes it easy to implement dataflow optimizations,
-even in a purely functional setting.
+a~Haskell library that makes it easy to implement dataflow optimizations.
 Our contributions are as follows:
 \begin{itemize}
 \item
 \ourlib\ defines a simple interface for implementing analyses and transformations:
-you provide the representation for assertions and the functions that transform assertions,
-and \ourlib\ sets up and solves the necessary recursion equations.
+you provide representations for assertions and for functions that
+transform assertions, 
+and \ourlib\ computes assertions
+ by setting up and solving recursion
+equations.
 When built on \ourlib, analyses and transformations
 are small, simple, and easy to get right.
 \item
@@ -283,34 +291,34 @@ are small, simple, and easy to get right.
 % rewriting
 Using the sophisticated algorithm of \citet{lerner-grove-chambers:2002},
 %which is \emph{not} easy to get right,
-\ourlib\ can perform a super-analysis by \emph{interleaving}
+\ourlib\ can perform super-analyses by \emph{interleaving}
 simple analyses and transformations.
-The interleaving algorithm is tricky to implement correctly,
-but by using
-generalized algebraic data types
+Interleaving is tricky to implement,
+but by using 
+generalized algebraic data types 
 and continuation-passing style,
-our new implementation expresses the algorithm with a clarity and a degree of
+our new implementation expresses the algorithm with a clarity and a
+degree of 
 static checking that has not 
 previously been achieved.
-%By~exploiting Strachey's ideas about compositional semantics and
-%the extra type checking possible with GADTs, we implement
 \item
-\ourlib\ helps the user write correct optimizations both by
-statically ruling out transformations that violate invariants
+\ourlib\ helps you write correct optimizations:
+it
+statically rules out transformations that violate invariants
 of the control-flow graph,
-and 
-by identifying the first transformation that introduces a fault
-in a test program (using an adaptation of Whalley's \citeyearpar{whalley:isolation} algorithm).
+and it can help find the first transformation that introduces a fault
+in a test program \cite{whalley:isolation}.
 \item
-\ourlib's polymorphic, higher-order design makes it possible to reuse
-the library with many low-level codes.
-\hoopl\ is designed to help optimize imperative procedures
-(after inlining)\john{Why the ``after inlining'' restriction?}
+\ourlib's polymorphic, higher-order design makes \ourlib\ reusable
+with many languages.
+\hoopl\ is designed to help optimize imperative code
 with arbitrary control flow,
-including intermediate languages and machine languages.
+including low-level intermediate languages and machine languages.
+\ifcutting\else
 As \citet{benitez-davidson:portable-optimizer} have shown, all the
 classical scalar and loop optimizations can be performed over such
 codes.
+\fi
 \end{itemize}
 
 
@@ -377,8 +385,8 @@ codes.
 
 
 
-We introduce the subject by analyzing and transforming example code 
-(\secref{example:xforms}),
+We introduce dataflow optimization by analyzing and transforming
+example code (\secref{example:xforms}),
 thinking about and justifying classical optimizations using
 Hoare logic and substitution of equals for equals.
 To~support our claim that \ourlib\ makes dataflow optimization easy, 
@@ -406,8 +414,9 @@ and
 to remove assignments to unobserved variables.
 Insertion and removal can be composed to achieve 
 ``code motion.''
-The examples below express classical code
-improvements by composing small analyses and transformations.
+\ourlib\  expresses classical code
+improvements by \emph{composing} small \ifcutting\else analyses and \fi
+transformations. 
 
 
 
@@ -470,8 +479,7 @@ Section 4 might be perfect.}
 
 The loop optimization known as ``induction-variable elimination'' 
 can be composed from simpler transformations.
-We begin by showing a simple loop, FORTRAN style,
-although the code is~C:
+We begin by showing a loop that sums red pixels from an array:
 \begin{verbatim}
   struct pixel { double r, g, b; };
   double sum_r(struct pixel a[], int n) {
@@ -482,9 +490,8 @@ although the code is~C:
     return x;
   }
 \end{verbatim}
-To explain the improvement we wish to make, we show the same
-code at the machine level.
-Our examples use our low-level compiler-target
+To explain induction-variable elimination, we show the same
+code at the machine level, using our low-level compiler-target
 language,~{\PAL}
 \cite{peyton-jones-ramsey:exceptions}: 
 \begin{verbatim}
@@ -499,20 +506,20 @@ language,~{\PAL}
    L2: return x;
   }
 \end{verbatim}
-The code improvement called ``induction-variable elimination''
-replaces~@i@ with a new variable~@p@ so that we can avoid repeating
+Induction-variable elimination
+replaces~@i@ with a new variable~@p@, helping us
 \label{haskell.firstuse.i}% automated use
 \label{haskell.firstuse.p}% automated use
-the computation @a+i*24@ on each iteration through the loop.
+to remove the computation @a+i*24@ from the loop.
 \label{haskell.firstuse.a}% automated use
 \label{haskell.firstuse.*}% automated use
-The new variable~@p@ is intended to satisfy the invariant
+Variable~@p@ is intended to satisfy the invariant
 \begin{verbatim}
    { p == a + i * 24 }
 \end{verbatim}
-The variable @i@ is also used in the loop-termination test.
+Variable @i@ is also used in the loop-termination test.
 To rewrite that test, 
-we introduce a new variable \texttt{lim} satisfying
+we introduce another new variable \texttt{lim} satisfying
 the invariant
 \icode|lim == a + n * 24|,
 so that @i >= n@ if and only if \icode|p >= lim|.
@@ -559,11 +566,11 @@ equals, resulting in the new code in boxes below:
   \rbr
 \end{alltt}
 
-At this point, the compiler switches from reasoning about states to
+Here the compiler switches from reasoning about states to
 reasoning about continuations.
 In~particular, we reason about whether the value of a variable can be
 used by a continuation; this reasoning is called ``liveness analysis.''
-A~\naive\ analysis would show that although @i@~is not live at
+\Naive\ analysis would show that although @i@~is not live at
 label~\texttt{L2}, it is nevertheless live immediately after 
 the assignment
 @i = i + 1@ in the loop body,
@@ -576,31 +583,40 @@ But~we use Lerner, Grove, and Chambers's
 Dead-assignment elimination removes an assignment if the variable
 assigned to is not live, that is, if it cannot be used by the
 assignment's continuation.
-As~explained by Lerner, Grove, and Chambers, no sequential
+\ifcutting
+No
+\else
+As~explained by Lerner, Grove, and Chambers, no
+\fi
+sequential
 composition of liveness analysis and dead-assignment elimination can
 get rid of these assignments to~@i@, but interleaving analysis with
 transformation does the trick.\footnote
-{An experienced reader might be tempted to modify the
+{You might be tempted to modify the
 liveness analysis so that
 @i = i + 1@ is not considered a ``use'' of~@i@ if @i@~is itself
 dead.
-This~modification is tantamount to writing a single, combined dataflow
-pass that understands \emph{both} liveness analysis and dead-code
+This~modification is tantamount to writing a single ``super-analysis''
+that \emph{combines} liveness analysis and dead-code
 elimination.
-In~this particular example, writing a single, combined pass presents
-few difficulties, but the approach does not scale:
-most combined passes are more complicated than the examples shown here;
-the cost of writing combined passes does not scale linearly with
-the number of individual passes;
-combined passes often cannot be composed;
+In~this case, writing a super-analysis is easy,
+but the approach does not scale:
+most super-analyses are more complicated than the examples shown here;
+the cost of writing super-analysis does not scale linearly with
+the number of analyses combined;
+super-analyses often cannot be composed;
 and 
-some combined passes require nonstandard, handwritten traversals of
+some super-analyses require nonstandard, handwritten traversals of
 the control-flow graph.
 \citet{lerner-grove-chambers:2002} discuss these issues in detail;
 \citet{click-cooper} show both the advantages of and the programming cost
-of combining passes.} 
-\secref{dfengine} describes our implementation of their interleaving
-method, which eliminates the boxed assignments to~@i@:
+of combining analyses.} 
+Interleaving%
+\ifcutting
+\  (\secref{dfengine}) 
+\else, as sketched in 
+\secref{dfengine}, \fi
+eliminates the boxed assignments to~@i@:
 \begin{alltt}
 sum_r("address" bits32 a, bits32 n) \lbr
      bits64 x; \high{bits32 i;} bits32 p, lim;
@@ -632,32 +648,6 @@ sum_r("address" bits32 a, bits32 n) \lbr
 
   
 \ifpagetuning \enlargethispage{1\baselineskip} \fi 
-
-
-\subsection{Related work}
-
-The professional literature on general dataflow optimization is primarily
-about foundations or about particular analyses, not about reusability
-or implementation technique. 
-Muchnick's \citeyearpar{muchnick:compiler-implementation} textbook
-introduces both fundamental principles and several important analyses.
-In the most closely related work, 
-\citet{kildall:unified-optimization} showed that iterative dataflow analysis computes a
-meet-over-all paths solution to recursive dataflow equations.
-\citet{schmidt:dataflow-analysis-abstract-interpretation} showed that
-an all-paths dataflow problem can be viewed as model checking an
-abstract interpretation of the program.
-\citet{lerner-grove-chambers:2002} showed that their iterative
-algorithm for 
-interleaving analysis with rewriting is sound, even when some
-speculative rewrites might not be performed on later iterations.
-\remark{Kam and Ullman showed that iterative analysis computers
-maximum fixed point; Kildall showed that if transfer functions are
-distributive this is equal to the meet-over-all-paths solution.
-(Strong distributivity: $f(x \sqcup y) = f(x) \sqcup f(y)$
-and $f(x \sqcap y) = f(x) \sqcap f(y)$.)
-In Hoopl we ignore the meet operation, but the theorem holds.}
-
 
 
 \section {Making dataflow simple}
@@ -786,10 +776,11 @@ used to justify replacing @z = x + y@ with @z = 7 + y@.
 \multicolumn1{c}{\emph{How many}}%
 \\[5pt]
 Control-flow graphs& Us & Us & One \\
-Nodes in a control-flow graph & You & You & Two types per intermediate language \\[3pt]
-Dataflow lattice & Us & You & One per logic \\[3pt]
+Nodes in a control-flow graph & You & You & Two datatypes per intermediate language \\[3pt]
+Dataflow fact~$F$    & You & You & One datatype per logic \\
+Lattice operations & Us & You & One set per logic \\[3pt]
 Transfer functions & Us & You & One set per analysis \\
-Rewrite functions & Us & You & One set per transformation \\[3pt]
+Rewrite functions & Us & You & One set per \rlap{transformation} \\[3pt]
 Iterative solver functions & Us & Us & Two (forward \&\ backward) \\
 Solve-and-rewrite functions & Us & Us & Two (forward \&\ backward) \\
 \end{tabular}%
@@ -1251,6 +1242,46 @@ zdfFpFacts :: FwdFixedPoint m l a g -> BlockEnv a
 
 
 
+
+
+\section {Related work}
+
+Both the foundations of dataflow and  particular analyses are covered
+by a vast literature;
+design of implementations, the topic of this paper, is covered
+relatively sparsely.
+When transfer functions are monotone and lattices are finite in height,
+iterative dataflow analysis converges to a fixed point
+\cite{kam-ullman:global-iterative-analysis}. 
+If~the lattice's join operation distributes over all transfer
+functions,
+this fixed point is equivalent to a join-over-all-paths solution to
+the recursive dataflow equations \cite{kildall:unified-optimization}.
+(Kildall's paper uses meets, not joins.  The orientation of the
+lattice is conventional, and since 1973 conventions have changed.
+We use Dana Scott's
+ordering, in which higher elements correspond to more information.)
+\cite{kam-ullman:monotone-flow-analysis} generalize the result some
+monotone functions.
+In~Hoopl, it is the client's responsibility to ensure that all
+transfer functions are monotone, but for transfer functions that
+approximate weakest preconditions or strongest postconditions,
+monotonicity falls out automatically.
+
+\citet{cousot:abstract-interpretation:1977,cousot:systematic-analysis-frameworks}
+introduce abstract interpretation as a technique for developing
+lattices for program analysis.
+\citet{schmidt:data-flow-analysis-model-checking} shows that
+an all-paths dataflow problem can be viewed as model checking an
+abstract interpretation.
+
+Our implementation uses the algorithm of
+\citet{lerner-grove-chambers:2002}, which they showed to be sound even
+though some
+speculative rewrites might not be performed on all iterations.
+Muchnick \citeyearpar{muchnick:compiler-implementation} 
+presents many examples of both particular analyses and related
+algorithms.
 
 
 \section{Example analysis passes}
