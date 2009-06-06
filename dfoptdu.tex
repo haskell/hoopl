@@ -1337,6 +1337,176 @@ algorithms.
 \fi
 
 
+\newcommand\T{\rule{0pt}{0.6ex}}
+\newcommand\B{\rule[-0.05ex]{0pt}{0pt}}
+\renewcommand\B{\relax\par\unskip\vspace*{0.8ex}%
+  \hrule height 0pt depth 0pt \relax}
+\renewcommand\T{\relax\par\unskip\vspace*{1.0ex}%
+  \hrule height 0pt depth 0pt \relax}
+\newcolumntype{C}{>{\begin{minipage}{5.35in}}l<{\end{minipage}}}
+%\newcolumntype{L}{>{\T\Large\bfseries\indent}m{1.3in}%
+%                  <{\fillindent \parfillskip=0pt \parskip=0pt \endgraf}}       % label
+\newcolumntype{L}{>{\T\Large\bfseries}m{1.3in}<{\centering}}      
+\newcommand\fillindent{\parindent=0pt \leftskip=0pt plus 1fill}
+\newcommand\ltab[1]{\begin{tabular}{@{}c@{}}#1\\\end{tabular}}
+\label{haskell.firstuse.c}% automated use
+\renewcommand\ltab[1]{{\let\\=\relax#1}}
+\newenvironment{codetable}
+  {\setcounter{codeline}{0}%
+   \let\code=\numberedcode
+   \let\endcode=\endnumberedcode
+   \begin{tabular}{CL}%
+  }
+  {\end{tabular}}
+
+\begin{figure*}
+\setcounter{codeline}{0}
+\begin{codetable}
+\T
+\begin{numberedcode}
+!AvailVars!data AvailVars = UniverseMinus VarSet | AvailVars VarSet
+!extendAvail!extendAvail  :: AvailVars -> LocalVar  -> AvailVars  -- add var to set
+delFromAvail :: AvailVars -> LocalVar  -> AvailVars  -- remove var from set
+elemAvail    :: AvailVars -> LocalVar  -> Bool       -- set membership
+interAvail   :: AvailVars -> AvailVars -> AvailVars  -- set intersection
+!smallerAvail!smallerAvail :: AvailVars -> AvailVars -> Bool       -- compare sizes
+\end{numberedcode}
+\B
+& \ltab{Dataflow fact\\ and operations}\\
+\hline
+
+\T
+\begin{code}
+availVarsLattice :: DataflowLattice AvailVars
+availVarsLattice = DataflowLattice "reloaded registers" empty add
+    where empty = UniverseMinus emptyVarSet
+          add new old = let join = interAvail new old in
+                        if join `smallerAvail` old then TxRes NoChange join else TxRes SomeChange join
+\end{code}
+\B
+& Lattice\\
+\hline
+
+%%  \T
+%%  \begin{code}
+%%  agen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
+%%  akill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
+%%  agen  a avail = foldVarsUsed extendAvail  avail a
+%%  akill a avail = foldVarsDefd delFromAvail avail a
+%%  \end{code}\B
+%%  & Gen/Kill \mbox{functions}\\
+%%  \hline
+%%  
+\T
+\begin{code}
+avail_vars_transfer :: ForwardTransfers CmmMiddle CmmLast AvailVars
+!avail.first!avail_vars_transfer = ForwardTransfers (flip const) middleAvail lastAvail
+
+middleAvail :: CmmMiddle -> AvailVars -> AvailVars
+!reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail | l `isStackSlotOf` x = extendAvail avail x
+!assign.avail.1!middleAvail (MidAssign lhs _expr) avail = foldVarsDefd delFromAvail avail lhs
+!store.avail.spill.1!middleAvail (MidStore l (CmmVar (CmmLocal x))) avail | l `isStackSlotOf` x = avail
+!store.avail.otherslot.1!middleAvail (MidStore l _) avail | isStackSlot l = delFromAvail avail (varOfSlot l)
+!store.avail.other!middleAvail (MidStore _ _) avail = avail
+
+lastAvail :: CmmLast -> AvailVars -> LastOuts AvailVars
+!avail.LastCall!lastAvail (LastCall _ (Just k) _ _) _ = LastOuts [(k, AvailVars emptyVarSet)]
+lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
+\end{code}
+\B
+& \mbox{\phantom{SPACE}}
+\mbox{\phantom{XXXX}Transfer} \mbox{\phantom{XXXX}functions}\\
+% \ltab{Transfer \\Functions}\\
+\hline
+
+\T
+\begin{code}
+cmmAvailableVars :: Graph CmmMiddle CmmLast -> BlockEnv AvailVars
+cmmAvailableVars g = zdfFpFacts soln
+!avail.solve.1!  where soln = zdfSolveFwd "available variables" availVarsLattice 
+!avail.solve.2!                 avail_vars_transfer (fact_bot availVarsLattice) g
+\end{code}
+\B
+&
+\def\baselinestretch{0.8}\hspace{-0.3in}\parbox{1.6in}{\center Available-variables analysis}
+%\B
+\\
+%\hline
+
+\end{codetable}
+% \caption{Available-variable analysis}
+\caption{Dataflow analysis pass to compute available variables}
+\figlabel{avail-all}
+\figlabel{avail}
+\figlabel{avail-lattice}
+\figlabel{avail-gen-kill}
+\figlabel{avail-transfers}
+\figlabel{avail-running}
+\label{haskell.def.soln}% automated definition
+\label{haskell.def.cmmAvailableVars}% automated definition
+\label{haskell.def.lastAvail}% automated definition
+\label{haskell.def.:unexpr}% automated definition
+\label{haskell.def.lhs}% automated definition
+\label{haskell.def.avail}% automated definition
+\label{haskell.def.middleAvail}% automated definition
+\label{haskell.def.avail:unvars:untransfer}% automated definition
+\label{haskell.def.join}% automated definition
+\label{haskell.def.old}% automated definition
+\label{haskell.def.new}% automated definition
+\label{haskell.def.add}% automated definition
+\label{haskell.def.empty}% automated definition
+\label{haskell.def.availVarsLattice}% automated definition
+\label{haskell.def.smallerAvail}% automated definition
+\label{haskell.def.interAvail}% automated definition
+\label{haskell.def.elemAvail}% automated definition
+\label{haskell.def.delFromAvail}% automated definition
+\label{haskell.def.extendAvail}% automated definition
+\label{haskell.def.UniverseMinus}% automated definition
+\label{haskell.def.AvailVars}% automated definition
+\label{haskell.firstuse.cmmAvailableVars}% automated use
+\label{haskell.firstuse.soln}% automated use
+\label{haskell.firstuse.avail:unvars:untransfer}% automated use
+\label{haskell.firstuse.CmmMiddle}% automated use
+\label{haskell.firstuse.CmmLast}% automated use
+\label{haskell.firstuse.middleAvail}% automated use
+\label{haskell.firstuse.lastAvail}% automated use
+\label{haskell.firstuse.MidAssign}% automated use
+\label{haskell.firstuse.CmmLocal}% automated use
+\label{haskell.firstuse.CmmLoad}% automated use
+\label{haskell.firstuse.avail}% automated use
+\label{haskell.firstuse.isStackSlotOf}% automated use
+\label{haskell.firstuse.lhs}% automated use
+\label{haskell.firstuse.:unexpr}% automated use
+\label{haskell.firstuse.foldVarsDefd}% automated use
+\label{haskell.firstuse.MidStore}% automated use
+\label{haskell.firstuse.CmmVar}% automated use
+\label{haskell.firstuse.isStackSlot}% automated use
+\label{haskell.firstuse.varOfSlot}% automated use
+\label{haskell.firstuse.LastCall}% automated use
+\label{haskell.firstuse.k}% automated use
+\label{haskell.firstuse.map}% automated use
+\label{haskell.firstuse.id}% automated use
+\label{haskell.firstuse.$}% automated use
+\label{haskell.firstuse.:bs}% automated use
+\label{haskell.firstuse.availVarsLattice}% automated use
+\label{haskell.firstuse.empty}% automated use
+\label{haskell.firstuse.add}% automated use
+\label{haskell.firstuse.emptyVarSet}% automated use
+\label{haskell.firstuse.new}% automated use
+\label{haskell.firstuse.old}% automated use
+\label{haskell.firstuse.join}% automated use
+\label{haskell.firstuse.AvailVars}% automated use
+\label{haskell.firstuse.UniverseMinus}% automated use
+\label{haskell.firstuse.VarSet}% automated use
+\label{haskell.firstuse.extendAvail}% automated use
+\label{haskell.firstuse.LocalVar}% automated use
+\label{haskell.firstuse.delFromAvail}% automated use
+\label{haskell.firstuse.elemAvail}% automated use
+\label{haskell.firstuse.Bool}% automated use
+\label{haskell.firstuse.interAvail}% automated use
+\label{haskell.firstuse.smallerAvail}% automated use
+\end{figure*}
+
 \section{Example analysis passes}
 
 \seclabel{example-analyses}
@@ -1408,172 +1578,6 @@ On the control-flow path to @return z@, @x@~needn't be reloaded
 at all.
 
 
-\newcommand\T{\rule{0pt}{0.6ex}}
-\newcommand\B{\rule[-0.05ex]{0pt}{0pt}}
-\renewcommand\B{\relax\par\unskip\vspace*{0.8ex}%
-  \hrule height 0pt depth 0pt \relax}
-\renewcommand\T{\relax\par\unskip\vspace*{1.0ex}%
-  \hrule height 0pt depth 0pt \relax}
-\newcolumntype{C}{>{\begin{minipage}{5.35in}}l<{\end{minipage}}}
-\newcolumntype{L}{>{\T\Large\bfseries}m{1.3in}<{\centering}}      
-\newenvironment{codetable}
-  {\setcounter{codeline}{0}%
-   \let\code=\numberedcode
-   \let\endcode=\endnumberedcode
-   \begin{tabular}{CL}%
-  }
-  {\end{tabular}}
-
-\begin{figure*}
-\setcounter{codeline}{0}
-\begin{codetable}
-\T
-\begin{numberedcode}
-!AvailVars!data AvailVars = UniverseMinus VarSet | AvailVars VarSet
-!extendAvail!extendAvail  :: AvailVars -> LocalVar  -> AvailVars  -- add var to set
-delFromAvail :: AvailVars -> LocalVar  -> AvailVars  -- remove var from set
-elemAvail    :: AvailVars -> LocalVar  -> Bool       -- set membership
-interAvail   :: AvailVars -> AvailVars -> AvailVars  -- set intersection
-!smallerAvail!smallerAvail :: AvailVars -> AvailVars -> Bool       -- compare sizes
-\end{numberedcode}
-\B
-& Dataflow fact and operations\\
-\hline
-
-\T
-\begin{code}
-availVarsLattice :: DataflowLattice AvailVars
-availVarsLattice = DataflowLattice "reloaded registers" empty add
-    where empty = UniverseMinus emptyVarSet
-          add new old = let join = interAvail new old in
-                        if join `smallerAvail` old then TxRes NoChange join else TxRes SomeChange join
-\end{code}
-\B
-& Lattice\\
-\hline
-
-%%  \T
-%%  \begin{code}
-%%  agen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
-%%  akill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
-%%  agen  a avail = foldVarsUsed extendAvail  avail a
-%%  akill a avail = foldVarsDefd delFromAvail avail a
-%%  \end{code}\B
-%%  & Gen/Kill \mbox{functions}\\
-%%  \hline
-%%  
-\T
-\begin{code}
-avail_vars_transfer :: ForwardTransfers CmmMiddle CmmLast AvailVars
-!avail.first!avail_vars_transfer = ForwardTransfers (flip const) middleAvail lastAvail
-
-middleAvail :: CmmMiddle -> AvailVars -> AvailVars
-!reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail
-!reload2!                 | l `isStackSlotOf` x = extendAvail avail x
-!assign.avail.1!middleAvail (MidAssign lhs _expr) avail = 
-!assign.avail.2!  foldVarsDefd delFromAvail avail lhs  -- remove variables defined in 'lhs'
-!store.avail.spill.1!middleAvail (MidStore l (CmmVar (CmmLocal x))) avail
-!store.avail.spill.2!                 | l `isStackSlotOf` x = avail
-!store.avail.otherslot.1!middleAvail (MidStore l _) avail 
-!store.avail.otherslot.2!                 | isStackSlot l = delFromAvail avail (variableOfSlot l)
-!store.avail.other!middleAvail (MidStore _ _) avail = avail
-
-lastAvail :: CmmLast -> AvailVars -> LastOuts AvailVars
-!avail.LastCall!lastAvail (LastCall _ (Just k) _ _) _ = LastOuts [(k, AvailVars emptyVarSet)]
-lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
-\end{code}
-\B
-& Transfer \mbox{functions}\\
-\hline
-
-\T
-\begin{code}
-cmmAvailableVars :: Graph CmmMiddle CmmLast -> BlockEnv AvailVars
-cmmAvailableVars g = zdfFpFacts soln
-!avail.solve.1!  where soln = zdfSolveFwd "available variables" availVarsLattice 
-!avail.solve.2!                 avail_vars_transfer (fact_bot availVarsLattice) g
-\end{code}
-\B
-&
-\def\baselinestretch{0.8}\hspace{-0.3in}\parbox{1.6in}{\center Available-variables analysis}
-%\B
-\\
-%\hline
-
-\end{codetable}
-% \caption{Available-variable analysis}
-\caption{Dataflow analysis pass to compute available variables}
-\figlabel{avail-all}
-\figlabel{avail}
-\figlabel{avail-lattice}
-\figlabel{avail-gen-kill}
-\figlabel{avail-transfers}
-\figlabel{avail-running}
-\label{haskell.def.soln}% automated definition
-\label{haskell.def.cmmAvailableVars}% automated definition
-\label{haskell.def.lastAvail}% automated definition
-\label{haskell.def.:unexpr}% automated definition
-\label{haskell.def.lhs}% automated definition
-\label{haskell.def.avail}% automated definition
-\label{haskell.def.middleAvail}% automated definition
-\label{haskell.def.avail:unvars:untransfer}% automated definition
-\label{haskell.def.join}% automated definition
-\label{haskell.def.old}% automated definition
-\label{haskell.def.new}% automated definition
-\label{haskell.def.add}% automated definition
-\label{haskell.def.empty}% automated definition
-\label{haskell.def.availVarsLattice}% automated definition
-\label{haskell.def.smallerAvail}% automated definition
-\label{haskell.def.interAvail}% automated definition
-\label{haskell.def.elemAvail}% automated definition
-\label{haskell.def.delFromAvail}% automated definition
-\label{haskell.def.extendAvail}% automated definition
-\label{haskell.def.UniverseMinus}% automated definition
-\label{haskell.def.AvailVars}% automated definition
-\label{haskell.firstuse.cmmAvailableVars}% automated use
-\label{haskell.firstuse.soln}% automated use
-\label{haskell.firstuse.avail:unvars:untransfer}% automated use
-\label{haskell.firstuse.CmmMiddle}% automated use
-\label{haskell.firstuse.CmmLast}% automated use
-\label{haskell.firstuse.middleAvail}% automated use
-\label{haskell.firstuse.lastAvail}% automated use
-\label{haskell.firstuse.MidAssign}% automated use
-\label{haskell.firstuse.CmmLocal}% automated use
-\label{haskell.firstuse.CmmLoad}% automated use
-\label{haskell.firstuse.avail}% automated use
-\label{haskell.firstuse.isStackSlotOf}% automated use
-\label{haskell.firstuse.lhs}% automated use
-\label{haskell.firstuse.:unexpr}% automated use
-\label{haskell.firstuse.foldVarsDefd}% automated use
-\label{haskell.firstuse.MidStore}% automated use
-\label{haskell.firstuse.CmmVar}% automated use
-\label{haskell.firstuse.isStackSlot}% automated use
-\label{haskell.firstuse.variableOfSlot}% automated use
-\label{haskell.firstuse.LastCall}% automated use
-\label{haskell.firstuse.k}% automated use
-\label{haskell.firstuse.map}% automated use
-\label{haskell.firstuse.id}% automated use
-\label{haskell.firstuse.$}% automated use
-\label{haskell.firstuse.:bs}% automated use
-\label{haskell.firstuse.availVarsLattice}% automated use
-\label{haskell.firstuse.empty}% automated use
-\label{haskell.firstuse.add}% automated use
-\label{haskell.firstuse.emptyVarSet}% automated use
-\label{haskell.firstuse.new}% automated use
-\label{haskell.firstuse.old}% automated use
-\label{haskell.firstuse.join}% automated use
-\label{haskell.firstuse.AvailVars}% automated use
-\label{haskell.firstuse.UniverseMinus}% automated use
-\label{haskell.firstuse.VarSet}% automated use
-\label{haskell.firstuse.extendAvail}% automated use
-\label{haskell.firstuse.LocalVar}% automated use
-\label{haskell.firstuse.delFromAvail}% automated use
-\label{haskell.firstuse.elemAvail}% automated use
-\label{haskell.firstuse.Bool}% automated use
-\label{haskell.firstuse.interAvail}% automated use
-\label{haskell.firstuse.smallerAvail}% automated use
-\end{figure*}
-
 
 
 Spills and reloads are inserted 
@@ -1628,76 +1632,6 @@ reloads away from the call site.
 
 
 %% \ifpagetuning \enlargethispage\baselineskip \fi
-
-\subsection{Choosing node types for GHC}
-
-To be confident that our code is right,
-we present examples that
-have been implemented and tested in GHC.  
-GHC's low-level intermediate code, called @Cmm@, is a 
-\label{haskell.def.Cmm}% automated definition
-\label{haskell.firstuse.Cmm}% automated use
- subset of 
-the portable assembly language~{\PAL}
-\cite{peyton-jones-ramsey:exceptions}.
-We~specialize \ourlib\ to GHC by instantiating type parameters
-@m@~and~@l@ with GHC's types @CmmMiddle@ and @CmmLast@.
-
-A~middle node stores the value of an expression:
-\begin{code}
-data CmmMiddle 
-  = MidAssign CmmVar  CmmExpr -- store in variable
-  | MidStore  CmmExpr CmmExpr -- store in memory
-\end{code}
-\label{haskell.def.CmmMiddle}% automated definition
-\label{haskell.def.MidAssign}% automated definition
-\label{haskell.def.MidStore}% automated definition
-\label{haskell.firstuse.CmmExpr}% automated use
-Type @CmmVar@ represents a variable, which may be local (@CmmLocal@
-\label{haskell.def.CmmVar}% automated definition
-\label{haskell.def.CmmLocal}% automated definition
-@LocalVar@) or global 
-\label{haskell.def.LocalVar}% automated definition
-(@CmmGlobal GlobalVar@).
-\label{haskell.def.CmmGlobal}% automated definition
-\label{haskell.def.GlobalVar}% automated definition
-\label{haskell.firstuse.CmmGlobal}% automated use
-\label{haskell.firstuse.GlobalVar}% automated use
-Type @CmmExpr@ represents a pure expression; 
-\label{haskell.def.CmmExpr}% automated definition
-among its constructors are @CmmLoad@ (a~value from memory)
-\label{haskell.def.CmmLoad}% automated definition
-and @CmmVar@ (the value of a variable).
-
-A~last node represents a control transfer; constructors include
-unconditional, conditional, and indirect branches, as well as a call:
-\begin{code}
-data CmmLast
-  = LastBranch     BlockId
-  | LastCondBranch CmmExpr BlockId BlockId
-  | LastSwitch     CmmExpr [Maybe BlockId]
-  | LastCall ...     -- arguments omitted
-\end{code}
-\label{haskell.def.CmmLast}% automated definition
-\label{haskell.def.LastBranch}% automated definition
-\label{haskell.def.LastCondBranch}% automated definition
-\label{haskell.def.LastSwitch}% automated definition
-\label{haskell.def.LastCall}% automated definition
-\label{haskell.firstuse.Maybe}% automated use
-\label{haskell.firstuse.LastSwitch}% automated use
-\label{haskell.firstuse.LastCondBranch}% automated use
-\label{haskell.firstuse.LastBranch}% automated use
-
-
-
-
-
-
-\subsection{Available variables: a forward analysis} 
-
-\seclabel{avail}
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %  desperately trying to get figures to emerge in a decent order
@@ -1804,8 +1738,11 @@ cmmLiveness g = zdfFpFacts soln
 \label{haskell.firstuse.delFromVarSet}% automated use
 \label{haskell.firstuse.env}% automated use
 \label{haskell.firstuse.last}% automated use
+\label{haskell.firstuse.LastBranch}% automated use
+\label{haskell.firstuse.LastCondBranch}% automated use
 \label{haskell.firstuse.t}% automated use
 \label{haskell.firstuse.f}% automated use
+\label{haskell.firstuse.LastSwitch}% automated use
 \label{haskell.firstuse.tbl}% automated use
 \label{haskell.firstuse.unionManyVarSets}% automated use
 \label{haskell.firstuse.catMaybes}% automated use
@@ -1820,16 +1757,83 @@ cmmLiveness g = zdfFpFacts soln
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
+\subsection{Choosing node types for GHC}
+
+To be confident that our code is right,
+we present examples that
+have been implemented and tested in GHC.  
+GHC's low-level intermediate code, called @Cmm@, is a 
+\label{haskell.def.Cmm}% automated definition
+\label{haskell.firstuse.Cmm}% automated use
+ subset of 
+the portable assembly language~{\PAL}
+\cite{peyton-jones-ramsey:exceptions}.
+We~specialize \ourlib\ to GHC by instantiating type parameters
+@m@~and~@l@ with GHC's types @CmmMiddle@ and @CmmLast@.
+
+A~middle node stores the value of an expression:
+\begin{code}
+data CmmMiddle 
+  = MidAssign CmmVar  CmmExpr -- store in variable
+  | MidStore  CmmExpr CmmExpr -- store in memory
+\end{code}
+\label{haskell.def.CmmMiddle}% automated definition
+\label{haskell.def.MidAssign}% automated definition
+\label{haskell.def.MidStore}% automated definition
+\label{haskell.firstuse.CmmExpr}% automated use
+Type @CmmVar@ represents a variable, which may be local (@CmmLocal@
+\label{haskell.def.CmmVar}% automated definition
+\label{haskell.def.CmmLocal}% automated definition
+@LocalVar@) or global 
+\label{haskell.def.LocalVar}% automated definition
+(@CmmGlobal GlobalVar@).
+\label{haskell.def.CmmGlobal}% automated definition
+\label{haskell.def.GlobalVar}% automated definition
+\label{haskell.firstuse.CmmGlobal}% automated use
+\label{haskell.firstuse.GlobalVar}% automated use
+Type @CmmExpr@ represents a pure expression; 
+\label{haskell.def.CmmExpr}% automated definition
+among its constructors are @CmmLoad@ (a~value from memory)
+\label{haskell.def.CmmLoad}% automated definition
+and @CmmVar@ (the value of a variable).
+
+A~last node represents a control transfer; constructors include
+unconditional, conditional, and indirect branches, as well as a call:
+\begin{code}
+data CmmLast
+  = LastBranch     BlockId
+  | LastCondBranch CmmExpr BlockId BlockId
+  | LastSwitch     CmmExpr [Maybe BlockId]
+  | LastCall ...     -- arguments omitted
+\end{code}
+\label{haskell.def.CmmLast}% automated definition
+\label{haskell.def.LastBranch}% automated definition
+\label{haskell.def.LastCondBranch}% automated definition
+\label{haskell.def.LastSwitch}% automated definition
+\label{haskell.def.LastCall}% automated definition
+\label{haskell.firstuse.Maybe}% automated use
+
+
+
+
+
+
+\subsection{Available variables: a forward analysis} 
+
+\seclabel{avail}
+
+
+
 
 To~understand the available-variables analysis, you must know that 
 each variable~$x$ is related to a stack slot~\slotof x, which is used to
 save the value of~$x$. 
 (GHC~represents 
 the relation using Haskell functions @isStackSlot@,
-@variableOfSlot@, and @isStackSlotOf@.)
+@varOfSlot@, and @isStackSlotOf@.)
 \label{haskell.def.isStackSlotOf}% automated definition
 \label{haskell.def.isStackSlot}% automated definition
-\label{haskell.def.variableOfSlot}% automated definition
+\label{haskell.def.varOfSlot}% automated definition
 If the variable and the stack slot hold the same value,
 that is if $x = \slotof x$,
 then it is \emph{safe} to insert a reload.
@@ -1946,8 +1950,8 @@ function in \figref{avail-transfers}.\finalremark
 don't exist.}
 \begin{itemize}
 \item
-Lines \ref{line:reload1} and \ref{line:reload2}
-identify an assignment that reloads local
+\Lineref{reload1} 
+identifies an assignment that reloads local
 variable~@x@ from its stack slot.\finalremark{I propose the compiler be
 modified to use @isStackSlotOf@ as I've written. JD~approves.}
 After such an assignment, $x = \slotof x$,
@@ -1955,12 +1959,13 @@ and the last definition of $x$ is a reload,
 so @x@~is added to the set of available variables.
 % No other variable is affected.
 \item
-On \linepairref{assign.avail.1}{assign.avail.2},
+On \lineref{assign.avail.1},
 an assignment to a local variable means that the
 variable need not be equal to the value in its stack
 slot, so if @lhs@ is a local variable, it is removed from the set of
 available variables.
-Function @foldVarsDefd@ is an overloaded function which, along with its dual,
+The conditional removal is done by applying @foldVarsDefd@ to @delFromAvail@;
+@foldVarsDefd@ is an overloaded function which, along with its dual,
 is used throughout the back end:
 \begin{code}
 foldVarsUsed :: UserOfLocalVars a 
@@ -1973,9 +1978,9 @@ foldVarsDefd :: DefinerOfLocalVars a
 \label{haskell.def.foldVarsDefd}% automated definition
 \label{haskell.def.DefinerOfLocalVars}% automated definition
 \label{haskell.firstuse.b}% automated use
-On \lineref{assign.avail.2},  if @lhs@ is a local variable,
+On \lineref{assign.avail.1},  if @lhs@ is a local variable,
 @foldVarsDefd@ calls @delFromAvail@;
- if @lhs@ is global, @foldVarsDefd@ does nothing.
+if @lhs@ is global, @foldVarsDefd@ does nothing.
 
 
 %\ifpagetuning\smallskip\fi  
@@ -1986,14 +1991,14 @@ On \lineref{assign.avail.2},  if @lhs@ is a local variable,
 %% had thought to signpost it here.  Your thoughts?}
 \item 
 There are three cases for @MidStore@ nodes.
-\Linepairref{store.avail.spill.1}{store.avail.spill.2}
-match a node that spills a variable~$\mathtt{x}$ to the stack.
+\Lineref{store.avail.spill.1}
+matches a node that spills a variable~$\mathtt{x}$ to the stack.
 After such a node, $\mathtt{x} = \slotOf {\mathtt{x}}$,
 but the node is not a reload instruction,
 so @x@~is not added to the set of available variables.
 %
-\Linepairref{store.avail.otherslot.1}{store.avail.otherslot.2}
-match a node that writes any \emph{other} value to a stack slot,
+\Lineref{store.avail.otherslot.1}
+matches a node that writes any \emph{other} value to a stack slot,
 after which the variable associated with that slot is no longer available.
 %
 \Lineref{store.avail.other} matches a store to a location that is not
@@ -3183,7 +3188,6 @@ those effects:
 \item
 Computation @subAnalysis c@ computes the same results as~@c@ and
 \label{haskell.def.subAnalysis}% automated definition
-\label{haskell.firstuse.c}% automated use
 consumes the same fuel as~@c@, but it does not change any stored
 dataflow facts.
 \item
