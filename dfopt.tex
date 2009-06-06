@@ -2726,19 +2726,19 @@ type `LOFsKont a b = LastOuts a -> DFM a b
 
 
 
-\section{The dataflow engine}
+\section{\ourlib's dataflow engine}
 \seclabel{engine}
 \seclabel{dfengine}
 
-\simon{The earlier sections promised that we'd reveal the lies.
+\delendum{The earlier sections promised that we'd reveal the lies.
 Do we?  I see no mention of @HavingSuccessors@ for example, which is rather important
 for polymorphism.  Indeed, a subsection on that point might be a good way
 to substantiate the claims of the last bullet of the conclusion.}
 
-Above, in sections \ref{sec:making-simple}
+In sections \ref{sec:making-simple}
 through~\ref{sec:rewrites},
 we use \ourlib\ to create analyses and transformations.
-In this section, we sketch the implementation of the main part of \ourlib:
+Here we sketch the implementation of the main part of \ourlib:
 the dataflow engine.
 The dataflow engine 
 is less simple than the title of this paper might
@@ -2758,13 +2758,15 @@ a forward solver, a forward rewriter,
 a backward solver, and a backward rewriter.
 The solvers perform iterative dataflow analyses.
 Each analysis begins with an environment mapping all labels to bottom facts.
-For each block in the control-flow graph, the solver begins with the dataflow facts
-flowing into one end of the block (the first node in a forward analysis or the last node in a
-backward analysis),
-then uses the transfer functions to compute the dataflow facts flowing out the other
-end of the block.
-The outflowing facts are joined with the facts previously stored in the environment,
-and when the facts in the environment have converged, the analysis terminates.
+For each block in the control-flow graph, the solver begins with the
+dataflow facts flowing into one end of the block 
+(in a forward analysis, the first node; in a
+backward analysis, the last node),
+then uses the transfer functions to compute the dataflow facts flowing
+out the other end of the block.
+The outflowing facts are joined with the facts previously stored in the
+environment, and when the facts in the environment stop changing, the
+analysis terminates. 
 
 Unlike solving, rewriting interleaves analysis and transformation
      \cite{lerner-grove-chambers:2002}:
@@ -2805,21 +2807,18 @@ the size of the fuel supply.
 %% computations of type @Fuel -> (a, Fuel)@.
 
 
-\subsection{Monads for dataflow effects}
+\subsection{A monad for dataflow effects}
 
-Because all transformations share a single
-supply of fuel and fresh labels (for making new blocks),
-the supplies of fuel and labels are kept
-in the fuel monad.
-Therefore, the rewriter functions provided by the dataflow engine
-return results in the fuel monad.
-To further simplify the implementation of the dataflow engine,
-we use a \emph{dataflow monad}, which is a state monad
-that keeps track of the values of dataflow facts as the engine iterates.
+All transformations share a common
+supply of fuel and a common supply of fresh labels (for making new
+blocks), which are stored in the @FuelMonad@, a state monad.
+But analyses and transformations also make private changes to dataflow
+facts; the state of these facts is maintained by
+ a  private \emph{dataflow monad}.
 A value in the dataflow monad has type @`DFM a b@, where @a@~is the type of a
 dataflow fact and @b@ is the type of the value returned by the monadic action.
-The dataflow monad also maintains the supplies of fuel
-and labels.
+The state of a dataflow monad includes the shared state of the
+fuel monad.
 
 Operations on the dataflow monad include
 \begin{code}
@@ -2847,12 +2846,12 @@ dataflow facts.
 Computation @`withDuplicateFuel c@ computes the same results as~@c@ and
 changes the same stored facts as~@c@, but it consumes fuel from a
 \emph{copy} of the fuel supply.
-The inner computation~@c@ may run out of fuel, but
-@withDuplicateFuel c@ restores the original fuel supply.
+The inner computation~@c@ may run out of fuel, but afterward,
+@withDuplicateFuel@ restores the original fuel supply.
 Using @withDuplicateFuel@ has enabled us to eliminate fuel from
 arguments and results, making an implementation which
 is less error-prone and \emph{much} easier to
-read than the one of \citet{ramsey-dias:applicative-flow-graph}. 
+read than the one by \citet{ramsey-dias:applicative-flow-graph}. 
 \end{itemize}
 %%  Using pure code and a monad makes this version much easier to get
 %%  right than our Objective Caml version
@@ -2862,8 +2861,8 @@ Function @`runDFM@ runs a single analysis or transformation, then
 abandons the dataflow facts and returns the result in the fuel monad.
 Only @FuelMonad@ is exposed in the interface;
 the dataflow monad is private to \ourlib.
-Using the dataflow monad in \ourlib, the solvers and rewriters
-are significantly simpler than in our
+Using the dataflow monad, \ourlib's solvers and rewriters
+are significantly simpler than those in our
 previous work \cite{ramsey-dias:applicative-flow-graph}.
 In~\secreftwo{forward-solver}{forward-rewriter},
 we show parts of the forward solver and rewriter. 
@@ -3077,19 +3076,26 @@ I assume a full graph, closed at the entry!  So what is this pesky {\tt in\_fact
 
 
 The function @solve_ex@ (type on \lineref{solve.ex.sig}, implementation not
-shown), solves the full graph~@g@.
-Where the graph is open, it converts @ZMaybe@ facts to actual
+shown), solves a graph or subgraph~@g@.
+Where the graph is open, @solve_ex@ converts @ZMaybe@ facts to actual
 facts---the static type system precludes the possibility of a missing
 or superfluous fact.
 The solver iterates
-over the basic blocks in the control-flow graph until the analysis reaches a fixed point.
-Each iteration over the control-flow graph runs under @withDuplicateFuel@, so that the analysis
-\emph{simulates} the effects of a fuel limit on the rewriter, but does
+over blocks
+\ifcutting\else
+ in the control-flow graph
+\fi
+until facts stop changing.
+Because each iteration
+% over the control-flow graph
+runs under @withDuplicateFuel@, 
+the analysis
+\emph{simulates} the effects of a fuel limit on the rewriter, but it does
 not actually consume any fuel.
 
-At each basic block, the function @solve_block@ (type on \lineref{solve.block.sig})
+At each basic block, function @solve_block@ (type on \lineref{solve.block.sig})
 computes the dataflow solution for the block.
-The function @solve_block@ is the composition of
+Function @solve_block@ is the composition of
 smaller functions that solve individual nodes
 (types on \linerangeref{solve.first.sig}{solve.last.sig}).
 These functions are written in continuation-passing style,
@@ -3139,15 +3145,21 @@ and I can't see why it isn't part of @DFM@ in the first place.}
 % @LOFsKont a b -> Kont a b@.
 Once we have analyzed a block, we update the facts stored in
 the dataflow monad.
+\ifcutting
+ Function @set_last@
+(\linerangeref{set.last.sig}{set.last.*}) calls @setFact@ on each fact
+flowing out of a block.
+\else
 The facts are updated by function @set_last@
 (\linerangeref{set.last.sig}{set.last.*}), which calls @setFact@ on each fact
 flowing out of a block.
+\fi
 By applying the composition
 of @solve_first@, @solve_mid@, and @solve_last@ to @set_last@, we get
 the implementation of @solve_block@.
 \footnote{Similar
   compositions of @solve\_first@, @solve\_mid@, and @solve\_last@
-  can solve the partial blocks in a graph that is open
+  are used to solve the partial blocks in a graph that is open
   at entry or exit.}
 
 
@@ -3246,7 +3258,7 @@ the implementation of @solve_block@.
 
 The solver functions for nodes
 % @solve_first@, @solve_mid@, and @solve_last@
-are similar, so we show only
+resemble one another, so we show only
 % Ultimately, \emph{all} solver functions
 % are composed of applications of @solve_first@,
 % @solve_mid@, and @solve_last@.
@@ -3260,7 +3272,7 @@ or if no more fuel is available, the application of @with_fuel@
 returns @return Nothing@, and continuation~@k@ is given the output fact
 (computed by @ft_middle_out@ on \lineref{solve.mid.Nothing}).
 % and the current supply of fuel.
-
+%
 The interesting case occurs on \linerangeref{solve.mid.Just}{solve.mid.*},
 when the rewrite function 
 proposes a replacement graph~@g@.
@@ -3273,7 +3285,7 @@ Analysis with rewriting is done
 on~\lineref{solve.OO}
 by a recursive call to @solve_OO@ (not shown).
 (Because @g@~replaces a middle node, it is open at entry and exit.)
-The recursive call gets continuation @uncurry return@,\john{Which one is wrong here: text or figure?} and the
+The recursive call gets continuation @return@, and the
 resulting @FactKont a a@ is given
 the input fact.
 The output fact is computed in a sub-analysis
@@ -3281,8 +3293,9 @@ and bound on
 \lineref{solve.mid.Just}. 
 %
 Function @subAnalysis@ rolls back the facts mutated
-by @solve_OO@ as it iterates to a fixed point, but it accounts for
-the fuel consumed.
+by @solve_OO@ as it iterates to a fixed point, but @subAnalysis@
+does account for 
+fuel consumed by @solve_OO@.
 \item
 If we are doing \emph{shallow} rewriting,  the new graph~@g@ must not be
 rewritten, but we must still find a fixed point of the transfer
