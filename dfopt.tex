@@ -1220,18 +1220,18 @@ We therefore focus on foundations.
 When transfer functions are monotone and lattices are finite in height,
 iterative dataflow analysis converges to a fixed point
 \cite{kam-ullman:global-iterative-analysis}. 
-If~the lattice's join operation distributes over all transfer
+If~the lattice's join operation distributes over transfer
 functions,
 this fixed point is equivalent to a join-over-all-paths solution to
 the recursive dataflow equations
 \cite{kildall:unified-optimization}.\footnote
-{Kildall uses meets, not joins.  The orientation of the
-lattice is conventional, and conventions have changed.
+{Kildall uses meets, not joins.  
+Lattice orientation is conventional, and conventions have changed.
 We use Dana Scott's
-ordering, in which higher elements correspond to more information.}
+orientation, in which higher elements carry more information.}
 \cite{kam-ullman:monotone-flow-analysis} generalize to some
 monotone functions.
-Each~client of Hoopl must guarantee monotonicity,
+Each~client of \hoopl\ must guarantee monotonicity,
 but for transfer functions that
 approximate weakest preconditions or strongest postconditions,
 monotonicity falls out naturally.
@@ -1263,19 +1263,22 @@ algorithms.
 \seclabel{example-analyses}
 
 
-We claim that \ourlib\
+\ourlib\
 makes it easy to write compiler passes based on dataflow.
-Here we support that claim by showing
-implementations of two analyses;
+To show \emph{how} easy, we present
+two analyses;
 related transformations appear in \secref{example-rewrites}. 
-The example analyses help solve a real problem in the Glasgow Haskell
+The examples help solve a real problem in the Glasgow Haskell
 Compiler:
 because most calls are tail calls, GHC uses no 
 callee-saves registers.
 Therefore, at each (rare) non-tail call, all live
 variables must be spilled to the stack.
-In order to reduce register pressure,
-such variables are spilled as early as possible and reloaded as late as possible.
+\ifcutting\else
+To reduce register pressure,
+such variables are spilled as early as possible and reloaded as late as
+possible. 
+\fi
 
 To illustrate the results of the example analyses and transformations,
 here is a contrived example program in the style of \secref{example:xforms}:
@@ -1317,11 +1320,11 @@ f (bits32 a) \lbr
 \end{alltt}
 Although the \texttt{SPILL} and \texttt{RELOAD} operations are introduced because of
 the call to @g(a)@, they are moved as far from the call as possible:
-the variable~@x@ is spilled immediately after being assigned @a * a@,
-and @x@ is reloaded not
+@x@~is spilled immediately after being assigned @a * a@,
+and @x@~is reloaded not
 immediately after the call to~@g@, but just before its use in the
 expression @z + x@.
- On the control-flow path to @return z@, @x@~needn't be reloaded
+On the control-flow path to @return z@, @x@~needn't be reloaded
 at all.
 
 
@@ -1430,8 +1433,14 @@ cmmAvailableVars g = zdfFpFacts soln
 
 
 
-Spills and reloads are inserted in the right places
-by a sequence of three dataflow passes:
+Spills and reloads are inserted 
+\ifcutting\else in the right places \fi
+by a sequence of 
+\ifcutting\else three \fi
+dataflow passes:
+\remark{Uses of ``passes'' is not very consistent.
+Would be nice to say ``pass = analysis + (possibly degenerate)
+transformation.''}
 \begin{enumerate}
 \item
 \label{insert-spills}
@@ -1479,11 +1488,11 @@ reloads away from the call site.
 
 \subsection{Choosing node types for GHC}
 
-To be confident that our example code is right,
-we present \emph{only} examples that
+To be confident that our code is right,
+we present examples that
 have been implemented and tested in GHC.  
-GHC's low-level intermediate code, called @`Cmm@, is a severely
-restricted subset of 
+GHC's low-level intermediate code, called @`Cmm@, is a 
+ subset of 
 the portable assembly language~{\PAL}
 \cite{peyton-jones-ramsey:exceptions}.
 We~specialize \ourlib\ to GHC by instantiating type parameters
@@ -1495,11 +1504,12 @@ data `CmmMiddle
   = `MidAssign CmmVar  CmmExpr -- store in variable
   | `MidStore  CmmExpr CmmExpr -- store in memory
 \end{code}
-Type @`CmmVar@ represents a variable which is local (@`CmmLocal@) or global
-(@`CmmGlobal@); a @`LocalVar@ is always local.
+Type @`CmmVar@ represents a variable, which may be local (@`CmmLocal@
+@`LocalVar@) or global 
+(@`CmmGlobal `GlobalVar@). %%% ; a @`LocalVar@ is always local.
 Type @`CmmExpr@ represents a pure expression; 
-constructors include @`CmmLoad@ (a~value from memory)
-and @CmmVar@ (the value of a variable), among others.
+among its constructors are @`CmmLoad@ (a~value from memory)
+and @CmmVar@ (the value of a variable).
 
 A~last node represents a control transfer; constructors include
 unconditional, conditional, and indirect branches, as well as a call:
@@ -1508,7 +1518,7 @@ data `CmmLast
   = `LastBranch     BlockId
   | `LastCondBranch CmmExpr BlockId BlockId
   | `LastSwitch     CmmExpr [Maybe BlockId]
-  | `LastCall ...
+  | `LastCall ...     -- arguments omitted
 \end{code}
 
 
@@ -1607,7 +1617,7 @@ cmmLiveness :: Graph CmmMiddle CmmLast -> BlockEnv Live
 
 
 To~understand the available-variables analysis, you must know that 
-each variable~$x$ is related to a stack slot~\slotof x that is used to
+each variable~$x$ is related to a stack slot~\slotof x, which is used to
 save the value of~$x$. 
 (GHC~represents 
 the relation using Haskell functions @isStackSlot@,
