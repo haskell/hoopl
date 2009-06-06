@@ -1258,76 +1258,6 @@ algorithms.
 \fi
 
 
-\section{Example analysis passes}
-
-\seclabel{example-analyses}
-
-
-\ourlib\
-makes it easy to write compiler passes based on dataflow.
-To show \emph{how} easy, we present
-two analyses;
-related transformations appear in \secref{example-rewrites}. 
-The examples help solve a real problem in the Glasgow Haskell
-Compiler:
-because most calls are tail calls, GHC uses no 
-callee-saves registers.
-Therefore, at each (rare) non-tail call, all live
-variables must be spilled to the stack.
-\ifcutting\else
-To reduce register pressure,
-such variables are spilled as early as possible and reloaded as late as
-possible. 
-\fi
-
-To illustrate the results of the example analyses and transformations,
-here is a contrived example program in the style of \secref{example:xforms}:
-\begin{alltt}
-f (bits32 a) \lbr
-  bits32 w, x, y, z;  // local variables
-  x = a * a;
-  w = a + a + a;
-  y = g(w);           // call; x must be spilled
-  z = y + y;
-  if (y > 0) \lbr
-    return z;
-  \rbr else \lbr
-    return z + x;
-  \rbr
-\rbr
-\end{alltt}
-%\ifpagetuning\par\vfilbreak\fi % this is hell, but if we break here,
-%  downstream suffers
-A~spill and a reload should be inserted as follows:%
-\seclabel{spill-reload-example} % space is deliberate
-\newcommand\bigstrut{%
-  \leavevmode\vrule width 0pt height 11pt depth 6pt }
-\begin{alltt}
-f (bits32 a) \lbr
-  bits32 w, x, y, z;  
-  x = a * a;
-  \high{SPILL x;}
-  w = a + a + a;    // no register pressure from x
-  y = g(w);
-  z = y + y;        // no register pressure from x
-  if (y > 0) \lbr
-    return z;       // x does not need reloading
-  \rbr else \lbr
-    \high{RELOAD x;}
-    return z + x;
-  \rbr
-\rbr
-\end{alltt}
-Although the \texttt{SPILL} and \texttt{RELOAD} operations are introduced because of
-the call to @g(a)@, they are moved as far from the call as possible:
-@x@~is spilled immediately after being assigned @a * a@,
-and @x@~is reloaded not
-immediately after the call to~@g@, but just before its use in the
-expression @z + x@.
-On the control-flow path to @return z@, @x@~needn't be reloaded
-at all.
-
-
 \newcommand\T{\rule{0pt}{0.6ex}}
 \newcommand\B{\rule[-0.05ex]{0pt}{0pt}}
 \renewcommand\B{\relax\par\unskip\vspace*{0.8ex}%
@@ -1335,7 +1265,12 @@ at all.
 \renewcommand\T{\relax\par\unskip\vspace*{1.0ex}%
   \hrule height 0pt depth 0pt \relax}
 \newcolumntype{C}{>{\begin{minipage}{5.35in}}l<{\end{minipage}}} % code
+%\newcolumntype{L}{>{\T\Large\bfseries\indent}m{1.3in}%
+%                  <{\fillindent \parfillskip=0pt \parskip=0pt \endgraf}}       % label
 \newcolumntype{L}{>{\T\Large\bfseries}m{1.3in}<{\centering}}       % label
+\newcommand\fillindent{\parindent=0pt \leftskip=0pt plus 1fill}
+\newcommand\ltab[1]{\begin{tabular}{@{}c@{}}#1\\\end{tabular}}
+\renewcommand\ltab[1]{{\let\\=\relax#1}}
 \newenvironment{codetable}
   {\setcounter{codeline}{0}%
    \let\code=\numberedcode
@@ -1357,7 +1292,7 @@ at all.
 !smallerAvail!`smallerAvail :: AvailVars -> AvailVars -> Bool       -- compare sizes
 \end{numberedcode}
 \B
-& Dataflow fact and operations\\
+& \ltab{Dataflow fact\\ and operations}\\
 \hline
 
 \T
@@ -1431,6 +1366,76 @@ cmmAvailableVars g = zdfFpFacts soln
 \figlabel{avail-running}
 \end{figure*}
 
+\section{Example analysis passes}
+
+\seclabel{example-analyses}
+
+
+\ourlib\
+makes it easy to write compiler passes based on dataflow.
+To show \emph{how} easy, we present
+two analyses;
+related transformations appear in \secref{example-rewrites}. 
+The examples help solve a real problem in the Glasgow Haskell
+Compiler:
+because most calls are tail calls, GHC uses no 
+callee-saves registers.
+Therefore, at each (rare) non-tail call, all live
+variables must be spilled to the stack.
+\ifcutting\else
+To reduce register pressure,
+such variables are spilled as early as possible and reloaded as late as
+possible. 
+\fi
+
+To illustrate the results of the example analyses and transformations,
+here is a contrived example program in the style of \secref{example:xforms}:
+\begin{alltt}
+f (bits32 a) \lbr
+  bits32 w, x, y, z;  // local variables
+  x = a * a;
+  w = a + a + a;
+  y = g(w);           // call; x must be spilled
+  z = y + y;
+  if (y > 0) \lbr
+    return z;
+  \rbr else \lbr
+    return z + x;
+  \rbr
+\rbr
+\end{alltt}
+%\ifpagetuning\par\vfilbreak\fi % this is hell, but if we break here,
+%  downstream suffers
+A~spill and a reload should be inserted as follows:%
+\seclabel{spill-reload-example} % space is deliberate
+\newcommand\bigstrut{%
+  \leavevmode\vrule width 0pt height 11pt depth 6pt }
+\begin{alltt}
+f (bits32 a) \lbr
+  bits32 w, x, y, z;  
+  x = a * a;
+  \high{SPILL x;}
+  w = a + a + a;    // no register pressure from x
+  y = g(w);
+  z = y + y;        // no register pressure from x
+  if (y > 0) \lbr
+    return z;       // x does not need reloading
+  \rbr else \lbr
+    \high{RELOAD x;}
+    return z + x;
+  \rbr
+\rbr
+\end{alltt}
+Although the \texttt{SPILL} and \texttt{RELOAD} operations are introduced because of
+the call to @g(a)@, they are moved as far from the call as possible:
+@x@~is spilled immediately after being assigned @a * a@,
+and @x@~is reloaded not
+immediately after the call to~@g@, but just before its use in the
+expression @z + x@.
+On the control-flow path to @return z@, @x@~needn't be reloaded
+at all.
+
+
 
 
 Spills and reloads are inserted 
@@ -1485,52 +1490,6 @@ reloads away from the call site.
 
 
 %% \ifpagetuning \enlargethispage\baselineskip \fi
-
-\subsection{Choosing node types for GHC}
-
-To be confident that our code is right,
-we present examples that
-have been implemented and tested in GHC.  
-GHC's low-level intermediate code, called @`Cmm@, is a 
- subset of 
-the portable assembly language~{\PAL}
-\cite{peyton-jones-ramsey:exceptions}.
-We~specialize \ourlib\ to GHC by instantiating type parameters
-@m@~and~@l@ with GHC's types @CmmMiddle@ and @CmmLast@.
-
-A~middle node stores the value of an expression:
-\begin{code}
-data `CmmMiddle 
-  = `MidAssign CmmVar  CmmExpr -- store in variable
-  | `MidStore  CmmExpr CmmExpr -- store in memory
-\end{code}
-Type @`CmmVar@ represents a variable, which may be local (@`CmmLocal@
-@`LocalVar@) or global 
-(@`CmmGlobal `GlobalVar@). %%% ; a @`LocalVar@ is always local.
-Type @`CmmExpr@ represents a pure expression; 
-among its constructors are @`CmmLoad@ (a~value from memory)
-and @CmmVar@ (the value of a variable).
-
-A~last node represents a control transfer; constructors include
-unconditional, conditional, and indirect branches, as well as a call:
-\begin{code}
-data `CmmLast
-  = `LastBranch     BlockId
-  | `LastCondBranch CmmExpr BlockId BlockId
-  | `LastSwitch     CmmExpr [Maybe BlockId]
-  | `LastCall ...     -- arguments omitted
-\end{code}
-
-
-
-
-
-
-\subsection{Available variables: a forward analysis} 
-
-\seclabel{avail}
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 %  desperately trying to get figures to emerge in a decent order
@@ -1615,16 +1574,62 @@ cmmLiveness :: Graph CmmMiddle CmmLast -> BlockEnv Live
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
+\subsection{Choosing node types for GHC}
+
+To be confident that our code is right,
+we present examples that
+have been implemented and tested in GHC.  
+GHC's low-level intermediate code, called @`Cmm@, is a 
+ subset of 
+the portable assembly language~{\PAL}
+\cite{peyton-jones-ramsey:exceptions}.
+We~specialize \ourlib\ to GHC by instantiating type parameters
+@m@~and~@l@ with GHC's types @CmmMiddle@ and @CmmLast@.
+
+A~middle node stores the value of an expression:
+\begin{code}
+data `CmmMiddle 
+  = `MidAssign CmmVar  CmmExpr -- store in variable
+  | `MidStore  CmmExpr CmmExpr -- store in memory
+\end{code}
+Type @`CmmVar@ represents a variable, which may be local (@`CmmLocal@
+@`LocalVar@) or global 
+(@`CmmGlobal `GlobalVar@). %%% ; a @`LocalVar@ is always local.
+Type @`CmmExpr@ represents a pure expression; 
+among its constructors are @`CmmLoad@ (a~value from memory)
+and @CmmVar@ (the value of a variable).
+
+A~last node represents a control transfer; constructors include
+unconditional, conditional, and indirect branches, as well as a call:
+\begin{code}
+data `CmmLast
+  = `LastBranch     BlockId
+  | `LastCondBranch CmmExpr BlockId BlockId
+  | `LastSwitch     CmmExpr [Maybe BlockId]
+  | `LastCall ...     -- arguments omitted
+\end{code}
+
+
+
+
+
+
+\subsection{Available variables: a forward analysis} 
+
+\seclabel{avail}
+
+
+
 
 To~understand the available-variables analysis, you must know that 
 each variable~$x$ is related to a stack slot~\slotof x, which is used to
 save the value of~$x$. 
 (GHC~represents 
 the relation using Haskell functions @isStackSlot@,
-@variableOfSlot@, and @isStackSlotOf@.)
+@varOfSlot@, and @isStackSlotOf@.)
 % omit isStackSlotOf :: CmmExpr -> LocalVar -> Bool
 % omit isStackSlot :: CmmExpr -> Bool
-% omit variableOfSlot :: CmmExpr -> LocalVar
+% omit varOfSlot :: CmmExpr -> LocalVar
 If the variable and the stack slot hold the same value,
 that is if $x = \slotof x$,
 then it is \emph{safe} to insert a reload.
