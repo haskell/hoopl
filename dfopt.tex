@@ -1675,8 +1675,10 @@ Perhaps you could write an alternative implementation?
    % restoring this saves about 5 lines on page 9
 
 
-Because universal sets can be awkward to manipulate, we represent a
-set either as
+Instead of the usual mutable bit vectors, we use a purely functional
+representation of sets---one in which we can represent the set of all
+variables without enumerating them explicitly.
+A~set is either 
 $\mathtt{UniverseMinus}\;s$, which stands for all variables except
 those in the set~$s$,
 or $\mathtt{AvailVars}\;s$, which stands for the variables in the set~$s$
