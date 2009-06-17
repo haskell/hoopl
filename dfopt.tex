@@ -18,7 +18,7 @@
 
 
 \newif\ifnotesinmargin \notesinmargintrue 
-\IfFileExists{notesinline.tex}{\notesinmarginfalse}{\relax}
+% \IfFileExists{notesinline.tex}{\notesinmarginfalse}{\relax}
 
 \documentclass[blockstyle,preprint,natbib,nocopyrightspace]{sigplanconf}
 
@@ -2193,16 +2193,20 @@ returns $@Just@\;g$, or it may do nothing, in which case it returns @Nothing@.
 If it returns $@Just@\;g$, it must guarantee that given
 the assertions represented by incoming dataflow facts,
 graph~$g$ is observationally equivalent to node~$n$.
-\simon{Doesn't the rewrite have to be monotonic wrt the analysis?
-NR~\&~JD: we're pretty sure not.  For scrutiny, we've reinserted your long comment,
-but in your example, once $x$ is deemed live it stays live, because
-facts at labels increase monotonically.
-(Also, the only interesting partial order we're aware of is Tony Hoare's
-``implements'' relation.  That might actually be permissible, but we
-have used the stronger requirement of observational equivalence.
-In~code generation these will be equivalent because of
-determinism. ---NR)
+\simon{Doesn't the rewrite have to be have the following property:
+for a forward analysis/transform, if (rewrite P s) = Just s',
+then (transfer P s $\sqsubseteq$ transfer P s').
+For backward: if (rewrite Q s) = Just s', then (transfer Q s' $\sqsubseteq$ transfer Q s).
+Works for liveness.
+``It works for liveness, so it must be true'' (NR).
+If this is true, it's worth a QuickCheck property!
 }
+\simon{Version 2, after further rumination.  Let's define
+$rt(f,s) = \mathit{transform}(f, \mathit{rewrite}(f,s))$. Then $rt$ should
+be monotonic in $f$.  We think this is true of liveness, but we are not sure
+whether it's just a generally good idea, or whether it's actually a 
+precondition for some (as yet unarticulated) property of Hoopl to hold.}
+
 %%  
 %%  
 %%  If~a rewrite function returns $@Just@\;g$, the incoming dataflow fact
