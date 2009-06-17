@@ -1,4 +1,8 @@
-\input{dfoptdu} % use version with def-use information
+\IfFileExists{timestamp.tex}{\input{dfoptdu.tex}}{}
+     % If you are Simon, run un-preprocessed code
+     % It not Simon, use version with def-use information
+% \input{dfoptdu} % use version with def-use information
+
 \newif\ifpagetuning \pagetuningtrue  % adjust page breaks
 
 \newif\ifnoauthornotes\noauthornotesfalse
@@ -862,22 +866,12 @@ We~notate this fact as $x = \top$.
 The analysis shows nothing about~$x$, which we notate $x=\bot$.
 \end{itemize}
 The bottom element of the lattice is~$x=\bot$, and
-the join operation \emph{approximates} disjunction:\simon{No emphasis needed.}
-a~disjunction 
-\simon{I'd still like to give an intuition here about
-\emph{why} disjunction is the key operation, and/or where is is used.
-NR: With ``the next 700'' gone, I'm not sure where\ldots
-%For example: ``Disjunction is to combine constant-propagation facts
-%arriving at a label; for example, if two blocks branch to L, and $x=7$ holds
-%at one branch, while $x=8$ holds at the, then the disjunction $x=7 \lor x=8$ holds
-%at L.  In the particular language of facts chosen above, this disjunction
-%approximated by $x=\top$.''  
-}%
-\simon{This would be a better place for the footnote. NR: Which footnote?}
-of two inconsistent facts is represented by~$x=\top$%
+the join operation~$\join$ approximates disjunction,
+the logical operation that combines facts flowing to a single label.
+a~disjunction of two inconsistent facts is represented by~$x=\top$%
 \ifcutting,
 so for example 
-$x = 7 \lor x = 8$ is appropximated by $x = \top$, 
+$x = 7 \lor x = 8$ is approximated by $x = \top$, 
 losing information.%
 \else
 Here are some examples:

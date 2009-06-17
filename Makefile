@@ -12,7 +12,7 @@ BIBINPUTS := .:../bibs//:$(BIBINPUTS)
 
 default:
 	latex $(MAIN).tex
-	bibtex $(MAIN)
+#	bibtex $(MAIN)
 	latex $(MAIN).tex
 	latex $(MAIN).tex
 	dvips -f -P pdf < $(MAIN).dvi > $(MAIN).ps
