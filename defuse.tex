@@ -16,6 +16,7 @@
 \hsprelude{>>=}{Prelude}% context prelude
 \hsfigdefll{add}{haskell.def.add}% context figure
 \hsfigdef{addUsed}{haskell.def.addUsed}% context figure
+\hspagedef{anal\_f\_OO}{haskell.def.anal:unf:unOO}% context document
 \hsfigdefll[reload1]{avail}{haskell.def.avail}% context figure
 \hsfigdef{availRewrites}{haskell.def.availRewrites}% context figure
 \hsfigdef[AvailVars]{AvailVars}{haskell.def.AvailVars}% context figure
@@ -64,6 +65,7 @@
 \omithspagedef{emptyVarSet :: VarSet}{haskell.def.emptyVarSet}% context document
 \hsfigdefll{entry}{haskell.def.entry}% context figure
 \hsfigdefll[lastLiveOut.1]{env}{haskell.def.env}% context figure
+\hspagedefll{ex}{haskell.def.ex}% context document
 \hsfigdefll{exit}{haskell.def.exit}% context figure
 \hsfigdefll[assign.avail.1]{\_expr}{haskell.def.:unexpr}% context figure
 \hsfigdef[extendAvail]{extendAvail}{haskell.def.extendAvail}% context figure
@@ -71,6 +73,7 @@
 \hsfigdef{fact\_add\_to}{haskell.def.fact:unadd:unto}% context figure
 \hsfigdef{fact\_bot}{haskell.def.fact:unbot}% context figure
 \hsfigdef[FactKont]{FactKont}{haskell.def.FactKont}% context figure
+\omithspagedef{fact\_name :: DataflowLattice a -> String}{haskell.def.fact:unname}% context document
 \hsprelude{False}{Prelude}% context prelude
 \omithspagedef{filterVarsUsed :: UserOfLocalVars e => (LocalVar -> Bool) -> e -> VarSet}{haskell.def.filterVarsUsed}% context document
 \hsfigdefll[avail.rewrites.first]{first}{haskell.def.first}% context figure
@@ -80,7 +83,6 @@
 \hspagedef{foldVarsDefd}{haskell.def.foldVarsDefd}% context document
 \hspagedef{foldVarsUsed}{haskell.def.foldVarsUsed}% context document
 \hsfigdef{ForwardRewrites}{haskell.def.ForwardRewrites}% context figure
-\hsfigdef[forward.sol.sig]{forward\_sol}{haskell.def.forward:unsol}% context figure
 \hsfigdef{ForwardTransfers}{haskell.def.ForwardTransfers}% context figure
 \hsfigdefll[avail.solve.1]{fp}{haskell.def.fp}% context figure
 \hsfigdef{fr\_first}{haskell.def.fr:unfirst}% context figure
@@ -93,6 +95,7 @@
 \hspagedef{fuelExhausted}{haskell.def.fuelExhausted}% context document
 \hspagedef{FuelMonad}{haskell.def.FuelMonad}% context document
 \hspagedef{FwdFixedPoint}{haskell.def.FwdFixedPoint}% context document
+\hsfigdef[forward.sol.sig]{fwd\_iter}{haskell.def.fwd:uniter}% context figure
 \hspagedef{getAllFacts}{haskell.def.getAllFacts}% context document
 \hspagedef{getFact}{haskell.def.getFact}% context document
 \hsfigdef{GF}{haskell.def.GF}% context figure
@@ -217,6 +220,3 @@
 \hspagedef{ZJust}{haskell.def.ZJust}% context document
 \hspagedef{ZMaybe}{haskell.def.ZMaybe}% context document
 \hspagedef{ZNothing}{haskell.def.ZNothing}% context document
-\nothslinedef{anal\_f\_OO}{haskell.firstuse.anal:unf:unOO}% used but not defined
-\nothspagedef{ex}{haskell.firstuse.ex}% used but not defined
-\nothspagedef{fact\_name}{haskell.firstuse.fact:unname}% used but not defined
