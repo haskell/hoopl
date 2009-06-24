@@ -1108,7 +1108,7 @@ Given lattice operations of type @DataflowLattice a@
 and transfer functions of type @ForwardTransfers m l a@,
 you can run the corresponding analysis by calling \ourlib\
 function @zdfSolveFwd@, which is a~part of our dataflow engine
-(backward analyses call @`zdfSolveBwd@, which has a similar type):
+(a~backward analysis calls @`zdfSolveBwd@, which has a similar type):
 \begin{code}
  `zdfSolveFwd 
   :: HavingSuccessors l     -- Find successors of l
@@ -1569,7 +1569,7 @@ cmmLiveness :: Graph CmmMiddle CmmLast -> BlockEnv Live
 
 \subsection{Choosing node types for GHC}
 
-To be confident that our code is right,
+To~show that \ourlib\ works at scale,
 we present examples that
 have been implemented and tested in GHC.  
 GHC's low-level intermediate code, called @`Cmm@, is a 
@@ -1679,7 +1679,7 @@ enumerating all the variables.
 
 Instead of the usual mutable bit vectors, we use a purely functional
 representation of sets---one in which we can represent the set of all
-variables without enumerating them explicitly.
+variables without enumerating them.
 A~set is either 
 $\mathtt{UniverseMinus}\;s$, which stands for all variables except
 those in the set~$s$,
@@ -1688,7 +1688,7 @@ or $\mathtt{AvailVars}\;s$, which stands for the variables in the set~$s$
 %
 %
 The bottom element is @UniverseMinus emptyVarSet@.
-To manipulate sets of variables, we provide the functions declared in
+To manipulate these sets, we provide the functions declared in
 \linerangeref{extendAvail}{smallerAvail} of \figref{avail}.
 %
 % omit delFromVarSet :: VarSet -> LocalVar -> VarSet
@@ -2013,12 +2013,13 @@ We compute dataflow facts in order to enable code-improving
 transformations on control-flow graphs.
 A~dataflow fact may enable a rewrite function to replace a node by a
 \emph{subgraph}. 
-A~novel and valuable property of our implementation is that it uses
+A~valuable, novel property of our implementation is that it uses
 Haskell's static type system to control which subgraphs may replace
 which nodes.
-We~therefore begin by explaining the types and representation of
-graphs and subgraphs before moving on to rewrite functions and example
-transformations. 
+Before explaining how to use dataflow facts and rewrite functions to
+transform graphs, we therefore
+explain the types and representation of
+graphs and subgraphs.
 
 \subsection{Representing graphs and subgraphs}
 
@@ -2204,8 +2205,9 @@ Works for liveness.
 If this is true, it's worth a QuickCheck property!
 }
 \simon{Version 2, after further rumination.  Let's define
-$rt(f,s) = \mathit{transform}(f, \mathit{rewrite}(f,s))$. Then $rt$ should
-be monotonic in $f$.  We think this is true of liveness, but we are not sure
+$\scriptstyle \mathit{rt}(f,s) = \mathit{transform}(f, \mathit{rewrite}(f,s))$.
+ Then $\mathit{rt}$ should
+be monotonic in~$f$.  We think this is true of liveness, but we are not sure
 whether it's just a generally good idea, or whether it's actually a 
 precondition for some (as yet unarticulated) property of Hoopl to hold.}
 
@@ -2281,7 +2283,7 @@ analysis, as described in \secref{create-analysis}.
 Create rewrite functions for first, middle, and last nodes.
 \end{itemize}
 You can then use \ourlib\ function @zdfRewriteFwd@ to transform a
-control-flow graph (backward transformations use @`zdfRewriteBwd@,
+control-flow graph (a~backward transformation uses @`zdfRewriteBwd@,
 which has a similar type):
 \begin{code}
  `zdfRewriteFwd 
@@ -2402,14 +2404,14 @@ in two phases \citep{lerner-grove-chambers:2002}:\seclabel{solver-phase}
 \begin{itemize}
 \item
 In the first phase, when a rewrite function proposes to replace a
-node, the replacement graph is analyzed recursively, and the results
+node~$n$, the replacement graph is analyzed recursively, and the results
 of that analysis are used as the new dataflow
-fact(s) flowing out of the original node.
+fact(s) flowing out of node~$n$.
 Then the replacement
 graph is \emph{thrown away}; only the facts remain.
-If,~during iteration, the original node is analyzed again, perhaps
+If,~on a later iteration, node~$n$ is analyzed again, perhaps
 with a different input fact, the rewrite function may propose
-a different replacement or even no replacement at all.
+a different replacement or even no replacement at~all.
 In~other words, rewriting is \emph{speculative}.
 %%As described in \secref{subgraphs}, every replacement graph is a
 %%\emph{subgraph}, not a complete graph.
@@ -2444,7 +2446,8 @@ and the facts in the fixed point are used by the second phase, in~which
 no dataflow facts change, but
 each replacement proposed by a rewrite function is actually
 performed.
-This phase is called the \emph{actualizer}.
+This phase is called the \emph{actualizer}; it performs the
+rewrites for real.
 \end{itemize}
 
 %The iterator executes a complicated algorithm with complicated control-flow
@@ -2459,8 +2462,8 @@ intuition:
 \item
 The algorithm is sound because, given the incoming dataflow facts,
 each rewrite must preserve the observable behavior of the program.
-Therefore, a sound analysis of the rewritten graph
-can only generate dataflow facts that could have been
+A~sound analysis of the rewritten graph
+may generate only dataflow facts that could have been
 generated by a more complicated analysis of the original graph.
 \item
 No matter what the transfer functions and rewrite functions do,
@@ -2531,8 +2534,9 @@ super-analysis.}
 %%  
 %%  \textbf{NR}: Good questions, but let's have a forward reference to \secref{dfengine}}
 
+Interleaving
 \fi
-Interleaving analysis with transformation makes it
+ analysis with transformation makes it
 possible to create startlingly simple transformations.
 In the rest of this section we present two examples:
 \secref{sink-reloads} shows how to insert a reload instruction just
@@ -3394,8 +3398,7 @@ It first calls the iterator to set the dataflow facts to a fixed
 point (using a duplicate fuel supply), then calls rewrite functions to
 rewrite the graph based on 
 those facts (using the shared fuel supply). 
-For graphs of other shapes,
-there are similar functions.
+Similar functions apply to graphs of other shapes.
 
 
 
