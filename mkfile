@@ -1,13 +1,15 @@
 <./latex.mk
 <./spell.mk
 <./bbl.$USER.mk
+<./bitly.$USER.mk
+
 
 #LASTPAGE=12  # used this for submission
 LASTPAGE=   
 
 TGT=dfopt
 
-all:V: $TGT.pdf $TGT.ps supplement.pdf
+all:V: $TGT.pdf $TGT.ps supplement.pdf popl-index.bitly
 bib:V: $TGT.bbl
 dvi:V: $TGT.dvi
 bbl:V: bib
@@ -22,7 +24,7 @@ dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex
 $TGT.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-$LASTPAGE $prereq
 
-supplement.pdf: $TGT.dvi
+$HOME/www/drop/popl-index.pdf: $TGT.dvi
 	dvips -Ppdf -o "|ps2pdf - $target" -pp 13- $prereq
 
 timestamp.tex: $TGT.tex
