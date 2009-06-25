@@ -257,14 +257,14 @@ back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
 \section{Introduction}
 
 If you write a compiler for an imperative language, you can exploit
-many years' work on code improvement, also called
-``optimization.''
+many years' work on code improvement
+(``optimization'').
 The work is typically presented
 as a flat collection of analyses and
 transformations, each with a different name.
 A~flat structure makes optimization appear complex and difficult.
-Further complexities arise if you want to combine optimizations
-synergistically; you may have to write one ``super-analysis'' per
+Another source of complexity is the need for synergistic combinations
+of optimizations; you may have to write one ``super-analysis'' per
 combination. 
 
 But optimization doesn't have to be complicated.
@@ -288,7 +288,9 @@ transform assertions,
 and \ourlib\ computes assertions
  by setting up and solving recursion
 equations.
-When built on \ourlib, analyses and transformations
+Additional functions you provide use computed
+assertions to justify program transformations.
+Analyses and transformations built on \ourlib\ 
 are small, simple, and easy to get right.
 \item
 % using LGC, simple implementations of complicated super-analyses using interleaving and speculative
@@ -310,7 +312,7 @@ previously been achieved.
 it
 statically rules out transformations that violate invariants
 of the control-flow graph,
-and it can help find the first transformation that introduces a fault
+and dynamically it can help find the first transformation that introduces a fault
 in a test program \cite{whalley:isolation}.
 \item
 \ourlib's polymorphic, higher-order design makes \ourlib\ reusable
@@ -399,7 +401,7 @@ to create new dataflow analyses and transformations
 (\secref{making-simple}), and we show complete implementations of significant
 analyses (\secref{example-analyses}) and transformations
 (\secref{example-rewrites}) from the Glasgow Haskell Compiler.
-We spend less space on our new implementation of interleaving (\secref{engine}).
+We also sketch a new implementation of interleaving (\secref{engine}).
 
 
 \section{Dataflow analysis {\&} transformation by \rlap{example}}
@@ -530,7 +532,8 @@ so that @i >= n@ if and only if \icode|p >= lim|.
 \label{haskell.firstuse.n}% automated use
 \label{haskell.firstuse.>=}% automated use
 
-%\ifpagetuning \enlargethispage{0.9\baselineskip} \fi 
+\ifpagetuning \enlargethispage{0.9\baselineskip} \fi 
+  
 
 
 We implement the code improvement as a sequence of transformations.
@@ -997,6 +1000,65 @@ The @fact_bot@ value is the bottom element\ifcutting.
 and @fact_name@  is used for debugging.
 \fi
 
+\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
+
+
+
+\subsection{Transfer functions} \seclabel{tffuns}
+
+A~transfer function is presented with dataflow facts on edges coming
+into a node, and it computes dataflow facts on outgoing edges.
+To~understand transfer functions, we must 
+understand how \ourlib\ organizes the nodes and edges of a control-flow graph.
+
+\seclabel{graph.intro}
+
+A~control-flow graph is a collection of \emph{basic blocks}, each
+labelled with a~@BlockId@.
+\label{haskell.def.BlockId}% automated definition
+\label{haskell.firstuse.BlockId}% automated use
+A~basic block is a sequence beginning with a \emph{first node},
+containing zero or more \emph{middle nodes},
+and ending in a \emph{last node}.
+(An~optimizer also works with \emph{subgraphs}, which,
+as~discussed in \secref{subgraphs},  may omit an initial
+first node or a final last node.)
+A~first node is always a @BlockId@;
+a~typical middle node assigns to a register or memory
+location;
+and
+a~typical last node is a conditional, unconditional, or indirect branch.
+You choose the types of middle and last nodes to suit your
+intermediate representation; if~these types are @m@~and~@l@, the type
+\label{haskell.firstuse.m}% automated use
+\label{haskell.firstuse.l}% automated use
+of a basic block is @Block m l@.
+\label{haskell.def.Block}% automated definition
+\label{haskell.firstuse.Block}% automated use
+
+
+
+
+First nodes are the only targets of control transfers;
+middle nodes never perform control transfers;
+and
+last nodes always perform control transfers.
+So~a~first node has arbitrarily many predecessors and exactly one
+successor;
+a~middle node has exactly one predecessor and one successor;
+and a last node has exactly one predecessor and arbitrarily many
+successors. 
+
+These constraints on number of predecessors and successors determine
+the signatures of 
+transfer functions, 
+which are shown in \figref{transfers}.
+For each type of node (first, middle, last) and for each kind of
+analysis (forward, backward), there is a distinct transfer function.
+Functions are grouped by kind of analysis, and each group is
+parameterized over a dataflow fact of type~@a@ and over the types
+@m@~and~@l@ of middle and last nodes.  
+
 \begin{figure}
 \begin{code}
 newtype LastOuts a = LastOuts [(BlockId, a)]
@@ -1029,10 +1091,7 @@ data BackTransfers m l a = BackTransfers
 \label{haskell.def.ForwardTransfers}% automated definition
 \label{haskell.def.LastOuts}% automated definition
 \label{haskell.firstuse.LastOuts}% automated use
-\label{haskell.firstuse.BlockId}% automated use
 \label{haskell.firstuse.ForwardTransfers}% automated use
-\label{haskell.firstuse.m}% automated use
-\label{haskell.firstuse.l}% automated use
 \label{haskell.firstuse.^}% automated use
 \label{haskell.firstuse.ft:unfirst:unout}% automated use
 \label{haskell.firstuse.ft:unmiddle:unout}% automated use
@@ -1042,62 +1101,6 @@ data BackTransfers m l a = BackTransfers
 \label{haskell.firstuse.bt:unmiddle:unin}% automated use
 \label{haskell.firstuse.bt:unlast:unin}% automated use
 \end{figure}
-
-\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
-
-
-
-\subsection{Transfer functions} \seclabel{tffuns}
-
-A~transfer function is presented with dataflow facts on edges coming
-into a node, and it computes dataflow facts on outgoing edges.
-To~understand transfer functions, we must 
-understand how \ourlib\ organizes the nodes and edges of a control-flow graph.
-
-\seclabel{graph.intro}
-
-A~control-flow graph is a collection of \emph{basic blocks}, each
-labelled with a~@BlockId@.
-\label{haskell.def.BlockId}% automated definition
-A~basic block is a sequence beginning with a \emph{first node},
-containing zero or more \emph{middle nodes},
-and ending in a \emph{last node}.
-(An~optimizer also works with \emph{subgraphs}, which,
-as~discussed in \secref{subgraphs},  may omit an initial
-first node or a final last node.)
-A~first node is always a @BlockId@;
-a~typical middle node assigns to a register or memory
-location;
-and
-a~typical last node is a conditional, unconditional, or indirect branch.
-You choose the types of middle and last nodes to suit your
-intermediate representation; if~these types are @m@~and~@l@, the type
-of a basic block is @Block m l@.
-\label{haskell.def.Block}% automated definition
-\label{haskell.firstuse.Block}% automated use
-
-
-
-
-First nodes are the only targets of control transfers;
-middle nodes never perform control transfers;
-and
-last nodes always perform control transfers.
-So~a~first node has arbitrarily many predecessors and exactly one
-successor;
-a~middle node has exactly one predecessor and one successor;
-and a last node has exactly one predecessor and arbitrarily many
-successors. 
-
-These constraints on number of predecessors and successors determine
-the signatures of 
-transfer functions, 
-which are shown in \figref{transfers}.
-For each type of node (first, middle, last) and for each kind of
-analysis (forward, backward), there is a distinct transfer function.
-Functions are grouped by kind of analysis, and each group is
-parameterized over a dataflow fact of type~@a@ and over the types
-@m@~and~@l@ of middle and last nodes.  
 
 
 A fact in a forward analysis typically represents an assertion
@@ -1766,6 +1769,13 @@ the portable assembly language~{\PAL}
 We~specialize \ourlib\ to GHC by instantiating type parameters
 @m@~and~@l@ with GHC's types @CmmMiddle@ and @CmmLast@.
 
+\ifpagetuning
+\penalty-10000
+
+\enlargethispage{1.0\baselineskip}
+\fi
+
+
 A~middle node stores the value of an expression:
 \begin{code}
 data CmmMiddle 
@@ -1939,6 +1949,10 @@ To manipulate these sets, we provide the functions declared in
 
 
 
+
+\ifpagetuning
+\enlargethispage{1.0\baselineskip} 
+\fi
 
 % \ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
@@ -2227,10 +2241,10 @@ A~dataflow fact may enable a rewrite function to replace a node by a
 A~valuable, novel property of our implementation is that it uses
 Haskell's static type system to control which subgraphs may replace
 which nodes.
-Before explaining how to use dataflow facts and rewrite functions to
-transform graphs, we therefore
-explain the types and representation of
-graphs and subgraphs.
+Before explaining how to
+transform graphs, we
+explain how graphs and subgraphs are represented.
+
 
 \subsection{Representing graphs and subgraphs}
 
@@ -2304,18 +2318,19 @@ type Graph m l = GF m l O C
 
 Graphs are created using these functions:
 \begin{code}
-mkLabel    :: BlockId    -> GF m l C O
-mkMiddle   :: m          -> GF m l O O
-mkLast     :: l          -> GF m l O C
-(<*>)      :: GF m l e a -> GF m l a x 
-                         -> GF m l e x
-emptyGraph :: GF m l O O
+mkLabel    :: BlockId        -> GF m l C O
+mkMiddle   :: m              -> GF m l O O
+mkLast     :: l              -> GF m l O C
+(<*>)      :: GF m l e a     -> GF m l a x 
+                             -> GF m l e x
+emptyGraph :: GraphClosure a => GF m l a a
 \end{code}
 \label{haskell.def.mkLabel}% automated definition
 \label{haskell.def.mkMiddle}% automated definition
 \label{haskell.def.mkLast}% automated definition
 \label{haskell.def.<*>}% automated definition
 \label{haskell.def.emptyGraph}% automated definition
+\label{haskell.firstuse.GraphClosure}% automated use
 \label{haskell.firstuse.emptyGraph}% automated use
 \label{haskell.firstuse.<*>}% automated use
 \label{haskell.firstuse.e}% automated use
@@ -2324,8 +2339,9 @@ emptyGraph :: GF m l O O
 \label{haskell.firstuse.mkLabel}% automated use
 The infix @<*>@ function is graph concatenation; the exit of the first
 argument must match the entry of the next (both open or both closed).
-The @emptyGraph@ is a left and right unit of concatenation.
-(There is a similar unit which is closed at both entry and exit.)
+The @emptyGraph@ is a left and right unit of concatenation;
+the constraint @GraphClosure a@ is satisfied only by types @O@~and~@C@.
+\label{haskell.def.GraphClosure}% automated definition
 
 %% If $g_1$'s shape is $e$/open and $g_2$'s shape is open/$x$,
 %% then the concatenation $g_1 \mathbin{\mbox{@<*>@}} g_2$ is well
@@ -2429,10 +2445,10 @@ data BackwardRewrites m l a = BackwardRewrites
 \subsection{Rewrite functions}
 \seclabel{rewrite-functions}
 
-\ourlib\ transforms the graph structures just described by composing
-the transfer functions described in \secref{tffuns} with
-\emph{rewrite functions};
-rewrite functions have the types 
+\ourlib\ transforms its graphs by composing
+ transfer functions (\secref{tffuns}) with
+\emph{rewrite functions}, whose
+types are
 shown in \figref{rewrites}. 
 %
 A~rewrite function is given a dataflow fact and a node~$n$.
@@ -2485,15 +2501,7 @@ precondition for some (as yet unarticulated) property of Hoopl to hold.}
 %%%%    of not to terminate is infinite ``deep rewriting.''
 %%%%    }
 
-% Redundant with earlier text:
-% To~describe the presence or absence of entry and exit sequences, we
-% refer to a graph's \emph{shape} as open/open (enterable and exitable),
-% open/closed (enterable but not exitable), or closed/open (not
-% enterable, but exitable).  
-% In
-% the dataflow engine, the shape constrains the rewrite
-% functions:
-Each rewrite function is constrained by the shape of the graph it returns:
+A~rewrite function may replace a node only with a graph of the same shape:
 \begin{itemize}
 \item
 \iffalse
@@ -2536,7 +2544,8 @@ control-flow graph (a~backward transformation uses @zdfRewriteBwd@,
 which has a similar type):
 \begin{code}
  zdfRewriteFwd 
-  :: RewritingDepth         -- Rewrite recursively?
+  :: HavingSuccessors l     -- Find successors of l
+  => RewritingDepth         -- Rewrite recursively?
   -> PassName               -- Name of this pass
   -> DataflowLattice a      -- Lattice
   -> ForwardTransfers m l a -- Transfer functions
@@ -2693,10 +2702,10 @@ of that analysis are used as the new dataflow
 fact(s) flowing out of node~$n$.
 Then the replacement
 graph is \emph{thrown away}; only the facts remain.
+(In~other words, rewriting is \emph{speculative}.)
 If,~on a later iteration, node~$n$ is analyzed again, perhaps
 with a different input fact, the rewrite function may propose
 a different replacement or even no replacement at~all.
-In~other words, rewriting is \emph{speculative}.
 %%As described in \secref{subgraphs}, every replacement graph is a
 %%\emph{subgraph}, not a complete graph.
 
@@ -2727,11 +2736,10 @@ It computes a fixed point of the dataflow analysis
 \item
 When the iterator finishes, the resulting fixed point is sound,
 and the facts in the fixed point are used by the second phase, in~which
-no dataflow facts change, but
+no dataflow facts change, but rewrites are not speculative:
 each replacement proposed by a rewrite function is actually
 performed.
-This phase is called the \emph{actualizer}; it performs the
-rewrites for real.
+This phase is therefore called the \emph{actualizer}.
 \end{itemize}
 
 %The iterator executes a complicated algorithm with complicated control-flow
@@ -2773,13 +2781,13 @@ sound rewrite functions,
 and
 a
 lattice with no infinite ascending chains.
-And unless the client code specifies shallow rewriting,
+And unless client code specifies shallow rewriting,
 \ifcutting
 \else which tells the
 dataflow engine never to rewrite a replacement graph,
 \fi
 rewrite functions must not return replacement
-graphs that contain nodes which are rewritten indefinitely.
+graphs which contain nodes that could be rewritten indefinitely.
 
 
 Why use such a complex algorithm?
@@ -2825,7 +2833,8 @@ super-analysis.}
 Interleaving
 \fi
  analysis with transformation makes it
-possible to create startlingly simple transformations.
+possible to implement useful  transformations using startlingly simple
+client code.
 In the rest of this section we present two examples:
 \secref{sink-reloads} shows how to insert a reload instruction just
 before each use of each spilled variable, and
@@ -3103,54 +3112,22 @@ than the original:
 using pure functional code throughout;
 using an explicit state monad to manage the computation of fixed
 points;
-defining one analysis function, including speculative rewriting, for
-each type of graph node; 
+giving each type of graph node its own analysis function, 
+which also performs speculative rewriting;
 and
-using continuation-passing style to stitch these functions together
-in a way that interleaves analysis with rewriting.
+using continuation-passing style to stitch these functions together.
+We~sketch the implementation from the bottom~up:
+\ourlib's fuel monad,
+the monad that holds dataflow facts,
+an~iterator,
+and
+an~actualizer.
 
 
-The dataflow engine comprises four functions:
-a forward iterator, a forward actualizer,
-a backward iterator, and a backward actualizer.
 
-An \emph{iterator} does dataflow analysis with speculative rewriting.
-Analysis begins with an environment mapping all labels to bottom facts.
-For each block in the control-flow graph, the iterator begins with the
-dataflow facts flowing into one end of the block 
-(in a forward analysis, the first node; in a
-backward analysis, the last node),
-then uses the transfer functions and rewrite functions to compute the
-dataflow facts flowing 
-out the other end of the block.
-The outflowing facts are joined with the facts previously stored in the
-environment, and when the facts in the environment stop changing, the
-iterator terminates. 
-
-Each iterator interleaves analysis and transformation
-     \cite{lerner-grove-chambers:2002}. 
-     At each node, the iterator passes the node and
-     the incoming dataflow facts to a rewriting function.
-     If the node is rewritten, the iterator continues with the same dataflow facts
-     flowing into the rewritten node.
-     After the rewritten node is analyzed,
-     it is discarded, and the original node is restored;
-     only the dataflow facts persist.
-
-Each~iterator returns a set of dataflow facts, leaving the graph
-unchanged. 
-An~\emph{actualizer} takes a set of facts and a graph, and in a single
-pass uses the rewrite functions to create a new graph.
-The~actualizer also uses the transfer functions to materialize facts
-on edges within basic blocks.
-
-Function @zdfSolveFwd@ is implemented by calling the forward iterator
-with the transfer functions given and with degenerate rewrite
-functions that always return @Nothing@.
-\remark{Lies!  It's done with fuel!}
-Function @zdfRewriteFwd@ is implemented by calling first the forward
-iterator, then the forward actualizer.
-Functions @zdfSolveBwd@ and @zdfRewriteBwd@ are implemented similarly.
+%The dataflow engine comprises four functions:
+%a forward iterator, a forward actualizer,
+%a backward iterator, and a backward actualizer.
 
 
 \subsection{Throttling the dataflow engine using ``optimization fuel''}
@@ -3178,16 +3155,21 @@ the size of the fuel supply.
 % the fuel monad.
 %% , which works with
 %% computations of type @Fuel -> (a, Fuel)@.
+The fuel supply is stored in a state monad (@FuelMonad@), which
+also holds a supply of fresh labels.
+Fresh labels are used for making new
+blocks.
 
 
 \subsection{A monad for dataflow effects}
 
-All transformations share a common
-supply of fuel and a common supply of fresh labels (for making new
-blocks), which are stored in the @FuelMonad@, a state monad.
-But analyses and transformations also make private changes to dataflow
-facts; the state of these facts is maintained by
- a  private \emph{dataflow monad}.
+\seclabel{dataflow-monad}
+
+In addition to the fuel supply,
+each individual analysis and transformation keeps
+track of the values of dataflow
+facts; these facts are managed by
+ a \emph{dataflow monad}.
 A value in the dataflow monad has type @DFM a b@, where @a@~is the type of a
 \label{haskell.def.DFM}% automated definition
 dataflow fact and @b@ is the type of the value returned by the monadic action.
@@ -3269,6 +3251,30 @@ we show parts of the forward iterator and actualizer.
 
 \seclabel{forward-iterator}
 
+An \emph{iterator} does dataflow analysis with speculative rewriting.
+Analysis begins with an environment mapping all labels to bottom facts.
+For each block in the control-flow graph, the iterator begins with the
+dataflow facts flowing into one end of the block 
+(in a forward analysis, the first node; in a
+backward analysis, the last node),
+then uses the transfer functions and rewrite functions to compute the
+dataflow facts flowing 
+out the other end of the block.
+The outflowing facts are joined with the facts previously stored in the
+environment, and when the facts in the environment stop changing, the
+iterator terminates. 
+
+Each iterator interleaves analysis and transformation
+     \cite{lerner-grove-chambers:2002}. 
+     At each node, the iterator passes the node and
+     the incoming dataflow facts to a rewriting function.
+     If the node is rewritten, the iterator continues with the same dataflow facts
+     flowing into the rewritten node.
+     After the rewritten node is analyzed,
+     it is discarded, and the original node is restored;
+     only the dataflow facts persist.
+
+
 \finalremark{What does the reader gain from here on?}
 
 \delendum{I keep tripping over a nasty misunderstanding here.
@@ -3331,43 +3337,43 @@ NR: \emph{Incorrect}.  The actualizer calls the iterator to do most of the work.
 %%  
 %%  
 %%      rewrite_blocks (Block id t : bs) rewritten fuel =
-%%        ... rew_tail h (ft_first_out transfers id a) t rewritten fuel ...
+%%        ... ar_tail h (ft_first_out transfers id a) t rewritten fuel ...
 %%      rewrite_blocks [] rewritten fuel = return (rewritten, fuel)
 \setcounter{codeline}{0}
 \begin{numberedcode}
 !GraphFactKont!type GraphFactKont  m l e x a b = GF m l e x -> a -> DFM a b
 !GraphKont!type GraphKont      m l e x a b = GF m l e x      -> DFM a b
 
-!rew.first!      rew_first :: BlockId -> GraphFactKont m l e O a b -> GraphKont     m l e C a b
-      rew_mid   :: m       -> GraphFactKont m l e O a b -> GraphFactKont m l e O a b
-!rew.last!      rew_last  :: l       -> GraphKont     m l e C a b -> GraphFactKont m l e O a b
+!rew.first!      ar_first :: BlockId -> GraphFactKont m l e O a b -> GraphKont     m l e C a b
+      ar_mid   :: m       -> GraphFactKont m l e O a b -> GraphFactKont m l e O a b
+!rew.last!      ar_last  :: l       -> GraphKont     m l e C a b -> GraphFactKont m l e O a b
 
-!rew.mid.1!      rew_mid m k head in' =
+!rew.mid.1!      ar_mid m k head in' =
         (with_fuel $ fr_middle rewrites in' m) >>= \x -> case x of
           Nothing -> k (head <*> mkMiddle m) (ft_middle_out transfers in' m)
 !rew.subAnalysis!          Just g  -> do { (g, a) <- subAnalysis $
                              case depth of
-                               RewriteDeep    -> sar_OO g (curry return) in'
+                               RewriteDeep    -> iar_OO g (curry return) in'
 !rew.anal.f.OO!                               RewriteShallow -> do { a <- anal_f_OO g in'; return (g, a) }
 !rew.mid.*!                        ; k (head <*> g) a }
 
-!sar.OO!      sar_OO :: GF m l O O -> GraphFactKont m l O O a b -> FactKont a b
+!iar.OO!      iar_OO :: GF m l O O -> GraphFactKont m l O O a b -> FactKont a b
 \end{numberedcode}
 \caption{Excerpts from the forward actualizer}
 \figlabel{actualizer-excerpts}
-\label{haskell.def.sar:unOO}% automated definition
-\label{haskell.def.rew:unmid}% automated definition
-\label{haskell.def.rew:unlast}% automated definition
-\label{haskell.def.rew:unfirst}% automated definition
+\label{haskell.def.iar:unOO}% automated definition
+\label{haskell.def.ar:unmid}% automated definition
+\label{haskell.def.ar:unlast}% automated definition
+\label{haskell.def.ar:unfirst}% automated definition
 \label{haskell.def.GraphKont}% automated definition
 \label{haskell.def.GraphFactKont}% automated definition
 \label{haskell.firstuse.GraphFactKont}% automated use
 \label{haskell.firstuse.GraphKont}% automated use
-\label{haskell.firstuse.rew:unfirst}% automated use
-\label{haskell.firstuse.rew:unmid}% automated use
-\label{haskell.firstuse.rew:unlast}% automated use
+\label{haskell.firstuse.ar:unfirst}% automated use
+\label{haskell.firstuse.ar:unmid}% automated use
+\label{haskell.firstuse.ar:unlast}% automated use
 \label{haskell.firstuse.head}% automated use
-\label{haskell.firstuse.sar:unOO}% automated use
+\label{haskell.firstuse.iar:unOO}% automated use
 \label{haskell.firstuse.curry}% automated use
 \end{figure*}
 
@@ -3481,8 +3487,7 @@ computes the dataflow solution for the block.
 Function @iter_block@ is the composition of
 smaller functions that solve individual nodes
 (types on \linerangeref{solve.first.sig}{solve.last.sig}).
-These functions are written in continuation-passing style,
-which means that they implement the dataflow analysis in Strachey's style:
+These functions are written in continuation-passing style:
 the result of analyzing a subpart of a block is a function from
 continuations to continuations. 
 The types of the
@@ -3539,11 +3544,22 @@ flowing out of a block.
 \fi
 By applying the composition
 of @iter_first@, @iter_mid@, and @iter_last@ to @set_last@, we get
-the implementation of @iter_block@.
-\footnote{Similar
+the implementation of @iter_block@.\footnote
+{Similar
   compositions of @iter\_first@, @iter\_mid@, and @iter\_last@
   are used to analyze the partial blocks in a graph that is open
   at entry or exit.}
+The iterator calls @iter_block@ repeatedly
+\ifcutting\else
+ over all the blocks
+ in the control-flow graph
+\fi
+until facts stop changing.
+Each iteration
+runs under @withDuplicateFuel@, so
+the analysis
+\emph{simulates} the effects of a fuel limit, but it does
+not actually consume fuel.
 
 
 
@@ -3589,7 +3605,7 @@ it may be rewritten further.
 Because @g@~replaces a middle node, it is open at entry and exit,
 so it is analyzed and rewritten 
 on~\lineref{solve.OO}
-by a recursive call to @iter_OO@ (not shown).
+by a recursive call to @iter_OO@ (implementation not shown).
 The recursive call gets continuation @return@, and the
 resulting @FactKont a a@ is given
 the input fact.
@@ -3598,20 +3614,26 @@ and bound on
 \lineref{solve.mid.Just}. 
 %
 Function @subAnalysis@ rolls back the facts mutated
-by @iter_OO@ as it iterates to a fixed point, but @subAnalysis@
+by @iter_OO@%
+\ifcutting
+\else
+as it iterates to a fixed point%
+\fi, but @subAnalysis@
 does account for 
 fuel consumed by @iter_OO@.
 \item
 If we are doing \emph{shallow} rewriting,  the new graph~@g@ must not be
 rewritten, but we must still find a fixed point of the transfer
 equations.
-We compute that fixed point using @anal_f_OO@ (not shown), which  recursively calls
+We compute that fixed point using @anal_f_OO@ (\lineref{solve.rewrite.shallow.1}).
 \label{haskell.def.anal:unf:unOO}% automated definition
+Function @anal_f_OO@ (implementation not shown) recursively calls
 @fwd_iter@ using the @with_fuel@ function
-@\ _ _ -> Nothing@, 
-thereby doing no rewriting and consuming no fuel
-(\lineref{solve.rewrite.shallow.1}).
-\simon{This business of passing in a different @with\_fuel@ seems terribly
+@\ _ -> return Nothing@, 
+thereby doing no rewriting and consuming no fuel.
+\finalremark{We hope that cunning transfer functions will make this
+higher-order function moot.}
+\delendum{This business of passing in a different @with\_fuel@ seems terribly
 clumsy to me.  The obvious thing would be to add a third constructor \texttt{NoRewrite}
 to the @RewritingDepth@ type, so that we could call @fwd\_iter@ saying
 ``don't do any rewriting at all''.  Would that even elimiate the higher order
@@ -3633,38 +3655,47 @@ the graph, given the output fact and the remaining fuel supply.
 
 
 
-The iterator calls @iter_block@ repeatedly
-\ifcutting\else
- over all the blocks
- in the control-flow graph
-\fi
-until facts stop changing.
-Because each iteration
-% over the control-flow graph
-runs under @withDuplicateFuel@, 
-the analysis
-\emph{simulates} the effects of a fuel limit on the actualizer, but it does
-not actually consume any fuel.
+
+
+Function @zdfSolveFwd@ is implemented by calling @fwd_iter@
+with the transfer functions given, with undefined rewrite functions, and with 
+parameter @with_fuel = \ _ -> return Nothing@.
 
 
 
 \subsection{The forward actualizer}
 
+
+
 \seclabel{forward-actualizer}
+
+
+An~iterator returns dataflow facts, leaving the graph
+unchanged. 
+An~\emph{actualizer} takes facts and a graph, and in a single
+pass uses rewrite functions to create a new graph.
+The~actualizer also uses transfer functions to materialize facts
+on edges within basic blocks.
+
 
 The forward actualizer closely resembles the
 forward iterator, but because the actualizer passes the rewritten graph as
 an accumulating parameter, the types of the continuations are
 different, as shown on \linepairref{GraphFactKont}{GraphKont} of
 \figref{actualizer-excerpts}. 
-\Linerangeref{rew.first}{rew.last} give the types of the base-case
-rewriting functions; because these functions are called \emph{after}
-the iterator has set the state of the dataflow monad to a fixed
-point, they need not propagate facts out of a last node, so there is
-no analog of @LOFsKont@.
+When the actualizer runs, the dataflow monad already contains a fixed
+point, so there is no need to propagate facts out of a block, and
+therefore no continuation analogous 
+to @LOFsKont@.
 
-Function @rew_mid@ on \linerangeref{rew.mid.1}{rew.mid.*} of
-\figref{actualizer-excerpts} is much like function @iter_mid@ on 
+The functions that actualize rewrites are again in
+continuation-passing style;
+\linerangeref{rew.first}{rew.last}  of
+\figref{actualizer-excerpts} give the types of the base-case
+functions.
+%
+We show only @ar_mid@ (\linerangeref{rew.mid.1}{rew.mid.*}).
+It~is much like function @iter_mid@ on 
 \linerangeref{solve.mid.1}{solve.mid.*} of \figref{iterator-excerpts}.
 \Lineref{rew.mid.1} shows the additional parameter @head@, which
 contains the (rewritten) graph preceding middle node~@m@.
@@ -3678,286 +3709,22 @@ output fact but also a possibly rewritten graph
 Rewriting proceeds with the new graph @head <*> g@
 (\lineref{rew.mid.*}).
 
-The recursive solve-and-rewrite function @sar_OO@ (type on
-\lineref{sar.OO}, implementation not shown) 
+The recursive iterate-and-actualize-rewrites function  @iar_OO@ (type on
+\lineref{iar.OO}, implementation not shown) 
 has no counterpart in the iterator.
-It first calls the iterator to set the dataflow facts to a fixed
-point (using a duplicate fuel supply), then calls rewrite functions to
+It calls the iterator to set the dataflow facts to a fixed
+point (using a duplicate fuel supply), then calls actualize-rewrite
+functions to 
 rewrite the graph based on 
 those facts (using the shared fuel supply). 
-Similar functions apply to graphs of other shapes.
+Similar functions apply to graphs of other shapes; for example,
+@iar_OC@ is used to implement
+\label{haskell.def.iar:unOC}% automated definition
+\label{haskell.firstuse.iar:unOC}% automated use
+@zdfRewriteFwd@.
 
 
-
-
-
-%%  \subsection{The inner dataflow monad}
-%%  
-%%  The primary purpose of the dataflow monad is to keep track of 
-%%  dataflow facts as the engine iterates.
-%%  Dataflow facts are found in three places:
-%%  \begin{itemize}
-%%  \item
-%%  There is a dataflow fact associated with every labelled basic block in
-%%  the current graph;
-%%  the dataflow monad maintains this association in a finite map.
-%%  The functions @getFact@ and @setFact@ query and update this map.
-%%  \item
-%%  The current graph may be a subgraph of a larger graph, in which case a
-%%  forward dataflow pass may produce dataflow facts that flow to labelled
-%%  blocks that are outside the current graph.
-%%  These facts must be retained and propagated even if the current graph
-%%  is abandoned; such facts are added with @addLastOutFact@ and recovered
-%%  with @bareLastOuts@.
-%%  \item
-%%  Finally, a foraward dataflow pass over a subgraph may propagate a fact forward by
-%%  ``falling off the end;'' such a fact is set with @setExitFact@ and
-%%  recovered with @getExitFact@.
-%%  \end{itemize}
-%%  In addition to keeping track of facts, 
-%%  the dataflow monad provides a number of other facilities to manage
-%%  changes in state as graphs are rewritten and facts climb the dataflow
-%%  lattice:
-%%  \begin{itemize}
-%%  \item
-%%  The monad keeps track of whether any fact has changed.
-%%  \item
-%%  It provides a @subanalysis@ function which makes it possible to
-%%   analyze a subgraph using the current set of facts, then discard any
-%%   changes in state that may have resulted from the analysis of the
-%%   subgraph.
-%%  \item
-%%  It provides a supply of fresh @BlockId@s, which are available for use
-%%  by rewrite functions.
-%%  \item
-%%  It tracks the supply of \emph{optimization fuel}.
-%%  As~shown below, when fuel runs out, the dataflow engine stops
-%%  calling rewrite functions, effectively halting optimization.
-%%  Binary search on the size of the fuel supply enables the compiler to
-%%  identify unsound rewrites quickly \cite{whalley:isolation}.
-%%  \end{itemize}
-
-
-
-
-
-
-
-
-
-
-
-%%%%    \section{The next 700 dataflow analyses}
-%%%%    
-%%%%    \seclabel{logic}
-%%%%    \seclabel{next-700}
-%%%%    
-%%%%    %%  \simon{I know that this section is Dear to the Ramsey Heart, but
-%%%%    %%  I still can't figure out what it is trying to say to the reader.
-%%%%    %%
-%%%%    %%  [For the record: one reason this section is dear to my heart is
-%%%%    %%  that after my talk at the Computing Lab in 2007, Alan Mycroft
-%%%%    %%  encouraged me in the strongest possible terms to get this
-%%%%    %%  explanation published. ---NR]
-%%%%    %%  
-%%%%    %%  Let me try one stab at what I think you might be trying to say.
-%%%%    %%  In this paper we have described a re-usable, polymorphic 
-%%%%    %%  framework (concretely, a library)
-%%%%    %%  for the analysis and transformation of control flow graphs.
-%%%%    %%  This is not a specialised tool; on the contrary we claim that
-%%%%    %%  a huge variety of optimisations can be viewed through the lens of
-%%%%    %%  dataflow optimisation.
-%%%%    %%  
-%%%%    %%  If that's the thrust, then the generalities of ths section would
-%%%%    %%  be stronger if they were supported with a list of dragon-book stuff
-%%%%    %%  that are all special cases. 
-%%%%    %%  
-%%%%    %%  But I may have misunderstood.}
-%%%%    %%  
-%%%%    %%  \remark{Here's what I'm trying to say: Gentle Reader,
-%%%%    %%  Bad people may have told you that dataflow analysis is new,
-%%%%    %%  special, difficult, and intimidating.  But it's not really---it's
-%%%%    %%  stuff you knew about all along.  Why, if you already understand the
-%%%%    %%  classic material on program correctness, you know how to write a new
-%%%%    %%  dataflow analysis---just invent an approximation of logic that has no
-%%%%    %%  infinite ascending chains.
-%%%%    %%  
-%%%%    %%  I could indeed go through the dragon book, but there's no time.}
-%%%%    %%  \simon{Well that is certainly better. Why not say that?  It's much 
-%%%%    %%  shorter too!  Evidence of the claim that data flow analysis is presented
-%%%%    %%  as special difficult intimidating might be good.}
-%%%%    
-%%%%    
-%%%%    Most of this paper is devoted to the implementation of dataflow
-%%%%    analyses and their associated transformations.
-%%%%    But we also promise ideas.
-%%%%    The~main idea is that dataflow analysis is not unique,
-%%%%    difficult, or intimidating---it's a special case of 
-%%%%    the seminal work of
-%%%%    \citet{floyd:assigning-meanings},
-%%%%    \citet{hoare:axiomatic-basis},
-%%%%    and
-%%%%    \citet{dijkstra:discipline}
-%%%%    on semantics of programming languages and
-%%%%     formal methods of program construction.
-%%%%    If~you like this work, you are ready to invent a new
-%%%%    dataflow analysis:
-%%%%    just define an approximation of program logic
-%%%%    using a lattice with no infinite ascending chains.
-%%%%    % just approximate program logic using a lattice with no infinite ascending chains.
-%%%%    
-%%%%    
-%%%%    
-%%%%    %%  \section{Logical view of optimization}
-%%%%    %%  
-%%%%    %%  Connection to Hoare logic:
-%%%%    %%   - facts derived by forward analysis as assertions on state
-%%%%    %%   - facts derived by backward analysis as assertions on continuation.
-%%%%    %%  
-%%%%    %%  Examples on board.
-%%%%    
-%%%%    To~illuminate the connection, let's compare the formal methods a 
-%%%%    person uses to 
-%%%%    \emph{construct} a new program with the formal methods a compiler uses
-%%%%    to \emph{analyze} a program.
-%%%%    %The comparison is a bit tricky,
-%%%%    %because 
-%%%%    %People and compilers 
-%%%%    %typically work in opposite directions.
-%%%%    Dijkstra says people should start with a specification (a postcondition
-%%%%    we must establish and a precondition we may assume), then construct a
-%%%%    procedure body from back 
-%%%%    to front, computing weakest preconditions until one is implied by the
-%%%%    procedure's precondition. 
-%%%%    %%  
-%%%%    %%  
-%%%%    %%  
-%%%%    %%  
-%%%%    %%  The most highly developed
-%%%%    %%  methodology for constructing a procedure (Dijkstra's) starts with a
-%%%%    %%  postcondition~$Q$ that the procedure must establish and a
-%%%%    %%  precondition~$P$ that the procedure may assume.
-%%%%    %%  Using Dijkstra's method, a programmer 
-%%%%    %%  works backwards, adding a statement, computing the weakest
-%%%%    %%  precondition of that statement with respect to~$Q$,
-%%%%    %%  and continuing with more statements until
-%%%%    %%  eventually the weakest precondition of the procedure body is implied by~$P$.
-%%%%    A~compiler, by contrast, is given a procedure with no specification,
-%%%%    and most analyses reason forward,  starting with the
-%%%%    weakest possible precondition and 
-%%%%    computing strongest postconditions that hold at various points throughout the program.
-%%%%    % using strongest postconditions to
-%%%%    % compute assertions that hold at various points throughout the program.
-%%%%    
-%%%%    Computing strongest postconditions or weakest
-%%%%    preconditions is a simple matter of calculation---except for loops.
-%%%%    In~a loop, such as in the example of induction-variable elimination from
-%%%%    \secref{induction-var-elim}, 
-%%%%    %If~a compiler wants to know what @i@~is, it can easily see that on the
-%%%%    %first trip $@i@=0$, on the second trip $@i@=1$, and so on.
-%%%%    it's easy for a compiler to get stuck trying to compute an
-%%%%    infinite disjunction like $\bigvee_{k=0}^{\infty} @i@=k$.
-%%%%    Compilers are no good at solving recursion
-%%%%    equations that require limits of infinite sequences.
-%%%%    %
-%%%%    People don't like infinite sequences either, which is why they invent
-%%%%    \emph{loop invariants}. 
-%%%%    %%  
-%%%%    %%  In the classic situation, using weakest preconditions, a loop
-%%%%    %%  invariant~$I$ is an assertion that is \emph{stronger} than the weakest
-%%%%    %%  precondition, is invariant under the loop, and when conjoined with
-%%%%    %%  the loop's termination condition, implies the weakest precondition of
-%%%%    %%  what follows the loop.
-%%%%    %%  %%   and has these properties:
-%%%%    %%  %%  \begin{itemize}
-%%%%    %%  %%  \item
-%%%%    %%  %%  Together with the loop-termination condition, the invariant~$I$ implies the weakest
-%%%%    %%  %%  precondition of the code following the loop.
-%%%%    %%  %%  \item
-%%%%    %%  %%  The invariant~$I$ implies the weakest precondition of the loop body
-%%%%    %%  %%  with respect to~$I$.
-%%%%    %%  %%  In other words, $I$~is strong enought so that having $I$ hold at the
-%%%%    %%  %%  beginning of the loop body is enough to
-%%%%    %%  %%  imply that $I$~also holds at the end of the loop body.
-%%%%    %%  %%  \end{itemize}
-%%%%    %%  To be useful, a loop invariant must be neither too strong nor too
-%%%%    %%  weak.
-%%%%    %Much like finding a useful induction hypothesis for a proof, 
-%%%%    But finding a loop invariant requires art and intuition;
-%%%%    in~all but the simplest cases, it is beyond
-%%%%    what a compiler can do.
-%%%%    
-%%%%    
-%%%%    %%  Strongest postconditions also require a loop invariant, but with dual
-%%%%    %%  properties:
-%%%%    %%  \begin{itemize}
-%%%%    %%  \item
-%%%%    %%  The invariant~$I$ is weaker than the true strongest postcondition,
-%%%%    %%  but it is implied by the strongest postcondition of the code before
-%%%%    %%  the loop.
-%%%%    %%  \item
-%%%%    %%  Assuming invariant~$I$ holds on entry to the loop, the strongest
-%%%%    %%  postcondition of the loop body must imply~$I$.
-%%%%    %%  \item
-%%%%    %%  The strongest postcondition of the entire loop is deemed to be the
-%%%%    %%  conjunction of invariant~$I$ and the termination condition.
-%%%%    %%  \end{itemize}
-%%%%    %%  
-%%%%    
-%%%%    
-%%%%    So if we can't find loop invariants automatically, what's a poor
-%%%%    compiler writer to do?
-%%%%    We~want assertions that justify interesting program
-%%%%    transformations. 
-%%%%    Such assertions can often be established by a dataflow analysis.
-%%%%    So to write a new dataflow analysis, we
-%%%%    should \emph{invent a new logic} which is
-%%%%    \emph{expressive enough to justify interesting transformations}
-%%%%    but \emph{inexpressive enough that no fact can increase more than
-%%%%    finitely many times}.
-%%%%    With the logic in place, the transfer functions simply approximate
-%%%%      weakest preconditions (for a backward analysis) or strongest
-%%%%      postconditions (for a forward analysis) as best they can
-%%%%    given the expressive power of the logic.
-%%%%    From~this point of view, we can understand the traditional
-%%%%    ``optimization zoo'' as arising from a collection of approximate,
-%%%%    inexpressive logics, each with its own implementation of strongest postcondition
-%%%%    or weakest precondition. 
-%%%%    The next 700 dataflow analyses may well
-%%%%    arise from 700 more variations on 
-%%%%    program logic, each of which can be inexpressive in a different way.
-%%%%    
-%%%%    %%  Let's review the examples of \secref{example:xforms} in that light.
-%%%%    %%  \begin{itemize}
-%%%%    %%  \item
-%%%%    %%  Logic $\bigwedge_i x_i=k_i$.
-%%%%    %%  \begin{itemize}
-%%%%    %%  \item
-%%%%    %%  $i = 7 \join \true \equiv \true$ (no loss of information)
-%%%%    %%  \item
-%%%%    %%  $i = 7 \join i= 7 \equiv  i=7$ (no loss of information)
-%%%%    %%  \item
-%%%%    %%  $i = 7 \join i = 8 \implies \true$ (loss of information)
-%%%%    %%  \end{itemize}
-%%%%    %%  Because there are only finitely many variables, we can say only
-%%%%    %%  finitely many things at each program point, and we're guaranteed to
-%%%%    %%  reach a fixed point.
-%%%%    %%  \item
-%%%%    %%  Example: induction-variable elimination.
-%%%%    %%  \begin{itemize}
-%%%%    %%  \item
-%%%%    %%  What is the proposition?
-%%%%    %%  \item
-%%%%    %%  Key point: be able to express the intermediate state where the
-%%%%    %%  invariant is temporarily violated (first add 1 to @i@, then add 4
-%%%%    %%  to~@p@).
-%%%%    %%  \end{itemize}
-%%%%    %%  \end{itemize}
-%%%%    
-%%%%    
-%%%%    %\clearpage
-
-\section{Conclusion}
+\section{Conclusions}
 
 Compiler textbooks make dataflow optimization appear
 difficult and complicated.
@@ -3970,7 +3737,7 @@ These ideas
 make it possible 
 to think simple thoughts about classical code improvements.
 % to think simple thoughts about classical code improvements.
-\simon{It would be good to give cross-refs to plces in the paper that
+\delendum{It would be good to give cross-refs to plces in the paper that
 substantiate these claims.}
 \begin{itemize}
 \item
@@ -4022,7 +3789,8 @@ way that preserves semantics, we describe
 three program-transformation techniques:
 substitution of equals for equals, 
 insertion of assignments to unobserved variables, 
-and removal of assignments to unobserved variables. 
+and removal of assignments to unobserved variables
+(\secref{example:transforms}).
 Substitution of equals for equals is often justified by properties of program
 states; for example, if variable~$x$
 is always~7, we may substitute~7 for~$x$.\finalremark
@@ -4072,7 +3840,8 @@ Using continuation-passing style and generalized algebraic data types,
 we have created a new implementation%
 \ifcutting\else\ of the algorithm\fi, 
 which works by 
-composing three relatively simple functions.
+composing three relatively simple functions
+(\secref{forward-iterator}). 
 The functions are simple
 because the static type of a node constrains the number of predecessors
 and successors it may have.
@@ -4088,16 +3857,15 @@ control-flow graphs
 \cite{ramsey-dias:applicative-flow-graph}. 
 We~improve on our prior work by making the state of analysis
 explicit in the dataflow monad,
-%%  these two functional data structures make it easy to implement the hard
-%%  part of Lerner, Grove, and Chamber's algorithm: discarding replacement
-%%  graphs and their associated state at need.
-% Managing state explicitly %,
-% instead of using ML's built-in state monad, 
 which
 makes it especially easy to implement such
-operations as sub-analysis of a replacement graph. 
-\delendum{This 
-last sentence is a repeat of the previous one.}
+operations as sub-analysis of a replacement graph
+(\secref{dataflow-monad});
+by using static types to guarantee that each replacement graph can be
+spliced in place of the node it replaces
+(\secreftwo{subgraphs}{rewrite-functions});
+and by simplifying our implementation using continuation-passing style
+(\secreftwo{forward-iterator}{forward-actualizer}). 
 %
 % important, but no longer mentioned in this paper:
 %
@@ -4131,7 +3899,8 @@ In particular, it forced us to make explicit \emph{exactly} what
 \ourlib\ 
  must know about flow-graph nodes:
 it must be able to find
-targets of control-flow operations.
+targets of control-flow operations (constraint
+@HavingSuccessors l@, \secref{zdfSolveFwd}).
 \end{itemize}
 %
 % gen and kill are history
@@ -4198,13 +3967,13 @@ transformations and the assertions that justify them.
   \fi
 }    
 \newcommand\hspagedefll[3][]{\noindent
-  \texttt{#2} \texttt{let}- or $\lambda$-bound on page~\pageref{#3}.\\}
+  \texttt{#2} {let}- or $\lambda$-bound on page~\pageref{#3}.\\}
 \newcommand\hsfigdefll[3][]{%
   \noindent
   \ifx!#1!%
-    \texttt{#2} \texttt{let}- or $\lambda$-bound in Figure~\ref{#3} on page~\pageref{#3}.\\
+    \texttt{#2} {let}- or $\lambda$-bound in Figure~\ref{#3} on page~\pageref{#3}.\\
   \else
-    \texttt{#2} \texttt{let}- or $\lambda$-bound on \lineref{#1} of Figure~\ref{#3} on page~\pageref{#3}.\\
+    \texttt{#2} {let}- or $\lambda$-bound on \lineref{#1} of Figure~\ref{#3} on page~\pageref{#3}.\\
   \fi
 }    
 
