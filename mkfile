@@ -4,14 +4,15 @@
 <./bitly.$USER.mk
 
 
-#LASTPAGE=12  # used this for submission
-LASTPAGE=   
+LASTPAGE=12  # use this for submission
+#LASTPAGE=   
 
 TGT=dfopt
 
 all:V: $TGT.pdf $TGT.ps supplement.pdf popl-index.bitly
 bib:V: $TGT.bbl
 dvi:V: $TGT.dvi
+pdf:V: $TGT.pdf
 bbl:V: bib
 
 tag:VQ: $TGT.tex

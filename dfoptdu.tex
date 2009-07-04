@@ -1,3 +1,28 @@
+\iffalse % submission abstract
+
+We present Hoopl, a Haskell library that makes it easy for compiler
+writers to implement program transformations based on dataflow
+analyses. The compiler writer must identify (a) logical assertions on
+which the transformation will be based; (b) a representation of such
+assertions, which should form a lattice of finite height; (c) transfer
+functions that approximate weakest preconditions or strongest
+postconditions over the assertions; and (d) rewrite functions whose
+soundness is justified by the assertions. Hoopl uses the algorithm of
+Lerner, Grove, and Chambers (2002), which can compose very simple
+analyses and transformations in a way that achieves the same precision
+as complex, handwritten "superanalyses." Hoopl will be the workhorse
+of a new back end for the Glasgow Haskell Compiler (version 6.12,
+forthcoming).
+
+Because the major claim in the paper is that Hoopl makes it easy to
+implement program transformations, the paper is filled with examples,
+which are written in Haskell.  The paper also sketches the
+implementation of Hoopl, including some excerpts from the
+implementation. 
+
+\fi
+
+
 % ====> THIS IS A DERIVED FILE; DO NOT EDIT IT <======
 % ===========> SIMON, THIS MEANS YOU! <===============
      % If you are Simon, run un-preprocessed code
@@ -22,10 +47,12 @@
 
 \documentclass[blockstyle,preprint,natbib,nocopyrightspace]{sigplanconf}
 
-\newcommand\ourlib{Hoopl}  % also Hoppy, Hoopt, Hoopl
+\newcommand\ourlib{Hoopl}
    % higher-order optimization library
    % ('Hoople' was taken -- see hoople.org)
 \let\hoopl\ourlib
+
+\newcommand\fs{\ensuremath{\mathit{fs}}} % dataflow facts, possibly plural
 
 \newcommand\vfilbreak[1][\baselineskip]{%
   \vskip 0pt plus #1 \penalty -200 \vskip 0pt plus -#1 }
@@ -209,6 +236,9 @@
 \title{\ourlib: Dataflow Optimization Made Simple}
 %\subtitle{\today}
 
+% João
+
+
 \authorinfo{Norman Ramsey}{Tufts University}{nr@cs.tufts.edu}
 \authorinfo{Jo\~ao Dias}{Tufts University}{dias@cs.tufts.edu}
 \authorinfo{Simon Peyton Jones}{Microsoft Research}{simonpj@microsoft.com}
@@ -221,8 +251,7 @@ We present \ourlib, a Haskell library that makes it easy for compiler writers
 to implement program transformations based on dataflow analyses.
 The compiler writer must identify (a)~logical assertions
 on which the transformation will be based;
-(b)~an {approximate}
-representation of such assertions, which
+(b)~a~representation of such assertions, which
 \ifcutting
 should form a lattice of finite height;
 \else
@@ -260,9 +289,9 @@ If you write a compiler for an imperative language, you can exploit
 many years' work on code improvement
 (``optimization'').
 The work is typically presented
-as a flat collection of analyses and
+as a long list of analyses and
 transformations, each with a different name.
-A~flat structure makes optimization appear complex and difficult.
+This presentation makes optimization appear complex and difficult.
 Another source of complexity is the need for synergistic combinations
 of optimizations; you may have to write one ``super-analysis'' per
 combination. 
@@ -315,14 +344,14 @@ of the control-flow graph,
 and dynamically it can help find the first transformation that introduces a fault
 in a test program \cite{whalley:isolation}.
 \item
-\ourlib's polymorphic, higher-order design makes \ourlib\ reusable
+\ourlib's polymorphic, higher-order design makes it reusable
 with many languages.
 \hoopl\ is designed to help optimize imperative code
 with arbitrary control flow,
 including low-level intermediate languages and machine languages.
 %%\ifcutting\else
 As \citet{benitez-davidson:portable-optimizer} have shown, all the
-classical scalar and loop optimizations can be performed over such
+classic scalar and loop optimizations can be performed over such
 codes.
 %% \fi
 \end{itemize}
@@ -386,14 +415,14 @@ codes.
 % languages and machine 
 % languages.
 % As \citet{benitez-davidson:portable-optimizer} have shown, all the
-% classical scalar and loop optimizations can be performed over such
+% classic scalar and loop optimizations can be performed over such
 % codes.
 
 
 
 We introduce dataflow optimization by analyzing and transforming
 example code (\secref{example:xforms}),
-thinking about and justifying classical optimizations using
+thinking about and justifying classic optimizations using
 Hoare logic and substitution of equals for equals.
 To~support our claim that \ourlib\ makes dataflow optimization easy, 
 we explain how
@@ -420,8 +449,8 @@ and
 to remove assignments to unobserved variables.
 Insertion and removal can be composed to achieve 
 ``code motion.''
-\ourlib\  expresses classical code
-improvements by \emph{composing} small \ifcutting\else analyses and \fi
+\ourlib\  expresses classic code
+improvements by \emph{composing} simple \ifcutting\else analyses and \fi
 transformations. 
 
 
@@ -609,7 +638,7 @@ elimination.
 In~this case, writing a super-analysis is easy,
 but the approach does not scale:
 most super-analyses are more complicated than the examples shown here;
-the cost of writing super-analysis does not scale linearly with
+the cost of writing a super-analysis does not scale linearly with
 the number of analyses combined;
 super-analyses often cannot be composed;
 and 
@@ -723,7 +752,7 @@ As~an important special case,
 an assertion, such as @x == 7@ above,
  may say simply
 that all paths to a point establish a predicate
-which describes the program state at that point,
+which describes the program state at that point.
 
 
 A~program point is represented as an edge in
@@ -751,7 +780,7 @@ Implement lattice operations over~$F$ (\secref{lattices}).
 \item
 Write \emph{transfer functions} that relate dataflow facts before and
 after each type of node (\secref{tffuns}).
-\delendum{I'd italicise key words from all three bullets, or none. NR:
+\delendum{I'd italicize key words from all three bullets, or none. NR:
 It's not a question of bullets; the key concepts which are possibly
 new to readers are transfer
 functions and rewrite functions, which is why they are italicized.}
@@ -829,7 +858,7 @@ rewrite a control-flow graph in light of those facts
 \ifcutting\else
 The engine's implementation is sketched in \secref{dfengine}.
 \fi
-\delendum{Interface?  Perhpas ``The signatures and expected usage of these
+\delendum{Interface?  Perhaps ``The signatures and expected usage of these
 functions is described in xxx, while their implementation is sketched
 in yyy''.  NR: I like the idea of parallel structure, but the paper is
 not really very parallel here.  Faced with either repeating the
@@ -899,7 +928,7 @@ The analysis shows nothing about~$x$, which we notate $x=\bot$.
 The bottom element of the lattice is~$x=\bot$, and
 the join operation~$\join$ approximates disjunction,
 the logical operation that combines facts flowing to a single label.
-a~disjunction of two inconsistent facts is represented by~$x=\top$%
+A~disjunction of two inconsistent facts is represented by~$x=\top$%
 \ifcutting,
 so for example 
 $x = 7 \lor x = 8$ is approximated by $x = \top$, 
@@ -1306,7 +1335,7 @@ the recursive dataflow equations
 Lattice orientation is conventional, and conventions have changed.
 We use Dana Scott's
 orientation, in which higher elements carry more information.}
-\cite{kam-ullman:monotone-flow-analysis} generalize to some
+\citet{kam-ullman:monotone-flow-analysis} generalize to some
 monotone functions.
 Each~client of \hoopl\ must guarantee monotonicity,
 but for transfer functions that
@@ -1376,10 +1405,10 @@ interAvail   :: AvailVars -> AvailVars -> AvailVars  -- set intersection
 \T
 \begin{code}
 availVarsLattice :: DataflowLattice AvailVars
-availVarsLattice = DataflowLattice "reloaded registers" empty add
+availVarsLattice = DataflowLattice empty add
     where empty = UniverseMinus emptyVarSet
           add new old = let join = interAvail new old in
-                        if join `smallerAvail` old then TxRes NoChange join else TxRes SomeChange join
+                        TxRes (if join `smallerAvail` old then SomeChange else NoChange) join
 \end{code}
 \B
 & Lattice\\
@@ -1397,8 +1426,8 @@ availVarsLattice = DataflowLattice "reloaded registers" empty add
 %%  
 \T
 \begin{code}
-avail_vars_transfer :: ForwardTransfers CmmMiddle CmmLast AvailVars
-!avail.first!avail_vars_transfer = ForwardTransfers (flip const) middleAvail lastAvail
+availTransfers :: ForwardTransfers CmmMiddle CmmLast AvailVars
+!avail.first!availTransfers = ForwardTransfers (flip const) middleAvail lastAvail
 
 middleAvail :: CmmMiddle -> AvailVars -> AvailVars
 !reload1!middleAvail (MidAssign (CmmLocal x) (CmmLoad l) avail | l `isStackSlotOf` x = extendAvail avail x
@@ -1422,7 +1451,7 @@ lastAvail l avail = LastOuts $ map (\id -> (id, avail)) $ succs l
 cmmAvailableVars :: Graph CmmMiddle CmmLast -> BlockEnv AvailVars
 cmmAvailableVars g = zdfFpFacts fp
 !avail.solve.1!  where fp = zdfSolveFwd "available variables" availVarsLattice 
-!avail.solve.2!                 avail_vars_transfer (fact_bot availVarsLattice) g
+!avail.solve.2!                 availTransfers (fact_bot availVarsLattice) g
 \end{code}
 \B
 &
@@ -1447,7 +1476,7 @@ cmmAvailableVars g = zdfFpFacts fp
 \label{haskell.def.lhs}% automated definition
 \label{haskell.def.avail}% automated definition
 \label{haskell.def.middleAvail}% automated definition
-\label{haskell.def.avail:unvars:untransfer}% automated definition
+\label{haskell.def.availTransfers}% automated definition
 \label{haskell.def.join}% automated definition
 \label{haskell.def.old}% automated definition
 \label{haskell.def.new}% automated definition
@@ -1463,7 +1492,7 @@ cmmAvailableVars g = zdfFpFacts fp
 \label{haskell.def.AvailVars}% automated definition
 \label{haskell.firstuse.cmmAvailableVars}% automated use
 \label{haskell.firstuse.fp}% automated use
-\label{haskell.firstuse.avail:unvars:untransfer}% automated use
+\label{haskell.firstuse.availTransfers}% automated use
 \label{haskell.firstuse.CmmMiddle}% automated use
 \label{haskell.firstuse.CmmLast}% automated use
 \label{haskell.firstuse.middleAvail}% automated use
@@ -1583,9 +1612,9 @@ Spills and reloads are inserted
 by a sequence of 
 \ifcutting\else three \fi
 dataflow passes:
-\remark{Uses of ``passes'' is not very consistent.
+\finalremark{Uses of ``passes'' is not explained and is not very consistent.
 Would be nice to say ``pass = analysis + (possibly degenerate)
-transformation.''}
+transformation.''}%
 \begin{enumerate}
 \item
 \label{insert-spills}
@@ -1594,7 +1623,7 @@ to identify the variables that should be spilled at call sites.
 An accompanying transformation (not shown) inserts reloads immediately
 after each call 
 site and inserts spills not immediately before call sites, but
-rather immediately after the appropriate reaching definitions.
+rather immediately after the reaching definitions.
 \item
 \label{reload-duplication}
 A forward analysis (\figref{avail} in \secref{avail}) finds
@@ -1647,7 +1676,7 @@ reloads away from the call site.
 \T
 \begin{code}
 !liveLattice!liveLattice :: DataflowLattice Live
-liveLattice = DataflowLattice "live LocalReg's" emptyVarSet add
+liveLattice = DataflowLattice emptyVarSet add
   where add new old =
           let join = unionVarSets new old in
 !liveLattice.end!          TxRes (if sizeVarSet join > sizeVarSet old then SomeChange else NoChange) join
@@ -2109,7 +2138,7 @@ In a modern compiler, liveness analysis supports many program
 transformations,
 including
 dead-assignment elimination,
-which removes assigments to dead variables, 
+which removes assignments to dead variables, 
 and register allocation, which
 ensures that if two variables are 
 live at the same time, they are not assigned to the same register. 
@@ -2129,8 +2158,8 @@ A~transfer function is given a set of variables live on the edges
 going out of the node.
 It~removes from that set any variable
 defined by the node, then adds any variable used by the
-node.
-\ifcutting\else
+node%
+\ifcutting\ \else.
 For~example, if the node is
 \begin{verbatim}
   i = n - 1;
@@ -2458,20 +2487,20 @@ returns $@Just@\;g$, or it may do nothing, in which case it returns @Nothing@.
 If it returns $@Just@\;g$, it must guarantee that given
 the assertions represented by incoming dataflow facts,
 graph~$g$ is observationally equivalent to node~$n$.
-\simon{Doesn't the rewrite have to be have the following property:
+\finalremark{Doesn't the rewrite have to be have the following property:
 for a forward analysis/transform, if (rewrite P s) = Just s',
 then (transfer P s $\sqsubseteq$ transfer P s').
 For backward: if (rewrite Q s) = Just s', then (transfer Q s' $\sqsubseteq$ transfer Q s).
 Works for liveness.
 ``It works for liveness, so it must be true'' (NR).
 If this is true, it's worth a QuickCheck property!
-}
-\simon{Version 2, after further rumination.  Let's define
+}%
+\finalremark{Version 2, after further rumination.  Let's define
 $\scriptstyle \mathit{rt}(f,s) = \mathit{transform}(f, \mathit{rewrite}(f,s))$.
  Then $\mathit{rt}$ should
 be monotonic in~$f$.  We think this is true of liveness, but we are not sure
 whether it's just a generally good idea, or whether it's actually a 
-precondition for some (as yet unarticulated) property of Hoopl to hold.}
+precondition for some (as yet unarticulated) property of Hoopl to hold.}%
 
 %%  
 %%  
@@ -2508,7 +2537,7 @@ A~rewrite function may replace a node only with a graph of the same shape:
 A first node with @BlockId@~$L$ must be rewritten to a closed/open
 replacement graph which also begins with @BlockId@~$L$.
 \delendum{Whoa!  What does it mean to say that a graph ``begins with $L$''?
-Perhpas we just mean that the replacement grpah must include a block labelled $L$?}
+Perhaps we just mean that the replacement graph must include a block labelled $L$?}
 %% Simon's right---but the details are too grotty to include. ---NR
 \else
 A first node must be rewritten to a closed/open
@@ -2638,7 +2667,7 @@ availRewrites = ForwardRewrites first middle last
             in  if isEmptyVarSet used then Nothing
 !maybe.reload.before.2!                else Just $ reloadTail used tail
         reloadTail vars t = foldl rel t $ varSetToList vars
-!mkMiddle!          where rel t r = mkMiddle (reload r) <*> t
+!mkMiddle!            where rel t r = mkMiddle (reload r) <*> t
 \end{code}
 \B
 & Rewrite \mbox{functions}\\
@@ -2649,7 +2678,7 @@ availRewrites = ForwardRewrites first middle last
 insertLateReloads :: Graph CmmMiddle CmmLast -> FuelMonad (Graph CmmMiddle CmmLast)
 insertLateReloads g = liftM zdfFpContents fp
 !insertLateReloads.1!  where fp = zdfRewriteFwd RewriteShallow "insert late reloads" availVarsLattice
-!insertLateReloads.2!               avail_vars_transfer availRewrites (fact_bot availVarsLattice) g
+!insertLateReloads.2!               availTransfers availRewrites (fact_bot availVarsLattice) g
 \end{code}
 & Late-reload insertion\\
 \end{codetable}
@@ -2898,7 +2927,7 @@ deadRewrites = BackwardRewrites nothing middleRemoveDeads nothing
 removeDeadAssignments :: Graph CmmMiddle CmmLast -> FuelMonad (Graph CmmMiddle CmmLast)
 removeDeadAssignments g = liftM zdfFpContents fp
 !rewriteBwd.1!     where fp = zdfRewriteBwd RewriteDeep "dead-assignment elim" liveLattice
-!rewriteBwd.2!                  liveTransfers rewrites emptyVarSet g
+!rewriteBwd.2!                  liveTransfers deadRewrites emptyVarSet g
 \end{code}
 & \vspace*{12pt}\mbox{Dead-code} elimination\\
 \end{codetable}
@@ -2911,7 +2940,6 @@ removeDeadAssignments g = liftM zdfFpContents fp
 \label{haskell.def.deadRewrites}% automated definition
 \label{haskell.firstuse.removeDeadAssignments}% automated use
 \label{haskell.firstuse.RewriteDeep}% automated use
-\label{haskell.firstuse.rewrites}% automated use
 \label{haskell.firstuse.deadRewrites}% automated use
 \label{haskell.firstuse.nothing}% automated use
 \label{haskell.firstuse.middleRemoveDeads}% automated use
@@ -2944,20 +2972,22 @@ reload.
 If that set is not empty, function
 @reloadTail@ replaces @node@ with a new graph in which @node@ is
 preceded by a (redundant) reload for each variable in the set~@used@.
+A~reload node is created by function @reload@ (\lineref{mkMiddle}),
+\label{haskell.def.reload}% automated definition
+which has type @LocalVar -> CmmMiddle@.
 %%%%% This rewrite function \emph{must} be used with shallow
 %%%%% rewriting. % redundant
 
 Our transformation is implemented by the call to @zdfRewriteFwd@
 on \linerangeref{insertLateReloads.1}{insertLateReloads.2} of \figref{avail-rewrites}.
-A~reload node is created by function @reload@ (\lineref{mkMiddle}),
-\label{haskell.def.reload}% automated definition
-which has type @LocalVar -> CmmMiddle@.
 Rewriting is shallow, so a graph containing reload nodes
 is not itself rewritten.
 (If~it \emph{were} rewritten, a nonempty @used@ set would make the
 compiler insert an infinite sequence of reloads before @node@.)
-Once the reloads are inserted, the original reloads immediately
-following the call site are dead, and they can be eliminated by our
+Once the reloads are inserted, the original reloads
+\ifcutting\else immediately following the call site
+\fi
+are dead, and they can be eliminated by our
 next transformation, dead-assignment elimination.
 
 \subsection{Dead-assignment elimination: a backward \rlap{transformation}}
@@ -2973,12 +3003,8 @@ next transformation, dead-assignment elimination.
 
 We use the liveness analysis of \secref{liveness} to identify
 assignments
-\ifpagetuning
-whose left-hand sides
-\else
-which modify only variables that 
-\fi
-are not used.
+to local variables that 
+are not live.
 Such \emph{dead assignments} can be removed without changing the
 observable behavior of the program.
 The removal is implemented by the rewrite functions on
@@ -3066,6 +3092,7 @@ type LOFsKont a b = LastOuts a -> DFM a b
 \label{haskell.firstuse.name}% automated use
 \label{haskell.firstuse.start:unfacts}% automated use
 \label{haskell.firstuse.transfers}% automated use
+\label{haskell.firstuse.rewrites}% automated use
 \label{haskell.firstuse.in:unfact}% automated use
 \label{haskell.firstuse.setAllFacts}% automated use
 \label{haskell.firstuse.iter:unex}% automated use
@@ -3266,13 +3293,14 @@ iterator terminates.
 
 Each iterator interleaves analysis and transformation
      \cite{lerner-grove-chambers:2002}. 
-     At each node, the iterator passes the node and
-     the incoming dataflow facts to a rewriting function.
-     If the node is rewritten, the iterator continues with the same dataflow facts
-     flowing into the rewritten node.
-     After the rewritten node is analyzed,
-     it is discarded, and the original node is restored;
-     only the dataflow facts persist.
+At a node~$n$, the iterator passes~$n$ and
+any incoming dataflow facts~\fs\ to a rewriting function.
+If node~$n$ is rewritten to a graph~$g$, 
+the iterator continues with the same dataflow facts~\fs\
+     flowing into graph~$g$.
+     After the graph is analyzed,
+     it is discarded, and the original node~$n$ is restored;
+     only the facts flowing out of~$g$ persist.
 
 
 \finalremark{What does the reader gain from here on?}
@@ -3521,7 +3549,7 @@ Thus, a @Kont@ expects no fact as argument.
 \end{itemize}
 \delendum{I like these continuations, but I'm very puzzled about the
 fuel.  If @Kont@ takes fuel in, where does it return the depleted fuel?
-It must come out eventualy, because it's needed in the rest of the program.
+It must come out eventually, because it's needed in the rest of the program.
 And if it always comes out, then we should say so:
 @Kont a b = DFM a b@.
 And once you do that, it's plain that @Kont@ is just a state monad,
@@ -3636,7 +3664,7 @@ higher-order function moot.}
 \delendum{This business of passing in a different @with\_fuel@ seems terribly
 clumsy to me.  The obvious thing would be to add a third constructor \texttt{NoRewrite}
 to the @RewritingDepth@ type, so that we could call @fwd\_iter@ saying
-``don't do any rewriting at all''.  Would that even elimiate the higher order
+``don't do any rewriting at all''.  Would that even eliminate the higher order
 @with\_fuel@ parameter altogether?  What is it used for? 
 NR:~If you re-examine the structure of the case expressions, you'll
 see that \texttt{NoRewrite} as a third constructor would leave to
@@ -3735,9 +3763,9 @@ ingredient, but by applying ideas that are well understood by functional
 programmers.
 These ideas
 make it possible 
-to think simple thoughts about classical code improvements.
-% to think simple thoughts about classical code improvements.
-\delendum{It would be good to give cross-refs to plces in the paper that
+to think simple thoughts about classic code improvements.
+% to think simple thoughts about classic code improvements.
+\delendum{It would be good to give cross-refs to places in the paper that
 substantiate these claims.}
 \begin{itemize}
 \item
@@ -3758,7 +3786,7 @@ postcondition, which
 %\fi
 to
 \ifcutting
-``backward and ``forward'' dataflow
+``backward'' and ``forward'' dataflow
 problems.
 \else
 ``backward dataflow problems'' and ``forward dataflow
@@ -3775,8 +3803,8 @@ neither, just by way of contrast; ie this we cannot do.}
 %%  In \secref{logic-reconciled}, we show that we can guarantee to reach a
 %%  fixed point by limiting what we can express in the logic.\remark{needs
 %%  a fix}
-%%  We~show that many classical analyses can be explained this way;
-%%  the great diversity of classical analyses corresponds to a great
+%%  We~show that many classic analyses can be explained this way;
+%%  the great diversity of classic analyses corresponds to a great
 %%  diversity of inexpressive logics.
 %%  This view leads us to a unifying principle:
 %%  \emph{To implement a code-improving transformation, find the least
@@ -3811,7 +3839,7 @@ assigned~to, that assignment may be removed.
 Complex program transformations should be composed from simple
 transformations. 
 For example, both ``code motion'' and ``induction-variable
-elimination'' should be implemented in three stages: insert new assignments;
+elimination'' can be implemented in three stages: insert new assignments;
 substitute equals for equals; remove unneeded assignments
 (\secref{induction-var-elim}). 
 
@@ -3825,10 +3853,10 @@ we can use
  rewrite, not a complex transformation.
 \end{itemize}
 
-We also blend proven implementation techniques
+We also build on proven implementation techniques
 in a way that
 makes it easy
-to implement classical code improvements.
+to implement classic code improvements.
 \begin{itemize}
 \item
 We use the algorithm of \citet{lerner-grove-chambers:2002} to 
@@ -3925,6 +3953,10 @@ You can get quickly to the real
 intellectual work of code improvement: identifying interesting
 transformations and the assertions that justify them.
 
+\finalremark{Don't forget acknowledgements!!!
+Microsoft, Intel, NSF
+}
+
 \makeatother
 
 \providecommand\includeftpref{\relax}
@@ -3936,7 +3968,21 @@ transformations and the assertions that justify them.
 
 \appendix
 
+
 \section{Index of defined identifiers}
+
+This appendix lists every nontrivial identifier used in the body of
+the paper.  
+For each identifier, we list the page on which that identifier is
+defined or discussed---or when appropriate, the figure (with line
+number where possible).
+For those few identifiers not defined or discussed in text, we give
+the type signature and the page on which the identifier is first
+referred to.
+
+Some identifiers used in the text are defined in the Haskell Prelude;
+for those readers less familiar with Haskell, these identifiers are
+listed in Appendix~\ref{sec:prelude}.
 
 \newcommand\dropit[3][]{}
 
@@ -4021,7 +4067,7 @@ transformations and the assertions that justify them.
   \else
     \undefinedsectiontrue
     \par
-    \section{Identifiers defined in Haskell Prelude}
+    \section{Identifiers defined in Haskell Prelude}\label{sec:prelude}
     \texttt{#1}%
   \fi
 }
