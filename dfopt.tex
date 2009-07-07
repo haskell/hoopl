@@ -779,11 +779,12 @@ based on an analysis, you
 must also
 create a \emph{rewrite function}, which is presented with a
 flow-graph node and with the dataflow facts on the edges coming
-into that node.
+into that node (\secref{rewrite-functions}).
 The function either proposes to replace the node with a
-fresh subgraph, or it leaves the node alone (\secref{rewrite-functions}).
+fresh subgraph, or it leaves the node alone.
 The rewrite function uses incoming facts to propose a replacement
-that preserves semantics.
+that preserves semantics.  \simon{The two sentences preceding this note say 
+essentially the same thing.  Combine.}
 For example, in \secref{constant-propagation} the fact @x == 7@ is
 used to propose replacing @z = x + y@ with @z = 7 + y@.
 
@@ -949,7 +950,8 @@ to a value of type \icode|Maybe Const|.
 A~variable $x$ is not in the domain of the map iff $x=\bot$;
 $x$~maps to @Nothing@ iff $x=\top$; $x$~maps to $@Just@\;k$ iff
 $x=k$.
-
+\simon{My taste: I don't think @TxRes@ is paying its way.  I'd replace it
+with pair (a,@ChangeFlag@).}
 
 \ifcutting\else
 Any one procedure has only finitely many variables;
@@ -1112,7 +1114,7 @@ For example, in the block
       goto L2;
 \end{verbatim}
 a forward analysis would propagate the fact 
-$@x == 7@ \land @y == 8@$, which we will call $f_{\mathit{new}}$,
+$@x@ = @7@ \land @y@ = @8@$, which we will call $f_{\mathit{new}}$,
 along the edge to~\texttt{L2}. 
 %%  \remark{We've elected not to get to the level of detail where
 %%  we show how propagating a fact~$f$ through \mbox{@x = 7;@} results in a new
@@ -1137,7 +1139,8 @@ engine has reached a fixed point.
 \seclabel{zdfSolveFwd}
 
 Given lattice operations of type @DataflowLattice a@
-and transfer functions of type @ForwardTransfers m l a@,
+(\figref{lattice}) and transfer functions of type @ForwardTransfers m l a@
+(\figref{transfers}),
 you can run the corresponding analysis by calling \ourlib\
 function @zdfSolveFwd@, which is a~part of our dataflow engine
 (a~backward analysis calls @`zdfSolveBwd@, which has a similar type):
@@ -1474,19 +1477,21 @@ transformation.''}%
 \begin{enumerate}
 \item
 \label{insert-spills}
-A backward analysis (\figref{liveness} in \secref{liveness}) computes liveness
-to identify the variables that should be spilled at call sites.
+A backward analysis computes liveness
+to identify the variables that should be spilled at call sites
+(\secref{liveness} and \figref{liveness}).
 An accompanying transformation (not shown) inserts reloads immediately
 after each call 
 site and inserts spills not immediately before call sites, but
 rather immediately after the reaching definitions.
 \item
 \label{reload-duplication}
-A forward analysis (\figref{avail} in \secref{avail}) finds
+A forward analysis finds
 ``available variables'' which have been reloaded 
-from the stack, and an accompanying transformation
-(\figref{avail-rewrites} in \secref{sink-reloads}) 
-inserts redundant reloads before their uses.
+from the stack (\secref{avail} and \figref{avail}), 
+and an accompanying transformation
+inserts redundant reloads before their uses
+(\secref{sink-reloads} and \figref{avail-rewrites}).
 By keeping variables on the stack longer, this pass reduces register pressure.
 % \simon{Why is the second pass a second pass?  The first
 % pass added spills and reloads in; could the first pass not have 
@@ -2891,7 +2896,7 @@ read than the one by \citet{ramsey-dias:applicative-flow-graph}.
 %%  \john{Presumably this sentence disappears if the italic text is made permanent.}
 Function @`runDFM@ runs a single analysis or transformation, then
 abandons the dataflow facts and returns the result in the fuel monad.
-Only @FuelMonad@ is exposed in the interface;
+Only @FuelMonad@ is exposed to the client;
 the dataflow monad is private to \ourlib.
 Using the dataflow monad, \ourlib's iterators and actualizers
 are significantly simpler than those in our
@@ -2925,7 +2930,7 @@ The outflowing facts are joined with the facts previously stored in the
 environment, and when the facts in the environment stop changing, the
 iterator terminates. 
 
-Each iterator interleaves analysis and transformation
+The iterator interleaves analysis and (speculative) rewriting
      \cite{lerner-grove-chambers:2002}. 
 At a node~$n$, the iterator passes~$n$ and
 any incoming dataflow facts~\fs\ to a rewriting function.
@@ -2933,7 +2938,8 @@ If node~$n$ is rewritten to a graph~$g$,
 the iterator continues with the same dataflow facts~\fs\
      flowing into graph~$g$.
      After the graph is analyzed,
-     it is discarded, and the original node~$n$ is restored;
+     it is discarded;
+%, and the original node~$n$ is restored;
      only the facts flowing out of~$g$ persist.
 
 
