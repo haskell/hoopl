@@ -177,7 +177,7 @@ implementation.
 
 
 
-% ON LINE THREE, set \noauthornotestrue to suppress notes (or not)
+% ONE LINE THREE, set \noauthornotestrue to suppress notes (or not)
 
 %\newcommand{\qed}{QED}
 \ifnotesinmargin
@@ -216,7 +216,6 @@ implementation.
 \newcommand\seclabel[1]{\label{sec:#1}}
 
 \newcommand\figref[1]{Figure~\ref{fig:#1}}
-\newcommand\figreftwo[2]{Figures \ref{fig:#1}~and~\ref{fig:#2}}
 \newcommand\figlabel[1]{\label{fig:#1}}
 
 \newcommand\tabref[1]{Table~\ref{tab:#1}}
@@ -529,7 +528,7 @@ We begin by showing a loop that sums red pixels from an array:
 To explain induction-variable elimination, we show the same
 code at the machine level, using our low-level compiler-target
 language,~{\PAL}
-\cite{peyton-jones-ramsey:single-intermediate}: 
+\cite{peyton-jones-ramsey:exceptions}: 
 \begin{verbatim}
   sum_r("address" bits32 a, bits32 n) {
        bits64 x; bits32 i;
@@ -795,14 +794,11 @@ flow-graph node and with the dataflow facts on the edges coming
 into that node (\secref{rewrite-functions}).
 The function either proposes to replace the node with a
 fresh subgraph, or it leaves the node alone.
-If the function proposes a replacement,
-the replacement must preserve
-semantics;
-preservation may be justified by incoming 
-\ifcutting \else dataflow \fi
-facts.
-For example, in \secref{constant-propagation} the fact @x == 7@ 
-justifies replacing @z = x + y@ with @z = 7 + y@.
+The rewrite function uses incoming facts to propose a replacement
+that preserves semantics.  \simon{The two sentences preceding this note say 
+essentially the same thing.  Combine.}
+For example, in \secref{constant-propagation} the fact @x == 7@ is
+used to propose replacing @z = x + y@ with @z = 7 + y@.
 
 \begin{table}
 \centerline{%
@@ -876,16 +872,18 @@ chosen instead to abandon parallel structure.}
 \ifcutting
 \begin{code}
 data ChangeFlag = NoChange | SomeChange
+data TxRes a    = TxRes ChangeFlag a
 data DataflowLattice a = DataflowLattice
  {fact_bot        :: a,
-  fact_add_to     :: a -> a -> (a, ChangeFlag) }
+  fact_add_to     :: a -> a -> TxRes a}
 \end{code}
 \else
 \begin{code}
 --data ChangeFlag = NoChange | SomeChange
+--data TxRes a    = TxRes ChangeFlag a
 --data DataflowLattice a = DataflowLattice
 -- {fact_bot        :: a,
---  fact_add_to     :: a -> a -> (a, ChangeFlag),
+--  fact_add_to     :: a -> a -> TxRes a,
 --  fact_name       :: String } -- for debugging
 \end{code}
 \fi
@@ -893,6 +891,7 @@ data DataflowLattice a = DataflowLattice
 \label{haskell.def.fact:unadd:unto}% automated definition
 \label{haskell.def.fact:unbot}% automated definition
 \label{haskell.def.DataflowLattice}% automated definition
+\label{haskell.def.TxRes}% automated definition
 \label{haskell.def.SomeChange}% automated definition
 \label{haskell.def.NoChange}% automated definition
 \label{haskell.def.ChangeFlag}% automated definition
@@ -901,6 +900,7 @@ data DataflowLattice a = DataflowLattice
 \label{haskell.firstuse.ChangeFlag}% automated use
 \label{haskell.firstuse.NoChange}% automated use
 \label{haskell.firstuse.SomeChange}% automated use
+\label{haskell.firstuse.TxRes}% automated use
 \label{haskell.firstuse.DataflowLattice}% automated use
 \label{haskell.firstuse.fact:unbot}% automated use
 \label{haskell.firstuse.fact:unadd:unto}% automated use
@@ -980,6 +980,8 @@ $x$~maps to @Nothing@ iff $x=\top$; $x$~maps to $@Just@\;k$ iff
 \label{haskell.firstuse.Nothing}% automated use
 \label{haskell.firstuse.Just}% automated use
 $x=k$.
+\simon{My taste: I don't think @TxRes@ is paying its way.  I'd replace it
+with pair (a,@ChangeFlag@).}
 
 \ifcutting\else
 Any one procedure has only finitely many variables;
@@ -1017,13 +1019,12 @@ We therefore use a nonstandard representation of lattice operations,
 \else
 as shown in \figref{lattice}.
 \fi
-The~join operation~$\join$ and equality test~$=$ are represented by a
+The join operation~$\join$ and equality test~$=$ are represented by a
 single function called @fact_add_to@.
 The term $@fact_add_to@\;f_{\mathit{new}}\;f_{\mathit{id}}$ is equal to
-$(f_{\mathit{id}}, @NoChange@)$ 
-if $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$
+$@TxRes NoChange@\; f_{\mathit{id}}$ if $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$
 and is equal to
-\mbox{$(f_{\mathit{new}} \join f_{\mathit{id}}, @SomeChange@)$} otherwise.
+$@TxRes SomeChange@\; (f_{\mathit{new}} \join f_{\mathit{id}})$ otherwise.
 The @fact_bot@ value is the bottom element\ifcutting.
 \label{haskell.def.fact:unname}% automated definition
 \else, 
@@ -1172,7 +1173,7 @@ For example, in the block
       goto L2;
 \end{verbatim}
 a forward analysis would propagate the fact 
-$@x@ = 7 \land @y@ = 8$, which we will call $f_{\mathit{new}}$,
+$@x@ = @7@ \land @y@ = @8@$, which we will call $f_{\mathit{new}}$,
 along the edge to~\texttt{L2}. 
 %%  \remark{We've elected not to get to the level of detail where
 %%  we show how propagating a fact~$f$ through \mbox{@x = 7;@} results in a new
@@ -1196,17 +1197,9 @@ engine has reached a fixed point.
 
 \seclabel{zdfSolveFwd}
 
-\iftrue
-Given lattice operations of type @DataflowLattice a@ (\figref{lattice})
-together with
-transfer functions of type @ForwardTransfers m l a@
-(\figref{transfers}),
-\else
 Given lattice operations of type @DataflowLattice a@
-and 
-transfer functions of type @ForwardTransfers m l a@
-(\figreftwo{lattice}{transfers}),
-\fi
+(\figref{lattice}) and transfer functions of type @ForwardTransfers m l a@
+(\figref{transfers}),
 you can run the corresponding analysis by calling \ourlib\
 function @zdfSolveFwd@, which is a~part of our dataflow engine
 \label{haskell.firstuse.zdfSolveFwd}% automated use
@@ -1418,7 +1411,7 @@ availVarsLattice :: DataflowLattice AvailVars
 availVarsLattice = DataflowLattice empty add
     where empty = UniverseMinus emptyVarSet
           add new old = let join = interAvail new old in
-                        (if join `smallerAvail` old then SomeChange else NoChange, join)
+                        TxRes (if join `smallerAvail` old then SomeChange else NoChange) join
 \end{code}
 \B
 & Lattice\\
@@ -1691,7 +1684,7 @@ reloads away from the call site.
 liveLattice = DataflowLattice emptyVarSet add
   where add new old =
           let join = unionVarSets new old in
-!liveLattice.end!          (if sizeVarSet join > sizeVarSet old then SomeChange else NoChange, join)
+!liveLattice.end!          TxRes (if sizeVarSet join > sizeVarSet old then SomeChange else NoChange) join
 \end{code}
 \B
 & Lattice\\
@@ -1806,7 +1799,7 @@ GHC's low-level intermediate code, called @Cmm@, is a
 \label{haskell.firstuse.Cmm}% automated use
  subset of 
 the portable assembly language~{\PAL}
-\cite{peyton-jones-ramsey:single-intermediate}.
+\cite{peyton-jones-ramsey:exceptions}.
 We~specialize \ourlib\ to GHC by instantiating type parameters
 @m@~and~@l@ with GHC's types @CmmMiddle@ and @CmmLast@.
 
@@ -1864,7 +1857,7 @@ data CmmLast
 
 
 
-\subsection{Available variables: a forward analysis} 
+\subsection{Available variables: a forward analysis supporting pass 2} 
 
 \seclabel{avail}
 
@@ -1976,6 +1969,17 @@ To manipulate these sets, we provide the functions declared in
 %%  the early reload.
 
 
+%%In~the lattice of available reloads (\figref{avail-lattice}),
+%%the~join is computed by taking the intersection of two sets
+%%of available reloads,
+%%The join operation (@add@) returns a \emph{transaction} @TxRes SomeChange@
+%%if the join has not yet reached a fixed point;
+%%otherwise, it returns @TxRes NoChange@ to indicate that the dataflow fact
+%%did not change.
+%%The bottom element of the lattice is the universe of all variables,
+%%reflecting the initial assumption that all variables
+%%have available reloads.
+%%\john{Shouldn't it be @AvailRels@ instead of @AvailVars@?}
 
 
 
@@ -2118,7 +2122,7 @@ Except for the implementations of the set operations on
 \linerangeref{extendAvail}{smallerAvail}, 
 \figref{avail} shows the \emph{entire} analysis.
 
-\subsection{Liveness: a backward analysis} 
+\subsection{Liveness: a backward analysis supporting passes 1~and~3} 
 
 \seclabel{liveness}
 
@@ -2268,6 +2272,7 @@ We compute dataflow facts in order to enable code-improving
 transformations on control-flow graphs.
 A~dataflow fact may enable a rewrite function to replace a node by a
 \emph{subgraph}. 
+A~subgraph is a graph that may not define all the labels to which it refers.
 A~valuable, novel property of our implementation is that it uses
 Haskell's static type system to control which subgraphs may replace
 which nodes.
@@ -2397,7 +2402,7 @@ We can find the exit point of a graph in constant time.
 We can concatenate data structures 
 in near-constant amortized time.
 Previously, we had to resort to Hughes's
-\citeyearpar{hughes:lists-representation:article} technique, representing
+\citeyearpar{hughes:lists-representation} technique, representing
 a graph as a function.
 \item
 Most important, errors in concatenation are ruled out at
@@ -3050,6 +3055,7 @@ type LOFsKont a b = LastOuts a -> DFM a b
 !set.last.*!         set_last (LastOuts l) = mapM_ (uncurry setFact) l
 
 !solve.block.sig!         iter_block :: Block m l -> Kont a ()
+!solve.block.code!         iter_block (Block id tail) = iter_first id $ iter_tail tail $ set_last
 !solve.OO.def!         iter_OO    :: GF m l O O -> FactKont a b -> FactKont a b
 
 !solve.mid.1!         iter_mid m k in' =
@@ -3105,6 +3111,7 @@ type LOFsKont a b = LastOuts a -> DFM a b
 \label{haskell.firstuse.uncurry}% automated use
 \label{haskell.firstuse.setFact}% automated use
 \label{haskell.firstuse.iter:unblock}% automated use
+\label{haskell.firstuse.iter:untail}% automated use
 \label{haskell.firstuse.iter:unOO}% automated use
 \label{haskell.firstuse.in'}% automated use
 \label{haskell.firstuse.>>=}% automated use
@@ -3292,14 +3299,14 @@ The outflowing facts are joined with the facts previously stored in the
 environment, and when the facts in the environment stop changing, the
 iterator terminates. 
 
-The iterator interleaves analysis and speculative rewriting
+The iterator interleaves analysis and (speculative) rewriting
      \cite{lerner-grove-chambers:2002}. 
 At a node~$n$, the iterator passes~$n$ and
 any incoming dataflow facts~\fs\ to a rewriting function.
 If node~$n$ is rewritten to a graph~$g$, 
 the iterator continues with the same dataflow facts~\fs\
      flowing into graph~$g$.
-     After graph~$g$ is analyzed,
+     After the graph is analyzed,
      it is discarded;
 %, and the original node~$n$ is restored;
      only the facts flowing out of~$g$ persist.

@@ -1660,7 +1660,7 @@ data `CmmLast
 
 
 
-\subsection{Available variables: a forward analysis} 
+\subsection{Available variables: a forward analysis supporting pass 2} 
 
 \seclabel{avail}
 
@@ -1909,7 +1909,7 @@ Except for the implementations of the set operations on
 \linerangeref{extendAvail}{smallerAvail}, 
 \figref{avail} shows the \emph{entire} analysis.
 
-\subsection{Liveness: a backward analysis} 
+\subsection{Liveness: a backward analysis supporting passes 1~and~3} 
 
 \seclabel{liveness}
 
@@ -2059,6 +2059,7 @@ We compute dataflow facts in order to enable code-improving
 transformations on control-flow graphs.
 A~dataflow fact may enable a rewrite function to replace a node by a
 \emph{subgraph}. 
+A~subgraph is a graph that may not define all the labels to which it refers.
 A~valuable, novel property of our implementation is that it uses
 Haskell's static type system to control which subgraphs may replace
 which nodes.
