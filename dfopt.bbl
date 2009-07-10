@@ -1,3 +1,4 @@
+\includeftpref \includeftpref
 \begin{thebibliography}{13}
 \expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
 \expandafter\ifx\csname url\endcsname\relax
@@ -33,7 +34,7 @@ G{\'e}rard Huet.
 \newblock \emph{Journal of Functional Programming}, 7\penalty0 (5):\penalty0
   549--554.
 
-\bibitem[Hughes(1986)]{hughes:lists-representation}
+\bibitem[Hughes(1986)]{hughes:lists-representation:article}
 R.~John~Muir Hughes.
 \newblock 1986 (March).
 \newblock A novel representation of lists and its application to the function
@@ -74,7 +75,8 @@ Norman Ramsey and {Jo\~ao} Dias.
 \newblock An applicative control-flow graph based on {Huet}'s zipper.
 \newblock In \emph{ACM SIGPLAN Workshop on ML}, pages~101--122.
 
-\bibitem[Ramsey and {Peyton Jones}(2000)]{peyton-jones-ramsey:exceptions}
+\bibitem[Ramsey and {Peyton
+  Jones}(2000)]{peyton-jones-ramsey:single-intermediate}
 Norman Ramsey and Simon~L. {Peyton Jones}.
 \newblock 2000 (May).
 \newblock A single intermediate language that supports multiple implementations
