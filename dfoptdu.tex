@@ -101,6 +101,8 @@ implementation.
 
 \verbatim@line{hello mama}
 
+\newcommand{\numberedcodebackspace}{0.5\baselineskip}
+
 \newcounter{codeline}
 \newenvironment{numberedcode}
   {\endgraf
@@ -114,7 +116,7 @@ implementation.
             \fi
         \expandafter\setlabel\expandafter{\the\verbatim@line}%
         \expandafter\ifx\expandafter+\the\verbatim@line+  % blank line
-          \vspace*{-0.5\baselineskip}\par%
+          \vspace*{-\numberedcodebackspace}\par%
         \else
           \the\verbatim@line\par
         \fi}%
@@ -3034,6 +3036,7 @@ include \secref{induction-var-elim}.
 
 
 \begin{figure*}
+\def\numberedcodebackspace{0.7\baselineskip}
 \setcounter{codeline}{0}
 \begin{numberedcode}
 !FactKont!type FactKont a b = a          -> DFM a b
@@ -3055,7 +3058,6 @@ type LOFsKont a b = LastOuts a -> DFM a b
 !set.last.*!         set_last (LastOuts l) = mapM_ (uncurry setFact) l
 
 !solve.block.sig!         iter_block :: Block m l -> Kont a ()
-!solve.block.code!         iter_block (Block id tail) = iter_first id $ iter_tail tail $ set_last
 !solve.OO.def!         iter_OO    :: GF m l O O -> FactKont a b -> FactKont a b
 
 !solve.mid.1!         iter_mid m k in' =
@@ -3111,7 +3113,6 @@ type LOFsKont a b = LastOuts a -> DFM a b
 \label{haskell.firstuse.uncurry}% automated use
 \label{haskell.firstuse.setFact}% automated use
 \label{haskell.firstuse.iter:unblock}% automated use
-\label{haskell.firstuse.iter:untail}% automated use
 \label{haskell.firstuse.iter:unOO}% automated use
 \label{haskell.firstuse.in'}% automated use
 \label{haskell.firstuse.>>=}% automated use
