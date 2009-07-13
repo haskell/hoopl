@@ -76,7 +76,8 @@ implementation.
 
 \makeatletter
 
-\let\c@table=\c@figure % one counter for tables and figures, please
+\let\c@table=
+           \c@figure % one counter for tables and figures, please
 
 \newcommand\setlabel[1]{%
   \setlabel@#1!!\@endsetlabel
@@ -242,7 +243,8 @@ implementation.
 
 \ifnoauthornotes
 \makeatletter
-\let\HyPsd@Warning=\@gobble
+\let\HyPsd@Warning=
+                \@gobble
 \makeatother
 \fi
 
@@ -359,11 +361,9 @@ with many languages.
 \hoopl\ is designed to help optimize imperative code
 with arbitrary control flow,
 including low-level intermediate languages and machine languages.
-%%\ifcutting\else
 As \citet{benitez-davidson:portable-optimizer} have shown, all the
 classic scalar and loop optimizations can be performed over such
 codes.
-%% \fi
 \end{itemize}
 
 
