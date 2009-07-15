@@ -3237,7 +3237,7 @@ In addition to fuel, each analysis and
 transformation keeps track of the values of dataflow facts.  
 Facts and fuel are stored in a
 \emph{dataflow monad}, a state-transformer monad whose state includes
-an \emph{environment} mapping labels to facts, as well as
+a private \emph{environment} mapping labels to facts, as well as
 the global supplies of fuel and fresh labels.
 \else
 In addition to the fuel supply,
@@ -3705,7 +3705,7 @@ not actually consume fuel.
 
 Computations in @fwd_iter@, such as @iter_block@, are compositions
 of @iter_first@, @iter_mid@, and @iter_last@.
-Because these functions so
+Because these three functions so
 resemble one another, we show only
 one:
 @iter_mid@, on
