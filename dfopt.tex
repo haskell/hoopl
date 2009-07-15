@@ -2882,14 +2882,23 @@ blocks.
 
 \seclabel{dataflow-monad}
 
+\iftrue
+In addition to fuel, each analysis and
+transformation keeps track of the values of dataflow facts.  
+Facts and fuel are stored in a
+\emph{dataflow monad}, a state-transformer monad whose state includes
+an \emph{environment} mapping labels to facts, as well as
+the global supplies of fuel and fresh labels.
+\else
 In addition to the fuel supply,
 each analysis and transformation keeps
 track of the values of dataflow
 facts; these facts, stored in an \emph{environment}, are managed by
  a \emph{dataflow monad}.
+\fi
 A value in the dataflow monad has type @`DFM a b@, where @a@~is the type of a
 dataflow fact and @b@ is the type of the value returned by the monadic action.
-And to track fuel, a dataflow monad is also a fuel monad.
+% And to track fuel, a dataflow monad is also a fuel monad.
 
 %%  In addition to the fuel supply,
 %%  each analysis and transformation 
@@ -3239,10 +3248,14 @@ three functions, as shown in function @iter_block@ on
 {To simplify the example, we conceal \ourlib's
 representation of blocks.}
 
-Function @iter_block@ is applied to continuation @set_last@
+In~code not shown here, 
+function @iter_block@ is applied to continuation @set_last@
 (\linepairref{set.last.sig}{set.last.*}), 
 which updates the environment of facts stored in the dataflow monad.
-Applying @iter_block@ to @set_last@ produces a computation of type
+The value @iter_block set_last@ is a computation of type
+%\ifcutting\else
+@Kont a ()@, which is
+%\fi
 @DFM a ()@.
 This computation reads the stored fact flowing into a block,
 propagates facts
@@ -3252,10 +3265,11 @@ propagates facts
 using transfer functions and
 speculative rewriting, and finally updates the stored facts flowing out to
 the block's successors.
-Iterator functions for graphs
-\ifcutting\else
- and subgraphs
-\fi
+Iterator functions for graphs%
+%\ifcutting, \else
+\ and subgraphs,
+%\fi
+like @iter_ex@,
 perform such a
 computation for every block, then repeat until stored facts stop changing.
 Each iteration
@@ -3265,43 +3279,43 @@ runs under @withDuplicateFuel@, so
 not actually consume fuel.
 
 
-\iffalse %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  \iffalse %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  
+%%  
+%%  % The result types of @iter_first@, @iter_mid@, and @iter_last@
+%%  % compose nicely, so that for any basic block we can compute a function
+%%  % of type
+%%  % @LOFsKont a b -> Kont a b@.
+%%  Once we have analyzed a block, we update the facts stored in
+%%  the dataflow monad.
+%%  \ifcutting
+%%   Function @set_last@
+%%  (\linerangeref{set.last.sig}{set.last.*}) calls @setFact@ on each fact
+%%  flowing out of a block.
+%%  \else
+%%  The facts are updated by function @set_last@
+%%  (\linerangeref{set.last.sig}{set.last.*}), which calls @setFact@ on each fact
+%%  flowing out of a block.
+%%  \fi
+%%  By applying the composition
+%%  of @iter_first@, @iter_mid@, and @iter_last@ to @set_last@, we get
+%%  the implementation of @iter_block@.\footnote
+%%  {Similar
+%%    compositions of @iter\_first@, @iter\_mid@, and @iter\_last@
+%%    are used to analyze the partial blocks in a graph that is open
+%%    at entry or exit.}
+%%  The iterator calls @iter_block@ repeatedly
+%%  \ifcutting\else
+%%   over all the blocks
+%%   in the control-flow graph
+%%  \fi
+%%  until facts stop changing.
+%%  \fi %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-% The result types of @iter_first@, @iter_mid@, and @iter_last@
-% compose nicely, so that for any basic block we can compute a function
-% of type
-% @LOFsKont a b -> Kont a b@.
-Once we have analyzed a block, we update the facts stored in
-the dataflow monad.
-\ifcutting
- Function @set_last@
-(\linerangeref{set.last.sig}{set.last.*}) calls @setFact@ on each fact
-flowing out of a block.
-\else
-The facts are updated by function @set_last@
-(\linerangeref{set.last.sig}{set.last.*}), which calls @setFact@ on each fact
-flowing out of a block.
-\fi
-By applying the composition
-of @iter_first@, @iter_mid@, and @iter_last@ to @set_last@, we get
-the implementation of @iter_block@.\footnote
-{Similar
-  compositions of @iter\_first@, @iter\_mid@, and @iter\_last@
-  are used to analyze the partial blocks in a graph that is open
-  at entry or exit.}
-The iterator calls @iter_block@ repeatedly
-\ifcutting\else
- over all the blocks
- in the control-flow graph
-\fi
-until facts stop changing.
-\fi %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\ifpagetuning\enlargethispage{1.1\baselineskip}
 
-
-\ifpagetuning\enlargethispage{0.3\baselineskip}\fi
-
-Computations in @fwd_iter@ are compositions
+Computations in @fwd_iter@, such as @iter_block@, are compositions
 of @iter_first@, @iter_mid@, and @iter_last@.
 Because these functions so
 resemble one another, we show only
@@ -3397,7 +3411,7 @@ parameter @with_fuel = \ _ -> return Nothing@.
 
 
 
-\ifpagetuning\enlargethispage{0.3\baselineskip}\fi
+\ifpagetuning\enlargethispage{1.1\baselineskip}\fi
 
 \subsection{The forward actualizer}
 
