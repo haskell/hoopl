@@ -460,7 +460,7 @@ to remove assignments to unobserved variables.
 Insertion and removal can be composed to achieve 
 ``code motion.''
 \ourlib\  expresses classic code
-improvements by \emph{composing} simple \ifcutting\else analyses and \fi
+improvements by composing simple \ifcutting\else analyses and \fi
 transformations. 
 
 
@@ -1747,9 +1747,9 @@ Instead of the usual mutable bit vectors, we use a purely functional
 representation of sets---one in which we can represent the set of all
 variables without enumerating them.
 A~set is either 
-$\mathtt{UniverseMinus}\;s$, which stands for all variables except
+$\mathtt{UniverseMinus}\,s$, which stands for all variables except
 those in the set~$s$,
-or $\mathtt{AvailVars}\;s$, which stands for the variables in the set~$s$
+or $\mathtt{AvailVars}\,s$, which stands for the variables in the set~$s$
 (\figref{avail-lattice}, \lineref{AvailVars}).
 %
 %
