@@ -32,6 +32,8 @@ implementation.
 \newif\ifnoauthornotes\noauthornotestrue
 \newif\iftimestamp\timestamptrue  % show MD5 stamp of paper
 
+\timestampfalse % it's submission time
+
 \IfFileExists{timestamp.tex}{}{\timestampfalse}
 
 \newif\ifcutting \cuttingtrue % cutting down to submission size
@@ -505,6 +507,15 @@ The final transformation, although it also substitutes equals
 for equals, has a different name: ``constant folding.''
 
 \subsection{A complex transformation}
+
+
+\finalremark{
+2.2: we are rather blas\'e about where the invariant comes from.  Implying
+perhaps that it comes from a simple Hoopl analysis or something.  That is
+not what we  intend to imply --- perhaps we should say that the invariant
+and the insertion of the assignments to 'p' and 'lim' are handled some
+other way.
+}
 
 \finalremark{It's a pity that this transformation occupies nearly the
 entire second page,  
@@ -1673,10 +1684,15 @@ data `CmmLast
 
 
 
+
+
 \subsection{Available variables: a forward analysis supporting pass 2} 
 
 \seclabel{avail}
 
+\finalremark{We mean to do liveness first,
+but that will require some editing, especially moving the explanation
+of the overloaded fold functions.}
 
 
 

@@ -33,6 +33,8 @@ implementation.
 \newif\ifnoauthornotes\noauthornotestrue
 \newif\iftimestamp\timestamptrue  % show MD5 stamp of paper
 
+\timestampfalse % it's submission time
+
 \IfFileExists{timestamp.tex}{}{\timestampfalse}
 
 \newif\ifcutting \cuttingtrue % cutting down to submission size
