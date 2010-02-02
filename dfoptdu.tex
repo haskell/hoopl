@@ -244,6 +244,9 @@ implementation.
 \title{\ourlib: Dataflow Optimization Made Simple}
 %\subtitle{\today}
 
+\titlebanner{\textsf{\mdseries\itshape Submitted to the 2010 ACM Symposium on Principles
+    of Programming Languages (POPL)}}
+
 \ifnoauthornotes
 \makeatletter
 \let\HyPsd@Warning=
@@ -4268,3 +4271,48 @@ listed in Appendix~\ref{sec:prelude}.
 %   not $ elemVarSet r s
 % elemAvail (AvailVars     s) r =
 %   elemVarSet r s
+
+
+
+THE FUEL PROBLEM:
+
+
+Here is the problem:
+
+  A graph has an entry sequence, a body, and an exit sequence.
+  Correctly computing facts on and flowing out of the body requires
+  iteration; computation on the entry and exit sequences do not, since
+  each is connected to the body by exactly one flow edge.
+
+  The problem is to provide the correct fuel supply to the combined
+  analysis/rewrite (iterator) functions, so that speculative rewriting
+  is limited by the fuel supply.
+
+  I will number iterations from 1 and name the fuel supplies as
+  follows:
+
+     f_pre      fuel remaining before analysis/rewriting starts
+     f_0        fuel remaining after analysis/rewriting of the entry sequence
+     f_i, i>0   fuel remaining after iteration i of the body
+     f_post     fuel remaining after analysis/rewriting of the exit sequence
+
+  The issue here is that only the last iteration of the body 'counts'.
+  To formalize, I will name fuel consumed:
+
+     C_pre      fuel consumed by speculative rewrites in entry sequence
+     C_i        fuel consumed by speculative rewrites in iteration i of body
+     C_post     fuel consumed by speculative rewrites in exit sequence
+
+  These quantities should be related as follows:
+
+     f_0    = f_pre - C_pref
+     f_i    = f_0 - C_i            where i > 0
+     f_post = f_n - C_post         where iteration converges after n steps
+
+When the fuel supply is passed explicitly as parameter and result, it
+is fairly easy to see how to keep reusing f_0 at every iteration, then
+extract f_n for use before the exit sequence.  It is not obvious to me
+how to do it cleanly using the fuel monad.
+
+
+Norman

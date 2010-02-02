@@ -1,0 +1,72 @@
+The referees' reports are clear, and we haven't identified any
+significant misunderstandings.  Several referees suggest that the
+paper reads more like a pearl than a research contribution, and we are
+happy to have it evaluated as such.  Below we answer referees'
+questions.  (Having received such nice detailed reviews, we don't want
+to leave referees' questions hanging unanswered, but it is probably
+not necessary to read the answers below in order to make a decision
+about the paper.)
+
+Referee A asks if we have experimental results which show that the
+quality of generated code can compete with state-of-the-art compilers.
+Yes, we have experimental results with the Glasgow Haskell Compiler
+which show that the new back end produces code at least as good as the
+old back end.  But although GHC's front end contains some very
+sophisticated optimizations, by the time the code gets to the level
+shown in the paper, the back-end optimizations are limited, and so
+GHC's bar is actually set low.
+
+Referee B, citing Knoop, Koschützki, and Steffen, points out that the
+API might be simpler if we eliminated the static type distinction
+between 'first', 'last', and 'middle' nodes.  Ironically, we were very
+inspired by the 'living dinosaur' paper and used it as the starting
+point for our representation of control-flow graphs.  But giving all
+nodes the same type led to a great deal of run-time checking, and to
+preserve our sanity we were forced to distinguish at compile time
+between first, middle, and last nodes, which of course means that we
+reinvented basic blocks.  Perhaps one way to think about the design
+issues here is that although the split into three static types makes
+the API wider, client code is simpler because each of the three static
+types of node obeys a stronger invariant (constraining the numbers of
+predecessors or successors).  In any case, we have experience with
+both representations, and our experience is that the wider API leads
+to a simpler compiler overall---although we don't know how to make
+that case compellingly in a conference submission.
+
+Referee C asks why we rewrite in two steps.  The referee has the
+answer exactly: during the first step of the analysis, speculative
+rewriting produces intermediate results which are not guaranteed to be
+sound until a fixed point is reached.
+
+Referee C asks for more detail on how the optimization fuel is used
+for debugging.  Suppose we are regression-testing the compiler and a
+test fails.  We re-run the same test with no fuel.  If the test then
+succeeds, the optimizer is at fault.  We ask the compiler how much
+fuel was used on the original run, and we use that as the starting
+point for a binary search on the fuel supply.  This binary search
+identifies a single graph-node rewrite which transforms a working test
+case into a failed test case.  At this point there's no more
+automation; the compiler writer takes over and diagnoses whether the
+transformation is unjustified or the underlying analysis is faulty.
+To summarize, optimization fuel is used to find, in logarithmically
+many runs of the compiler, the transformation, analysis, node, and
+rewrite that cause a fault.  We should add that although this process
+is completely automated in the 'Quick C--' compiler written by the
+first two authors, it is not yet automated in the Glasgow Haskell
+Compiler.
+
+Referee E observes that CIL uses OCaml so it may have some nice static
+type-checking guarantees.  We wrote a predecessor of Hoopl in OCaml
+and the static typing was not bad, but having the 'open' and 'closed'
+graph properties checked statically is a significant upgrade---we
+eliminated a number of dynamic checks, some of which had been sources
+of bugs.  It is possible that a creative encoding into OCaml would
+make it possible to check the same properties statically using only
+OCaml's Hindley-Milner system, but GHC's extension of generalized
+algebraic data types makes it very easy to provide the extra static
+checking.
+
+Referee E also suggests we should compare Hoopl with other engines for
+dataflow analysis.  We are all wearing our stupid hats and whacking
+ourselves in the head for not thinking of this.  If it should happen
+that the paper is accepted, we'll do a proper job.
