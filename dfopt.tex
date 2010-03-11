@@ -44,21 +44,21 @@ implementation.
 
 \newif\ifpagetuning \pagetuningtrue  % adjust page breaks
 
-\newif\ifnoauthornotes\noauthornotestrue
+\newif\ifnoauthornotes \noauthornotesfalse
 \newif\iftimestamp\timestamptrue  % show MD5 stamp of paper
 
 \timestampfalse % it's submission time
 
 \IfFileExists{timestamp.tex}{}{\timestampfalse}
 
-\newif\ifcutting \cuttingtrue % cutting down to submission size
+\newif\ifcutting \cuttingfalse % cutting down to submission size
 
 
 \newif\ifgenkill\genkillfalse  % have a section on gen and kill
 \genkillfalse
 
 
-\newif\ifnotesinmargin \notesinmargintrue 
+\newif\ifnotesinmargin \notesinmarginfalse
 % \IfFileExists{notesinline.tex}{\notesinmarginfalse}{\relax}
 
 \documentclass[blockstyle,preprint,natbib,nocopyrightspace]{sigplanconf}
@@ -495,9 +495,7 @@ transformations.
 
 Here is a sequence of assignments separated by assertions.
 We~compute assertions by starting with the weakest 
-\ifcutting\else
-possible
-\fi
+\ifcutting \else possible \fi
 assertion (\texttt{true}) and computing strongest postconditions.
 % \footnote
 {Variables do not alias.}
@@ -717,24 +715,260 @@ sum_r("address" bits32 a, bits32 n) \lbr
 %\ifpagetuning \enlargethispage{0.9\baselineskip} \fi 
 
 
+\section{Representing control flow graphs} \seclabel{graph-rep}
+
+\ourlib{} is a library that makes it easy to define dataflow analyses,
+and transformations driven by these analyses, on control flow graphs.
+In this section we describe the representation of these graphs.
+There are three fundamental entities, which we discuss in turn;
+\begin{itemize}
+\item A \emph{node} is defined by the library client, so that 
+\ourlib{} knows nothing about their representation (\secref{nodes}).
+\item A (basic) \emph{block} is a linear sequence of nodes (\secref{blocks}).
+\item A \emph{graph} is an arbitrarily complicated control flow graph,
+composed from basic blocks (\secref{graphs}).
+\end{itemize}
+
+\subsection{Nodes} \seclabel{nodes}
+
+The primitive constituents of a \ourlib{} control flow graph are \emph{nodes},
+reprsented by a data type defined by the client.  Typically, a node might represent a machine 
+instruction, such as an assignment, a call, or a conditional branch.
+
+A node may be \emph{open or closed at entry}
+and \emph{open or closed at exit}.  
+By ``open'' we mean that control may ``fall through'' this path, whereas
+that is not allowed in the ``closed'' case.  To take some examples:
+\begin{itemize}
+\item A multiply instruction is open on entry (because control can fall into it
+from the preceding instruction), and open on exit (because control falls through
+to the next instruction).
+\item An unconditional branch is open on entry, but closed on exit (because 
+control cannot fall through to the next instruction).
+\item A label is closed on entry (because in \ourlib{} we do not allow
+control to fall through into a branch target), but open on exit.
+\end{itemize}
+This taxonomy embodies certain restrictions, specifically: only nodes
+closed at entry can be the targets of branches; and only nodes closed
+at exits can transfer control (see also \secref{edges}).
+A typical machine-code conditional branch, which transfers control
+\emph{and} falls through, must be represented as a two-target
+conditional branch, with the fall-through path in a separate block.  
+This restriction is quite standard \simon{Please
+cite sources}. It dramatically simplifies control-flow graph analyses
+and transformations, in practice costs nothing: a simple late-stage
+block lineariser can readily reconstruct the efficient code.
+
+\begin{figure}
+\begin{code}
+data CmmNode e x where
+  Label      :: BlockId -> Node C O
+  Assign     :: Reg -> Expr -> Node O O
+  Store      :: Expr -> Expr -> Node O O
+  Branch     :: BlockId -> Node O C
+  CondBranch :: BlockId -> BlockId -> Node O C
+  ...more constructors...
+\end{code}
+\caption{A typical node definition} \figlabel{cmm-node}
+\end{figure}
+
+\ourlib{} expresses these open/closed properties by parameterising the 
+\emph{type} of a node over two (type-level) flags, one for entry and one for exit.
+To make this concrete, 
+\figref{cmm-node} gives a typical definition of a node type --- but
+please remember that this definition is written by the \emph{client} of the
+library. The example node type, @CmmNode@, is parameterised @e@ and @x@, for
+entry and exit respectively.  It is defined in GADT-style syntax \cite{pj-gadt},
+by giving the types of each of of its contructors.  For example, constructor @Label@
+takes a @BlockId@ and returns a node of type @CmmNode C O@, where ``@C@'' says ``closed
+at entry'' and ``@O@'' says ``open at exit''.  The types @BlockId@, @O@, and @C@ are 
+exported by \ourlib{} (\figref{graph}).  
+
+Similarly, an @Assign@ node takes a register and an expression, and
+returns a @CmmNode@ open at both entry and exit; the @Store@ node is
+similar.  The types @Reg@ and @Expr@ are private to the client, and
+\ourlib{} knows nothing of them.  
+Finally, the control-transfer nodes @Branch@ and @CondBranch@ are open at entry
+and closed at exit.  
+
+In general, nodes closed on entry are the only targets of control transfers;
+noces open on entry and exit never perform control transfers;
+and nodes closed on exit always perform control transfers.
+We often call these \emph{first}, \emph{middle}, and \emph{last} nodes
+respectively, for obvious reasons.
+
+\subsection{Blocks} \seclabel{blocks}
+
+\begin{figure}
+\begin{code}
+data O   -- Open
+data C   -- Closed
+
+newtype BlockId = BlockId Int
+
+data Block n e x where
+  BNil  :: Block n O O
+  BUnit :: n e x -> Block n e x
+  BCat  :: Block n e O -> Block n O x -> Block n e x
+
+data Graph n e x where
+  GUnit :: Block n e x -> Graph n e x
+  GMany :: { g_entry  :: MaybeOC e (Block n O C)
+           , g_blocks :: [Block n C C]
+           , g_exit   :: MaybeOC x (Block n C O) }
+        -> Graph n e x
+
+data MaybeOC oc a where
+  Closed :: MaybeOC C a
+  Open   :: a -> MaybeOC O a
+\end{code}
+\caption{The \ourlib{} Block and Graph types} \figlabel{graph}
+\end{figure}
+
+So much for nodes.  The types for blocks and graphs are defined by \ourlib{}
+itself, with definitions given in \figref{graph}.  \simon{I've removed 
+the ``Z'' prefixes.} 
+A @Block@ 
+is parameterised over the node type @n@ (of kind @*->*->*@), 
+as well as over the same open/closed flags as nodes.  The @BUnit@
+constructor lifts a node to become a block, while @BCat@ concatenates
+two blocks. Note carefully the type of @BCat@: it requires its first
+argument to be open on exit, and its second to be open on entry.
+This ensures that control can fall through from the first into the second;
+for example, putting a @Branch@ before a @Assign@ is statically prevented.
+
+A @Block@ closed at both entry and exit is what we normally 
+call ``a basic block''.  (We will often informally say ``a closed-closed block'' 
+rather than ``a block of type (@Block@ @n@ @C@ @C@)'', 
+and simlarly for graphs and nodes.)
+In the case of @CmmNode@,
+the types elegantly ensure that a block of type (@Block@ @CmmNode@ @C@ @C@)
+consists of a @Label@, followed
+by a sequence of @Assign@ and @Store@ nodes, and finsihing with a @Branch@
+or @CondBranch@.  
+
+Finally @BNil@ is a no-op, open at entry and exit.
+
+\subsection{Graphs} \seclabel{graphs}
+
+The third important entity is the @Graph@, also defined by \ourlib{}, in
+\figref{graph}.  Just like @Block@, it is parameterised over
+the node type @n@, and can be open or closed at entry and exit.
+Indeed, the @GUnit@ constructor lifts a single block to be a graph, just
+as @BUnit@ lifted a node to a block.  
+
+The excitement comes in the @GMany@ constructor, which allows a graph
+to contain an arbitrary non-empty list of @Block@s, each closed at both ends.  The
+signature for @GMany@ uses Haskell's named-field syntax to say that
+@GMany@ has three argument fields, and to define a name for each.
+The @g_blocks@ field contains
+the non-empty list\footnote{In our actual implementation it is a bag, so that union
+takes constant time.} of closed-closed blocks, but what of @g_entry@
+and @g_exit@?
+
+Consider what it means to say that a graph is open at entry.  It means
+that the graph begins with an open-closed block, whose final node
+transfer control to one of the @g_blocks@. In contrast, a graph closed on entry
+has no such distinguished entry block.  This idea of
+``nothing if closed, but a open-closed block if open'' is expressed by
+the @MaybeOC@ type defined in \figref{graph}.  It is a GADT variant of 
+Hakell's existing @Maybe@ type, so that an open-x @Graph@ has
+a @g_entry@ field of form @Open b@, where @b@ is an open-closed block;
+and a closed-x @Graph@ has a @g_entry@ field of form @Closed@.
+The same trick is used at exit.
+
+Now graph concatenation is easy to define:
+\begin{code}
+gCat :: Graph n e O -> Graph n O x -> Graph n e x
+gCat (GUnit b1) (GUnit b2)             
+  = GUnit (b1 `BCat` b2)
+
+gCat (GUnit b1) (GMany (Open b2) bs x) 
+  = GMany (Open (b1 `BCat` b2)) bs x
+
+gCat (GMany e bs (Open b1)) (GUnit b2) 
+   = GMany e bs (Open (b1 `BCat` b2))
+
+gCat (GMany e bs1 (Open b1)) 
+     (GMany (Open b2) bs2 x)
+   = GMany e (b1 `BCat` b2 : bs1 ++ bs2) x
+\end{code}
+This defintion is a lovely example of the power of GADTs: the
+pattern-matching is exhaustive, and all the open/closed invariants are
+statically checked.  For example, in the third equation for @gCat@,
+the first argument has type (@Graph@ @n@ @e@ @O@), so the third
+field of @GMany@, the @g_exit@ field\footnote{To save space we use positional,
+rather than named-field, syntax for @GMany@'s arguments; Haskell allows
+one to do either.}, must be of form (@Open b1@).  Moreover @b1@ must be closed-open,
+and @b2@ must be open-x.  So we can compose them in sequence with @BCat@ 
+to produce a closed-x block, which is the exit block of the compound graph.
+The other equations are similar.
+
+\subsection{Labels and successors} \seclabel{edges}
+
+\begin{figure}
+\begin{code}
+class Edges n where
+  blockId    :: n C x -> BlockId
+  successors :: n e C -> [BlockId]
+\end{code}
+\caption{The {\tt Edges} class} \figlabel{edges}
+\end{figure}
+If \ourlib{} knows nothing about nodes, how can it know to which block a
+control transfer goes, or what is the @BlockId@ at the start of a block?
+In this situation the standard Haskell idiom is to provide a type class whose methods
+provide exactly the needed operations; it is given in \figref{edges}.
+The @blockId@ method takes a first node (one closed on entry, \secref{nodes})
+and returns its @BlockId@;
+the @successors@ method takes a last node (closed on exit) and returns the @BlockId@s to
+which it can transfer control.  In \ourlib{} a middle node (open-open) cannot refer to any @BlockId@s,
+as the absence of an interrogation function implies. 
+
+When defining a node type, a \ourlib{} client should also make it an
+instance of @Edges@.  Thus for @CmmNode@ we would write
+\begin{code}
+instance Edges CmmNode where
+  blockId (Label l) = l
+  successors (Branch b) = [b]
+  successors (CondBranch e b1 b2) = [b1,b2]
+\end{code}
+Again, the pattern-matching for both functions is exhaustive, and
+the compiler statically checks this fact.  For example, @blockId@ simply
+cannot be applied to a @Assign@ or @Branch@ node; the type checker would
+reject any such attempt.
+
+\ourlib{} provides instances for its types @Block@ and @Graph@ thus:
+\begin{code}
+instance Edges n => Edges (Block n) where
+  blockId    (BUnit n)  = blockId n
+  blockId    (BCat b _) = blockId b
+  successors (BUnit n)  = successors n
+  successors (BCat _ b) = successors b
+
+instance Edges n => Edges (Graph n) where
+  blockId    (GUnit b)      = blockId b
+  blockId    (GMany ...)    = ???  -- eek!
+  successors (GUnit b)      = successors b
+  successors (GMany _ bs _) = concatMap successors bs 
+                              `minusList` map blockId bs
+\end{code}
+\simon{I now realise that this is why I wanted to know the entry block of a graph!
+Since an entry-closed node and block both have a unique block id, shouldn't an entry-closed
+graph have one too?}
+\simon{Also the successors thing is not pretty.}
+
 \section {Making dataflow simple}
-
 \seclabel{making-simple}
-
 \seclabel{create-analysis}
 
+Now that we have graphs in hand, we are 
+ready to return to dataflow optimisation.
 The goal of dataflow optimization is to compute valid
 assertions, then use those assertions to justify code-improving
 transformations.
-%
-% only Don Knuth knows why, but the paragraph break gets us three
-% bullets on this page where a single paragraph gets only two!
-%
 Assertions are represented as
 \emph{dataflow facts}.
-Dataflow facts relate to
- traditional 
-program logic:
+Dataflow facts relate to traditional program logic:
 \begin{itemize}
 \item
 A dataflow fact is usually equivalent to an assertion about program state or
@@ -785,9 +1019,8 @@ an assertion, such as @x == 7@ above,
 that all paths to a point establish a predicate
 which describes the program state at that point.
 
-
 A~program point is represented as an edge in
-a \emph{control-flow graph}.
+the control-flow graph, where an edge connects two nodes.
 %%\footnote
 %%{We discuss only intraprocedural optimization, done after inlining.}
 %%
@@ -798,9 +1031,6 @@ a \emph{control-flow graph}.
 %%  conceived for and limited to GHC.  S&S's citation count must
 %%  suffer.  ---NR
 %%
-Edges connect nodes, each of which represents a label, an assignment, or
-a control transfer.
-
 To write a dataflow \emph{analysis}, you must 
 \begin{itemize}
 \item
@@ -809,12 +1039,8 @@ thereof.
 \item
 Implement lattice operations over~$F$ (\secref{lattices}).
 \item
-Write \emph{transfer functions} that relate dataflow facts before and
-after each type of node (\secref{tffuns}).
-\delendum{I'd italicize key words from all three bullets, or none. NR:
-It's not a question of bullets; the key concepts which are possibly
-new to readers are transfer
-functions and rewrite functions, which is why they are italicized.}
+Write a \emph{transfer function} that relates the dataflow facts before and
+after a node (\secref{tffuns}).
 \end{itemize}
 
 To write a \emph{transformation}
@@ -846,11 +1072,11 @@ justifies replacing @z = x + y@ with @z = 7 + y@.
 \multicolumn1{c}{\emph{How many}}%
 \\[5pt]
 Control-flow graphs& Us & Us & One \\
-Nodes in a control-flow graph & You & You & Two datatypes per intermediate language \\[3pt]
+Nodes in a control-flow graph & You & You & One datatype per intermediate language \\[3pt]
 Dataflow fact~$F$    & You & You & One datatype per logic \\
 Lattice operations & Us & You & One set per logic \\[3pt]
-Transfer functions & Us & You & One set per analysis \\
-Rewrite functions & Us & You & One set per \rlap{transformation} \\[3pt]
+Transfer function & Us & You & One per analysis \\
+Rewrite function & Us & You & One per \rlap{transformation} \\[3pt]
 Iterative solver functions & Us & Us & Two (forward \&\ backward) \\
 Solve-and-rewrite functions & Us & Us & Two (forward \&\ backward) \\
 \end{tabular}%
@@ -859,15 +1085,13 @@ Solve-and-rewrite functions & Us & Us & Two (forward \&\ backward) \\
 \tablabel{parts}
 \end{table}
 
-
-
 \tabref{parts} shows how \ourlib\ interacts with your client code.
 \ourlib\ defines the types of
 control-flow graphs, 
 lattice operations,
-transfer functions, 
+transfer function, 
 and 
-rewrite functions.
+rewrite function.
 {All}~these types are parameterized by the types of
 nodes in the control-flow graph, which \emph{you} get to define, so you can use
 \ourlib\ with many intermediate languages (\tabref{parts}).
@@ -879,7 +1103,7 @@ all operating over one type of graph.
 \ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
 To run an~optimization, you~pass lattice
-operations, transfer functions, and rewrite functions
+operations, transfer function, and rewrite function
 to one of \ourlib's
 \emph{solver functions} or \emph{rewrite functions}---\ourlib's 
 \emph{dataflow engine}.
@@ -899,8 +1123,6 @@ in yyy''.  NR: I like the idea of parallel structure, but the paper is
 not really very parallel here.  Faced with either repeating the
 section references or distorting what those sections are about, I've
 chosen instead to abandon parallel structure.}
-
-
 
 \begin{figure}
 \ifcutting
@@ -1050,100 +1272,88 @@ and @fact_name@  is used for debugging.
 
 \subsection{Transfer functions} \seclabel{tffuns}
 
-A~transfer function is presented with dataflow facts on edges coming
-into a node, and it computes dataflow facts on outgoing edges.
-To~understand transfer functions, we must 
-understand how \ourlib\ organizes the nodes and edges of a control-flow graph.
-
-\seclabel{graph.intro}
-
-A~control-flow graph is a collection of \emph{basic blocks}, each
-labelled with a~@`BlockId@.
-A~basic block is a sequence beginning with a \emph{first node},
-containing zero or more \emph{middle nodes},
-and ending in a \emph{last node}.
-(An~optimizer also works with \emph{subgraphs}, which,
-as~discussed in \secref{subgraphs},  may omit an initial
-first node or a final last node.)
-A~first node is always a @BlockId@;
-a~typical middle node assigns to a register or memory
-location;
-and
-a~typical last node is a conditional, unconditional, or indirect branch.
-You choose the types of middle and last nodes to suit your
-intermediate representation; if~these types are @m@~and~@l@, the type
-of a basic block is @`Block m l@.
-
-
-
-
-First nodes are the only targets of control transfers;
-middle nodes never perform control transfers;
-and
-last nodes always perform control transfers.
-So~a~first node has arbitrarily many predecessors and exactly one
-successor;
-a~middle node has exactly one predecessor and one successor;
-and a last node has exactly one predecessor and arbitrarily many
-successors. 
-
-These constraints on number of predecessors and successors determine
-the signatures of 
-transfer functions, 
-which are shown in \figref{transfers}.
-For each type of node (first, middle, last) and for each kind of
-analysis (forward, backward), there is a distinct transfer function.
-Functions are grouped by kind of analysis, and each group is
-parameterized over a dataflow fact of type~@a@ and over the types
-@m@~and~@l@ of middle and last nodes.  
 
 \begin{figure}
 \begin{code}
-newtype `LastOuts a = LastOuts [(BlockId, a)]
-data `ForwardTransfers ^m ^l a = ForwardTransfers
- {`ft_first_out  :: BlockId -> a -> a,
-  `ft_middle_out :: m       -> a -> a,
-  `ft_last_outs  :: l       -> a -> LastOuts a} 
+type InFacts  f = BlockId -> f
+type OutFacts f = [(BlockId, f)] 
 
-data `BackTransfers m l a = BackTransfers
- {`bt_first_in  :: BlockId -> a              -> a,
-  `bt_middle_in :: m       -> a              -> a,
-  `bt_last_in   :: l       -> (BlockId -> a) -> a} 
+type ForwardTransfers n f 
+  = forall e x. n e x -> InF e f -> OutF x f 
+
+type BackwardTransfers n f 
+  = forall e x. n e x -> InF x f -> OutF e f 
+
+type family   InF e f :: *
+type instance InF O f = f
+type instance InF C f = InFacts f
+
+type family   OutF x f :: *
+type instance OutF O f = f
+type instance OutF C f = OutFacts f
 \end{code}
-\caption{Transfer functions for forward and backward analyses.}
-\figlabel{transfers}
-\ifpagetuning\vspace*{-1ex}\fi
-%
-% elided: 
-%    ft_exit_out   ::            a -> a
-%
+\caption{Transfer functions for forward and backward analyses} \figlabel{transfers}
 \end{figure}
+\ifpagetuning\vspace*{-1ex}\fi
+
+A~transfer function is presented with the dataflow fact on the edge coming
+into a node, and it computes dataflow facts on outgoing edge.
+But wait!  What if the node is closed on entry or exit?
+If the node is closed on entry, the transfer function must be given a mapping
+from @BlockId@ to facts, which it can use to look up the fact for the entry
+@BlockId@.  If the node is closed on exit then the transfer function must
+produce a list of (@BlockId@,fact) pairs, one for each outgoing edge.  So 
+the types of the transfer function's argument and result each 
+depend on the open/closed-ness of the node.
+
+Fortunately, this is precisely what Haskell's (recently added) 
+indexed type families are for.
+The relevant \ourlib{} definitions are given in \figref{transfers}.
+\simon{For the @InFacts@ I think it's better to have a real function.}
+A forward transfer function, of type (@ForwardTransfers@ @n@ @f@), 
+is a function polymorphic in @e@ and @x@.  It takes a node of type (@n@ @e@ @x@), and
+an incoming fact-like thing of type (@InF@ @e@ @f@), and produces an
+outgoing fact-like thing of type (@OutF@ @x@ @f@).  The type constructor @InF@
+should be thought of as a type-level function; its signature is given in the
+@type family@ declaration, while its definition is given by two @type instance@
+declarations.  The first says that the fact-like thing coming into a node
+open at entry is just a fact @f@. The second says that if the node is closed
+on entry the incoming thing is an @InFacts f@, which is just a function from @BlockId@
+to @f@.   The same technique makes the result type of @ForwardTransfers@ vary with
+the exit flag @x@.
+
+All the \ourlib{} client needs to do is to write the transfer function, with
+this type.  We will give a concrete example shortly, 
+in \secref{example-analyses}.  The supplied transrer function should be 
+\emph{monotonic} in the following sense: given a more informative fact in,
+it should produce a more informative fact out.  Otherwise the fixpoint-finder
+might go into an infinite flip-flop loop.
+
+\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
 
-A fact in a forward analysis typically represents an assertion
-about program state,
- and because a label does not change
-program state, the transfer function @ft_first_out@ is often
-@flip const@---a variation on
-the
-identity function.\footnote
-{Not every fact is about program state,
-so not every forward analysis can ignore labels.
-For example, dominator analysis and other all-paths analyses often
-compute a set of labels through which control may (or must) pass.
-}
-For a middle node, the transfer function @ft_middle_out@ is given a
-node and a precondition and returns an approximation of the strongest
-postcondition. 
-For a last node, different postconditions may be propagated to
-different successors; for example, the true and false successors of a
-conditional branch may accumulate information implied by the truth or
-falsehood of the condition.
-A~collection of (successor, fact) pairs is represented by a value of
-type @LastOuts a@ (\figref{transfers}).
+\subsection{Running the dataflow engine} \seclabel{zdfSolveFwd}
 
-
-
+\iftrue
+Once the client has written the lattice operations and the
+transfer function, the \ourlib{} dataflow engine lifts
+the transfer function from nodes up to graphs.  Here is the signature
+for the forward analyser
+(there is a backward analyser with a similar type):
+\begingroup\hfuzz=1pt\relax
+\begin{code}
+ `zdfSolveFwd 
+  :: Edges n    
+  => `PassName              -- Name of the analysis
+  -> DataflowLattice f      -- Lattice
+  -> ForwardTransfers n f   -- Transfer functions
+  -> Graph n e x            -- Control-flow graph
+  -> InF e f                -- Input fact
+  -> OutF x f
+\end{code}
+The similarity to the @ForwardTransfers@ type should be clear: 
+@zdfSolveFwd@ is 
+just a transfer function for whole graphs.
 
 In a forward analysis, the dataflow engine starts with the fact at the
 beginning of a block and applies transfer functions to the nodes in
@@ -1172,87 +1382,6 @@ When the facts at labels stop changing, the dataflow
 engine has reached a fixed point.
 %\remark{Promissory note: compose this analysis with two
 %transformations: constant propagation and constant folding}
-
-
-\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
-
-
-\subsection{Running the dataflow engine}
-
-\seclabel{zdfSolveFwd}
-
-\iftrue
-Given lattice operations of type @DataflowLattice a@ (\figref{lattice})
-together with
-transfer functions of type @ForwardTransfers m l a@
-(\figref{transfers}),
-\else
-Given lattice operations of type @DataflowLattice a@
-and 
-transfer functions of type @ForwardTransfers m l a@
-(\figreftwo{lattice}{transfers}),
-\fi
-you can run the corresponding analysis by calling \ourlib\
-function @zdfSolveFwd@, which is a~part of our dataflow engine
-(a~backward analysis calls function @`zdfSolveBwd@, which has a similar type):
-\begingroup\hfuzz=1pt\relax
-\begin{code}
- `zdfSolveFwd 
-  :: HavingSuccessors l     -- Find successors of l
-  => `PassName               -- Name of the analysis
-  -> DataflowLattice a      -- Lattice
-  -> ForwardTransfers m l a -- Transfer functions
-  -> a                      -- Input fact
-  -> Graph m l              -- Control-flow graph
-  -> FwdFixedPoint m l a ()
-\end{code}
-The function is polymorphic in the types of middle and last nodes
-@m@~and~@l@ and in the type of the dataflow fact~@a@.
-Polymorphism allows \ourlib\ to work with any intermediate
-language, as long as the type of last node @l@ satisfies the constraint
-@`HavingSuccessors l@ by providing a function
-\ifcutting
-@`succs@ of type @l -> [BlockId]@,
-\else
-\begin{code}
-  succs :: l -> [BlockId]
-\end{code}
-\fi
-which gives the labels of the blocks to which a last node of type~@l@
-might transfer control.
-
-\endgroup
-
-After the type constraint, 
-the first three arguments to @zdfSolveFwd@ characterize the analysis.
-The next argument is the dataflow fact that holds on entry to the
-graph;
-because a procedure's caller may establish some facts about
-parameters or about the stack,
-this fact
-is not always~$\bot$.
-The last argument to @zdfSolveFwd@ is the graph, and the result is a 
-fixed point.
-
-\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
-
-
-The @`FwdFixedPoint@ data structure,
-whose final type parameter~@()@ is 
-explained in~\secref{engine-truth},
- is a big bag
-of information about a solution.
-The most significant information is
-a finite map from each block label to the dataflow fact that holds at
-the label, which is extracted using function @zdfFpFacts@:
-% omit emptyBlockEnv :: BlockEnv a
-\begin{code}
-type `BlockEnv a = Data.Map BlockId a
-`zdfFpFacts :: FwdFixedPoint m l a g -> BlockEnv a
-\end{code}
-
-
-
 
 
 %%  \iffalse
@@ -1290,56 +1419,6 @@ type `BlockEnv a = Data.Map BlockId a
 %%  engine and the individual dataflow passes.
 
 
-
-
-
-\section {Related work}
-
-While dataflow analysis and optimization are covered
-by a vast literature, 
-\emph{design} of optimizers, the topic of this paper, is covered
-relatively sparsely.
-We therefore focus on foundations.
-
-When transfer functions are monotone and lattices are finite in height,
-iterative dataflow analysis converges to a fixed point
-\cite{kam-ullman:global-iterative-analysis}. 
-If~the lattice's join operation distributes over transfer
-functions,
-this fixed point is equivalent to a join-over-all-paths solution to
-the recursive dataflow equations
-\cite{kildall:unified-optimization}.\footnote
-{Kildall uses meets, not joins.  
-Lattice orientation is conventional, and conventions have changed.
-We use Dana Scott's
-orientation, in which higher elements carry more information.}
-\citet{kam-ullman:monotone-flow-analysis} generalize to some
-monotone functions.
-Each~client of \hoopl\ must guarantee monotonicity,
-but for transfer functions that
-approximate weakest preconditions or strongest postconditions,
-monotonicity falls out naturally.
-
-\ifcutting
-\citet{cousot:abstract-interpretation:1977}
-\else
-\citet{cousot:abstract-interpretation:1977,cousot:systematic-analysis-frameworks}
-\fi
-introduce abstract interpretation as a technique for developing
-lattices for program analysis.
-\citet{schmidt:data-flow-analysis-model-checking} shows that
-an all-paths dataflow problem can be viewed as model checking an
-abstract interpretation.
-
-The soundness of interleaving analysis and transformation,
-even when some speculative transformations are not performed on later
-iterations, was shown by
-\citet{lerner-grove-chambers:2002}.
-\ifcutting\else
-Muchnick \citeyearpar{muchnick:compiler-implementation} 
-presents many examples of both particular analyses and related
-algorithms.
-\fi
 
 
 \newcommand\T{\rule{0pt}{0.6ex}}
@@ -1448,10 +1527,35 @@ cmmAvailableVars g = zdfFpFacts fp
 \figlabel{avail-running}
 \end{figure*}
 
-\section{Example analysis passes}
+\section{Example analysis passes} \seclabel{example-analyses}
 
-\seclabel{example-analyses}
+\simon{Start of note}
+{\em I'm not very comfortable with this section.
+We really only give the details for pure analysis, but the words 
+only describe an analysis/rewrite story.
+Do you actually
+envisage doing much pure analysis, separated from rewrites? Yes, I think
+so; in GHC the proc-point analysis or stack layout is, I believe, separate.
+But for a pure analysis we presumably want a (BlockEnv Fact) for every block,
+not just the externally visible blocks.  So we want something like
+\begin{code}
+  pureanal :: .. -> Graph C C -> BlockEnv Fact
+\end{code}
+But maybe it would be more honest to say this?
+\begin{code}
+  pureanal :: .. -> [Block C C] -> [Fact]
+\end{code}
+None of this is hard to implement. But the API just isn't clear to me yet.
+}
+\simon{End of note}
 
+\simon{An alternative in this section about analysis 
+would to give the transfer functions
+for a standard constant-prop (forward) and liveness (backward) analysis,
+without trying to link it to the larger GHC story.  The link is weaker now,
+because we are describing something whose GHC incarnation is for a much
+earlier version of Hoopl; and the focus of the paper is much more on the
+cool API and GADTs etc, so the ``works at scale'' story isn't so vital.}
 
 \ourlib\
 makes it easy to write compiler passes based on dataflow.
@@ -1573,6 +1677,19 @@ reloads away from the call site.
 %%  \secreftwo{sink-reloads}{dead-code-elimination}.
 
 
+
+To~show that \ourlib\ works at scale,
+we present examples that have been implemented and tested in GHC.  
+\simon{Not quite true...}
+GHC's low-level intermediate code, called @`Cmm@, is a 
+subset of the portable assembly language~{\PAL}
+\cite{peyton-jones-ramsey:single-intermediate}.
+We~specialize \ourlib\ to GHC by instantiating \ourlib's node
+parameter to the @CmmNode@ type introduced in \figref{cmm-node}.
+
+\subsection{Liveness}
+\seclabel{liveness}
+
 %% \ifpagetuning \enlargethispage\baselineskip \fi
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -1592,8 +1709,8 @@ reloads away from the call site.
 \begin{code}
 !liveLattice!`liveLattice :: DataflowLattice Live
 liveLattice = DataflowLattice emptyVarSet add
-  where add new old =
-          let join = unionVarSets new old in
+  where add new old
+         = let join = unionVarSets new old in
 !liveLattice.end!          (if sizeVarSet join > sizeVarSet old then SomeChange else NoChange, join)
 \end{code}
 \B
@@ -1612,25 +1729,12 @@ liveLattice = DataflowLattice emptyVarSet add
 
 \T\hfuzz=7pt % plenty of room where it matters
 \begin{code}
-`liveTransfers :: BackTransfers CmmMiddle CmmLast Live
-liveTransfers = BackTransfers (flip const) middleLiveness lastLiveness
-
-middleLiveness :: CmmMiddle -> Live -> Live
-lastLiveness   :: CmmLast -> (BlockId -> Live) -> Live
-!middleLiveness!`middleLiveness m = addUsed m . remDefd m
-!lastLiveness!`lastLiveness   l = addUsed l . remDefd l . lastLiveOut l 
-
-!liveness.addUsed.sig!addUsed :: UserOfLocalVars    a => a -> Live -> Live
-remDefd :: DefinerOfLocalVars a => a -> Live -> Live 
-`addUsed a ^live = foldVarsUsed extendVarSet  live a
-!liveness.remDefd.def!`remDefd a live = foldVarsDefd delFromVarSet live a
-
-lastLiveOut :: CmmLast -> (BlockId -> Live) -> Live
-!lastLiveOut.1!`lastLiveOut l ^env = last l 
-!live.lastBranch!  where ^last (LastBranch id)        = env id 
-!live.condBranch!        last (LastCondBranch _ t f) = unionVarSets (env t) (env f)
-!live.lastSwitch!        last (LastSwitch _ ^tbl)     = unionManyVarSets $ map env (catMaybes tbl)
-!live.lastCall!        last (LastCall { })         = emptyVarSet
+`liveTransfers :: BackwardTransfers CmmNode Live
+liveTransfers (Label bid)     	       f  = [(bid,f]
+liveTransfers (Assign r e)    	       f  = remDefd r (addUsed e f)
+lifeTransfers (Store e1 e2)   	       f  = addUsed e1 (addUsed e2 f)
+liveTransfers (Branch bid)             inf = inf bid
+liveTransfers (CondBranch e bid1 bid2) inf = addUsed e (unionLive (inf bid1) (inf bid2))
 \end{code}
 % omit catMaybes :: [Maybe a] -> [a]
 \B
@@ -1639,7 +1743,7 @@ lastLiveOut :: CmmLast -> (BlockId -> Live) -> Live
 
 \T
 \begin{code}
-cmmLiveness :: Graph CmmMiddle CmmLast -> BlockEnv Live
+cmmLiveness :: Graph CmmNode O C -> BlockEnv Live
 `cmmLiveness g = zdfFpFacts fp
 !live.zdfSolveBwd!   where fp = zdfSolveBwd "liveness" liveLattice liveTransfers emptyVarSet g
 \end{code}
@@ -1657,55 +1761,136 @@ cmmLiveness :: Graph CmmMiddle CmmLast -> BlockEnv Live
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+We begin with a simple liveness analysis, a backward analysis 
+that supports passes 1~and~3. 
+The assertion computed by 
+a backward dataflow analysis applies to a
+\emph{continuation} at a program point.
+In the case of liveness analysis, \emph{the} classic example of 
+backwards analysis,
+the assertion of interest is that at a particular program point,
+the answer produced by the continuation does not depend on
+the value of a particular variable~$x$.
+If~so, $x$~is said to be \emph{dead} at that point.
+If the answer produced by the continuation \emph{might} depend on the
+value of~$x$, $x$~is \emph{live}.\footnote
+{Liveness cannot be decided accurately; it reduces to the halting problem.
+As usual, we approximate liveness by reachability.}
 
-\subsection{Choosing node types for GHC}
+In a modern compiler, liveness analysis supports many program
+transformations,
+including
+dead-assignment elimination,
+which removes assignments to dead variables, 
+and register allocation, which
+ensures that if two variables are 
+live at the same time, they are not assigned to the same register. 
 
-To~show that \ourlib\ works at scale,
-we present examples that
-have been implemented and tested in GHC.  
-GHC's low-level intermediate code, called @`Cmm@, is a 
- subset of 
-the portable assembly language~{\PAL}
-\cite{peyton-jones-ramsey:single-intermediate}.
-We~specialize \ourlib\ to GHC by instantiating type parameters
-@m@~and~@l@ with GHC's types @CmmMiddle@ and @CmmLast@.
+The dataflow fact we use to represent liveness assertions is the set of
+live variables (\figref{live-lattice}, \lineref{Live}).
+The bottom element of the lattice is the empty set, and the join
+operation is set union (\figref{live-lattice},
+\linerangeref{liveLattice}{liveLattice.end}); 
+a~variable is deemed live after a node if it is live on \emph{any} edge leaving that
+node.
 
-\ifpagetuning
-\penalty-10000
-
-\enlargethispage{1.0\baselineskip}
+The transfer function for liveness relies on two auxiliary functions
+@addUsed@ and @remDefd@ (\figref{liveness}, 
+\linerangeref{liveness.addUsed.sig}{liveness.remDefd.def}).
+A~transfer function is given a set of variables live on the edges
+going out of the node.
+It~removes from that set any variable
+defined by the node, then adds any variable used by the
+node%
+\ifcutting\ \else.
+For~example, if the node is
+\begin{verbatim}
+  i = n - 1;
+\end{verbatim}
+then @i@ is not live just before the node, since if we start the
+program just before the assignment to~@i@, the answer cannot 
+depend on the value of~@i@, which is about to be overwritten.
+But the answer \emph{might} depend on the value of~@n@, so
+@n@~is considered live before the assignment.
+If a variable appears on both sides of an
+assignment, as in \ifpagetuning{\looseness=-1 \par}\fi
+\begin{verbatim}
+  i = i + 1;
+\end{verbatim}
+then the answer might depend on~@i@, so @i@~is considered live
+before the assignment.
+The transfer functions
+therefore
+remove defined variables \emph{before} adding used variables
 \fi
+(\figref{liveness}, \linepairref{middleLiveness}{lastLiveness}). 
+
+For a last node, the tranfer function consults the @InFacts@
+function @inf@ (on \lineref{lastLiveOut.1}) to find out what
+variables are live at the \emph{successors} of a 
+last node.   
+For an unconditional branch, we look up the live set at the label
+branched to (\lineref{live.lastBranch});
+for a conditional branch, we look at both true and false edges
+(\lineref{live.condBranch}). 
+Notice that the type of the second parameter varies
+according to whether the node is closed on exit; and the type
+of the result varies according to whether the node is closed on entry.
+
+Given the lattice and the transfer functions,
+we perform liveness analysis on a whole graph by calling
+the dataflow-engine function @zdfSolveBwd@ (\figref{liveness},
+\lineref{live.zdfSolveBwd}). 
+\figref{liveness} shows the \emph{entire} analysis.
 
 
-A~middle node stores the value of an expression:
-\begin{code}
-data `CmmMiddle 
-  = `MidAssign CmmVar  CmmExpr -- store in variable
-  | `MidStore  CmmExpr CmmExpr -- store in memory
-\end{code}
-Type @`CmmVar@ represents a variable, which may be local (@`CmmLocal@
-@`LocalVar@) or global 
-(@`CmmGlobal `GlobalVar@). %%% ; a @`LocalVar@ is always local.
-Type @`CmmExpr@ represents a pure expression; 
-among its constructors are @`CmmLoad@ (a~value from memory)
-and @CmmVar@ (the value of a variable).
-
-A~last node represents a control transfer; constructors include
-unconditional, conditional, and indirect branches, as well as a call:
-\begin{code}
-data `CmmLast
-  = `LastBranch     BlockId
-  | `LastCondBranch CmmExpr BlockId BlockId
-  | `LastSwitch     CmmExpr [Maybe BlockId]
-  | `LastCall ...     -- arguments omitted
-\end{code}
-
-
-
-
-
-
-
+%%%%    \ifgenkill
+%%%%    \subsection{Writing transfer functions using {\mdseries\texttt{gen}} and
+%%%%    {\mdseries\texttt{kill}}}
+%%%%    
+%%%%    %\remark{I've tried to rewrite this section without the abstract guff;
+%%%%    %Simon, can you let us know what you think?}
+%%%%    
+%%%%    
+%%%%    \seclabel{gen-kill}
+%%%%    
+%%%%    If you pick up a compiler textbook, you might see dataflow
+%%%%    analysis explained in terms of functions called \texttt{gen} and
+%%%%    \texttt{kill}, 
+%%%%    which say what dataflow facts are ``generated'' and
+%%%%    ``killed'' by each node.
+%%%%    Our design is compatible with explanations based on \texttt{gen} and
+%%%%    \texttt{kill};
+%%%%    first you define functions \texttt{gen} and \texttt{kill}, then you
+%%%%    use them to write the transfer functions.
+%%%%    %%  Using our design, you can stillIt's~possible to write transfer functions i thi
+%%%%    %%  In~a forward analysis, for example an assignment might establish an
+%%%%    %%  assertion (\texttt{gen}), or it might change state in such a way that an
+%%%%    %%  assertion no longer holds (@kill@), or both.
+%%%%    %%  If~you want to transliterate specifications that use @gen@ and @kill@,
+%%%%    %%  it's easy.
+%%%%    For example, the functions @addUsed@ and @remDefd@ in \figref{liveness}'s
+%%%%    liveness analysis correspond directly to the traditional @gen@ and
+%%%%    @kill@ functions.
+%%%%    In the available-variables analysis of \figref{avail}, @gen@ and
+%%%%    @kill@ can be defined as follows:
+%%%%    \begin{smallcode}
+%%%%    gen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
+%%%%    kill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
+%%%%    `gen  a avail = foldVarsUsed extendAvail  avail a
+%%%%    `kill a avail = foldVarsDefd delFromAvail avail a
+%%%%    \end{smallcode}
+%%%%    Using @gen@ and @kill@ entails no loss of efficiency;
+%%%%    for example, if the right-hand side of \lineref{reload2} of \figref{avail}
+%%%%    were written
+%%%%    @gen x avail@,
+%%%%    then GHC~would 
+%%%%    identify and % \ifpagetuning\else identify and \fi
+%%%%    inline the type-specific instance of @foldVarsUsed@, which for 
+%%%%    \ifpagetuning\else the case of \fi
+%%%%    a local variable is the identity function, so @gen x avail@
+%%%%    would reduce to @extendAvail avail x@.
+%%%%    \fi
 
 \subsection{Available variables: a forward analysis supporting pass 2} 
 
@@ -1714,8 +1899,6 @@ data `CmmLast
 \finalremark{We mean to do liveness first,
 but that will require some editing, especially moving the explanation
 of the overloaded fold functions.}
-
-
 
 To~understand the available-variables analysis, you must know that 
 each variable~$x$ is related to a stack slot~\slotof x, which is used to
@@ -1959,337 +2142,63 @@ Except for the implementations of the set operations on
 \linerangeref{extendAvail}{smallerAvail}, 
 \figref{avail} shows the \emph{entire} analysis.
 
-\subsection{Liveness: a backward analysis supporting passes 1~and~3} 
-
-\seclabel{liveness}
-
-The assertion computed by 
-a backward dataflow analysis applies to a
-\emph{continuation} at a program point.
-The classic example is liveness analysis;
-the assertion of interest is that at a particular program point,
-the answer produced by the continuation does not depend on
-the value of a particular variable~$x$.
-If~so, $x$~is said to be \emph{dead} at that point.
-If the answer produced by the continuation \emph{might} depend on the
-value of~$x$, $x$~is \emph{live}.\footnote
-{Liveness cannot be decided accurately; it reduces to the halting problem.
-As usual, we approximate liveness by reachability.}
-
-In a modern compiler, liveness analysis supports many program
-transformations,
-including
-dead-assignment elimination,
-which removes assignments to dead variables, 
-and register allocation, which
-ensures that if two variables are 
-live at the same time, they are not assigned to the same register. 
-
-The dataflow fact we use to represent liveness assertions is the set of
-live variables (\figref{live-lattice}, \lineref{Live}).
-The bottom element of the lattice is the empty set, and the join
-operation is set union (\figref{live-lattice},
-\linerangeref{liveLattice}{liveLattice.end}); 
-a~variable is deemed live after a node if it is live on \emph{any} edge leaving that
-node.
-
-The transfer functions for liveness rely on two auxiliary functions
-@addUsed@ and @remDefd@ (\figref{liveness}, 
-\linerangeref{liveness.addUsed.sig}{liveness.remDefd.def}).
-A~transfer function is given a set of variables live on the edges
-going out of the node.
-It~removes from that set any variable
-defined by the node, then adds any variable used by the
-node%
-\ifcutting\ \else.
-For~example, if the node is
-\begin{verbatim}
-  i = n - 1;
-\end{verbatim}
-then @i@ is not live just before the node, since if we start the
-program just before the assignment to~@i@, the answer cannot 
-depend on the value of~@i@, which is about to be overwritten.
-But the answer \emph{might} depend on the value of~@n@, so
-@n@~is considered live before the assignment.
-If a variable appears on both sides of an
-assignment, as in \ifpagetuning{\looseness=-1 \par}\fi
-\begin{verbatim}
-  i = i + 1;
-\end{verbatim}
-then the answer might depend on~@i@, so @i@~is considered live
-before the assignment.
-The transfer functions
-therefore
-remove defined variables \emph{before} adding used variables
-\fi
-(\figref{liveness}, \linepairref{middleLiveness}{lastLiveness}). 
-
-For a last node, function @lastLiveOut@ consults the solution in
-progress (parameter~@env@ on \lineref{lastLiveOut.1}) to find out what
-variables are live at the \emph{successors} of a 
-last node. 
-For an unconditional branch, we look up the live set at the label
-branched to (\lineref{live.lastBranch});
-for a conditional branch, we look at both true and false edges
-(\lineref{live.condBranch}), 
- and
-for a switch, we consider every possible target of the
-branch (\lineref{live.lastSwitch}).
-The~remaining case (\lineref{live.lastCall}) is a call, 
-and since a call destroys the values of all local variables, no
-local variables are live at its continuation.
-
-Given the lattice and the transfer functions,
-we perform liveness analysis by calling
-the dataflow-engine function @zdfSolveBwd@ (\figref{liveness},
-\lineref{live.zdfSolveBwd}). 
-%The function @zdfFpFacts@ returns 
-%a finite map from basic-block IDs to the set of live variables
-%at the beginning of each block.
-\figref{liveness} shows the \emph{entire} analysis.
-
-
-
-%%%%    \ifgenkill
-%%%%    \subsection{Writing transfer functions using {\mdseries\texttt{gen}} and
-%%%%    {\mdseries\texttt{kill}}}
-%%%%    
-%%%%    %\remark{I've tried to rewrite this section without the abstract guff;
-%%%%    %Simon, can you let us know what you think?}
-%%%%    
-%%%%    
-%%%%    \seclabel{gen-kill}
-%%%%    
-%%%%    If you pick up a compiler textbook, you might see dataflow
-%%%%    analysis explained in terms of functions called \texttt{gen} and
-%%%%    \texttt{kill}, 
-%%%%    which say what dataflow facts are ``generated'' and
-%%%%    ``killed'' by each node.
-%%%%    Our design is compatible with explanations based on \texttt{gen} and
-%%%%    \texttt{kill};
-%%%%    first you define functions \texttt{gen} and \texttt{kill}, then you
-%%%%    use them to write the transfer functions.
-%%%%    %%  Using our design, you can stillIt's~possible to write transfer functions i thi
-%%%%    %%  In~a forward analysis, for example an assignment might establish an
-%%%%    %%  assertion (\texttt{gen}), or it might change state in such a way that an
-%%%%    %%  assertion no longer holds (@kill@), or both.
-%%%%    %%  If~you want to transliterate specifications that use @gen@ and @kill@,
-%%%%    %%  it's easy.
-%%%%    For example, the functions @addUsed@ and @remDefd@ in \figref{liveness}'s
-%%%%    liveness analysis correspond directly to the traditional @gen@ and
-%%%%    @kill@ functions.
-%%%%    In the available-variables analysis of \figref{avail}, @gen@ and
-%%%%    @kill@ can be defined as follows:
-%%%%    \begin{smallcode}
-%%%%    gen  :: UserOfLocalVars    a => a -> AvailVars -> AvailVars
-%%%%    kill :: DefinerOfLocalVars a => a -> AvailVars -> AvailVars
-%%%%    `gen  a avail = foldVarsUsed extendAvail  avail a
-%%%%    `kill a avail = foldVarsDefd delFromAvail avail a
-%%%%    \end{smallcode}
-%%%%    Using @gen@ and @kill@ entails no loss of efficiency;
-%%%%    for example, if the right-hand side of \lineref{reload2} of \figref{avail}
-%%%%    were written
-%%%%    @gen x avail@,
-%%%%    then GHC~would 
-%%%%    identify and % \ifpagetuning\else identify and \fi
-%%%%    inline the type-specific instance of @foldVarsUsed@, which for 
-%%%%    \ifpagetuning\else the case of \fi
-%%%%    a local variable is the identity function, so @gen x avail@
-%%%%    would reduce to @extendAvail avail x@.
-%%%%    \fi
 
 \section{Using dataflow facts to rewrite graphs\ifpagetuning\else, with examples\fi}
-
-\seclabel{rewrites}
-
-\seclabel{example-rewrites}
-
-
-We compute dataflow facts in order to enable code-improving
-transformations on control-flow graphs.
-A~dataflow fact may enable a rewrite function to replace a node by a
-\emph{subgraph}. 
-A~subgraph is a graph that may not define all the labels to which it refers.
-A~valuable, novel property of our implementation is that it uses
-Haskell's static type system to control which subgraphs may replace
-which nodes.
-Before explaining how to
-transform graphs, we
-explain how graphs and subgraphs are represented.
-
-
-\subsection{Representing graphs and subgraphs}
-
-\seclabel{subgraphs}
-
-As mentioned in \secref{graph.intro},
-a~graph is a collection of basic blocks, 
-and a basic block is normally a first node followed by zero or
-more middle nodes followed by a last node.
-But
-a graph may also contain two special, incomplete
-blocks:
-\begin{itemize}
-\item
-A~graph may begin with 
-an \emph{entry sequence}: zero or more middle nodes
-followed by a last node (i.e., a control transfer).
-Such a graph is \emph{open at the entry}.  
-
-%% \ifpagetuning \enlargethispage{0.5\baselineskip} \fi
-
-\item
-A~graph may end with
-an \emph{exit sequence}: a first node followed by zero or more
-middle nodes, but \emph{not} followed by a last node.
-Such a graph is \emph{open at the exit} 
-(control ``falls
-off the end'').
-\end{itemize}
-Our general type of graph, called @GF@, therefore takes \emph{four}
-type parameters (\figref{subgraphs}):
-@m@~is the type of a middle node;
-@l@~is the type of a last node;
-@entry@ is either type~@O@ or type~@C@, depending on whether the graph
-is open or closed at the entry;
-and
-@exit@ is type~@O@ or type~@C@, depending on whether the graph
-is open or closed at the exit.
-The instantiations of type parameters @entry@ and @exit@ specify the
-graph's \emph{shape}, which we refer to in shorthand.
-For example,
-a~full @Graph@, which represents a function or
-procedure, is open at the entry and closed at the exit, or
-simply ``open/closed.''
-
-\begin{figure}
-\begin{code}
-type `O  -- marks graph as open   at entry or exit
-type `C  -- marks graph as closed at entry or exit
-type `GF m l ^entry ^exit -- graph or subgraph
-type `Graph m l = GF m l O C
-\end{code}
-
-\caption{Types of graphs and subgraphs}
-\figlabel{subgraphs}
-\end{figure}
-
-
-
-
-Graphs are created using these functions:
-\begin{code}
-`mkLabel    :: BlockId        -> GF m l C O
-`mkMiddle   :: m              -> GF m l O O
-`mkLast     :: l              -> GF m l O C
-(`<*>)      :: GF m l e a     -> GF m l a x 
-                             -> GF m l e x
-`emptyGraph :: GraphClosure a => GF m l a a
-\end{code}
-The infix @<*>@ function is graph concatenation; the exit of the first
-argument must match the entry of the next (both open or both closed).
-The @emptyGraph@ is a left and right unit of concatenation;
-the constraint @`GraphClosure a@ is satisfied only by types @O@~and~@C@.
-
-%% If $g_1$'s shape is $e$/open and $g_2$'s shape is open/$x$,
-%% then the concatenation $g_1 \mathbin{\mbox{@<*>@}} g_2$ is well
-%% defined and has shape 
-%% $e$/$x$.  (The exit sequence of~$g_1$ is spliced to the entry sequence
-%% of~$g_2$ to form a new, complete basic block.)
-
-
-%% \ifpagetuning \enlargethispage{0.5\baselineskip} \fi
-
-A graph is normally represented by a triple:
-an optional entry sequence, a @BlockEnv@ containing basic blocks,
-and an optional exit sequence.
-As~a special case, a single sequence of middle nodes also forms a
-graph open at both entry and exit.
-
-This new representation improves significantly on our previous work
-\cite{ramsey-dias:applicative-flow-graph}:
-\begin{itemize}
-\item
-We can find the exit point of a graph in constant time.
-\item
-We can concatenate data structures 
-in near-constant amortized time.
-Previously, we had to resort to Hughes's
-\citeyearpar{hughes:lists-representation:article} technique, representing
-a graph as a function.
-\item
-Most important, errors in concatenation are ruled out at
-compile-compile time by Haskell's static
-type system.
-In~earlier implementations, such errors were not detected until
-the compiler~ran, at which point \ourlib\ tried to compensate
-for the errors%
-\ifcutting---but
-\else
-by inserting branch instructions and then issued a warning message.
-But
-\fi
-the compensation code harbored subtle faults%
-\ifcutting\else, which were discovered while developing a new back end
-for~GHC\fi. 
-\hfuzz=1.6pt % don't want to reword ``errors in concatenation''
-\end{itemize}
-
-
-
-%% A~graph proposed by a rewrite function as a replacement for a node is
-%% a \emph{replacement graph}.
-%% Every replacement graph is also a \emph{subgraph}, i.e., a graph that
-%% can be analyzed or rewritten independently, but that is connected to
-%% an outer graph by control-flow edges.
-%% A~subgraph has the same representation as a graph, including 
-%% optional entry and exit sequences.
-%% \simon{I don't find the definition of replacement graph and 
-%% subgraph satisfactory.  Is the ONLY difference between a graph
-%% and a sub-graph its purpose in the eye of the beholder?  I think
-%% perhaps the key point is this: a full graph has no free labels, 
-%% whereas a subgraph may have
-%% free labels?  Are subgraphs o/c or c/c or anything like that?
-%% What about replacement graphs?}
-
-
+\seclabel{rewrites} \seclabel{example-rewrites}
 
 \begin{figure}
 \hfuzz=5.7pt % cheating again!
 \begin{code}
-type `Rewrite m l e x = Maybe (GF m l e x)
-data `ForwardRewrites m l a = ForwardRewrites
- {`fr_first  :: BlockId -> a -> Rewrite m l C O,
-  `fr_middle :: m       -> a -> Rewrite m l O O,
-  `fr_last   :: l       -> a -> Rewrite m l O C} 
+type AGraph n e x = BlockIdSupply 
+                    -> (Graph n e x, BlockIdSupply)
 
-data `BackwardRewrites m l a = BackwardRewrites
- {`br_first  :: BlockId -> a      -> Rewrite m l C O,
-  `br_middle :: m       -> a      -> Rewrite m l O O,
-  `br_last   :: l -> (BlockId->a) -> Rewrite m l O C} 
+type ForwardRewrites n f 
+  = forall e x. n e x -> InF e f -> Maybe (AGraph n e x)
+type BackwardRewrites n f 
+  = forall e x. n e x -> InF x f -> Maybe (AGraph n e x)
 \end{code}
-\caption{Types of forward and backward rewrite functions.}
-\figlabel{rewrites}
+\caption{Types of forward and backward rewrite functions} \figlabel{rewrites}
 \end{figure}
 
+We compute dataflow facts in order to enable code-improving
+transformations on control-flow graphs.
+For example, knowing that a register is dead allows
+us to rewrite an assignment to that register by a no-op.  Knowing that a register is
+live at a call site might provoke us to insert a spill before the call.  And so on.
 
+In general, we want to replace a node not just by a single node, nor even by a block,
+but by a whole graph.  For example, perhaps we want to replace a high-level operation
+with a set of conditional branches, which entails introducing new blocks.
 
-\subsection{Rewrite functions}
-\seclabel{rewrite-functions}
+Thus motivated, we allow the user to give \ourlib{} a rewriting function
+that takes a node and a fact, and optionally returns a graph, of the
+same open/closed shape as the node.   The type is given in \figref{rewrites}.
+As with the transfer functions, an entry-closed node does not get a single fact
+but rather an @InFacts f@, using the same @InF@ function as described
+in \figref{transfers}.  The @Maybe@ type expresses that the function can return
+@Nothing@, meaning no rewrite, or (@Just g@), where @g@ is the replacement graph.
 
-\ourlib\ transforms its graphs by composing
- transfer functions (\secref{tffuns}) with
-\emph{rewrite functions}, whose
-types are
-shown in \figref{rewrites}. 
-%
-A~rewrite function is given a dataflow fact and a node~$n$.
-It~may choose to replace node~$n$ with a \emph{replacement graph}~$g$,
-in which case it 
-returns $@Just@\;g$, or it may do nothing, in which case it returns @Nothing@.
-If it returns $@Just@\;g$, it must guarantee that given
-the assertions represented by incoming dataflow facts,
-graph~$g$ is observationally equivalent to node~$n$.
+More precisely, the rewriter returns an @AGraph@, a function that is given 
+a supply of fresh @BlockId@s.  If the rewriter makes graphs containing blocks,
+it will need to conjure up some fresh @BlockIds@ and the @BlockIdSupply@ makes
+that possible. Notice that the open/closed is statically 
+guaranteed to be preserved, because
+the @e@ and @x@ parameters of the node are also used for the @AGraph@.
+So a branch instruction, for example can only be rewritten to a graph 
+closed at the exit.
+
+The rewrite function should, of course, be \emph{sound}:
+if it replaces a node @n@ by a replacmement graph
+@g@, then $g$ should be observationally equivalent to $n$ under the 
+assumptions expressed by the incoming dataflow fact @f@.
+Moreover the rewrite function must be \emph{consistent} with the transfer function
+that is, (@transfer n f@ $\sqsubseteq$ @transfer g f@).
+For example, if the analysis says that x is dead before the node @n@,
+then it had better still be dead if @n@ is replaced by @g@.  Without
+the consistency condition there would be no guarantee of reaching a fixed point.
+\simon{I still think this is true, although you do not (see comments in the source file. We 
+should debate.}
+
 \finalremark{Doesn't the rewrite have to be have the following property:
 for a forward analysis/transform, if (rewrite P s) = Just s',
 then (transfer P s $\sqsubseteq$ transfer P s').
@@ -2303,14 +2212,8 @@ $\scriptstyle \mathit{rt}(f,s) = \mathit{transform}(f, \mathit{rewrite}(f,s))$.
  Then $\mathit{rt}$ should
 be monotonic in~$f$.  We think this is true of liveness, but we are not sure
 whether it's just a generally good idea, or whether it's actually a 
-precondition for some (as yet unarticulated) property of Hoopl to hold.}%
+precondition for some (as yet unarticulated) property of \ourlib{} to hold.}%
 
-%%  
-%%  
-%%  If~a rewrite function returns $@Just@\;g$, the incoming dataflow fact
-%%  must guarantee that replacing the node with~$g$ does not change the
-%%  observable behavior of the program.
-%%  
 %%%%    \simon{The rewrite functions must presumably satisfy
 %%%%    some monotonicity property.  Something like: given a more informative
 %%%%    fact, the rewrite function will rewrite a node to a more informative graph
@@ -2333,29 +2236,6 @@ precondition for some (as yet unarticulated) property of Hoopl to hold.}%
 %%%%    of not to terminate is infinite ``deep rewriting.''
 %%%%    }
 
-A~rewrite function may replace a node only with a graph of the same shape:
-\begin{itemize}
-\item
-\iffalse
-A first node with @BlockId@~$L$ must be rewritten to a closed/open
-replacement graph which also begins with @BlockId@~$L$.
-\delendum{Whoa!  What does it mean to say that a graph ``begins with $L$''?
-Perhaps we just mean that the replacement graph must include a block labelled $L$?}
-%% Simon's right---but the details are too grotty to include. ---NR
-\else
-A first node must be rewritten to a closed/open
- graph.
-\finalremark{Revisit graphs ``beginning with $L$''}
-\fi
-\item
-A middle node must be rewritten to an open/open graph.
-\item
-A last node must be rewritten to an open/closed graph.
-\end{itemize}
-These conditions, which are enforced by the static type system
- (\figref{rewrites}), 
- are necessary and sufficient to ensure that 
-every replacement graph can be spliced in place of the node it replaces.
 
 \subsection{Running the dataflow engine}
 
@@ -3492,6 +3372,88 @@ Similar functions apply to graphs of other shapes; for example,
 @`iar_OC@ is used to implement
 @zdfRewriteFwd@.
 
+
+
+
+\section {Related work}
+
+\simon{I've moved this section to near the end}
+
+While dataflow analysis and optimization are covered
+by a vast literature, 
+\emph{design} of optimizers, the topic of this paper, is covered
+relatively sparsely.
+We therefore focus on foundations.
+
+When transfer functions are monotone and lattices are finite in height,
+iterative dataflow analysis converges to a fixed point
+\cite{kam-ullman:global-iterative-analysis}. 
+If~the lattice's join operation distributes over transfer
+functions,
+this fixed point is equivalent to a join-over-all-paths solution to
+the recursive dataflow equations
+\cite{kildall:unified-optimization}.\footnote
+{Kildall uses meets, not joins.  
+Lattice orientation is conventional, and conventions have changed.
+We use Dana Scott's
+orientation, in which higher elements carry more information.}
+\citet{kam-ullman:monotone-flow-analysis} generalize to some
+monotone functions.
+Each~client of \hoopl\ must guarantee monotonicity,
+but for transfer functions that
+approximate weakest preconditions or strongest postconditions,
+monotonicity falls out naturally.
+
+\ifcutting
+\citet{cousot:abstract-interpretation:1977}
+\else
+\citet{cousot:abstract-interpretation:1977,cousot:systematic-analysis-frameworks}
+\fi
+introduce abstract interpretation as a technique for developing
+lattices for program analysis.
+\citet{schmidt:data-flow-analysis-model-checking} shows that
+an all-paths dataflow problem can be viewed as model checking an
+abstract interpretation.
+
+The soundness of interleaving analysis and transformation,
+even when some speculative transformations are not performed on later
+iterations, was shown by
+\citet{lerner-grove-chambers:2002}.
+\ifcutting\else
+Muchnick \citeyearpar{muchnick:compiler-implementation} 
+presents many examples of both particular analyses and related
+algorithms.
+\fi
+
+In our previous work we describes a zipper-based representation of control-flow
+grpahs \cite{ramsey-dias:applicative-flow-graph}, stressing the advantages
+of immutability for writing dataflow optimisers.
+Our new representation, described in \secref{graph-rep}, is a major improvement:
+\begin{itemize}
+\item
+We can find the exit point of a graph in constant time. \simon{What does this mean?}
+\item
+We can concatenate nodes, blocks, and graphs, in constant time.
+Previously, we had to resort to Hughes's
+\citeyearpar{hughes:lists-representation:article} technique, representing
+a graph as a function.
+\item
+Most important, errors in concatenation are ruled out at
+compile-compile time by Haskell's static
+type system.
+In~earlier implementations, such errors were not detected until
+the compiler~ran, at which point \ourlib\ tried to compensate
+for the errors%
+\ifcutting---but
+\else
+by inserting branch instructions and then issued a warning message.
+But
+\fi
+the compensation code harbored subtle faults%
+\ifcutting\else, which were discovered while developing a new back end
+for~GHC\fi. 
+\hfuzz=1.6pt % don't want to reword ``errors in concatenation''
+\end{itemize}
 
 \section{Conclusions}
 
