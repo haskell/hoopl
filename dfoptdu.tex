@@ -1,3 +1,18 @@
+%%  advances over prior work
+%%  
+%%  (if open/closed) -- detect bad splices at compile time
+%%  constant-time access to exit sequence
+%%  (indeed exit  node)
+%%  
+%%  directly splicable in constant amortized time (vs Hughes
+%%  technique)
+%%  
+%%  polymorphic in node type (type classes)
+%%  
+%%  
+
+
+
 \iffalse % submission abstract
 
 We present Hoopl, a Haskell library that makes it easy for compiler
@@ -53,6 +68,9 @@ implementation.
    % higher-order optimization library
    % ('Hoople' was taken -- see hoople.org)
 \let\hoopl\ourlib
+
+% l2h substitution ourlib Hoopl
+% l2h substitution hoopl Hoopl
 
 \newcommand\fs{\ensuremath{\mathit{fs}}} % dataflow facts, possibly plural
 
@@ -244,8 +262,8 @@ implementation.
 \title{\ourlib: Dataflow Optimization Made Simple}
 %\subtitle{\today}
 
-\titlebanner{\textsf{\mdseries\itshape Submitted to the 2010 ACM Symposium on Principles
-    of Programming Languages (POPL)}}
+%\titlebanner{\textsf{\mdseries\itshape Submitted to the 2010 ACM Symposium on Principles
+%    of Programming Languages (POPL)}}
 
 \ifnoauthornotes
 \makeatletter
