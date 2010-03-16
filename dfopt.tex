@@ -827,7 +827,8 @@ data MaybeOC oc a where
 
 So much for nodes.  The types for blocks and graphs are defined by \ourlib{}
 itself, with definitions given in \figref{graph}.  \simon{I've removed 
-the ``Z'' prefixes.} 
+the ``Z'' prefixes.} \simon{I have also added the {\tt BNil} empty block.
+It seems jolly useful.}
 A @Block@ 
 is parameterised over the node type @n@ (of kind @*->*->*@), 
 as well as over the same open/closed flags as nodes.  The @BUnit@
@@ -855,7 +856,9 @@ The third important entity is the @Graph@, also defined by \ourlib{}, in
 \figref{graph}.  Just like @Block@, it is parameterised over
 the node type @n@, and can be open or closed at entry and exit.
 Indeed, the @GUnit@ constructor lifts a single block to be a graph, just
-as @BUnit@ lifted a node to a block.  
+as @BUnit@ lifted a node to a block.   \simon{Since we now have {\tt BNil} 
+we don't need an empty graph.  Norman thinks we need a closed-closed empty
+graph but I don't see that, at least not yet.}
 
 The excitement comes in the @GMany@ constructor, which allows a graph
 to contain an arbitrary non-empty list of @Block@s, each closed at both ends.  The
@@ -876,6 +879,12 @@ Hakell's existing @Maybe@ type, so that an open-x @Graph@ has
 a @g_entry@ field of form @Open b@, where @b@ is an open-closed block;
 and a closed-x @Graph@ has a @g_entry@ field of form @Closed@.
 The same trick is used at exit.
+
+\simon{In @g\_blocks@ I've used a @[Block n C C]@ instead of a @BlockEnv@.
+There's no reason for it to be a finite mapping now.  And from a @Block@
+we can get its @BlockId@ with @blockId@.  If we want to be sure that 
+that operation is O(1) we could, I suppose, change the rep of @Block@, or
+store a @[(BlockId,Block)]@ in @g\_blocks@.}
 
 Now graph concatenation is easy to define:
 \begin{code}
@@ -1342,10 +1351,9 @@ for the forward analyser
 (there is a backward analyser with a similar type):
 \begingroup\hfuzz=1pt\relax
 \begin{code}
- `zdfSolveFwd 
+ `analyseFwd 
   :: Edges n    
-  => `PassName              -- Name of the analysis
-  -> DataflowLattice f      -- Lattice
+  => DataflowLattice f      -- Lattice
   -> ForwardTransfers n f   -- Transfer functions
   -> Graph n e x            -- Control-flow graph
   -> InF e f                -- Input fact
@@ -2167,8 +2175,8 @@ us to rewrite an assignment to that register by a no-op.  Knowing that a registe
 live at a call site might provoke us to insert a spill before the call.  And so on.
 
 In general, we want to replace a node not just by a single node, nor even by a block,
-but by a whole graph.  For example, perhaps we want to replace a high-level operation
-with a set of conditional branches, which entails introducing new blocks.
+but by an arbitrary graph.  For example, perhaps we want to replace a high-level operation
+with a set of conditional branches or a loop, which entails introducing new blocks.
 
 Thus motivated, we allow the user to give \ourlib{} a rewriting function
 that takes a node and a fact, and optionally returns a graph, of the
@@ -2176,7 +2184,7 @@ same open/closed shape as the node.   The type is given in \figref{rewrites}.
 As with the transfer functions, an entry-closed node does not get a single fact
 but rather an @InFacts f@, using the same @InF@ function as described
 in \figref{transfers}.  The @Maybe@ type expresses that the function can return
-@Nothing@, meaning no rewrite, or (@Just g@), where @g@ is the replacement graph.
+@Nothing@, meaning no rewrite, or (@Just g@) where @g@ is the replacement graph.
 
 More precisely, the rewriter returns an @AGraph@, a function that is given 
 a supply of fresh @BlockId@s.  If the rewriter makes graphs containing blocks,
@@ -2187,8 +2195,122 @@ the @e@ and @x@ parameters of the node are also used for the @AGraph@.
 So a branch instruction, for example can only be rewritten to a graph 
 closed at the exit.
 
-The rewrite function should, of course, be \emph{sound}:
-if it replaces a node @n@ by a replacmement graph
+\subsection{Running the dataflow engine} \seclabel{running-rewriter}
+
+\overfullrule=10pt
+
+To use the \ourlib{} dataflow engine to transform a control-flow graph, you
+use the function @analyseAndRewriteFwd@ 
+(there is a similar function for backward analysis):\begingroup\hfuzz=1pt\relax
+\begin{code}
+ `analyseAndRewriteFwd
+  :: Edges n         
+  => DataflowLattice f      -- Lattice
+  -> ForwardTransfers n f   -- Transfer function
+  -> ForwardRewrites n f    -- Rewrite function
+  -> RewritingDepth         -- Rewrite recursively?
+  -> Graph n e x            -- Graph or subgraph
+  -> InT e f                -- Input fact(s)
+  -> FuelMonad (Graph n e x,  -- Rewritten graph
+                OutFact e f)  -- Output fact(s)
+\end{code}
+The following points are worth noting about this type:
+\begin{itemize}
+\item
+The function takes a rewrite function, as well as a 
+transfer function and dataflow lattice.
+\item
+The @`RewritingDepth@ parameter controls recursive rewriting, in a manner
+to be described shortly.
+\item
+The function transfoms a @Graph@ and a input fact of the appropriate shape,
+into a rewritten graph and a corresponding output fact.
+\item
+Rewriting is monadic.
+A~@`FuelMonad@ holds resources needed to
+rewrite nodes into subgraphs:
+a~supply of fresh labels and a supply of \emph{optimization fuel}
+(\secref{fuel}). 
+\end{itemize}
+
+The user-level model of how @analyseAndRewriteFwd@ works is this.
+The function walks forward over the graph, computing dataflow facts
+just as in the pure analysis case.  At each node, it applies
+the rewrite function to the node and its incoming fact.  If the 
+rewrite function return @Nothing@, the node is retained as part of the output
+graph, and we move on to the next node.
+
+If the rewrite function returns @Just g@ then the next step is controlled
+hy the @RewritingDepth@ flag:
+\begin{itemize}
+\item @RewriteDeep@: the entire @analyseAndRewriteFwd@ function is applied to 
+the rewritten graph, which in turn may be further rewritten.
+\item @RewriteShallow@: the rewritten graph is analysed \emph{but not further rewritten}.
+\end{itemize}
+Deep rewriting is essential to achieve the results of
+\citet{lerner-grove-chambers:2002}, e.g., to remove the induction
+variable from the loop in the example in \secref{induction-var-elim}.\john{Deep rewriting isn't needed for this example; interleaving is...}
+\fi
+\ifcutting\else
+When deep rewriting is used, the rewrite functions must
+ensure that the graphs they produce are not rewritten indefinitely (\secref{correctness}).
+\fi
+
+Notice that in either case, the nodes following the rewritten node see 
+\emph{up-to-date} facts; that is, their input facts are computed from the result 
+of rewriting upstream nodes.
+
+\subsection{Fixpoints and speculative rewrites}
+
+The alert reader will be wondering what happens in the presence of
+loops.  Many analyses compute a fixpoint starting from unsound
+``facts''; for example, a live-variable analysis starts from the
+assumption that all variables are dead.  This means \emph{rewrites
+performed in any iteration other than the last may be unsound, and
+must be discarded}.  That is, each iteration of the fixpoint must
+start afresh with the original graph.  Nevertheless, those rewrites
+must still be performed (albeit tentatively, but possibly recursively)
+so that the correct downstream facts can be computed.
+
+This sort of thing is hard to achieve in an imperative setting, where rewrites
+mutate a graph in-place.  But it is trivially easy in a functional program:
+all we need do is to revert to the original graph at the start
+of each fixpoint iteration.
+
+\subsection{Throttling the dataflow engine using ``optimization fuel''}
+\seclabel{vpoiso}
+\seclabel{fuel}
+
+If the @FuelMonad@ determines that rewriting fuel is exhausted, then no more
+rewriting is done.  
+(Because each rewrite leaves the observable behavior of the
+program unchanged, it is safe to suppress rewrites at
+any point.)
+This allows the Hoopl library client to use a very powerful
+debugging technique for dataflow transformations,
+first suggested by Whalley\cite{whalley:isolation}.
+In~normal operation, the optimizer has unlimited fuel.  But suppose that the program
+being compiled works without optimisation, but fails with optimisation. Then
+the client can use binary search to halt rewriting just before or just after the
+rewrite that introduces the failure, thereby identifying the buggy rewrite.
+
+The @FuelMonad@ is a simple state monad maintaining the supply of unused
+fuel.  It also holds a supply of fresh labels, which are used by the rewriter
+for making new blocks; more precisely, the client-provide @ForwardRewrites@
+function produces an @AGraph@ (\figref{rewrites}) which Hoopl converts to
+a @Graph@ by supplying the @AGraph@ with a supply of @BlockIds@ from the @FuelMonad@.
+
+\subsection{Correctness} \seclabel{correctness}
+
+Facts computed by the @analyseAndRewriteFws@ depend on graphs produced by rewrite
+function, which in turn depend on facts computed by the transfer function.
+How~do we know this algorithm is sound, or even if it terminates?
+A~proof requires its own POPL paper
+\cite{lerner-grove-chambers:2002}, but we can give some
+intuition.
+
+The rewrite function must, of course, be \emph{sound}:
+if it replaces a node @n@ by a replacement graph
 @g@, then $g$ should be observationally equivalent to $n$ under the 
 assumptions expressed by the incoming dataflow fact @f@.
 Moreover the rewrite function must be \emph{consistent} with the transfer function
@@ -2198,238 +2320,13 @@ then it had better still be dead if @n@ is replaced by @g@.  Without
 the consistency condition there would be no guarantee of reaching a fixed point.
 \simon{I still think this is true, although you do not (see comments in the source file. We 
 should debate.}
+Given these assumptions:
 
-\finalremark{Doesn't the rewrite have to be have the following property:
-for a forward analysis/transform, if (rewrite P s) = Just s',
-then (transfer P s $\sqsubseteq$ transfer P s').
-For backward: if (rewrite Q s) = Just s', then (transfer Q s' $\sqsubseteq$ transfer Q s).
-Works for liveness.
-``It works for liveness, so it must be true'' (NR).
-If this is true, it's worth a QuickCheck property!
-}%
-\finalremark{Version 2, after further rumination.  Let's define
-$\scriptstyle \mathit{rt}(f,s) = \mathit{transform}(f, \mathit{rewrite}(f,s))$.
- Then $\mathit{rt}$ should
-be monotonic in~$f$.  We think this is true of liveness, but we are not sure
-whether it's just a generally good idea, or whether it's actually a 
-precondition for some (as yet unarticulated) property of \ourlib{} to hold.}%
-
-%%%%    \simon{The rewrite functions must presumably satisfy
-%%%%    some monotonicity property.  Something like: given a more informative
-%%%%    fact, the rewrite function will rewrite a node to a more informative graph
-%%%%    (in the fact lattice.).
-%%%%    \textbf{NR}: actually the only obligation of the rewrite function is
-%%%%    to preserve observable behavior.  There's no requirement that it be
-%%%%    monotonic or indeed that it do anything useful.  It just has to
-%%%%    preserve semantics (and be a pure function of course).
-%%%%    \textbf{SLPJ} In that case I think I could cook up a program that
-%%%%    would never reach a fixpoint. Imagine a liveness analysis with a loop;
-%%%%    x is initially unused anywhere.
-%%%%    At some assignment node inside the loop, the rewriter behaves as follows: 
-%%%%    if (and only if) x is dead downstream, 
-%%%%    make it alive by rewriting the assignment to mention x.
-%%%%    Now in each successive iteration x will go live/dead/live/dead etc.  I
-%%%%    maintain my claim that rewrite functions must satisfy some
-%%%%    monotonicity property.
-%%%%    \textbf{JD}: in the example you cite, monotonicity of facts at labels
-%%%%    means x cannot go live/dead/live/dead etc.  The only way we can think
-%%%%    of not to terminate is infinite ``deep rewriting.''
-%%%%    }
-
-
-\subsection{Running the dataflow engine}
-
-\overfullrule=10pt
-
-To write a program transformation,
-you must 
-\begin{itemize}
-\item
-Create a dataflow lattice and transfer functions for the supporting
-analysis, as described in \secref{create-analysis}. 
-\item
-Create rewrite functions for first, middle, and last nodes.
-\end{itemize}
-You can then use \ourlib\ function @zdfRewriteFwd@ to transform a
-control-flow graph (a~backward transformation uses function @`zdfRewriteBwd@,
-which has a similar type):\begingroup\hfuzz=1pt\relax
-\begin{code}
- `zdfRewriteFwd 
-  :: HavingSuccessors l     -- Find successors of l
-  => RewritingDepth         -- Rewrite recursively?
-  -> PassName               -- Name of this pass
-  -> DataflowLattice a      -- Lattice
-  -> ForwardTransfers m l a -- Transfer functions
-  -> ForwardRewrites  m l a -- Rewrite functions
-  -> a                      -- Input fact
-  -> Graph m l              -- Graph or subgraph
-  -> FuelMonad (FwdFixedPoint m l a (Graph m l))
-\end{code}
-%%  
-%%  class DataflowSolverDirectiontransfers fixedpt =>
-%%        DataflowDirection
-%%          transfers fixedpt rewrites where
-%%    zdfRewriteFwd :: (DebugNodes m l, Outputable a)
-%%      => RewritingDepth    -- Recursive rewrites?
-%%      -> BlockEnv a        -- Init facts
-%%      -> PassName          -- Analysis name
-%%      -> DataflowLattice a -- Lattice
-%%      -> transfers m l a   -- Transfers
-%%      -> rewrites m l a    -- Input fact
-%%      -> a                 -- Input fact
-%%      -> Graph m l         -- CFG
-%%      -> FuelMonad (fixedpt m l a (Graph m l))
-%%
-%%
-Function @zdfRewriteFwd@ is like @zdfSolveFwd@ in
-\secref{zdfSolveFwd}, but it uses and produces extra
-information:\seclabel{engine-truth} 
-\endgroup
-\begin{itemize}
-\item
-Function @zdfRewriteFwd@ requires rewrite functions as well as transfer
-functions.
-\item
-The @`RewritingDepth@ parameter controls recursive rewriting;
-if~a graph produced by a rewrite function should not be further rewritten,
-rewriting is \emph{shallow};
-%defn RewriteShallow
-if~a graph produced by a rewrite function can be rewritten again,
-rewriting is \emph{deep}.
-%defn RewriteDeep
-\ifcutting\else
-Deep rewriting is essential to achieve the results of
-\citet{lerner-grove-chambers:2002}, e.g., to remove the induction
-variable from the loop in the example in \secref{induction-var-elim}.\john{Deep rewriting isn't needed for this example; interleaving is...}
-\fi
-\ifcutting\else
-When deep rewriting is used, the rewrite functions must
-ensure that the graphs they produce are not rewritten indefinitely.
-\fi
-\item
-In the result type, the fourth type parameter of type constructor
-@FwdFixedPoint@ is a value contained in the fixed point.
-The~value is extracted using function @`zdfFpContents@, which has
-type @FwdFixedPoint m l a b -> b@.
-Here the type parameter~@b@ is instantiated to @Graph m l@: the fixed point
-contains the rewritten graph.
-%%  In~@zdfSolveFwd@, @b@~is instantiated with
-%%  the unit type~@()@.
-%%  \simon{We can't make this point until later, where we say that solve is
-%%  implemented using rewrite.  NR: I don't understand why not.
-%%  We are explaining the meaning of the final type parameter to
-%%  @FwdFixedPoint@, as promised.}
-\item
-Rewriting is monadic.
-A~@`FuelMonad@ holds resources needed to
-rewrite nodes into subgraphs:
-a~supply of fresh labels and a supply of \emph{optimization fuel}
-(\secref{fuel}). 
-\end{itemize}
-
-
-\begin{figure*}\hfuzz=1pt
-\begin{codetable}
-\T
-\begin{code}
-availRewrites :: ForwardRewrites CmmMiddle CmmLast AvailVars
-`availRewrites = ForwardRewrites first middle last
-!avail.rewrites.first!  where ^first _ _ = Nothing
-        ^middle m avail = maybe_reload_before avail m (mkMiddle m)
-!avail.rewrites.last!        ^last   l avail = maybe_reload_before avail l (mkLast l)
-!maybe.reload.before.1!        `maybe_reload_before avail ^node tail =
-            let ^used = filterVarsUsed (elemAvail avail) node
-            in  if isEmptyVarSet used then Nothing
-!maybe.reload.before.2!                else Just $ reloadTail used tail
-        `reloadTail ^vars t = foldl rel t $ varSetToList vars
-!mkMiddle!            where ^rel t r = mkMiddle (reload r) <*> t
-\end{code}
-% omit varSetToList :: VarSet -> [LocalVar]
-\B
-& Rewrite \mbox{functions}\\
-\hline
-
-\T\hfuzz=21pt % lots of cheating on code widths here
-\begin{code}
-insertLateReloads :: Graph CmmMiddle CmmLast -> FuelMonad (Graph CmmMiddle CmmLast)
-`insertLateReloads g = liftM zdfFpContents fp
-!insertLateReloads.1!  where fp = zdfRewriteFwd RewriteShallow "insert late reloads" availVarsLattice
-!insertLateReloads.2!               availTransfers availRewrites (fact_bot availVarsLattice) g
-\end{code}
-& Late-reload insertion\\
-\end{codetable}
-\caption{Late-reload insertion, which relies on the analysis of \figref{avail}}
-\figlabel{avail-rewrites}
-\end{figure*}
-
-
-\seclabel{dfengine-spec}
-
-Function
-@zdfRewriteFwd@ implements
-interleaved analysis and transformation 
-in two phases \citep{lerner-grove-chambers:2002}:\seclabel{solver-phase}
-\begin{itemize}
-\item
-In the first phase, when a rewrite function proposes to replace a
-node~$n$, the replacement graph is analyzed recursively, and the results
-of that analysis are used as the new dataflow
-fact(s) flowing out of node~$n$.
-Then the replacement
-graph is \emph{thrown away}; only the facts remain.
-(In~other words, rewriting is \emph{speculative}.)
-If,~on a later iteration, node~$n$ is analyzed again, perhaps
-with a different input fact, the rewrite function may propose
-a different replacement or even no replacement at~all.
-%%As described in \secref{subgraphs}, every replacement graph is a
-%%\emph{subgraph}, not a complete graph.
-
-The first phase is called the \emph{iterator}.
-It computes a fixed point of the dataflow analysis
-\emph{as if} nodes were replaced, while never actually replacing a node.
-%%%%    \simon{The rewrite functions must presumably satisfy
-%%%%    some monotonicity property.  Something like: given a more informative
-%%%%    fact, the rewrite function will rewrite a node to a more informative graph
-%%%%    (in the fact lattice.).
-%%%%    \textbf{NR}: actually the only obligation of the rewrite function is
-%%%%    to preserve observable behavior.  There's no requirement that it be
-%%%%    monotonic or indeed that it do anything useful.  It just has to
-%%%%    preserve semantics (and be a pure function of course).
-%%%%    \textbf{SLPJ} In that case I think I could cook up a program that
-%%%%    would never reach a fixpoint. Imagine a liveness analysis with a loop;
-%%%%    x is initially unused anywhere.
-%%%%    At some assignment node inside the loop, the rewriter behaves as follows: 
-%%%%    if (and only if) x is dead downstream, 
-%%%%    make it alive by rewriting the assignment to mention x.
-%%%%    Now in each successive iteration x will go live/dead/live/dead etc.  I
-%%%%    maintain my claim that rewrite functions must satisfy some
-%%%%    monotonicity property.
-%%%%    \textbf{JD}: in the example you cite, monotonicity of facts at labels
-%%%%    means x cannot go live/dead/live/dead etc.  The only way we can think
-%%%%    of not to terminate is infinite ``deep rewriting.''
-%%%%    }
-\item
-When the iterator finishes, the resulting fixed point is sound,
-and the facts in the fixed point are used by the second phase, in~which
-no dataflow facts change, but rewrites are not speculative:
-each replacement proposed by a rewrite function is actually
-performed.
-This phase is therefore called the \emph{actualizer}.
-\end{itemize}
-
-%The iterator executes a complicated algorithm with complicated control-flow
-%that depends on the lattice, transfer functions, and rewrite functions;
-Facts computed by the iterator depend on graphs produced by rewrite
-functions, which in turn depend on facts computed by the iterator.
-How~do we know this algorithm is sound, or even if it terminates?
-A~proof requires its own POPL paper
-\cite{lerner-grove-chambers:2002}, but we can give some
-intuition:
 \begin{itemize} 
 \item
-The algorithm is sound because, given the incoming dataflow facts,
-each rewrite must preserve the observable behavior of the program.
-A~sound analysis of the rewritten graph
+The algorithm is sound because if each rewrite is sound (in the sense given above), 
+then applying a succession of rewrites is also sound.
+Moreover, a~sound analysis of the rewritten graph
 may generate only dataflow facts that could have been
 generated by a more complicated analysis of the original graph.
 \item
@@ -2453,8 +2350,7 @@ times, analysis
 Thus to guarantee soundness and termination, client code must supply 
 sound transfer functions,
 sound rewrite functions,
-and
-a
+and a
 lattice with no infinite ascending chains.
 And unless client code specifies shallow rewriting,
 \ifcutting
@@ -2463,7 +2359,6 @@ dataflow engine never to rewrite a replacement graph,
 \fi
 rewrite functions must not return replacement
 graphs which contain nodes that could be rewritten indefinitely.
-
 
 Why use such a complex algorithm?
 \ifcutting Because interleaving \else
@@ -2518,38 +2413,78 @@ When these two transformations are run in sequence, the effect is to
 sink reloads and produce programs like the example shown in
 \secref{spill-reload-example}. 
 
+\finalremark{Doesn't the rewrite have to be have the following property:
+for a forward analysis/transform, if (rewrite P s) = Just s',
+then (transfer P s $\sqsubseteq$ transfer P s').
+For backward: if (rewrite Q s) = Just s', then (transfer Q s' $\sqsubseteq$ transfer Q s).
+Works for liveness.
+``It works for liveness, so it must be true'' (NR).
+If this is true, it's worth a QuickCheck property!
+}%
+\finalremark{Version 2, after further rumination.  Let's define
+$\scriptstyle \mathit{rt}(f,s) = \mathit{transform}(f, \mathit{rewrite}(f,s))$.
+ Then $\mathit{rt}$ should
+be monotonic in~$f$.  We think this is true of liveness, but we are not sure
+whether it's just a generally good idea, or whether it's actually a 
+precondition for some (as yet unarticulated) property of \ourlib{} to hold.}%
+
+%%%%    \simon{The rewrite functions must presumably satisfy
+%%%%    some monotonicity property.  Something like: given a more informative
+%%%%    fact, the rewrite function will rewrite a node to a more informative graph
+%%%%    (in the fact lattice.).
+%%%%    \textbf{NR}: actually the only obligation of the rewrite function is
+%%%%    to preserve observable behavior.  There's no requirement that it be
+%%%%    monotonic or indeed that it do anything useful.  It just has to
+%%%%    preserve semantics (and be a pure function of course).
+%%%%    \textbf{SLPJ} In that case I think I could cook up a program that
+%%%%    would never reach a fixpoint. Imagine a liveness analysis with a loop;
+%%%%    x is initially unused anywhere.
+%%%%    At some assignment node inside the loop, the rewriter behaves as follows: 
+%%%%    if (and only if) x is dead downstream, 
+%%%%    make it alive by rewriting the assignment to mention x.
+%%%%    Now in each successive iteration x will go live/dead/live/dead etc.  I
+%%%%    maintain my claim that rewrite functions must satisfy some
+%%%%    monotonicity property.
+%%%%    \textbf{JD}: in the example you cite, monotonicity of facts at labels
+%%%%    means x cannot go live/dead/live/dead etc.  The only way we can think
+%%%%    of not to terminate is infinite ``deep rewriting.''
+%%%%    }
 
 
+\begin{figure*}\hfuzz=1pt
+\begin{codetable}
+\T
+\begin{code}
+availRewrites :: ForwardRewrites CmmMiddle CmmLast AvailVars
+`availRewrites = ForwardRewrites first middle last
+!avail.rewrites.first!  where ^first _ _ = Nothing
+        ^middle m avail = maybe_reload_before avail m (mkMiddle m)
+!avail.rewrites.last!        ^last   l avail = maybe_reload_before avail l (mkLast l)
+!maybe.reload.before.1!        `maybe_reload_before avail ^node tail =
+            let ^used = filterVarsUsed (elemAvail avail) node
+            in  if isEmptyVarSet used then Nothing
+!maybe.reload.before.2!                else Just $ reloadTail used tail
+        `reloadTail ^vars t = foldl rel t $ varSetToList vars
+!mkMiddle!            where ^rel t r = mkMiddle (reload r) <*> t
+\end{code}
+% omit varSetToList :: VarSet -> [LocalVar]
+\B
+& Rewrite \mbox{functions}\\
+\hline
 
+\T\hfuzz=21pt % lots of cheating on code widths here
+\begin{code}
+insertLateReloads :: Graph CmmMiddle CmmLast -> FuelMonad (Graph CmmMiddle CmmLast)
+`insertLateReloads g = liftM zdfFpContents fp
+!insertLateReloads.1!  where fp = zdfRewriteFwd RewriteShallow "insert late reloads" availVarsLattice
+!insertLateReloads.2!               availTransfers availRewrites (fact_bot availVarsLattice) g
+\end{code}
+& Late-reload insertion\\
+\end{codetable}
+\caption{Late-reload insertion, which relies on the analysis of \figref{avail}}
+\figlabel{avail-rewrites}
+\end{figure*}
 
-%%  After defining the lattice, the transfer functions, and the rewrite functions,
-%%  the client runs the analysis by invoking the dataflow framework
-%%  (see~\figref{framework-fns}).
-%%  The function @zdfSolveFrom@ performs an analysis on an input control-flow graph,
-%%  using a dataflow lattice and a set of transfer functions.
-%%  The additional arguments to the function provide
-%%  the name of the analysis,
-%%  the initial set of dataflow facts (usually empty),
-%%  and the initial fact (usually bottom)
-%%  that flows into either the entry or exit of the graph,
-%%  depending on whether the transfers define a forward or backward analysis.
-%%  The result of the function is the fixed point of the analysis,
-%%  which stores the dataflow fact on entry to each basic block.
-%%  \john{Maybe we should export a simple version of these functions to clients?
-%%    Do they always do the obvious things with the initial facts and in-fact?
-%%    Initial facts can reuse results of a previous analysis, but then you lose
-%%    interleaving.}
-%%  
-%%  To combine an analysis and a transformation,
-%%  the client calls the @zdfRewriteFrom@ function,
-%%  which takes the same arguments as @zdfSolveFrom@,
-%%  with the addition of the set of rewrite functions
-%%  and a parameter (@RewritingDepth@) that decides whether the result
-%%  of a rewrite function should be considered for further rewriting.
-%%  The result of the function is not only the fixed point of the
-%%  analysis interleaved with the transformation,
-%%  but also the transformed control-flow graph.
-%%  
 
 
 
@@ -2710,9 +2645,6 @@ type `LOFsKont a b = LastOuts a -> DFM a b
 \seclabel{engine}
 \seclabel{dfengine}
 
-
-
-
 \delendum{The earlier sections promised that we'd reveal the lies.
 Do we?  I see no mention of @HavingSuccessors@ for example, which is rather important
 for polymorphism.  Indeed, a subsection on that point might be a good way
@@ -2732,52 +2664,129 @@ using an explicit state monad to manage the computation of fixed
 points;
 giving each type of graph node its own analysis function, 
 which also performs speculative rewriting;
-and
-using continuation-passing style to stitch these functions together.
-We~sketch the implementation from the bottom~up:
-\ourlib's fuel monad,
-the monad that holds dataflow facts,
-an~iterator,
-and
-an~actualizer.
+and \simon{Complete this list}.
+
+\subsection{Overview}
+
+We will concentrate on implementing @analyseAndRewriteFwd@, whose
+tpye signature is in \secref{running-rewriter}.
+The implementation is built on the hierarchy of nodes, blocks, and graphs
+that we described in \secref{graph-rep}.  For each such thing
+we will develop a function of this type:
+\begin{code}
+newtype GFT thing n f 
+  = GFT (forall e x. 
+         thing e x 
+         -> InFact e f
+         -> FuelMonad (Graph n e x, OutFact x f))
+\end{code}
+Here we intend @thing@ to range over nodes, blocks, and graphs, thus:
+\begin{code}
+type GFT_Node  n f = GFT n         n f
+type GFT_Block n f = GFT (Block n) n f
+type GFT_Graph n f = GFT (Graph n) n f
+\end{code}
+A GFT (short for ``generic forward transfer'') takes a @thing@ and an input fact of
+appropriate shape, and returns a @Graph@ and a suitably-shaped output fact.
+Note that the result is a @Graph@, regardless of whether @thing@ is a node, block, or graph.
+
+We can now build a modular implementation as follows:
+\begin{itemize} 
+\item From the supplied @ForwardTransfers@ and @ForwardRewrites@, produce a @GFT_Node@
+tha transforms nodes:  
+\begin{code}
+gftNodeRewrite :: ForwardTransfers n f
+               -> ForwardRewrites n f
+               -> GFT_Graph n f
+               -> GFT_Node n f
+\end{code}
+In addition to the transfer and rewrite functions, @gftNodeRewrite@ takes the function
+to analyse and rewrite the rewritten graph.
+\item From this @GFT_Node@, produce a @GFT_Block@ that transforms blocks.
+\begin{code}
+gftBlock :: GFT_Node n f -> GFT_Block n f
+\end{code}
+ 
+\item From this @GFT_Block@, produce a @GFT_Graph@ that tranforms graphs.
+\begin{code}
+gftGraph :: DataflowLattice f
+         -> GFT_Block n f -> GFT_Graph n f
+\end{code}
+This is where the fixpoint computation takes place, so @gftGraph@ must
+take a @DataflowLattice@ as an additional argument.
+\end{itemize}
+Given these three functions, it is rather easy to write the main analyser:
+\par {\small
+\begin{code}
+analyseAndRewrite
+   :: forall n f. Edges n
+   => RewritingDepth
+   -> DataflowLattice f
+   -> ForwardTransfers n f
+   -> ForwardRewrites n f
+   -> GFT_Graph n f
+
+analyseAndRewrite depth lattice tf rw
+ = gft_g
+ where 
+  gft_g, gft_g_sh, gft_g_rec :: GFT_Graph n f
+  gft_g     = gftGraph lattice (gftBlock gft_n)
+  gft_g_sh  = gftGraph lattice (gftBlock gft_node_sh)
+  gft_g_rec = case depth of
+                RewriteShallow -> gft_g_sh
+                RewriteDeep    -> gft_g
+
+  gft_n, gft_n_sh :: GFT_Node n f
+  gft_n    = gftNodeRewrite tf rw gft_graph_rec
+  gft_n_sh = gftNodeTransfer transfers
+\end{code}
+}
+This beautifully compact code does the following:
+\begin{itemize}
+\item The result, @gft_g@ is built by applying @gftGraph@ and @gftBlock@ to
+the node-rewriting engine, @gft_n@.
+\item The node-rewriting engine is constructed @gftNodeRewrite@, instructing the
+latter to use @gft_g_rec@ for recursive applications to rewritten graphs.
+\item When deep rewriting is used, the @gft_g_rec@ engine is simply a recursive
+use of the main function, @gft_g@. But if shallow rewriting is required, it instead
+uses the shallow engine @gft_g_sh@. 
+\item This shallow engine does no rewriting at all: it just performs the dataflow
+analysis.  However, it can still be constructed by applying @gftGraph@ and @gftBlock@
+to the shallow node engine, @gft_n_sh@.
+\item Finally, the shallow node engine, which merely performs dataflow transfers on a single
+node, with no rewriting, is built with @gftNodeTransfer@.
+\end{itemize}
+And that is all.  Note the way that the shallow/deep distinction is made
+here, and here alone; none of the other functions are aware of the issue.
 
 
+\subsection{From nodes to blocks}
 
-%The dataflow engine comprises four functions:
-%a forward iterator, a forward actualizer,
-%a backward iterator, and a backward actualizer.
+We start with the second task, of ''lifting'' a @GFT_Node@ to a @GFT_Block@:
+\begin{code}
+gftBlock :: forall n f. GFT_Node n f -> GFT_Block n f
+gftBlock (GFT node_trans) = GFT block_trans
+  where 
+    block_trans :: GFTR (Block n) n f
+    block_trans (BUnit n)   f 
+      = node_trans n f
+    block_trans (BCat l r) f 
+      = do { (g1,f1) <- block_trans l f
+           ; (g2,f2) <- block_trans r f1
+	   ; return (g1 `gCat` g2, f2) }
+\end{code}
+The code is childishly simple.  In the @BUnit@ case 
+we appeal to the node-level @GFT_Node@ tranform.
+For @BCat@ we recursively apply @block_trans@ to the two
+sub-blocks, threading the output fact from the first as the 
+input to the second.  Each will produce a rewritten @Graph@, 
+which we connect together in sequence with @gCat@. 
 
+\subsection{Rewriting graphs}
 
-\subsection{Throttling the dataflow engine using ``optimization fuel''}
+Next we tackle 
 
-\seclabel{vpoiso}
-\seclabel{fuel}
-
-We have extended Lerner, Grove, and Chambers's optimization-combining algorithm with
-Whalley's \citeyearpar{whalley:isolation} algorithm for isolating
-faults.
-Whalley's algorithm is used to test a faulty optimizer;
-it~automatically
-finds the first rewrite that introduces a fault in a test program.
-It works by giving the optimizer a finite supply of \emph{optimization fuel}.
-Each time a rewrite function proposes to replace a node, one unit of fuel is
-consumed.
-When the optimizer runs out of fuel, further rewrites are suppressed.
-Because each rewrite leaves the observable behavior of the
-program unchanged, it is safe to suppress rewrites at
-any point.
-In~normal operation, the optimizer has unlimited fuel, but during
-debugging, a fault can be isolated quickly by doing a binary search on
-the size of the fuel supply.
-% To control the fuel supply in a purely functional setting, we use
-% the fuel monad.
-%% , which works with
-%% computations of type @Fuel -> (a, Fuel)@.
-The fuel supply is stored in a state monad (@FuelMonad@), which
-also holds a supply of fresh labels.
-Fresh labels are used for making new
-blocks.
-
+\simon{From here on is old stuff}
 
 \subsection{A monad for dataflow effects}
 
