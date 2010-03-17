@@ -1,3 +1,65 @@
+Notes March 2010
+~~~~~~~~~~~~~~~~
+
+* I would love to simplify the Graph type, further, but I don't know
+  how.
+
+* Talking to John, we agreed that a common use of Hoopl will be to
+  analyse full graphs, to get a full mapping (BlockId -> fact), for
+  the *internal* nodes of the graph, not just its out-edges.  Inded
+  for a full graph (eg a procedure body) there wil *be* no out-edges.
+
+  So maybe we want 
+     data Graph n e x where
+       ...
+       GMany { 
+ 	g_entry :: Block n e C,
+	g_blocks :: FullGraph n,
+        ...}
+
+  where
+    newtype FullGraph n = FG [Block n C C]
+  
+  And the client might define a procedure thus:
+
+    data Procedure = Proc BlockId  -- Entry point
+                          (FullGraph CmmNode)
+
+  Now we may imagine
+	GFT_FullGraph n f = GFT (FullGraph n)
+  and the client interface might be exposed for FullGraph.
+  Meanwhile, the recursive invocations of the analysis still
+  work on Graphs.
+
+  So a FullGraph would be a fourth kind of entity (as well as
+  nodes, blocks, graphs), albeit one that is not an instance of
+  Edges.
+
+* Incidentally, eleveating FullGraph in this way would let
+  us switch to BlockEnv or whatever else we wanted if that 
+  proved convenient.
+
+* I was thinking how to do dead-block elimination.  Given a fact
+  (B17 -> Dead), how can I rewrite the block with label B17 to
+  an empty graph?  I'd like to write
+      rewrite fact_fun (Label b) 
+        | fact_fun b == Dead = Just (GUnit (BUnit b `BCat` unreachable))
+        | otherwise          = Nothing
+
+  So what is "unreachable :: Block".  I suppose it's a new constructor
+  of the Block type, that eats all its downstream fellows:
+
+	data Block n e x where
+          BUnr :: Block n O x
+	  ...as before...
+
+  It's a bit like the GNil constructor, which is there primarily
+  to allow us to rewrite a node to a no-op.
+
+  Its a bit tiresome that it has be be in Block not Graph, but
+  we still need that Label. 
+
+
 Ideas
 ~~~~~
 "Optimization" encompasses:
