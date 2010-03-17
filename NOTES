@@ -1,8 +1,34 @@
 Notes March 2010
 ~~~~~~~~~~~~~~~~
+Normans comment on draft so far:
+
+- Revisit introduction
+
+- Still skeptical about blockId function
+
+- GMany: does the list have to be non-empty?
+   Could we have GMany b1 [] b2?  
+   
+- Distinction between invariants that hold on "finished graphs"
+  and ones that hold on graphs under construction.
+
+- Consider (GUnit b) :: Graph C C, can successors(b) include b's 
+  own BlockId?  No.  
+
+- If you ask for successors(x) can you get any pointer into x?
+  Answer no.  
+  Simon says: you can can only get a loop in g_blocks.  A singleton
+  block can't be a loop.  
+
+- Client knows about nodes. Our job is to lift to blocks and graphs.
+
 
 * I would love to simplify the Graph type, further, but I don't know
-  how.
+  how.  In particular, we seem to *need* a function of type
+	lift :: n e x -> Graph n e x
+  to use when the client's rewriting function says Nothing.
+
+  But that forces the slightly 
 
 * Talking to John, we agreed that a common use of Hoopl will be to
   analyse full graphs, to get a full mapping (BlockId -> fact), for
@@ -35,9 +61,25 @@ Notes March 2010
   nodes, blocks, graphs), albeit one that is not an instance of
   Edges.
 
+That would make the signature of analyseAndRewrite look like this:
+
+analyseAndRewrite
+   :: forall n f. Edges n
+   => RewritingDepth
+   -> DataflowLattice f
+   -> ForwardTransfers n f
+   -> ForwardRewrites n f
+   -> GFT_FullGraph n f
+
+where
+  GFT_FullGraph n f = FullGraph n -> InFactC f -> 
+
 * Incidentally, eleveating FullGraph in this way would let
   us switch to BlockEnv or whatever else we wanted if that 
   proved convenient.
+
+* Maybe FullGraph should be Graph, and Graph should be PGraph (for
+  partial graph), or SubGraph.
 
 * I was thinking how to do dead-block elimination.  Given a fact
   (B17 -> Dead), how can I rewrite the block with label B17 to
