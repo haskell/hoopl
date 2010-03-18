@@ -471,64 +471,73 @@ We also sketch a new implementation of interleaving (\secref{engine}).
 \seclabel{example:transforms}
 \seclabel{example:xforms}
 
-\simon{My intention is that this section gives a quick introduction to why
-interleaving analysis and rewrite is important.  I belive that we can 
-leave the question of ``super-analyses'' to the next paper.}
+We begin by setting the scene, introducing some vocabulary, and
+articulating a small motivating example.
+A control-flow graph, perhaps representing the body of a procedure,
+is a collection of \emph{basic blocks}
+-- or just ``blocks'' -- each of which has a label at the 
+beginning.  Each block may branch to other blocks with arbitrarily
+complex control flow.
+The goal of dataflow optimization is to compute valid
+\emph{assertions} (or \emph{dataflow facts}), 
+then use those assertions to justify code-improving
+transformations (or \emph{rewrites}) on a \emph{control-flow graph}.  
 
-In dataflow optimization, code-improving transformations are justified
-by assertions about programs;
-such assertions are often computed using
-strongest postconditions or weakest liberal preconditions.
-Typical transformations are
-to insert assignments to unobserved variables,
-to substitute equals for equals, 
-and
-to remove assignments to unobserved variables.
-Insertion and removal can be composed to achieve 
-``code motion.''
-\ourlib\  expresses classic code
-improvements by composing simple \ifcutting\else analyses and \fi
-transformations. 
-
-As an example, here is a sequence of assignments separated by assertions.
-We~compute assertions by starting with the weakest 
-\ifcutting \else possible \fi
-assertion (\texttt{true}) and computing strongest postconditions.
-% \footnote
-{Variables do not alias.}
+Consider a concrete example: constant propagation.
+On the left we have a basic block; in the middle we have
+assertions that hold between statements (or \emph{nodes}) 
+in the block; and at
+the right we have the result of transforming the block 
+based on the assertions:
 \begin{verbatim}
-    { true }
-  x = 7;
-    { x == 7 }
-  y = 8: 
-    { x == 7 && y == 8 }
-  z = x + y;
+  Before   	     Facts       After
+           	      {}
+  x = 3+4  	                 x = 7
+           	    {x=7}
+  z = x>5  	                 z = False
+           	{x=7, z=False}
+  if z                           goto L2
+   then goto L1
+   else goto L2
 \end{verbatim}
-\delendum{SLPJ asks: Could we add $x=7,y=8,z=15$ as a final assertion?
-We can but we should not, because a \naive\ sp function 
-would produce the assertion $x=7\land y = 8
-\land z = x+y$. To reach the point you desire, some sort of simplifier
-would be required, and it is better to let the conclusion emerge
-naturally as  the code is rewritten.}
-In the assignment to~@z@, the assertion @x == 7@ justifies
-substituting~7 for~@x@, leaving @z = 7 + y@.  
-This transformation is traditionally called ``constant propagation.''
-We may also substitute 8~for~@y@.
-Finally, because @7 + 8 == 15@, we may again substitute equals for
-equals, leaving the final assignment as
-\begin{verbatim}
-  z = 15;
-\end{verbatim}
-The final transformation, although it also substitutes equals
-for equals, has a different name: ``constant folding.''
+Constant-propagation works
+from top to bottom.  We start with the empty assertion.  
+Given the empty assertion and the node @x=3+4@ can we make a (constant-prop)
+transformation?
+Yes!  We can replace it with @x=7@.  Now, given this transformed node,
+and the original assertion, what assertion flows out of the bottom of
+the transformed node?  Clearly the assertion \{@x=7@\}.  
+Given the assertion \{@x=7@\} and the node @z=x>5@, can we make a
+transformation?  Yes: replace it with @z=False@.  And so the process
+continues. Notice that in the last node of the block we can transform
+a conditional jump to an unconditional one.
 
-\simon{Transformation (replacing conditional branches by unconditional ones) 
-remains to be added}
+Notice that it is very convenient to \emph{interleave}
+transformation and analysis.  If we \emph{first} analysed the block
+and \emph{then} transformed it, the analysis would have to ``predict''
+the transformations.  For example, a pure analysis would have to
+evaluate @x>5@ under the assumption that {x=7} to get the outgoing
+fact \{@x=7@, @z=False@\}.  But the subsequent transformation must do exactly the
+same thing.  This duplication of knowledge becomes onerous when the
+transformation is complex, or if there are a number of interacting transformations;
+we encourage the reader to consult \cite{lerner et al} for more substantial
+examples.
 
+Constant propagation works \emph{forwards}, and a fact is typically an
+assertion about the program state (such as ``variable @x@ holds value
+@7@'').  Many useful analyses work \emph{backwards}, from bottom to
+top.  An example is live-variable analysis, where the a fact takes the form
+``variable @x@ is dead'' and constitute an assertion about the
+\emph{continuation} of a program point.  For example, the fact ``@x@ is
+dead'' at a program point P is an assertion that @x@ is unused on any program
+path starting at P.  The accompanying transformation is called dead-code elimination,
+and allows the assignment @x=e@ to be rewritten to a no-op if @x@ is dead.
+
+% ----------------------------------------
 \section{Representing control flow graphs} \seclabel{graph-rep}
 
 \ourlib{} is a library that makes it easy to define dataflow analyses,
-and transformations driven by these analyses, on control flow graphs.
+and transformations driven by these analyses, on control-flow graphs.
 In this section we describe the representation of these graphs.
 There are three fundamental entities, which we discuss in turn;
 \begin{itemize}
@@ -541,9 +550,14 @@ composed from basic blocks (\secref{graphs}).
 
 \subsection{Nodes} \seclabel{nodes}
 
-The primitive constituents of a \ourlib{} control flow graph are \emph{nodes},
-reprsented by a data type defined by the client.  Typically, a node might represent a machine 
-instruction, such as an assignment, a call, or a conditional branch.
+The primitive constituents of a \ourlib{} control flow graph are
+\emph{nodes}, reprsented by a data type defined by the client.
+Typically, a node might represent a machine instruction, such as an
+assignment, a call, or a conditional branch.  However, crucially,
+\ourlib{}'s graph representation is polymorphic in the node type, so
+that graphs can include arbitrary client-specified data, including
+(say) C statements, method calls in an object oriented language, or
+whatever.
 
 A node may be \emph{open or closed at entry}
 and \emph{open or closed at exit}.  
@@ -776,172 +790,86 @@ Since an entry-closed node and block both have a unique block id, shouldn't an e
 graph have one too?}
 \simon{Also the successors thing is not pretty.}
 
-\section {Dataflow analysis}
+\section {Using \ourlib{} to analyse and transform graphs} \seclabel{using-hoopl}
 \seclabel{making-simple}
 \seclabel{create-analysis}
 
-Now that we have graphs in hand, we are 
-ready to return to dataflow optimisation.
-The goal of dataflow optimization is to compute valid
-assertions, then use those assertions to justify code-improving
-transformations.
-Assertions are represented as
-\emph{dataflow facts}.
-Dataflow facts relate to traditional program logic:
+Now that we have graphs in hand, we are ready to return to dataflow
+optimisation.  The goal of \ourlib{} is to make it extremely easy for a
+client to build a new dataflow analysis and optimisation.  To do this
+the client must supply the following pieces:
 \begin{itemize}
-\item
-A dataflow fact is usually equivalent to an assertion about program state or
-about a continuation.
-For example, in \secref{constant-propagation}, @x == 7@ is a dataflow
-fact that describes the program state. 
-
-
-%%  There are two kinds of dataflow facts.
-%%  The first kind is an assertion about the paths from the procedure
-%%  entry to a program point;
-%%  these facts are computed by a forward dataflow analysis.
-%%  A common special case is an assertion about state at a program point,
-%%  such as the assertion @x == 7@ in \secref{constant-propagation}.
-%%  % Assertions about program state are usually sufficient to show that
-%%  % a transformation preserves semantics,
-%%  % but to decide whether a transformation will improve the code,
-%%  % we sometimes need an assertion that describes how the program
-%%  % state was established.
-%%  
-%%  The second kind of dataflow fact is an assertion about paths from the program point
-%%  to the procedure exit;
-%%  these facts are computed by a backward dataflow analysis.
-%%  In the parlance of functional programmers, these dataflow facts are assertions on
-%%  \emph{continuations}.
-%%  
-%%  Assertions about state are easy to formalize, but path properties are harder;
-%%  we describe path properties informally in our assertions.
-\item
-A~set of dataflow facts forms a lattice.
-To ensure that analysis terminates,
-it is enough if
-no fact has more than finitely many distinct facts above it.
-\item
-Each analysis or transformation may use a different lattice of
-dataflow facts.
+\item \emph{A node type} (\secref{graph-rep}).  
+Then \ourlib{} supplies the @Block@ and @Graph@ types
+that let the client build control-flow graphs out of nodes.
+\item \emph{A data type of facts}, and some operations over 
+those facts (\secref{facts}).
+Each analysis uses its own analysis-specific 
+facts, so \ourlib{} is completely polymorphic in 
+the fact type.   
+\item \emph{A transfer function} that takes an input fact and a node,
+and produces the output fact that flows out of the other end of 
+the node (\secref{transfers}).  
+\item \emph{A rewrite function} that takes an input fact and a node,
+and produces either @Nothing@,
+or @(Just g)@ where @g@ is an \emph{arbitrary graph} that should
+replace the node.  The ability to replace a node by a graph is crucial;
+for example, perhaps we want to replace a high-level operation
+with a set of conditional branches or a loop, which entails introducing new blocks.
+Another important special case is replacing the node by the empty graph, 
+thereby deleting the node.
+We discuss the rewrite function
+in \secref{rewrites}
 \end{itemize}
+With these pieces in hand, a client can call \ourlib{}'s analysis-and-rewriting
+function:
+\begin{code}
+ `analyseAndRewriteFwd
+  :: Edges n         
+  => DataflowLattice f      -- Lattice
+  -> ForwardTransfer n f    -- Transfer function
+  -> ForwardRewrite n f     -- Rewrite function
+  -> RewritingDepth         -- Rewrite recursively?
+  -> Graph n e x            -- Graph or subgraph
+  -> Fact e f               -- Input fact(s)
+  -> FuelMonad (Graph n e x,  -- Rewritten graph
+                Fact x f)     -- Output fact(s)
+\end{code}
+You can see that the function is polymorphic in the type of nodes @n@ and facts @f@.
+Roughly speaking, you can see that, given a lattice, a transfer function, and a 
+rewrite function, @analyseAndRewriteFwd@ can transform a @Graph@ 
+into an optimised @Graph@.  In the rest of this section we flesh out this
+explanation, including describing all the types mentioned in the above signature.
+We will continue to use constant propagation as a running example; the complete
+example is shown in \figref{const-prop}. \simon{John: this is for you to fill in}
 
-An assertion about a continuation is an assertion about paths
-\emph{from} a program point 
-to the procedure {exit};
-such assertions are established by a \emph{backward dataflow analysis}.
-An~assertion about paths \emph{to} a program point from the procedure
-{entry} is established by a \emph{forward dataflow analysis}.
-As~an important special case,
-an assertion, such as @x == 7@ above,
- may say simply
-that all paths to a point establish a predicate
-which describes the program state at that point.
+The user-level model of how @analyseAndRewriteFwd@ works is this.  The
+function walks forward over the graph.  At each node, it applies the
+rewrite function to the node and its incoming fact.  If the rewrite
+function returns @Nothing@, the node is retained as part of the output
+graph, the transfer function is used to compute the downstream fact,
+and we move on to the next node.
 
-A~program point is represented as an edge in
-the control-flow graph, where an edge connects two nodes.
-%%\footnote
-%%{We discuss only intraprocedural optimization, done after inlining.}
-%%
-%%interprocedural optimizations are the work of the GHC~inliner
-%%\cite{peyton-jones:secrets-inliner}.} 
-%% 
-%%  Note: trying to eliminate reviewer's impression that our work is
-%%  conceived for and limited to GHC.  S&S's citation count must
-%%  suffer.  ---NR
-%%
-To write a dataflow \emph{analysis}, you must 
+If the rewrite function returns @Just g@ then the next step is controlled
+hy the @RewritingDepth@ flag:
 \begin{itemize}
-\item
-Choose a representation~$F$ of dataflow facts and a logical interpretation
-thereof.
-\item
-Implement lattice operations over~$F$ (\secref{lattices}).
-\item
-Write a \emph{transfer function} that relates the dataflow facts before and
-after a node (\secref{tffuns}).
+\item @RewriteDeep@: the entire @analyseAndRewriteFwd@ function is applied to 
+the rewritten graph, which in turn may be further rewritten.
+\item @RewriteShallow@: the rewritten graph is analysed \emph{but not further rewritten}.
 \end{itemize}
+Deep rewriting is sometimes essential to achieve the results of
+\citet{lerner-grove-chambers:2002}.
+Shallow rewriting is also sometimes vital; for example, a rewrite that inserts
+a spill before a call might risk repeatedly inserting the same spill if the 
+rewrite was iterated. 
+When deep rewriting is used, the rewrite functions must
+ensure that the graphs they produce are not rewritten indefinitely (\secref{correctness}).
 
-To write a \emph{transformation}
-based on an analysis, you
-must also
-create a \emph{rewrite function}, which is presented with a
-flow-graph node and with the dataflow facts on the edges coming
-into that node (\secref{rewrite-functions}).
-The function either proposes to replace the node with a
-fresh subgraph, or it leaves the node alone.
-If the function proposes a replacement,
-the replacement must preserve
-semantics;
-preservation may be justified by incoming 
-\ifcutting \else dataflow \fi
-facts.
-For example, in \secref{constant-propagation} the fact @x == 7@ 
-justifies replacing @z = x + y@ with @z = 7 + y@.
+Notice that in either case, the nodes following the rewritten node see 
+\emph{up-to-date} facts; that is, their input facts are computed from the result 
+of rewriting upstream nodes.
 
-\begin{table}
-\centerline{%
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.03in}>{\scshape}c>{\scshape}
-      c>{\raggedright\arraybackslash}p{1.2in}@{}}
-&\multicolumn1{r}{\llap{\emph{Specified}}\hspace*{-0.3em}}&
-\multicolumn1{l}{\hspace*{-0.4em}\rlap{\emph{Implemented}}}&\\
-\multicolumn1{c}{\emph{Part of optimizer}}
-&\multicolumn1{c}{\emph{by}}&
-\multicolumn1{c}{\emph{by}}&
-\multicolumn1{c}{\emph{How many}}%
-\\[5pt]
-Control-flow graphs& Us & Us & One \\
-Nodes in a control-flow graph & You & You & One datatype per intermediate language \\[3pt]
-Dataflow fact~$F$    & You & You & One datatype per logic \\
-Lattice operations & Us & You & One set per logic \\[3pt]
-Transfer function & Us & You & One per analysis \\
-Rewrite function & Us & You & One per \rlap{transformation} \\[3pt]
-Iterative solver functions & Us & Us & Two (forward \&\ backward) \\
-Solve-and-rewrite functions & Us & Us & Two (forward \&\ backward) \\
-\end{tabular}%
-}
-\caption{Parts of an optimizer built with \ourlib}
-\tablabel{parts}
-\end{table}
-
-\tabref{parts} shows how \ourlib\ interacts with your client code.
-\ourlib\ defines the types of
-control-flow graphs, 
-lattice operations,
-transfer function, 
-and 
-rewrite function.
-{All}~these types are parameterized by the types of
-nodes in the control-flow graph, which \emph{you} get to define, so you can use
-\ourlib\ with many intermediate languages (\tabref{parts}).
-Function types are also parameterized by the type of dataflow
-facts, so you can define different analyses, 
-using different types of facts,
-all operating over one type of graph. 
-
-\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
-
-To run an~optimization, you~pass lattice
-operations, transfer function, and rewrite function
-to one of \ourlib's
-\emph{solver functions} or \emph{rewrite functions}---\ourlib's 
-\emph{dataflow engine}.
-A~solver function 
-uses a forward or backward \emph{analysis} to compute 
-a dataflow fact for each program point (\secref{zdfSolveFwd}).
-A~rewrite function
-uses a forward or backward \emph{transformation} to compute facts and to
-rewrite a control-flow graph in light of those facts
-(\secref{rewrites}).
-\ifcutting\else
-The engine's implementation is sketched in \secref{dfengine}.
-\fi
-\delendum{Interface?  Perhaps ``The signatures and expected usage of these
-functions is described in xxx, while their implementation is sketched
-in yyy''.  NR: I like the idea of parallel structure, but the paper is
-not really very parallel here.  Faced with either repeating the
-section references or distorting what those sections are about, I've
-chosen instead to abandon parallel structure.}
+\subsection{Dataflow lattices} \seclabel{lattices} \seclabel{facts}
 
 \begin{figure}
 \ifcutting
@@ -953,104 +881,59 @@ data `DataflowLattice a = DataflowLattice
 \end{code}
 \else
 \begin{code}
---data ChangeFlag = NoChange | SomeChange
---data DataflowLattice a = DataflowLattice
--- {fact_bot        :: a,
---  fact_add_to     :: a -> a -> (a, ChangeFlag),
---  fact_name       :: String } -- for debugging
+data ChangeFlag = NoChange | SomeChange
+data DataflowLattice a = DataflowLattice
+ { fact_bot        :: a,
+   fact_add_to     :: a -> a -> (a, ChangeFlag),
+   fact_name       :: String } -- Debugging only
 \end{code}
 \fi
 \caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
 \end{figure}
 
-
-\subsection{Dataflow lattices}
-
-\seclabel{lattices}
-
-As an example, 
-we present a lattice of facts about constant propagation.
-At any program point, a standard constant-propagation analysis
-computes exactly one of three
-facts about a variable~$x$:
+For any one analysis or transformation the client must define a type
+of dataflow facts.  A dataflow facts typically represents an assertion
+about a program point.  (A program point is simply an edge in the 
+control-flow graph.)
 \begin{itemize}
-\item
-The analysis shows that
-$x = k$, where $k$~is a compile-time constant of type \texttt{Const}.
-\item
-The analysis shows that $x$~is \emph{not} a compile-time constant.
-We~notate this fact as $x = \top$.
-\item
-The analysis shows nothing about~$x$, which we notate $x=\bot$.
+\item An assertion about all paths \emph{to} a program point is established
+by a \emph{forwards analysis}. For example the assertion ``$@x@=@3@$'' at P 
+might claim that variable @x@ holds value @3@ at P, regardless of the
+path by which P was reached.
+\item An assertion about all paths \emph{from} a program point is 
+established by a \emph{backwards analysis}. For example, the 
+assertion ``@x@ is dead'' at P might claim that no path from P uses 
+variable @x@.
 \end{itemize}
-The bottom element of the lattice is~$x=\bot$, and
-the join operation~$\join$ approximates disjunction,
-the logical operation that combines facts flowing to a single label.
-A~disjunction of two inconsistent facts is represented by~$x=\top$%
-\ifcutting,
-so for example 
-$x = 7 \lor x = 8$ is approximated by $x = \top$, 
-losing information.%
-\else
-Here are some examples:
-\begin{itemize}
-\item
-$i = 7 \lor i=\bot \equiv i=7$ (no loss of information)
-\item
-$i = 7 \lor i= 7 \equiv  i=7$ (no loss of information)
-\item
-$i = 7 \lor i = 8 \equiv i = \top$ (loss of information)%
-\fi
-\footnote
-{Your client code determines how much information is lost.
-For example, in a similar analysis for a functional language,
-you might track whether a value\ifcutting\else~$v$\fi\ is 
-the result of applying a constructor from any finite set~$\{C_i\}$.
-\ifcutting
-\else
-In this analysis, you needn't limit the representation to a
-single constructor or to~$\top$;
-you could choose to represent such facts as ``$v$~is
-the application of a constructor drawn from the set $\{C_1, C_2,
-C_4\}$.''
-Because every algebraic data type has finitely many constructors,
-there are finitely many sets and therefore finitely many facts in the
-lattice, so a dataflow analysis over this lattice would always reach a
-fixed point.
-\fi
-}
-%%  The compiler writer gets to choose how much information is lost;
-%%  in a different analysis, it might be useful to 
-%%  choose a lattice which can say
-%%  that the value of a variable is one of,
-%%  say, at most three constants.
-\ifcutting\else
-\end{itemize}
-\fi
 
-The lattice used by the analysis is the Cartesian product of the
-lattices for all the local variables.
-We~represent this lattice as a finite map from a variable
-to a value of type \icode|Maybe Const|.
-A~variable $x$ is not in the domain of the map iff $x=\bot$;
-$x$~maps to @Nothing@ iff $x=\top$; $x$~maps to $@Just@\;k$ iff
-$x=k$.
+A~set of dataflow facts must form a lattice, and \ourlib{} must know
+(a) the bottom element of the lattice and (b) how to join (take take 
+the least upper bound of) two elements.  To ensure that analysis
+terminates, it is enough if no fact has more than finitely many
+distinct facts above it, so that any sequence of joins will terminate.
 
-\ifcutting\else
-Any one procedure has only finitely many variables;
-only finitely many facts are computed at any program point;
-and in this lattice any one fact can increase at most twice.
-These properties
-ensure that the dataflow engine will
-reach a fixed point.
-\fi
+In our constant-propagation example, a fact is a finite conjunction of
+sub-facts, at most one for each variable.  Each sub-fact has the form ``@x=@$k$'',
+for some constant $k$, or ``@x=@$\top$'' (meaning that there is 
+no single value held by $x$ at this program point).  For example, 
+consider this graph,
+where we assume @L1@ is the entry point:
+\begin{verbatim}
+  L1: x=3; y=4; if z then goto L2 else goto L3
+  L2: x=7; goto L3
+  L3: ....
+\end{verbatim}
+Since control flows to @L3@ from two places
+we must join the facts coming from those two places.  The fact at the
+first @goto L3@ is (@x=3@, @y=4@, @z=False@), while at the second @goto L3@
+the fact is (@x=7@, @y=4@, @z=True@).  Joining these gives the 
+the fact (@x=@$\top$, @y=4@, @z=@$\top$) at @L3@, where the $\top$'s indicate
+that the analysis cannot
+nail down @x@ and @z@ to hold a single value at @L3@\footnote{
+In this example @x@ and @z@ really do vary at @L3@, but in general
+the analysis might simply be conservative.}.
 
-
-\ourlib's dataflow engine uses
-\ifcutting joins
-\else the lattice's join operation
-\fi in a stylized way.
-Joins occur at labels.
+In general, joins occur at labels.
 If~$f_{\mathit{id}}$ is the fact currently associated with the
 label~$\mathit{id}$, 
 and if a transfer function propagates a new fact~$f_{\mathit{new}}$
@@ -1061,36 +944,31 @@ Furthermore, the dataflow engine wants to know if
   $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$,
 because if not, the analysis has not reached a fixed point.
 
+Concretely, @analyseAndRewriteFwd@ is polymorphic in the fact type
+@f@, and requires an argument of type @DataflowLattice f@.  The latter
+type is shown in \figref{lattice}, and tells \ourlib{} the bottom and
+join operations on the lattice.  In practice, when computing a join,
+it is often cheap to learn if the join is equal to one of the
+arguments.  Moreover, as noted in the previous paragraph, that
+knowledge is precisely what \ourlib{} needs to know.  Hence, instead
+of requiring an equality operation on facts (which might be
+expensive), we instead ask @fact_add_to@ to return a @ChangeFlag@ as
+well as the joined value.  The @ChangeFlag@ should be @NoChange@ if
+the result is the same as the second argument, and @SomeChange@ if the
+result differs.  (Note the assymmetry.)
+
+In the case of constant propagation, \figref{constant-prop} shows a
+possible concrete represetation of the facts described above.  A fact
+is represented as a finite map from a variable to a value of type
+\icode|Maybe Const|.  A~variable $x$ maps to @Nothing@ iff $x=\top$;
+$x$~maps to $@Just@\;k$ iff $x=k$.  Any one procedure has only
+finitely many variables; only finitely many facts are computed at any
+program point; and in this lattice any one fact can increase at most
+twice.  These properties ensure that the dataflow engine will reach a
+fixed point.
 
 
-When computing a join, 
-it is often cheap to learn if the join
-is equal to one of the arguments.
-We therefore use a nonstandard representation of lattice operations,
-\iffalse
-(\figref{lattice}).
-\else
-as shown in \figref{lattice}.
-\fi
-The~join operation~$\join$ and equality test~$=$ are represented by a
-single function called @fact_add_to@.
-The term $@fact_add_to@\;f_{\mathit{new}}\;f_{\mathit{id}}$ is equal to
-$(f_{\mathit{id}}, @NoChange@)$ 
-if $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$
-and is equal to
-\mbox{$(f_{\mathit{new}} \join f_{\mathit{id}}, @SomeChange@)$} otherwise.
-The @fact_bot@ value is the bottom element\ifcutting.
-% omit fact_name :: DataflowLattice a -> String
-\else, 
-and @fact_name@  is used for debugging.
-\fi
-
-\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
-
-
-
-\subsection{Transfer functions} \seclabel{tffuns}
-
+\subsection{The transfer function} \seclabel{transfers}
 
 \begin{figure}
 \begin{code}
@@ -1117,14 +995,36 @@ type instance OutFact C f = OutFactC f
 
 A~transfer function is presented with the dataflow fact on the edge coming
 into a node, and it computes dataflow facts on outgoing edge.
-But wait!  What if the node is closed on entry or exit?
+In a forward analysis, the dataflow engine starts with the fact at the
+beginning of a block and applies the transfer function to successive 
+nodes in that block until eventually the transfer function for the last node
+computes the facts that are propagated to the block's successors.
+For example, consider this graph, with entry at @L1@:
+\begin{code}
+  L1: x=3; goto L2
+  L2: y=x+4; x=x-1; 
+      if x>0 then goto L2 else return
+\end{code}
+A forward analysis starts with the bottom fact \{\} at every label.
+Analysing @L1@ propagates this fact forward, by applying the transer 
+function successively applying the transfer function to the nodes
+of @L1@, emerging with the fact \{@x=3@\} for @L2@.
+This is joined with the existing (bottom) fact for @L2@.
+Now the analysis propagates @L2@'s fact forward, again using the transfer
+function, this time emerging with a new fact \{@x=2@,@y=7@\} for @L2@.
+Again, this is joined with the existing fact for @L2@, and the process
+is iterated until the facts for each label reach a fixed point.
+
+But wait!  What is the \emph{type} of the transfer function?
+If the node is open at entry and exit, it takes a fact and the node and produces a fact.
+But what if the node is \emph{closed} on entry or exit?
 If the node is closed on entry, the transfer function must be given a mapping
 from @BlockId@ to facts, which it can use to look up the fact for the entry
 @BlockId@.  If the node is closed on exit then the transfer function must
-produce a list of (@BlockId@,fact) pairs, one for each outgoing edge.  So 
-the types of the transfer function's argument and result each 
-depend on the open/closed-ness of the node.
+produce a list of (@BlockId@,fact) pairs, one for each outgoing edge.  
 
+\emph{So the types of the transfer function's argument and result each 
+depend on the open/closed-ness of the node.}
 Fortunately, this is precisely what Haskell's (recently added) 
 indexed type families are for.
 The relevant \ourlib{} definitions are given in \figref{transfers}.
@@ -1142,8 +1042,8 @@ to @f@.   The same technique makes the result type of @ForwardTransfers@ vary wi
 the exit flag @x@.
 
 All the \ourlib{} client needs to do is to write the transfer function, with
-this type.  We will give a concrete example shortly, 
-in \secref{example-analyses}.  The supplied transrer function should be 
+this type.  \figref{constant-prop} shows the transfer function for our
+constant-propagation example.  The supplied transrer function should be 
 \emph{monotonic} in the following sense: given a more informative fact in,
 it should produce a more informative fact out.  Otherwise the fixpoint-finder
 might go into an infinite flip-flop loop.
@@ -1151,63 +1051,7 @@ might go into an infinite flip-flop loop.
 \ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
 
-\subsection{Running the dataflow engine} \seclabel{zdfSolveFwd}
-
-\iftrue
-Once the client has written the lattice operations and the
-transfer function, the \ourlib{} dataflow engine lifts
-the transfer function from nodes up to graphs.  Here is the signature
-for the forward analyser
-(there is a backward analyser with a similar type):
-\begingroup\hfuzz=1pt\relax
-\begin{code}
- `analyseFwd 
-  :: Edges n    
-  => DataflowLattice f      -- Lattice
-  -> ForwardTransfers n f   -- Transfer functions
-  -> Graph n e x            -- Control-flow graph
-  -> InFact e f                -- Input fact
-  -> OutFact x f
-\end{code}
-The similarity to the @ForwardTransfers@ type should be clear: 
-@zdfSolveFwd@ is 
-just a transfer function for whole graphs.
-
-In a forward analysis, the dataflow engine starts with the fact at the
-beginning of a block and applies transfer functions to the nodes in
-that block until eventually the transfer function for the last node
-computes the facts that are propagated to the block's successors.
-For example, in the block
-\begin{verbatim}
-  L1: x = 7;
-      y = 8;
-      z = x + y;
-      goto L2;
-\end{verbatim}
-a forward analysis would propagate the fact 
-$@x@ = 7 \land @y@ = 8$, which we will call $f_{\mathit{new}}$,
-along the edge to~\texttt{L2}. 
-%%  \remark{We've elected not to get to the level of detail where
-%%  we show how propagating a fact~$f$ through \mbox{@x = 7;@} results in a new
-%%  fact either $(f \setminus @x@) \land @x == 7@$.}
-The dataflow engine then \emph{replaces} the current fact
-at~\texttt{L2}~($f_{\mathtt{L2}}$) with the lattice join $f_{\mathit{new}}
-\join f_{\mathtt{L2}}$. 
-The dataflow engine iterates over the blocks repeatedly, creating new
-facts~$f$ and joining them with facts $f_{\mathit{id}}$ until
-\mbox{$f \join f_{\mathit{id}} = f_{\mathit{id}}$} at every label~$\mathit{id}$.
-When the facts at labels stop changing, the dataflow
-engine has reached a fixed point.
-
-\subsection{Example: constant propagation}
-
-\simon{Here we give the transfer function for constant-prop}
-
-%\remark{Promissory note: compose this analysis with two
-%transformations: constant propagation and constant folding}
-
-\section{Using dataflow facts to rewrite graphs\ifpagetuning\else, with examples\fi}
-\seclabel{rewrites} \seclabel{example-rewrites}
+\subsection{The rewrite function} \seclabel{rewrites} \seclabel{example-rewrites}
 
 \begin{figure}
 \hfuzz=5.7pt % cheating again!
@@ -1225,13 +1069,13 @@ type BackwardRewrites n f
 
 We compute dataflow facts in order to enable code-improving
 transformations on control-flow graphs.
-For example, knowing that a register is dead allows
-us to rewrite an assignment to that register by a no-op.  Knowing that a register is
-live at a call site might provoke us to insert a spill before the call.  And so on.
+In our constant-propagation example, the dataflow facts may enable us
+to simplify an expression by performing constant folding, or to 
+turn a conditional branch into an unconditional one.
+Similarly, a liveness analysis may allow us to 
+rewrite an assignment to a dead register by a no-op; knowing that a register is
+live at a call site might provoke us to insert a spill before the call; and so on.
 
-In general, we want to replace a node not just by a single node, nor even by a block,
-but by an arbitrary graph.  For example, perhaps we want to replace a high-level operation
-with a set of conditional branches or a loop, which entails introducing new blocks.
 
 Thus motivated, we allow the user to give \ourlib{} a rewriting function
 that takes a node and a fact, and optionally returns a graph, of the
@@ -1250,101 +1094,12 @@ the @e@ and @x@ parameters of the node are also used for the @AGraph@.
 So a branch instruction, for example can only be rewritten to a graph 
 closed at the exit.
 
-\subsection{Running the dataflow engine} \seclabel{running-rewriter}
-
-\overfullrule=10pt
-
-To use the \ourlib{} dataflow engine to transform a control-flow graph, you
-use the function @analyseAndRewriteFwd@ 
-(there is a similar function for backward analysis):\begingroup\hfuzz=1pt\relax
-\begin{code}
- `analyseAndRewriteFwd
-  :: Edges n         
-  => DataflowLattice f      -- Lattice
-  -> ForwardTransfers n f   -- Transfer function
-  -> ForwardRewrites n f    -- Rewrite function
-  -> RewritingDepth         -- Rewrite recursively?
-  -> Graph n e x            -- Graph or subgraph
-  -> InT e f                -- Input fact(s)
-  -> FuelMonad (Graph n e x,  -- Rewritten graph
-                OutFact e f)  -- Output fact(s)
-\end{code}
-The following points are worth noting about this type:
-\begin{itemize}
-\item
-The function takes a rewrite function, as well as a 
-transfer function and dataflow lattice.
-\item
-The @`RewritingDepth@ parameter controls recursive rewriting, in a manner
-to be described shortly.
-\item
-The function transfoms a @Graph@ and a input fact of the appropriate shape,
-into a rewritten graph and a corresponding output fact.
-\item
-Rewriting is monadic.
-A~@`FuelMonad@ holds resources needed to
-rewrite nodes into subgraphs:
-a~supply of fresh labels and a supply of \emph{optimization fuel}
-(\secref{fuel}). 
-\end{itemize}
-
-The user-level model of how @analyseAndRewriteFwd@ works is this.
-The function walks forward over the graph, computing dataflow facts
-just as in the pure analysis case.  At each node, it applies
-the rewrite function to the node and its incoming fact.  If the 
-rewrite function return @Nothing@, the node is retained as part of the output
-graph, and we move on to the next node.
-
-If the rewrite function returns @Just g@ then the next step is controlled
-hy the @RewritingDepth@ flag:
-\begin{itemize}
-\item @RewriteDeep@: the entire @analyseAndRewriteFwd@ function is applied to 
-the rewritten graph, which in turn may be further rewritten.
-\item @RewriteShallow@: the rewritten graph is analysed \emph{but not further rewritten}.
-\end{itemize}
-Deep rewriting is essential to achieve the results of
-\citet{lerner-grove-chambers:2002}, e.g., to remove the induction
-variable from the loop in the example in \secref{induction-var-elim}.\john{Deep rewriting isn't needed for this example; interleaving is...}
-\fi
-\ifcutting\else
-When deep rewriting is used, the rewrite functions must
-ensure that the graphs they produce are not rewritten indefinitely (\secref{correctness}).
-\fi
-
-Notice that in either case, the nodes following the rewritten node see 
-\emph{up-to-date} facts; that is, their input facts are computed from the result 
-of rewriting upstream nodes.
-
-\subsection{Using constant propagation to rewrite graphs}
-
-\simon{Here we give a rewrite function for constant-prop}
-
-\section{Reflections}
-
-This is a place to collect thoughts about the API and the users-eye view.
-I didn't want to clutter the initial tour with it.
-
-\subsection{Fixpoints and speculative rewrites}
-
-The alert reader will be wondering what happens in the presence of
-loops.  Many analyses compute a fixpoint starting from unsound
-``facts''; for example, a live-variable analysis starts from the
-assumption that all variables are dead.  This means \emph{rewrites
-performed in any iteration other than the last may be unsound, and
-must be discarded}.  That is, each iteration of the fixpoint must
-start afresh with the original graph.  Nevertheless, those rewrites
-must still be performed (albeit tentatively, but possibly recursively)
-so that the correct downstream facts can be computed.
-
-This sort of thing is hard to achieve in an imperative setting, where rewrites
-mutate a graph in-place.  But it is trivially easy in a functional program:
-all we need do is to revert to the original graph at the start
-of each fixpoint iteration.
-
 \subsection{Throttling the dataflow engine using ``optimization fuel''}
 \seclabel{vpoiso}
 \seclabel{fuel}
 
+You will have noticed that the type of @analyseAndRewriteFwd@ is monadic
+(\secref{using-hoopl}).
 If the @FuelMonad@ determines that rewriting fuel is exhausted, then no more
 rewriting is done.  
 (Because each rewrite leaves the observable behavior of the
@@ -1364,11 +1119,28 @@ for making new blocks; more precisely, the client-provide @ForwardRewrites@
 function produces an @AGraph@ (\figref{rewrites}) which Hoopl converts to
 a @Graph@ by supplying the @AGraph@ with a supply of @BlockIds@ from the @FuelMonad@.
 
+\subsection{Fixpoints and speculative rewrites}
+
+The alert reader will be wondering what happens in the presence of
+loops.  Many analyses compute a fixpoint starting from unsound
+``facts''; for example, a live-variable analysis starts from the
+assumption that all variables are dead.  This means \emph{rewrites
+performed in any iteration other than the last may be unsound, and
+must be discarded}.  That is, each iteration of the fixpoint must
+start afresh with the original graph.  Nevertheless, those rewrites
+must still be performed (albeit tentatively, but possibly recursively)
+so that the correct downstream facts can be computed.
+
+This sort of thing is hard to achieve in an imperative setting, where rewrites
+mutate a graph in-place.  But it is trivially easy in a functional program:
+all we need do is to revert to the original graph at the start
+of each fixpoint iteration.
+
 \subsection{Correctness} \seclabel{correctness}
 
 \simon{This section seems a bit laboured}
 
-Facts computed by the @analyseAndRewriteFws@ depend on graphs produced by rewrite
+Facts computed by the @analyseAndRewriteFwd@ depend on graphs produced by rewrite
 function, which in turn depend on facts computed by the transfer function.
 How~do we know this algorithm is sound, or even if it terminates?
 A~proof requires its own POPL paper
