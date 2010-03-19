@@ -1,0 +1,14 @@
+f (a, b) {
+100:
+  x = 5
+  y = 0
+  goto 101
+101:
+  if x > 0 then goto 102 else goto 103
+102:
+  y = y + x
+  x = x - 1
+  goto 101
+103:
+  ret (y)
+}

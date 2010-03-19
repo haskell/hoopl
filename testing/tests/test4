@@ -1,0 +1,13 @@
+-- Test dead-code elim: y is dead
+f (x) {
+100:
+  y = 5
+  goto 101
+101:
+  if y < 0 then goto 102 else goto 103
+102:
+  y = y - 1
+  goto 101
+103:
+  ret (x + y + 4)
+}
