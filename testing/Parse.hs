@@ -3,7 +3,7 @@ module Parse (parseCode) where
 
 import Prelude hiding (succ)
 
-import CunningTransfers
+import Hoopl
 import IR
 import           Text.ParserCombinators.Parsec
 import           Text.ParserCombinators.Parsec.Expr
@@ -168,19 +168,19 @@ block = do { f  <- lexeme lbl
 tuple :: Parser a -> Parser [a]
 tuple = parens . commaSep
 
-procBody :: Parser (Graph Node C C)
+procBody :: Parser (BlockId, Graph Node C C)
 procBody = do { b  <- block
               ; bs <- many block
-              ; return $ GMany { g_entry = b, g_blocks = bs, g_exit = NoTail}
+              ; return $ (blockId b, GMany { g_entry = ClosedLink, g_blocks = b : bs, g_exit = ClosedLink})
               }
         <?> "proc body"
 
 proc :: Parser Proc
 proc = do { whitespace
-          ; f      <- identifier
-          ; params <- tuple  var
-          ; code   <- braces procBody
-          ; return $ Proc { name = f, args = params, body = code }
+          ; f           <- identifier
+          ; params      <- tuple  var
+          ; (eid, code) <- braces procBody
+          ; return $ Proc { name = f, args = params, body = code, entry = eid }
           }
     <?> "proc"
 

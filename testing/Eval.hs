@@ -7,8 +7,8 @@ import Control.Monad.Error
 import qualified Data.Map as M
 import Prelude hiding (succ)
 
-import CunningTransfers
 import EvalMonad
+import Hoopl
 import IR
 
 -- Evaluation functions
@@ -21,19 +21,18 @@ evalProc proc_name actuals =
      proc <- get_proc proc_name
      evalProc' proc actuals
 evalProc' :: EvalTarget v => Proc -> [v] -> EvalM v [v]
-evalProc' (Proc {name=_, args, body}) actuals =
+evalProc' (Proc {name=_, args, body, entry}) actuals =
   if length args == length actuals then
-    evalG (M.fromList $ zip args actuals) body
+    evalG (M.fromList $ zip args actuals) body entry
   else throwError $ "Param/actual mismatch: " ++ show args ++ " = " ++ show actuals
 
 -- Responsible for allocating and deallocating its own stack frame.
-evalG :: EvalTarget v => VarEnv v -> Graph Node C C -> EvalM v [v]
-evalG vars (GUnit b) = do inNewFrame vars [b] $ evalB b
-evalG vars (GMany {g_entry, g_blocks, g_exit}) =
-  do ress <- inNewFrame vars blocks $ evalB g_entry
+evalG :: EvalTarget v => VarEnv v -> Graph Node C C -> BlockId -> EvalM v [v]
+evalG _ GNil _ = throwError "can't evaluate an empty graph"
+evalG vars (GMany {g_entry = ClosedLink, g_blocks, g_exit = ClosedLink}) entry =
+  do ress <- inNewFrame vars g_blocks $ get_block entry >>= evalB 
+
      return ress
-    where blocks = (case g_exit of NoTail ->     g_entry : g_blocks
-                                   Tail e -> e : g_entry : g_blocks) :: [B]
 -- GADT checker can't see that preceding pattern is exhaustive.
 
 evalB    :: EvalTarget v => Block Node C C -> EvalM v [v]

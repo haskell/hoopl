@@ -4,7 +4,7 @@ import Test
 
 -- Hardcoding test locations for now
 tests = map (\t -> "tests" ++ "/" ++ t)
-            ["if-test"]
+            ["if-test2"]
             -- ["test1", "test2", "test3", "test4", "if-test"]
 
 main :: IO ()
