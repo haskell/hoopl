@@ -99,7 +99,8 @@ instance EvalTarget Value where
   toAddr (B _) = throwError "conversion to address failed"
   toBool (B b) = return b
   toBool (I _) = throwError "conversion to bool failed"
-  eval (Lit i) = return $ I i
+  eval (Lit (Int  i)) = return $ I i
+  eval (Lit (Bool b)) = return $ B b
   eval (Var var) = get_var var
   eval (Load addr) =
     do v_addr <- eval addr >>= toAddr
@@ -134,7 +135,9 @@ instance EvalTarget Value where
 instance EvalTarget Integer where
   toAddr i = return i
   toBool i = return $ i /= 0
-  eval (Lit i) = return $ i
+  eval (Lit (Int i)) = return i
+  eval (Lit (Bool True)) = return 1
+  eval (Lit (Bool False)) = return 0
   eval (Var var) = get_var var
   eval (Load addr) =
     do v_addr <- eval addr >>= toAddr
@@ -164,7 +167,7 @@ instance EvalTarget Integer where
 --  - how do we get heap addresses?
 --  - how do we get conditionals?
 --  - how do we compare symbolic expressions?
-data Sym = L  Integer
+data Sym = L  Lit
          | In Integer -- In x indicates a value on entry to the program
          | Ld Sym
          | BO BinOp Sym Sym
@@ -175,7 +178,7 @@ sym_vsupply = [In n | n <- [0..]]
 instance EvalTarget Sym where
   toAddr _ = undefined
   toBool _ = undefined
-  eval (Lit i) = return $ L i
+  eval (Lit l) = return $ L l
   eval (Var var) = get_var var
   eval (Load addr) =
     do v_addr <- eval addr >>= toAddr

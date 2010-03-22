@@ -28,7 +28,7 @@ identifier :: CharParser () String
 identifier = P.identifier lexer
 
 natural :: CharParser () Integer
-natural    = P.natural    lexer
+natural = P.natural    lexer
 
 reservedOp :: String -> CharParser () ()
 reservedOp = P.reservedOp lexer
@@ -53,8 +53,14 @@ expr = buildExpressionParser table factor
            <|> load
            <?> "simple expression"
 
+bool :: Parser Bool
+bool =  (try $ lexeme (string "True")  >> return True)
+    <|> (try $ lexeme (string "False") >> return False)
+
 lit :: Parser Exp
-lit =   natural >>= (return . Lit)
+lit =  (natural >>= (return . Lit . Int))
+   <|> (bool    >>= (return . Lit . Bool))
+   <|> (bool    >>= (return . Lit . Bool))
    <?> "lit"
       
 loc :: Char -> Parser x -> Parser x

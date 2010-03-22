@@ -1,19 +1,21 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
-module IR (Proc (..), Node (..), Exp (..), Value (..), BinOp(..), Var, showProc) where
+module IR (Proc (..), Node (..), Exp (..), Lit (..), Value (..), BinOp(..), Var,
+           showProc) where
 
 import Data.Maybe
 import Prelude hiding (succ)
 
 import Hoopl
 
-data Exp = Lit   Integer
+data Exp = Lit   Lit
          | Var   Var
          | Load  Exp
          | Binop BinOp Exp Exp
 data BinOp = Add | Sub | Mul | Div | Eq | Ne | Lt | Gt | Lte | Gte
 type Var   = String
-data Value = B Bool | I Integer
+data Lit   = Bool Bool | Int Integer deriving Eq
+data Value = B Bool    | I   Integer deriving Eq
 
 data Proc = Proc { name :: String, args :: [Var], entry :: BlockId, body :: Graph Node C C }
 
@@ -106,6 +108,10 @@ instance Show Exp where
   show (Binop b e1 e2) = sub e1 ++ " " ++ show b ++ " " ++ sub e2
     where sub e@(Binop _ _ _) = tuple [show e]
           sub e = show e
+
+instance Show Lit where
+  show (Int  i) = show i
+  show (Bool b) = show b
 
 instance Show Value where
   show (B b) = show b

@@ -8,8 +8,10 @@
 -- between the open/closed-ness of the input graph and the type of the
 -- input fact expected for a graph of that shape
 
-module Hoopl (BlockId, O, C, Block (..), Graph (..), Link (..),
-              BlockEnv, findBEnv, mkBlockEnv, Edges (..)) where
+module Hoopl (BlockId, O, C, Block (..), Graph (..), Link (..), AGraph, InFact (..),
+              BlockEnv, findBEnv, mkBlockEnv, lookupFact, Edges (..), ChangeFlag (..),
+              analyseAndRewrite, RewritingDepth (..), mkFactBase, agraphOfNode, runFuelMonad,
+              TxRes (..), DataflowLattice (..), ForwardTransfers, ForwardRewrites) where
 
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
@@ -135,9 +137,6 @@ type instance OutFact C f = OutFactC f
 type instance OutFact O f = f
 type OutFactC f = FactBase f
 -}
-
-data AGraph n e x = AGraph 	-- Stub for now
-
 
 -----------------------------------------------------------------------------
 --      TxFactBase: a FactBase with ChangeFlag information
@@ -386,6 +385,11 @@ instance Monad FuelMonad where
   return x = FM (\f u -> (x,f,u))
   m >>= k  = FM (\f u -> case unFM m f u of (r,f',u') -> unFM (k r) f' u')
 
+runFuelMonad :: (IsOC e, IsOC x) => GFT (Graph n) n f -> Graph n e x -> InFact e f -> Fuel -> Uniques -> Graph n e x
+runFuelMonad (GFT f) g fact fuel uniqs = g'
+  where fm = f g fact
+        ((g', _), _, _) = unFM fm fuel uniqs
+
 fuelExhausted :: FuelMonad Bool
 fuelExhausted = FM (\f u -> (f <= 0, f, u))
 
@@ -398,8 +402,21 @@ getFuel = FM (\f u -> (f,f,u))
 setFuel :: Fuel -> FuelMonad ()
 setFuel f = FM (\_ u -> ((), f, u))
 
+getUnique :: FuelMonad Uniques
+getUnique = FM (\f u -> (u, f, u+1))
+
+-----------------------------------------------------------------------------
+--      AGraphs
+-----------------------------------------------------------------------------
+
+type AGraph n e x = FuelMonad (Graph n e x)
+
 graphOfAGraph :: AGraph node e x -> FuelMonad (Graph node e x)
-graphOfAGraph = error "urk" 	-- Stub
+graphOfAGraph a = a
+
+-- Expedient, but not what we really want:
+agraphOfNode :: (IsOC e, IsOC x) => n e x -> AGraph n e x
+agraphOfNode = return . nodeGraph
 
 -----------------------------------------------------------------------------
 --		BlockId, BlockEnv, BlockSet
