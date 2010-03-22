@@ -28,15 +28,15 @@ data Graph n e x where
   GUnit :: Block n e O -> Graph n e O
   GMany   { g_entry  :: Block n e C
           , g_blocks :: LBlocks n
-	  , g_exit   :: Exit n x } :: Graph n e x
+	  , g_exit   :: Tail n x } :: Graph n e x
 
    -- If a graph has a Tail, then that tail is the only  
    -- exit from the graph, even if the Tail is closed
    -- See the definition of successors!
 
-data Exit n x where
-  NoTail :: Exit n C
-  Tail   :: BlockId -> Block n C O -> Exit n O
+data Tail n x where
+  NoTail :: Tail n C
+  Tail   :: BlockId -> Block n C O -> Tail n O
 
 class LiftNode x where
    liftNode :: n e x -> Graph n e x
@@ -63,7 +63,7 @@ instance Edges n => Edges (Graph n) where
 ecGraph :: Graph n e C -> (Block n e C, LBlocks n)
 ecGraph (GMany b bs NoTail) = (b, bs)
 
-cxGraph :: BlockId -> Graph n C O -> (LBlocks n, Exit n O)
+cxGraph :: BlockId -> Graph n C O -> (LBlocks n, Tail n O)
 cxGraph bid (GUnit b)          = ([], Tail bid b)
 cxGraph bid (GMany be bs tail) = (LB bid be:bs, tail)
 
@@ -296,12 +296,12 @@ gftGraph lattice gft_block@(GFT block_trans) = GFT graph_trans
            ; return (GMany entry' (bs1 ++ tfb_blks tx_fb ++ bs2) exit', f3) }
 
 	-- It's a bit disgusting that the TxFactBase has to be
-        -- preserved as far as the Exit block, becaues the TxFactBase
+        -- preserved as far as the Tail block, becaues the TxFactBase
         -- is really concerned with the fixpoint calculation
         -- But I can't see any other tidy way to compute the 
         -- LastOutFacts in the NoTail case
-    ft_exit :: Exit n x  -> Trans (TxFactBase n f) 
-                                  (LBlocks n, Exit n x, OutFact x f)
+    ft_exit :: Tail n x  -> Trans (TxFactBase n f) 
+                                  (LBlocks n, Tail n x, OutFact x f)
     ft_exit (Tail bid blk) f 
       = do { (g, f1) <- block_trans blk (factBaseInFacts lattice f bid)
 	   ; let (bs, exit) = cxGraph bid g

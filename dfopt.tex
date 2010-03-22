@@ -516,9 +516,11 @@ Notice that it is very convenient to \emph{interleave}
 transformation and analysis.  If we \emph{first} analysed the block
 and \emph{then} transformed it, the analysis would have to ``predict''
 the transformations.  For example, a pure analysis would have to
-evaluate @x>5@ under the assumption that {x=7} to get the outgoing
-fact \{@x=7@, @z=False@\}.  But the subsequent transformation must do exactly the
-same thing.  This duplication of knowledge becomes onerous when the
+evaluate @x>5@ under the assumption that \{@x=7@\} to get the outgoing
+fact \{@x=7@, @z=False@\}.  But the subsequent transformation must 
+\emph{also} evaluate @x>5@ under the assumption \{@x=7@\}, to transform
+to @z=x>5@ to @z=7@!
+This duplication of knowledge becomes onerous when the
 transformation is complex, or if there are a number of interacting transformations;
 we encourage the reader to consult \cite{lerner-grove-chambers} for more substantial
 examples.
