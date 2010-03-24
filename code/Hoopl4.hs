@@ -20,15 +20,25 @@ data Block n e x where
   BUnit :: n e x -> Block n e x
   BCat  :: Block n e O -> Block n O x -> Block n e x
 
-type LBlocks n = [LBlock n]
-data LBlock n = LB BlockId (Block n C C)
+type Blocks n = M.IntMap (Block n C C)
+
+noBlocks :: Blocks n
+noBlocks = M.empty
+
+addBlock :: BlockId -> Block n C C -> Blocks n -> Blocks n
+addBlock = M.insert
+
+unionBlocks :: Blocks n -> Blocks n -> Blocks n
+unionBlocks = M.union
+
+blocksToList :: Blocks n -> [(BlockId,Block n C C)]
+blocksToList = M.toList
 
 data Graph n e x where
   GNil  :: Graph n O O
   GUnit :: Block n e O -> Graph n e O
-  GMany   { g_entry  :: Block n e C
-          , g_blocks :: LBlocks n
-	  , g_exit   :: Tail n x } :: Graph n e x
+  GMany :: Block n e C -> Blocks n
+	-> Tail n x -> Graph n e x
 
    -- If a graph has a Tail, then that tail is the only  
    -- exit from the graph, even if the Tail is closed
@@ -41,7 +51,7 @@ data Tail n x where
 class LiftNode x where
    liftNode :: n e x -> Graph n e x
 instance LiftNode ZClosed where
-   liftNode n = GMany (BUnit n) [] NoTail
+   liftNode n = GMany (BUnit n) noBlocks NoTail
 instance LiftNode ZOpen where
    liftNode n = GUnit (BUnit n)
 
@@ -56,19 +66,19 @@ instance Edges n => Edges (Graph n) where
   successors (GMany b bs NoTail) 
      = blockSetElems (all_succs `minusBlockSet` all_blk_ids)
      where 
-       all_succs   = mkBlockSet (successors b ++ [bid | LB _ b <- bs, bid <- successors b])
-       all_blk_ids = mkBlockSet [bid | LB bid _ <- bs]
+       (bids, blks) = unzip (blocksToList bs)      
+       all_succs   = mkBlockSet (successors b ++ [bid | b <- blks, bid <- successors b])
+       all_blk_ids = mkBlockSet bids
 
-
-ecGraph :: Graph n e C -> (Block n e C, LBlocks n)
+ecGraph :: Graph n e C -> (Block n e C, Blocks n)
 ecGraph (GMany b bs NoTail) = (b, bs)
 
-cxGraph :: BlockId -> Graph n C O -> (LBlocks n, Tail n O)
-cxGraph bid (GUnit b)          = ([], Tail bid b)
-cxGraph bid (GMany be bs tail) = (LB bid be:bs, tail)
+cxGraph :: BlockId -> Graph n C O -> (Blocks n, Tail n O)
+cxGraph bid (GUnit b)          = (noBlocks, Tail bid b)
+cxGraph bid (GMany be bs tail) = (addBlock bid be bs, tail)
 
-flattenG :: BlockId -> Graph n C C -> LBlocks n
-flattenG bid (GMany e bs NoTail) = LB bid e : bs
+flattenG :: BlockId -> Graph n C C -> Blocks n
+flattenG bid (GMany e bs NoTail) = addBlock bid e bs
 
 gCat :: Graph n e O -> Graph n O x -> Graph n e x
 gCat GNil g2 = g2
@@ -84,14 +94,14 @@ gCat (GMany e bs (Tail bid x)) (GUnit b2)
    = GMany e bs (Tail bid (x `BCat` b2))
 
 gCat (GMany e1 bs1 (Tail bid x1)) (GMany e2 bs2 x2)
-   = GMany e1 (LB bid (x1 `BCat` e2) : bs1 ++ bs2) x2
+   = GMany e1 (addBlock bid (x1 `BCat` e2) bs1 `unionBlocks` bs2) x2
 
-forwardBlockList, backwardBlockList :: LBlocks n -> LBlocks n
+forwardBlockList, backwardBlockList :: Blocks n -> [(BlockId,Block n C C)]
 -- This produces a list of blocks in order suitable for forward analysis.
 -- ToDo: Do a topological sort to improve convergence rate of fixpoint
 --       This will require a (HavingSuccessors l) class constraint
-forwardBlockList blks = blks
-backwardBlockList blks = blks
+forwardBlockList blks = blocksToList blks
+backwardBlockList blks = blocksToList blks
 
 -----------------------------------------------------------------------------
 --		DataflowLattice
@@ -140,7 +150,7 @@ data TxFactBase n fact
                                    -- These are BlockIds of the *original* 
                                    -- (not transformed) blocks
 
-         , tfb_blks  :: LBlocks n   -- Transformed blocks
+         , tfb_blks  :: Blocks n   -- Transformed blocks
     }
 
 factBaseInFacts :: DataflowLattice f -> TxFactBase n f -> BlockId -> f
@@ -178,7 +188,7 @@ updateFacts lat bid fb_trans
     tx_fb@(TxFB { tfb_fbase = fbase, tfb_bids = bids, tfb_blks = blks })
   = do { (out_facts, graph) <- fb_trans fbase
        ; let tx_fb' = tx_fb { tfb_bids = extendBlockSet bids bid
-                            , tfb_blks = flattenG bid graph ++ blks }
+                            , tfb_blks = flattenG bid graph `unionBlocks` blks }
        ; return (foldr (updateFact lat) tx_fb' out_facts) }
 
 -----------------------------------------------------------------------------
@@ -196,7 +206,7 @@ fixpoint tx_fb_trans init_fbase
     loop fuel fbase 
       = do { tx_fb <- tx_fb_trans (TxFB { tfb_fbase = fbase
                                         , tfb_cha = NoChange
-                                        , tfb_blks = []
+                                        , tfb_blks = noBlocks
                                         , tfb_bids = emptyBlockSet })
            ; case tfb_cha tx_fb of
                NoChange   -> return tx_fb
@@ -256,7 +266,8 @@ arfGraph lattice arf_block f (GMany entry blocks exit)
        ; tx_fb             <- ft_blocks blocks (mkFactBase f1)
        ; (f3, bs2, exit')  <- ft_exit tx_fb exit 
        ; let (entry', bs1) = ecGraph entry_g
-       ; return (f3, GMany entry' (bs1 ++ tfb_blks tx_fb ++ bs2) exit') }
+             final_bs = bs1 `unionBlocks` tfb_blks tx_fb `unionBlocks` bs2
+       ; return (f3, GMany entry' final_bs exit') }
   where
 	-- It's a bit disgusting that the TxFactBase has to be
         -- preserved as far as the Tail block, becaues the TxFactBase
@@ -264,25 +275,26 @@ arfGraph lattice arf_block f (GMany entry blocks exit)
         -- But I can't see any other tidy way to compute the 
         -- LastOutFacts in the NoTail case
     ft_exit :: TxFactBase n f -> Tail n x
-            -> FuelMonad (TailFactF x f, LBlocks n, Tail n x)
+            -> FuelMonad (TailFactF x f, Blocks n, Tail n x)
     ft_exit f (Tail bid blk)
       = do { (f1, g) <- arf_block (factBaseInFacts lattice f bid) blk
 	   ; let (bs, exit) = cxGraph bid g
            ; return (f1, bs, exit) }
     ft_exit f NoTail
-      = return (factBaseOutFacts f, [], NoTail)
+      = return (factBaseOutFacts f, noBlocks, NoTail)
 
-    ft_block_once :: LBlock n -> TxFactBase n f
+    ft_block_once :: (BlockId, Block n C C) -> TxFactBase n f
                   -> FuelMonad (TxFactBase n f)
-    ft_block_once (LB bid b) = updateFacts lattice bid $ \fbase ->
-                               arf_block (lookupFact lattice fbase bid) b
+    ft_block_once (bid, b) = updateFacts lattice bid $ \fbase ->
+                             arf_block (lookupFact lattice fbase bid) b
 
-    ft_blocks_once :: LBlocks n -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+    ft_blocks_once :: [(BlockId, Block n C C)] 
+                   -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     ft_blocks_once []     tx_fb = return tx_fb
     ft_blocks_once (b:bs) tx_fb = do { tx_fb1 <- ft_block_once b tx_fb
                                      ; ft_blocks_once bs tx_fb1 }
 
-    ft_blocks :: LBlocks n -> FactBase f -> FuelMonad (TxFactBase n f)
+    ft_blocks :: Blocks n -> FactBase f -> FuelMonad (TxFactBase n f)
     ft_blocks blocks = fixpoint (ft_blocks_once (forwardBlockList blocks))
 
 ----------------------------------------------------------------
@@ -377,7 +389,8 @@ arbGraph lattice arb_block f (GMany entry blocks exit)
        ; tx_fb             <- bt_blocks blocks f1
        ; (f3, entry_g)     <- arb_block (tfb_fbase tx_fb) entry 
        ; let (entry', bs1) = ecGraph entry_g
-       ; return (f3, GMany entry' (bs1 ++ tfb_blks tx_fb ++ bs2) exit') }
+             final_bs = bs1 `unionBlocks` tfb_blks tx_fb `unionBlocks` bs2
+       ; return (f3, GMany entry' final_bs exit') }
   where
 	-- It's a bit disgusting that the TxFactBase has to be
         -- preserved as far as the Tail block, becaues the TxFactBase
@@ -385,26 +398,27 @@ arbGraph lattice arb_block f (GMany entry blocks exit)
         -- But I can't see any other tidy way to compute the 
         -- LastOutFacts in the NoTail case
     bt_exit :: TailFactB x f -> Tail n x
-            -> FuelMonad (FactBase f, LBlocks n, Tail n x)
+            -> FuelMonad (FactBase f, Blocks n, Tail n x)
     bt_exit f (Tail bid blk)
       = do { (f1, g) <- arb_block f blk
 	   ; let (bs, exit) = cxGraph bid g
            ; return (mkFactBase [(bid,f1)], bs, exit) }
     bt_exit f NoTail
-      = return (f, [], NoTail)
+      = return (f, noBlocks, NoTail)
 
-    bt_block_once :: LBlock n -> TxFactBase n f
+    bt_block_once :: (BlockId, Block n C C) -> TxFactBase n f
                   -> FuelMonad (TxFactBase n f)
-    bt_block_once (LB bid b) = updateFacts lattice bid $ \fbase ->
-                               do { (f, g) <- arb_block fbase b
-                                  ; return ([(bid,f)], g) }
+    bt_block_once (bid, b) = updateFacts lattice bid $ \fbase ->
+                             do { (f, g) <- arb_block fbase b
+                                ; return ([(bid,f)], g) }
 
-    bt_blocks_once :: LBlocks n -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+    bt_blocks_once :: [(BlockId,Block n C C)] 
+                   -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     bt_blocks_once []     tx_fb = return tx_fb
     bt_blocks_once (b:bs) tx_fb = do { tx_fb' <- bt_block_once b tx_fb
                                      ; bt_blocks_once bs tx_fb' }
 
-    bt_blocks :: LBlocks n -> FactBase f -> FuelMonad (TxFactBase n f)
+    bt_blocks :: Blocks n -> FactBase f -> FuelMonad (TxFactBase n f)
     bt_blocks blocks = fixpoint (bt_blocks_once (backwardBlockList blocks))
 
 analyseAndRewriteBwd
