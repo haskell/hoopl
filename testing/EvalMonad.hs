@@ -10,7 +10,7 @@ import Control.Monad.Error
 import qualified Data.Map as M
 import Prelude hiding (succ)
 
-import CunningTransfers
+import Hoopl
 import IR
 
 type ErrorM        = Either String

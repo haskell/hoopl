@@ -1,12 +1,16 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
-module Test (parseTest, evalTest) where
+module Test (parseTest, evalTest, optTest) where
 
 import Control.Monad.Error
 
+import ConstProp
 import Eval  (evalProg, ErrorM)
+import Hoopl
 import IR
+import OptSupport
 import Parse (parseCode)
+import Simplify
 
 parse :: String -> String -> ErrorM [Proc]
 parse file text =
@@ -38,6 +42,23 @@ evalTest file =
      case evalTest' file text of
        Left err -> putStrLn err
        Right  s -> putStrLn s
+
+optTest' :: String -> String -> ErrorM [Proc]
+optTest' file text =
+  do procs  <- parse file text
+     mapM optProc procs
+  where
+    optProc proc = return $ proc { body = body' }
+      where
+        body' = runFuelMonad rewriter (body proc) (mkFactBase []) 100 0
+        rewriter = analyseAndRewrite RewriteDeep constLattice varHasLit (combine constProp simplify)
+
+optTest :: String -> IO ()
+optTest file =
+  do text    <- readFile file
+     case optTest' file text of
+       Left err -> putStrLn err
+       Right p  -> mapM (putStrLn . showProc) p >> return ()
 
 
 

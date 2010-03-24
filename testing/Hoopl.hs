@@ -1,12 +1,17 @@
-{-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies #-}
+{-# OPTIONS_GHC -Wall -fno-warn-incomplete-patterns #-}
+-- With GHC 6.10 we get bogus incomplete-pattern warnings
+-- It's fine in 6.12
+{-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, 
+             PatternGuards, TypeFamilies #-}
 
 -- This version uses type families to express the functional dependency
 -- between the open/closed-ness of the input graph and the type of the
 -- input fact expected for a graph of that shape
 
-module CunningTransfers (BlockId, O, C, Block (..), Graph (..), Exit (..),
-                         BlockEnv, findBEnv, mkBlockEnv, Edges (..)) where
+module Hoopl (BlockId, O, C, Block (..), Graph (..), Link (..), AGraph, InFact (..),
+              BlockEnv, findBEnv, mkBlockEnv, lookupFact, Edges (..), ChangeFlag (..),
+              analyseAndRewrite, RewritingDepth (..), mkFactBase, agraphOfNode, runFuelMonad,
+              TxRes (..), DataflowLattice (..), ForwardTransfers, ForwardRewrites) where
 
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
@@ -21,98 +26,72 @@ data ZClosed
 type O = ZOpen
 type C = ZClosed
 
+data OCFlag oc where
+  IsOpen   :: OCFlag O
+  IsClosed :: OCFlag C
+
+class IsOC oc where
+  ocFlag :: OCFlag oc
+
+instance IsOC ZOpen where
+  ocFlag = IsOpen
+instance IsOC ZClosed where
+  ocFlag = IsClosed
+
+----------------------
 -- Blocks are always non-empty
 data Block n e x where
   BUnit :: n e x -> Block n e x
   BCat  :: Block n e O -> Block n O x -> Block n e x
 
+----------------------
 type Blocks n = [Block n C C]
 
+unionBlocks :: Blocks n    -> Blocks n -> Blocks n
+addBlock    :: Block n C C -> Blocks n -> Blocks n
+
+unionBlocks = (++)
+addBlock = (:)
+
+----------------------
 data Graph n e x where
-  GNil  :: Graph n O O
-  GUnit :: Block n e x -> Graph n e x
-  GMany   { g_entry  :: Block n e C
-          , g_blocks :: Blocks n
-	  , g_exit   :: Exit (Block n) x } :: Graph n e x
+  GNil  :: Graph n a a
+  GMids :: Block n O O -> Graph n O O
+  GMany { g_entry  :: Link e (Block n O C)
+        , g_blocks :: Blocks n
+        , g_exit   :: Link x (Block n C O) } :: Graph n e x
 
-   -- Invariant:  if g_entry is closed,
-   -- its BlockId cannot be a target of
-   -- branches in the blocks
+data Link shape thing where
+  ClosedLink :: Link C thing
+  OpenLink   :: thing -> Link O thing
 
-   -- If a graph has a Tail, then that tail is the only  
-   -- exit from the graph, even if the Tail is closed
-   -- See the definition of successors!
+gCat :: Graph n e a -> Graph n a x -> Graph n e x
+gCat GNil g2 = g2
+gCat g1 GNil = g1
 
-data Exit thing x where
-  NoTail :: Exit thing C
-  Tail   :: thing C x -> Exit thing x
+gCat (GMids b1) (GMids b2) = GMids $ b1 `BCat` b2
 
-class Edges n where
-  blockId    :: n C x -> BlockId
-  successors :: n e C -> [BlockId]
+gCat (GMids b1) (GMany (OpenLink entry) bs x) = GMany (OpenLink (b1 `BCat` entry)) bs x
+gCat (GMany e bs (OpenLink exit)) (GMids b2) = GMany e bs (OpenLink (exit `BCat` b2))
+
+gCat (GMany e1 bs1 ClosedLink) (GMany ClosedLink bs2 x2) = GMany e1 bs x2
+  where bs = bs1 `unionBlocks` bs2
+
+gCat (GMany e1 bs1 (OpenLink head)) (GMany (OpenLink tail) bs2 x2)
+  = GMany e1 bs x2
+  where bs = addBlock (head `BCat` tail) $ bs1 `unionBlocks` bs2
+
+gCat _ _ = error "Should be statically impossible"
+
+class Edges thing where
+  blockId    :: thing C x -> BlockId
+  successors :: thing e C -> [BlockId]
 
 instance Edges n => Edges (Block n) where
   blockId    (BUnit n)  = blockId n
   blockId    (BCat b _) = blockId b
   successors (BUnit n)  = successors n
   successors (BCat _ b) = successors b
-
-instance Edges n => Edges (Graph n) where
-  blockId    (GUnit b)  = blockId b
-  blockId    (GMany b _ _) = blockId b
-  successors (GUnit b)            = successors b
-  successors (GMany _ _ (Tail b)) = successors b
-  successors (GMany b bs NoTail) 
-     = blockSetElems (all_succs `minusBlockSet` all_blk_ids)
-     where 
-       all_succs   = mkBlockSet (successors b ++ concatMap successors bs)
-       all_blk_ids = mkBlockSet (map blockId bs)
-
-
-gCat :: Graph n e O -> Graph n O x -> Graph n e x
-gCat GNil g2 = g2
-gCat g1 GNil = g1
-
-gCat (GUnit b1) (GUnit b2)             
-  = GUnit (b1 `BCat` b2)
-
-gCat (GUnit b) (GMany e bs x) 
-  = GMany (b `BCat` e) bs x
-
-gCat (GMany e bs (Tail x)) (GUnit b2) 
-   = GMany e bs (Tail (x `BCat` b2))
-
-gCat (GMany e1 bs1 (Tail x1)) (GMany e2 bs2 x2)
-   = GMany e1 (x1 `BCat` e2 : bs1 ++ bs2) x2
-
-gCatC :: Graph n e C -> Graph n C x -> Graph n e x
-gCatC (GUnit b1)               (GUnit b2)        = GMany b1 [] (Tail b2)
-gCatC (GUnit b1)               (GMany e2 bs x2)  = GMany b1 (e2:bs) x2
-gCatC (GMany e bs NoTail)      (GUnit b2)        = GMany e bs (Tail b2)
-gCatC (GMany e bs (Tail b1))   (GUnit b2)        = GMany e (b1:bs) (Tail b2)
-gCatC (GMany e1 bs1 NoTail)    (GMany e2 bs2 x2) = GMany e1 (e2 : bs1 ++ bs2) x2
-gCatC (GMany e1 bs1 (Tail x1)) (GMany e2 bs2 x2) = GMany e1 (x1 : e2 : bs1 ++ bs2) x2
-
-mkGMany :: Graph n e C -> Blocks n -> Exit (Graph n) x -> Graph n e x
-mkGMany e bs x = GMany b_e (bs_e ++ bs ++ bs_x) b_x
-  where
-     (b_e, bs_e) = mkHead e
-     (bs_x, b_x) = mkTail x
-
-mkHead :: Graph n e C -> (Block n e C, Blocks n)
-mkHead (GUnit b)             = (b, [])
-mkHead (GMany e bs NoTail)   = (e, bs)
-mkHead (GMany e bs (Tail b)) = (e, b:bs)
-
-mkTail :: Exit (Graph n) x -> (Blocks n, Exit (Block n) x)
-mkTail NoTail                = ([], NoTail)    
-mkTail (Tail (GUnit b))      = ([], Tail b)
-mkTail (Tail (GMany e bs x)) = (e:bs, x)
-
-flattenG :: Graph n C C -> Blocks n
-flattenG (GUnit b)             = [b]
-flattenG (GMany e bs NoTail)   = e:bs
-flattenG (GMany e bs (Tail x)) = e:x:bs
 
 forwardBlockList :: Blocks n -> Blocks n
 -- This produces a list of blocks in order suitable for forward analysis.
@@ -148,15 +127,16 @@ type family   InFact e f :: *
 type instance InFact C f = InFactC f
 type instance InFact O f = f
 
+type InFactC  f = FactBase f
+type OutFactC f = FactBase f
+
+type OutFact x f = InFact x f
+{-
 type family   OutFact x f :: *
 type instance OutFact C f = OutFactC f
 type instance OutFact O f = f
-
-type InFactC  fact = BlockId -> fact
-type OutFactC fact = [(BlockId, fact)] 
-
-data AGraph n e x = AGraph 	-- Stub for now
-
+type OutFactC f = FactBase f
+-}
 
 -----------------------------------------------------------------------------
 --      TxFactBase: a FactBase with ChangeFlag information
@@ -166,27 +146,24 @@ data AGraph n e x = AGraph 	-- Stub for now
 -- the analysis/transformation of each block in the g_blocks of a grpah.
 -- It carries a ChangeFlag with it, and a set of BlockIds
 -- to monitor. Updates to other BlockIds don't affect the ChangeFlag
-data TxFactBase n fact 
-  = TxFB { tfb_fbase :: BlockEnv fact
+data TxFactBase n f
+  = TxFB { tfb_fbase :: FactBase f
 
          , tfb_cha   :: ChangeFlag
          , tfb_bids  :: BlockSet   -- Update change flag iff these blocks change
                                    -- These are BlockIds of the *original* 
                                    -- (not transformed) blocks
 
-         , tfb_blks  :: Blocks n   -- Transformed blocks
+         , tfb_blks  :: Graph n C C   -- Transformed blocks
     }
 
-factBaseInFacts :: DataflowLattice f -> TxFactBase n f -> InFactC f
-factBaseInFacts lattice (TxFB { tfb_fbase = fbase }) 
-  = lookupBEnv lattice fbase
+factBaseInFacts :: TxFactBase n f -> InFactC f
+factBaseInFacts (TxFB { tfb_fbase = fbase }) 
+  = fbase
 
 factBaseOutFacts :: TxFactBase n f -> OutFactC f
-factBaseOutFacts (TxFB { tfb_fbase = fbase, tfb_bids = bids }) 
-  = [ (bid, f) | (bid, f) <- blockEnvList fbase
-               , not (bid `elemBlockSet` bids) ]
-  -- The successors of the Graph are the the BlockIds for which
-  -- we hvae facts, that are *not* in the blocks of the graph
+factBaseOutFacts (TxFB { tfb_fbase = fbase }) 
+  = fbase
 
 updateFact :: DataflowLattice f -> (BlockId, f)
            -> TxFactBase n f -> TxFactBase n f
@@ -198,9 +175,9 @@ updateFact lat (bid, new_fact) tx_fb@(TxFB { tfb_fbase = fbase, tfb_bids = bids}
   | bid `elemBlockSet` bids = tx_fb { tfb_fbase = new_fbase, tfb_cha = SomeChange }
   | otherwise               = tx_fb { tfb_fbase = new_fbase }
   where
-    old_fact = lookupBEnv lat fbase bid
+    old_fact = lookupFact lat fbase bid
     TxRes cha2 res_fact = fact_add_to lat old_fact new_fact
-    new_fbase = extendBEnv fbase bid res_fact
+    new_fbase = extendFactBase fbase bid res_fact
 
 updateFacts :: Edges n
             => DataflowLattice f 
@@ -208,11 +185,12 @@ updateFacts :: Edges n
             -> Block n C C
             -> Trans (TxFactBase n f) (TxFactBase n f)
 updateFacts lat (GFT block_trans) blk
-    tx_fb@(TxFB { tfb_fbase = fbase, tfb_bids = bids, tfb_blks = blks })
-  = do { (graph, out_facts) <- block_trans blk (lookupBEnv lat fbase)
+    tx_fb@(TxFB { tfb_fbase = fbase, tfb_bids = bids, tfb_blks = graph_so_far })
+  = do { (graph, out_facts) <- block_trans blk fbase
        ; let tx_fb' = tx_fb { tfb_bids = extendBlockSet bids (blockId blk)
-                            , tfb_blks = flattenG graph ++ blks }
-       ; return (foldr (updateFact lat) tx_fb' out_facts) }
+                            , tfb_blks = graph `gCat` graph_so_far }
+       ; return (foldr (updateFact lat) tx_fb' (factBaseList out_facts)) }
+		-- We are expecting the out_facts to be small...
 
 -----------------------------------------------------------------------------
 --		The Trans arrow
@@ -237,13 +215,13 @@ fixpointTrans :: forall n f.
               -> Trans (OutFactC f)     (TxFactBase n f)
 fixpointTrans tx_fb_trans out_facts
   = do { fuel <- getFuel  
-       ; loop fuel (mkBlockEnv out_facts) }
+       ; loop fuel out_facts }
   where
-    loop :: Fuel -> Trans (BlockEnv f) (TxFactBase n f)
+    loop :: Fuel -> Trans (FactBase f) (TxFactBase n f)
     loop fuel fbase 
       = do { tx_fb <- tx_fb_trans (TxFB { tfb_fbase = fbase
                                         , tfb_cha = NoChange
-                                        , tfb_blks = []
+                                        , tfb_blks = GNil
                                         , tfb_bids = emptyBlockSet })
            ; case tfb_cha tx_fb of
                NoChange   -> return tx_fb
@@ -259,19 +237,31 @@ fixpointTrans tx_fb_trans out_facts
 -- then finally to graph transfer functions (which requires iteration).
 
 newtype GFT thing n f = GFT (GFTR thing n f)
-type GFTR thing n f = forall e x. thing e x -> Trans (InFact e f) (Graph n e x, OutFact x f)
+type GFTR thing n f = forall e x. (IsOC e, IsOC x)
+                               => thing e x 
+                               -> InFact e f
+                               -> FuelMonad (Graph n e x, OutFact x f)
 
 type GFT_Node  n f = GFT n         n f
 type GFT_Block n f = GFT (Block n) n f
 type GFT_Graph n f = GFT (Graph n) n f
 -----------------------------------------------------------------------------
 
+nodeGraph :: forall n e x. (IsOC e, IsOC x) => n e x -> Graph n e x
+nodeGraph = mkG (ocFlag :: OCFlag e) (ocFlag :: OCFlag x)
+  where
+    mkG :: OCFlag e -> OCFlag x -> n e x -> Graph n e x
+    mkG IsOpen   IsOpen   n = GMids (BUnit n)
+    mkG IsOpen   IsClosed n = GMany (OpenLink (BUnit n)) []        ClosedLink
+    mkG IsClosed IsOpen   n = GMany ClosedLink           []        (OpenLink (BUnit n))
+    mkG IsClosed IsClosed n = GMany ClosedLink           [BUnit n] ClosedLink
+ 
 gftNodeTransfer :: forall n f . ForwardTransfers n f -> GFT_Node n f
 -- Lifts ForwardTransfers to GFT_Node; simple transfer only
 gftNodeTransfer base_trans = GFT node_trans
     where 
       node_trans :: GFTR n n f
-      node_trans node f = return (GUnit (BUnit node), base_trans node f)
+      node_trans node f = return (nodeGraph node, base_trans node f)
 
 gftNodeRewrite :: forall n f.
                   ForwardTransfers n f
@@ -285,7 +275,7 @@ gftNodeRewrite transfers rewrites (GFT graph_trans)
   = GFT node_rewrite
   where
     node_trans :: GFTR n n f
-    node_trans node f = return (GUnit (BUnit node), transfers node f)
+    node_trans node f = return (nodeGraph node, transfers node f)
 
     node_rewrite :: GFTR n n f
     node_rewrite node f  
@@ -315,31 +305,36 @@ gftGraph lattice gft_block@(GFT block_trans) = GFT graph_trans
   where
     graph_trans :: GFTR (Graph n) n f
     graph_trans GNil        f = return (GNil, f)
-    graph_trans (GUnit blk) f = block_trans blk f
+    graph_trans (GMids blk) f = block_trans blk f
     graph_trans (GMany entry blocks exit) f
-      = do { (entry', f1)  <- block_trans entry f
-           ; tx_fb         <- ft_blocks blocks f1
-           ; (exit', f3)   <- ft_exit exit tx_fb 
-           ; return (mkGMany entry' (tfb_blks tx_fb) exit', f3) }
+      = do { (entry', f1)  <- entry_trans entry f
+           ; tx_fb         <- blocks_trans blocks f1
+           ; (exit', f3)   <- exit_trans exit tx_fb 
+           ; return (entry' `gCat` tfb_blks tx_fb `gCat` exit', f3) }
+
+    entry_trans :: Link e (Block n O C)
+                -> Trans (InFact e f) (Graph n e C, FactBase f)
+    entry_trans ClosedLink     f = return (GNil, f)
+    entry_trans (OpenLink blk) f = block_trans blk f
 
 	-- It's a bit disgusting that the TxFactBase has to be
         -- preserved as far as the Exit block, becaues the TxFactBase
         -- is really concerned with the fixpoint calculation
         -- But I can't see any other tidy way to compute the 
         -- LastOutFacts in the NoTail case
-    ft_exit :: Exit (Block n) x  -> Trans (TxFactBase n f) (Exit (Graph n) x, OutFact x f)
-    ft_exit (Tail blk) f = do { (blk', f1) <- block_trans blk (factBaseInFacts lattice f)
-                              ; return (Tail blk', f1) }
-    ft_exit NoTail     f = return (NoTail, factBaseOutFacts f)
+    exit_trans :: Link x (Block n C O)
+               -> Trans (TxFactBase n f) (Graph n C x, OutFact x f)
+    exit_trans ClosedLink f = return (GNil, factBaseOutFacts f)
+    exit_trans (OpenLink blk) f = block_trans blk (factBaseInFacts f)
 
-    ft_block_once :: Block n C C -> Trans (TxFactBase n f) (TxFactBase n f)
-    ft_block_once blk = updateFacts lattice gft_block blk
+    block_once :: Block n C C -> Trans (TxFactBase n f) (TxFactBase n f)
+    block_once blk = updateFacts lattice gft_block blk
 
-    ft_blocks_once :: Blocks n -> Trans (TxFactBase n f) (TxFactBase n f)
-    ft_blocks_once blks = foldr ((>>>) . ft_block_once) idTrans blks
+    blocks_once :: Blocks n -> Trans (TxFactBase n f) (TxFactBase n f)
+    blocks_once blks = foldr ((>>>) . block_once) idTrans blks
 
-    ft_blocks :: [Block n C C] -> Trans (OutFactC f) (TxFactBase n f)
-    ft_blocks blocks = fixpointTrans (ft_blocks_once (forwardBlockList blocks))
+    blocks_trans :: [Block n C C] -> Trans (FactBase f) (TxFactBase n f)
+    blocks_trans blocks = fixpointTrans (blocks_once (forwardBlockList blocks))
 
 ----------------------------------------------------------------
 --       The pièce de resistance: cunning transfer functions
@@ -390,6 +385,11 @@ instance Monad FuelMonad where
   return x = FM (\f u -> (x,f,u))
   m >>= k  = FM (\f u -> case unFM m f u of (r,f',u') -> unFM (k r) f' u')
 
+runFuelMonad :: (IsOC e, IsOC x) => GFT (Graph n) n f -> Graph n e x -> InFact e f -> Fuel -> Uniques -> Graph n e x
+runFuelMonad (GFT f) g fact fuel uniqs = g'
+  where fm = f g fact
+        ((g', _), _, _) = unFM fm fuel uniqs
+
 fuelExhausted :: FuelMonad Bool
 fuelExhausted = FM (\f u -> (f <= 0, f, u))
 
@@ -402,8 +402,21 @@ getFuel = FM (\f u -> (f,f,u))
 setFuel :: Fuel -> FuelMonad ()
 setFuel f = FM (\_ u -> ((), f, u))
 
+getUnique :: FuelMonad Uniques
+getUnique = FM (\f u -> (u, f, u+1))
+
+-----------------------------------------------------------------------------
+--      AGraphs
+-----------------------------------------------------------------------------
+
+type AGraph n e x = FuelMonad (Graph n e x)
+
 graphOfAGraph :: AGraph node e x -> FuelMonad (Graph node e x)
-graphOfAGraph = error "urk" 	-- Stub
+graphOfAGraph a = a
+
+-- Expedient, but not what we really want:
+agraphOfNode :: (IsOC e, IsOC x) => n e x -> AGraph n e x
+agraphOfNode = return . nodeGraph
 
 -----------------------------------------------------------------------------
 --		BlockId, BlockEnv, BlockSet
@@ -414,13 +427,15 @@ type BlockId = Int
 mkBlockId :: Int -> BlockId
 mkBlockId uniq = uniq
 
-type BlockEnv a = M.IntMap a
+type FactBase a = M.IntMap a
+type BlockEnv a = FactBase a
 
-mkBlockEnv :: [(BlockId, a)] -> BlockEnv a
-mkBlockEnv prs = M.fromList prs
+mkBlockEnv, mkFactBase :: [(BlockId, f)] -> FactBase f
+mkFactBase prs = M.fromList prs
+mkBlockEnv = mkFactBase
 
-lookupBEnv :: DataflowLattice f -> BlockEnv f -> BlockId -> f
-lookupBEnv lattice env blk_id 
+lookupFact :: DataflowLattice f -> FactBase f -> BlockId -> f
+lookupFact lattice env blk_id 
   = case M.lookup blk_id env of
       Just f  -> f
       Nothing -> fact_bot lattice
@@ -428,11 +443,15 @@ lookupBEnv lattice env blk_id
 findBEnv :: BlockEnv a -> BlockId -> Maybe a
 findBEnv env blk_id = M.lookup blk_id env
 
-extendBEnv :: BlockEnv f -> BlockId -> f -> BlockEnv f
-extendBEnv env blk_id f = M.insert blk_id f env
 
-blockEnvList :: BlockEnv f -> [(BlockId, f)]
-blockEnvList env = M.toList env
+extendFactBase :: FactBase f -> BlockId -> f -> FactBase f
+extendFactBase env blk_id f = M.insert blk_id f env
+
+unionFactBase :: FactBase f -> FactBase f -> FactBase f
+unionFactBase = M.union
+
+factBaseList :: FactBase f -> [(BlockId, f)]
+factBaseList env = M.toList env
 
 type BlockSet = S.IntSet
 

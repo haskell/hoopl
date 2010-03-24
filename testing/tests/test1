@@ -3,5 +3,5 @@ f (a, b) {
   r0 = 3
   r1 = 4
   r2 = r0 + r1
-  ret (r1)
+  ret (r2)
 }
