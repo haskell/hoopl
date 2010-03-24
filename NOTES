@@ -1,3 +1,45 @@
+Notes 18 March 2010
+~~~~~~~~~~~~~~~~~~~
+
+  * John and Norman are not convinced that the ChangeFlag 'tfb_cha' is
+    being updated correctly when facts change.  Because block IDs are
+    added to 'tfb_bids' incrementally, we are worried that a fact at
+    label L could be made to climb by a predecessor, but that this
+    change wouldn't be noted by updateFact unless the block labelled L
+    had already been visited.  We spent a good 20 minutes on this
+    question, which right there is indicative of a problem.  The
+    computation of the fixed point needs to be manifestly correct.
+    Perhaps tfb_bids should be initialized all at one go, and perhaps
+    it should be given type 'BlockId -> Bool'?
+
+  * The 'nodeGraph' function, together with the supporting case of
+    OCFlag and IsOC, are a bit eye-popping.   A good explanation
+    should be a high priority.  Also, it would be good to be able to
+    say in the paper whether GHC -O is able to eliminate the IsOC
+    type-class dictionaries.  Finally, it is probably also worth
+    noting that if Haskell had Sorts as in the Omega language, this
+    issue might not arise.
+
+  * Similarly, the new type-class constraints in GFTR are worth
+    noting, and the same questions arise about dictionaries.
+
+  * Norman has a few ideas to tidy the implementation of gftGraph.
+    He will try them out, and if he likes them, will send them on.
+
+  * The >>> arrow has but one use.  We suggest a local binding:
+
+      blocks_once :: Blocks n -> Trans (TxFactBase n f) (TxFactBase n f)
+      blocks_once = foldr ((>>>) . block_once) idTrans
+        where (t1 >>> t2) f = t1 f >>= t2
+
+  * Does the "it's a bit disgusting..." comment still apply?
+
+
+
+
+
+
+
 Notes March 2010
 ~~~~~~~~~~~~~~~~
 Normans comment on draft so far:
