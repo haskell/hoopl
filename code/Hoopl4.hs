@@ -185,24 +185,10 @@ updateFacts lat bid fb_trans
 --		The Trans arrow
 -----------------------------------------------------------------------------
 
-type Trans a b = a -> FuelMonad b 
- -- Transform a into b, with facts of type f
- -- Deals with optimsation fuel and unique supply too
-  
-(>>>) :: Trans a b -> Trans b c -> Trans a c
--- Compose two dataflow transfers in sequence
-(dft1 >>> dft2) f = do { f1 <- dft1 f; f2 <- dft2 f1; return f2 }
-
-liftTrans :: (a->b) -> Trans a b
-liftTrans f x = return (f x)
-
-idTrans :: Trans a a
-idTrans x = return x
-
-fixpointTrans :: forall n f. 
+fixpoint :: forall n f. 
                  (TxFactBase n f -> FuelMonad (TxFactBase n f))
               -> (FactBase f     -> FuelMonad (TxFactBase n f))
-fixpointTrans tx_fb_trans init_fbase
+fixpoint tx_fb_trans init_fbase
   = do { fuel <- getFuel  
        ; loop fuel init_fbase }
   where
@@ -297,7 +283,7 @@ arfGraph lattice arf_block f (GMany entry blocks exit)
                                      ; ft_blocks_once bs tx_fb1 }
 
     ft_blocks :: LBlocks n -> FactBase f -> FuelMonad (TxFactBase n f)
-    ft_blocks blocks = fixpointTrans (ft_blocks_once (forwardBlockList blocks))
+    ft_blocks blocks = fixpoint (ft_blocks_once (forwardBlockList blocks))
 
 ----------------------------------------------------------------
 --       The pièce de resistance: cunning transfer functions
@@ -419,7 +405,7 @@ arbGraph lattice arb_block f (GMany entry blocks exit)
                                      ; bt_blocks_once bs tx_fb' }
 
     bt_blocks :: LBlocks n -> FactBase f -> FuelMonad (TxFactBase n f)
-    bt_blocks blocks = fixpointTrans (bt_blocks_once (backwardBlockList blocks))
+    bt_blocks blocks = fixpoint (bt_blocks_once (backwardBlockList blocks))
 
 analyseAndRewriteBwd
    :: forall n f. Edges n
