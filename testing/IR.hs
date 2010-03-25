@@ -3,6 +3,7 @@
 module IR (Proc (..), Node (..), Exp (..), Lit (..), Value (..), BinOp(..), Var,
            showProc) where
 
+import qualified Data.IntMap as M
 import Data.Maybe
 import Prelude hiding (succ)
 
@@ -28,15 +29,6 @@ data Node e x where
   Call   :: [Var]   -> String  -> [Exp]   -> BlockId -> Node O C -- String is bogus
   Return :: [Exp]   ->                                  Node O C
 
-instance Edges Node where
-  blockId (Label bid) = bid
-  blockId _           = error "GADT unreachable?"
-  successors (Branch b)     = [b]
-  successors (Cond _ b1 b2) = [b1, b2]
-  successors (Call _ _ _ b) = [b]
-  successors (Return _)     = []
-  successors _              = error "GADT unreachable?"
-
 -- Prettyprinting
 
 showProc :: Proc -> String
@@ -46,36 +38,36 @@ showProc proc = name proc ++ tuple (args proc) ++ graph
     -- Get all the block IDs and map them to distinct integers
     showBID = show . fromJust . (findBEnv $ mkBlockEnv $ zip bids nats)
     nats = [1..] :: [Integer]
-    bids = foldG getBID [] (body proc)
-    getBID :: forall e' x'. [BlockId] -> Node e' x' -> [BlockId]
-    getBID rst (Label bid)  = bid   : rst
-    getBID rst (Branch bid) = bid   : rst
-    getBID rst (Cond _ t f) = t : f : rst
-    getBID rst _            = rst
+    bids = foldG getBID (body proc) []
+    getBID :: forall e' x'.  Node e' x' -> [BlockId] -> [BlockId]
+    getBID (Label bid)  rst = bid   : rst
+    getBID (Branch bid) rst = bid   : rst
+    getBID (Cond _ t f) rst = t : f : rst
+    getBID _            rst = rst
 
-foldG :: (forall e' x'. a -> Node e' x' -> a) -> a -> Graph Node e x -> a
-foldG _ z GNil = z
-foldG f z (GMids b) = foldB f z b
-foldG f z (GMany {g_entry, g_blocks, g_exit}) =
-  foldLink (foldB f) (foldl (foldB f) (foldLink (foldB f) z g_exit) g_blocks) g_entry
+foldG :: (forall e' x'. Node e' x' -> a -> a) -> Graph Node e x -> a -> a
+foldG _ GNil z = z
+foldG f (GUnit b) z = foldB f b z
+foldG f (GMany g_entry g_blocks g_exit) z =
+  foldB f g_entry $ M.fold (foldB f) (foldTail (foldB f) g_exit z) g_blocks
 
-foldLink :: (forall e' x'. a -> n e' x' -> a) -> a -> Link y (n e x) -> a
-foldLink _ z ClosedLink   = z
-foldLink f z (OpenLink t) = f z t
+foldTail :: (Block n C O -> a -> a) -> Tail n x -> a -> a
+foldTail _ NoTail     z = z
+foldTail f (Tail _ t) z = f t z
 
-foldB :: (forall e' x'. a -> Node e' x' -> a) -> a -> Block Node e x -> a
-foldB f z (BUnit n)    = f z n
-foldB f z (BCat b1 b2) = foldB f (foldB f z b2) b1
+foldB :: (forall e' x'. Node e' x' -> a -> a) -> Block Node e x -> a -> a
+foldB f (BUnit n)    z = f n z
+foldB f (BCat b1 b2) z = foldB f b1 (foldB f b2 z)
 
 showG :: (BlockId -> String) -> Graph Node e x -> String
 showG _ GNil = ""
-showG b (GMids block) = showB b block
-showG b (GMany {g_entry, g_blocks, g_exit}) =
-  showExit (showB b) g_entry ++ concatMap (showB b) g_blocks ++ showExit (showB b) g_exit
+showG b (GUnit block) = showB b block
+showG b (GMany g_entry g_blocks g_exit) =
+  showB b g_entry ++ concatMap (showB b) (map snd $ M.toList g_blocks) ++ showTail (showB b) g_exit
 
-showExit :: (forall e x. n e x -> String) -> Link y (n e' x') -> String
-showExit _ ClosedLink   = ""
-showExit p (OpenLink n) = p n
+showTail :: (Block n C O -> String) -> Tail n x -> String
+showTail _ NoTail     = ""
+showTail p (Tail _ n) = p n
 
 showB :: (BlockId -> String) -> Block Node e x -> String
 showB b (BUnit n) = showNode b n ++ "\n"

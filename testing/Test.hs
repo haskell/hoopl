@@ -50,8 +50,9 @@ optTest' file text =
   where
     optProc proc = return $ proc { body = body' }
       where
-        body' = runFuelMonad rewriter (body proc) (mkFactBase []) 100 0
-        rewriter = analyseAndRewrite RewriteDeep constLattice varHasLit (combine constProp simplify)
+        (_, body') = runFuelMonad rewriter 100 0
+        rewriter   = analyseAndRewriteFwd constLattice varHasLit (combine constProp simplify) RewriteDeep 
+                          (fact_bot constLattice) (body proc)
 
 optTest :: String -> IO ()
 optTest file =

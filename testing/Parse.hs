@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module Parse (parseCode) where
 
+import Control.Monad
+import qualified Data.IntMap as M
 import Prelude hiding (succ)
 
 import Hoopl
@@ -23,6 +25,15 @@ braces = P.braces lexer
 
 commaSep :: CharParser () a -> CharParser () [a]
 commaSep   = P.commaSep   lexer
+
+reserved :: String -> CharParser () ()
+reserved = P.reserved lexer
+
+ign :: GenParser Char st a -> GenParser Char st ()
+ign p = p >> return ()
+
+char' :: Char -> GenParser Char st ()
+char' c = ign $ char c
 
 identifier :: CharParser () String
 identifier = P.identifier lexer
@@ -64,10 +75,10 @@ lit =  (natural >>= (return . Lit . Int))
    <?> "lit"
       
 loc :: Char -> Parser x -> Parser x
-loc s addr = try (lexeme (do { char s
-                             ; char '['
+loc s addr = try (lexeme (do { char' s
+                             ; char' '['
                              ; a <- addr
-                             ; char ']'
+                             ; char' ']'
                              ; return a
                              }))
           <?> "loc"
@@ -88,10 +99,11 @@ load     = mem >>= return . Load
 -- Statements:
 -- THE FOLLOWING IS EVIL, AND WE SHOULD NOT EXPORT THE BLOCKID TYPE.
 -- USE THE MONAD TO MAP LABELS TO BLOCKIDS, AND DO THIS PROPERLY...
-lbl :: Parser (Node C O)
+lbl :: Parser (BlockId, Node C O)
 lbl = lexeme (do { l <- natural
-                 ; char ':'
-                 ; return $ Label $ fromInteger l
+                 ; char' ':'
+                 ; let bid = fromInteger l
+                 ; return $ (bid, Label bid)
                  })
     <?> "label"
 
@@ -102,7 +114,7 @@ mid =   asst
 
 asst :: Parser (Node O O)
 asst = do { v <- lexeme var
-          ; lexeme (char '=')
+          ; lexeme (char' '=')
           ; e <- expr
           ; return $ Assign v e
           }
@@ -110,7 +122,7 @@ asst = do { v <- lexeme var
 
 store :: Parser (Node O O)
 store = do { addr <- lexeme mem
-           ; lexeme (char '=')
+           ; lexeme (char' '=')
            ; e <- expr
            ; return $ Store addr e
            }
@@ -125,7 +137,7 @@ lst =   branch
 
 
 goto :: Parser Int
-goto = do { lexeme (string "goto")
+goto = do { lexeme (reserved "goto")
           ; l <- natural
           ; return $ fromInteger l
           }
@@ -138,18 +150,18 @@ branch = do { l <- goto
       <?> "branch"
 
 cond, call, ret :: Parser (Node O C)
-cond = do { lexeme (string "if")
+cond = do { lexeme (reserved "if")
           ; cnd <- expr
-          ; lexeme (string "then")
+          ; lexeme (reserved "then")
           ; thn <- goto
-          ; lexeme (string "else")
+          ; lexeme (reserved "else")
           ; els <- goto
           ; return $ Cond cnd thn els
           }
     <?> "cond"
 
 call = do { results <- tuple var
-          ; lexeme (char '=')
+          ; lexeme (char' '=')
           ; f <- identifier
           ; params  <- tuple expr
           ; succ <- goto
@@ -157,17 +169,17 @@ call = do { results <- tuple var
           }
     <?> "call"
 
-ret  = do { lexeme (string "ret")
+ret  = do { lexeme (reserved "ret")
           ; results <- tuple expr
           ; return $ Return results
           }
     <?> "ret"
 
-block :: Parser (Block Node C C)
-block = do { f  <- lexeme lbl
-           ; ms <- many $ try mid
-           ; l  <- lexeme lst
-           ; return $ BCat (foldl BCat (BUnit f) $ map BUnit ms) (BUnit l)
+block :: Parser (BlockId, Block Node C C)
+block = do { (bid, f) <- lexeme lbl
+           ; ms       <- many $ try mid
+           ; l        <- lexeme lst
+           ; return $ (bid, BCat (foldl BCat (BUnit f) $ map BUnit ms) (BUnit l))
            }
      <?> "Expected basic block; maybe you forgot a label following a control-transfer?"
 
@@ -175,9 +187,9 @@ tuple :: Parser a -> Parser [a]
 tuple = parens . commaSep
 
 procBody :: Parser (BlockId, Graph Node C C)
-procBody = do { b  <- block
-              ; bs <- many block
-              ; return $ (blockId b, GMany { g_entry = ClosedLink, g_blocks = b : bs, g_exit = ClosedLink})
+procBody = do { (bid, b)  <- block
+              ; bs        <- many block
+              ; return $ (bid, GMany b (M.fromList bs) NoTail)
               }
         <?> "proc body"
 
