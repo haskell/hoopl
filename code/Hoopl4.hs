@@ -20,24 +20,12 @@ data Block n e x where
   BUnit :: n e x -> Block n e x
   BCat  :: Block n e O -> Block n O x -> Block n e x
 
-type Blocks n = M.IntMap (Block n C C)
-
-noBlocks :: Blocks n
-noBlocks = M.empty
-
-addBlock :: BlockId -> Block n C C -> Blocks n -> Blocks n
-addBlock = M.insert
-
-unionBlocks :: Blocks n -> Blocks n -> Blocks n
-unionBlocks = M.union
-
-blocksToList :: Blocks n -> [(BlockId,Block n C C)]
-blocksToList = M.toList
+type BlockGraph n = BlockMap (Block n C C)
 
 data Graph n e x where
   GNil  :: Graph n O O
   GUnit :: Block n e O -> Graph n e O
-  GMany :: Block n e C -> Blocks n
+  GMany :: Block n e C -> BlockGraph n
 	-> Tail n x -> Graph n e x
 
    -- If a graph has a Tail, then that tail is the only  
@@ -55,6 +43,7 @@ instance LiftNode ZClosed where
 instance LiftNode ZOpen where
    liftNode n = GUnit (BUnit n)
 
+{- 	Edges is not currently used
 class Edges thing where
   successors :: thing e C -> [BlockId]
 
@@ -69,15 +58,16 @@ instance Edges n => Edges (Graph n) where
        (bids, blks) = unzip (blocksToList bs)      
        all_succs   = mkBlockSet (successors b ++ [bid | b <- blks, bid <- successors b])
        all_blk_ids = mkBlockSet bids
+-}
 
-ecGraph :: Graph n e C -> (Block n e C, Blocks n)
+ecGraph :: Graph n e C -> (Block n e C, BlockGraph n)
 ecGraph (GMany b bs NoTail) = (b, bs)
 
-cxGraph :: BlockId -> Graph n C O -> (Blocks n, Tail n O)
+cxGraph :: BlockId -> Graph n C O -> (BlockGraph n, Tail n O)
 cxGraph bid (GUnit b)          = (noBlocks, Tail bid b)
 cxGraph bid (GMany be bs tail) = (addBlock bid be bs, tail)
 
-flattenG :: BlockId -> Graph n C C -> Blocks n
+flattenG :: BlockId -> Graph n C C -> BlockGraph n
 flattenG bid (GMany e bs NoTail) = addBlock bid e bs
 
 gCat :: Graph n e O -> Graph n O x -> Graph n e x
@@ -96,7 +86,7 @@ gCat (GMany e bs (Tail bid x)) (GUnit b2)
 gCat (GMany e1 bs1 (Tail bid x1)) (GMany e2 bs2 x2)
    = GMany e1 (addBlock bid (x1 `BCat` e2) bs1 `unionBlocks` bs2) x2
 
-forwardBlockList, backwardBlockList :: Blocks n -> [(BlockId,Block n C C)]
+forwardBlockList, backwardBlockList :: BlockGraph n -> [(BlockId,Block n C C)]
 -- This produces a list of blocks in order suitable for forward analysis.
 -- ToDo: Do a topological sort to improve convergence rate of fixpoint
 --       This will require a (HavingSuccessors l) class constraint
@@ -108,14 +98,13 @@ backwardBlockList blks = blocksToList blks
 -----------------------------------------------------------------------------
 
 data DataflowLattice a = DataflowLattice  { 
-  fact_name       :: String,                 -- Documentation
-  fact_bot        :: a,                      -- Lattice bottom element
-  fact_add_to     :: a -> a -> TxRes a,      -- Lattice join plus change flag
-  fact_do_logging :: Bool                    -- log changes
+  fact_name       :: String,                   -- Documentation
+  fact_bot        :: a,                        -- Lattice bottom element
+  fact_extend     :: a -> a -> (ChangeFlag,a), -- Lattice join plus change flag
+  fact_do_logging :: Bool                      -- log changes
 }
 
 data ChangeFlag = NoChange | SomeChange
-data TxRes a = TxRes ChangeFlag a
 
 -----------------------------------------------------------------------------
 --		The main Hoopl API
@@ -150,7 +139,7 @@ data TxFactBase n fact
                                    -- These are BlockIds of the *original* 
                                    -- (not transformed) blocks
 
-         , tfb_blks  :: Blocks n   -- Transformed blocks
+         , tfb_blks  :: BlockGraph n   -- Transformed blocks
     }
 
 factBaseInFacts :: DataflowLattice f -> TxFactBase n f -> BlockId -> f
@@ -175,11 +164,10 @@ updateFact lat (bid, new_fact) tx_fb@(TxFB { tfb_fbase = fbase, tfb_bids = bids}
   | otherwise               = tx_fb { tfb_fbase = new_fbase }
   where
     old_fact = lookupFact lat fbase bid
-    TxRes cha2 res_fact = fact_add_to lat old_fact new_fact
+    (cha2, res_fact) = fact_extend lat old_fact new_fact
     new_fbase = extendFactBase fbase bid res_fact
 
-updateFacts :: Edges n
-            => DataflowLattice f 
+updateFacts :: DataflowLattice f 
 	    -> BlockId
             -> (FactBase f -> FuelMonad ([(BlockId,f)], Graph n C C))
             -> TxFactBase n f -> FuelMonad (TxFactBase n f)
@@ -257,7 +245,7 @@ arfBlock arf_node f (BCat hd mids) = do { (f1,g1) <- arfBlock arf_node f  hd
                                         ; (f2,g2) <- arfBlock arf_node f1 mids
 	                                ; return (f2, g1 `gCat` g2) }
 
-arfGraph :: forall n f. Edges n => DataflowLattice f -> ARF_Block n f -> ARF_Graph n f
+arfGraph :: forall n f. DataflowLattice f -> ARF_Block n f -> ARF_Graph n f
 -- Lift from blocks to graphs
 arfGraph lattice arf_block f GNil        = return (f, GNil)
 arfGraph lattice arf_block f (GUnit blk) = arf_block f blk
@@ -275,7 +263,7 @@ arfGraph lattice arf_block f (GMany entry blocks exit)
         -- But I can't see any other tidy way to compute the 
         -- LastOutFacts in the NoTail case
     ft_exit :: TxFactBase n f -> Tail n x
-            -> FuelMonad (TailFactF x f, Blocks n, Tail n x)
+            -> FuelMonad (TailFactF x f, BlockGraph n, Tail n x)
     ft_exit f (Tail bid blk)
       = do { (f1, g) <- arf_block (factBaseInFacts lattice f bid) blk
 	   ; let (bs, exit) = cxGraph bid g
@@ -294,19 +282,19 @@ arfGraph lattice arf_block f (GMany entry blocks exit)
     ft_blocks_once (b:bs) tx_fb = do { tx_fb1 <- ft_block_once b tx_fb
                                      ; ft_blocks_once bs tx_fb1 }
 
-    ft_blocks :: Blocks n -> FactBase f -> FuelMonad (TxFactBase n f)
+    ft_blocks :: BlockGraph n -> FactBase f -> FuelMonad (TxFactBase n f)
     ft_blocks blocks = fixpoint (ft_blocks_once (forwardBlockList blocks))
 
 ----------------------------------------------------------------
 --       The pièce de resistance: cunning transfer functions
 ----------------------------------------------------------------
 
-pureAnalysis :: Edges n => DataflowLattice f -> ForwardTransfers n f -> ARF_Graph n f
+pureAnalysis :: DataflowLattice f -> ForwardTransfers n f -> ARF_Graph n f
 pureAnalysis lattice f = arfGraph lattice (arfBlock (arfNodeTransfer f))
 
 analyseAndRewriteFwd
-   :: forall n f. Edges n
-   => DataflowLattice f
+   :: forall n f. 
+      DataflowLattice f
    -> ForwardTransfers n f
    -> ForwardRewrites n f
    -> RewritingDepth
@@ -381,7 +369,7 @@ arbBlock arb_node f (BCat b1 b2) = do { (f2,g2) <- arbBlock arb_node f  b2
                                       ; (f1,g1) <- arbBlock arb_node f2 b1
 	                              ; return (f1, g1 `gCat` g2) }
 
-arbGraph :: forall n f. Edges n => DataflowLattice f -> ARB_Block n f -> ARB_Graph n f
+arbGraph :: forall n f. DataflowLattice f -> ARB_Block n f -> ARB_Graph n f
 arbGraph lattice arb_block f GNil        = return (f, GNil)
 arbGraph lattice arb_block f (GUnit blk) = arb_block f blk
 arbGraph lattice arb_block f (GMany entry blocks exit)
@@ -398,7 +386,7 @@ arbGraph lattice arb_block f (GMany entry blocks exit)
         -- But I can't see any other tidy way to compute the 
         -- LastOutFacts in the NoTail case
     bt_exit :: TailFactB x f -> Tail n x
-            -> FuelMonad (FactBase f, Blocks n, Tail n x)
+            -> FuelMonad (FactBase f, BlockGraph n, Tail n x)
     bt_exit f (Tail bid blk)
       = do { (f1, g) <- arb_block f blk
 	   ; let (bs, exit) = cxGraph bid g
@@ -418,12 +406,12 @@ arbGraph lattice arb_block f (GMany entry blocks exit)
     bt_blocks_once (b:bs) tx_fb = do { tx_fb' <- bt_block_once b tx_fb
                                      ; bt_blocks_once bs tx_fb' }
 
-    bt_blocks :: Blocks n -> FactBase f -> FuelMonad (TxFactBase n f)
+    bt_blocks :: BlockGraph n -> FactBase f -> FuelMonad (TxFactBase n f)
     bt_blocks blocks = fixpoint (bt_blocks_once (backwardBlockList blocks))
 
 analyseAndRewriteBwd
-   :: forall n f. Edges n
-   => DataflowLattice f
+   :: forall n f. 
+      DataflowLattice f
    -> BackwardTransfers n f
    -> BackwardRewrites n f
    -> RewritingDepth
@@ -480,6 +468,21 @@ type BlockId = Int
 
 mkBlockId :: Int -> BlockId
 mkBlockId uniq = uniq
+
+----------------------
+type BlockMap a = M.IntMap a
+
+noBlocks :: BlockGraph n
+noBlocks = M.empty
+
+addBlock :: BlockId -> Block n C C -> BlockGraph n -> BlockGraph n
+addBlock = M.insert
+
+unionBlocks :: BlockGraph n -> BlockGraph n -> BlockGraph n
+unionBlocks = M.union
+
+blocksToList :: BlockGraph n -> [(BlockId,Block n C C)]
+blocksToList = M.toList
 
 ----------------------
 type FactBase a = M.IntMap a
