@@ -588,11 +588,11 @@ block lineariser can readily reconstruct the efficient code.
 \begin{figure}
 \begin{code}
 data CmmNode e x where
-  Label      :: BlockId -> Node C O
-  Assign     :: Reg -> Expr -> Node O O
-  Store      :: Expr -> Expr -> Node O O
-  Branch     :: BlockId -> Node O C
-  CondBranch :: BlockId -> BlockId -> Node O C
+  Head       :: CmmNode C O
+  Assign     :: Reg -> Expr -> CmmNode O O
+  Store      :: Expr -> Expr -> CmmNode O O
+  Branch     :: BlockId -> CmmNode O C
+  CondBranch :: BlockId -> BlockId -> CmmNode O C
   ...more constructors...
 \end{code}
 \caption{A typical node definition} \figlabel{cmm-node}
@@ -605,7 +605,7 @@ To make this concrete,
 please remember that this definition is written by the \emph{client} of the
 library. The example node type, @CmmNode@, is parameterised @e@ and @x@, for
 entry and exit respectively.  It is defined in GADT-style syntax \cite{pj-gadt},
-by giving the types of each of of its contructors.  For example, constructor @Label@
+by giving the types of each of of its contructors.  For example, constructor @Head@
 takes a @BlockId@ and returns a node of type @CmmNode C O@, where ``@C@'' says ``closed
 at entry'' and ``@O@'' says ``open at exit''.  The types @BlockId@, @O@, and @C@ are 
 exported by \ourlib{} (\figref{graph}).  
@@ -630,31 +630,29 @@ respectively, for obvious reasons.
 data O   -- Open
 data C   -- Closed
 
-newtype BlockId = BlockId Int
-
 data Block n e x where
-  BNil  :: Block n O O
   BUnit :: n e x -> Block n e x
   BCat  :: Block n e O -> Block n O x -> Block n e x
 
-data Graph n e x where
-  GUnit :: Block n e x -> Graph n e x
-  GMany :: { g_entry  :: MaybeOC e (Block n O C)
-           , g_blocks :: [Block n C C]
-           , g_exit   :: MaybeOC x (Block n C O) }
-        -> Graph n e x
+newtype BlockId = BlockId Int
+type BlockGraph n = BlockMap (Block n C C)
+-- (BlockMap a) is a finite map from BlockId to a
 
-data MaybeOC oc a where
-  Closed :: MaybeOC C a
-  Open   :: a -> MaybeOC O a
+data Graph n e x where
+  GNil  :: Graph n O O
+  GUnit :: Block n e O -> Graph n e O
+  GMany :: Block n e C -> BlockGraph n
+        -> Tail n x -> Graph n e x
+
+data Tail n x where
+  NoTail :: Tail n C
+  Tail   :: BlockId -> Block n C O -> Tail n O
 \end{code}
 \caption{The \ourlib{} Block and Graph types} \figlabel{graph}
 \end{figure}
 
 So much for nodes.  The types for blocks and graphs are defined by \ourlib{}
-itself, with definitions given in \figref{graph}.  \simon{I've removed 
-the ``Z'' prefixes.} \simon{I have also added the {\tt BNil} empty block.
-It seems jolly useful.}
+itself, with definitions given in \figref{graph}.
 A @Block@ 
 is parameterised over the node type @n@ (of kind @*->*->*@), 
 as well as over the same open/closed flags as nodes.  The @BUnit@
@@ -665,16 +663,18 @@ This ensures that control can fall through from the first into the second;
 for example, putting a @Branch@ before a @Assign@ is statically prevented.
 
 A @Block@ closed at both entry and exit is what we normally 
-call ``a basic block''.  (We will often informally say ``a closed-closed block'' 
-rather than ``a block of type (@Block@ @n@ @C@ @C@)'', 
-and simlarly for graphs and nodes.)
-In the case of @CmmNode@,
+call ``a basic block''.  
+In the case of @CmmNode@, for example,
 the types elegantly ensure that a block of type (@Block@ @CmmNode@ @C@ @C@)
-consists of a @Label@, followed
-by a sequence of @Assign@ and @Store@ nodes, and finsihing with a @Branch@
+consists of a @Head@, followed
+by a sequence of @Assign@ and @Store@ nodes, and finishing with a @Branch@
 or @CondBranch@.  
+Also notice that the type guarantees that every @Block@ 
+has at least one node.
 
-Finally @BNil@ is a no-op, open at entry and exit.
+We will often informally say ``a closed/closed block'' 
+rather than ``a block of type (@Block@ @n@ @C@ @C@)'', 
+and simlarly for graphs and nodes.
 
 \subsection{Graphs} \seclabel{graphs}
 
@@ -682,115 +682,132 @@ The third important entity is the @Graph@, also defined by \ourlib{}, in
 \figref{graph}.  Just like @Block@, it is parameterised over
 the node type @n@, and can be open or closed at entry and exit.
 Indeed, the @GUnit@ constructor lifts a single block to be a graph, just
-as @BUnit@ lifted a node to a block.   \simon{Since we now have {\tt BNil} 
-we don't need an empty graph.  Norman thinks we need a closed-closed empty
+as @BUnit@ lifted a node to a block. We will soon return to the question
+of why @GUnit@ is restricted to blocks open on exit.
+\simon{Norman thinks we need a closed-closed empty
 graph but I don't see that, at least not yet.}
 
-The excitement comes in the @GMany@ constructor, which allows a graph
-to contain an arbitrary non-empty list of @Block@s, each closed at both ends.  The
-signature for @GMany@ uses Haskell's named-field syntax to say that
-@GMany@ has three argument fields, and to define a name for each.
-The @g_blocks@ field contains
-the non-empty list\footnote{In our actual implementation it is a bag, so that union
-takes constant time.} of closed-closed blocks, but what of @g_entry@
-and @g_exit@?
-
-Consider what it means to say that a graph is open at entry.  It means
-that the graph begins with an open-closed block, whose final node
-transfer control to one of the @g_blocks@. In contrast, a graph closed on entry
-has no such distinguished entry block.  This idea of
-``nothing if closed, but a open-closed block if open'' is expressed by
-the @MaybeOC@ type defined in \figref{graph}.  It is a GADT variant of 
-Hakell's existing @Maybe@ type, so that an open-x @Graph@ has
-a @g_entry@ field of form @Open b@, where @b@ is an open-closed block;
-and a closed-x @Graph@ has a @g_entry@ field of form @Closed@.
-The same trick is used at exit.
-
-\simon{In @g\_blocks@ I've used a @[Block n C C]@ instead of a @BlockEnv@.
-There's no reason for it to be a finite mapping now.  And from a @Block@
-we can get its @BlockId@ with @blockId@.  If we want to be sure that 
-that operation is O(1) we could, I suppose, change the rep of @Block@, or
-store a @[(BlockId,Block)]@ in @g\_blocks@.}
+The excitement comes in the @GMany@ constructor. It has three fields:
+\begin{itemize}
+\item Every @Graph@ (whether open or closed) has a distinguished entry block,
+where control always enters the block.  This distinguished block, closed at the exit,
+ is the first argument of @GMany@.
+\item The second argument represents an
+arbitrary graph of blocks, each closed at both ends, and 
+each labelled with a @BlockId@.
+This graph, of type @BlockGraph n@, is represented as a finite map 
+from @BlockId@ to a closed/closed @Block@.
+\item The third field is called the ``tail'' of the @Graph@.  If
+the @Graph@ is closed on exit the tail is just @NoTail@.  If it is
+open on exit, the tail is a (labelled) @Block@, open on exit.
+\end{itemize}
+Every graph has a unique representation.  An empty graph is represented
+by @GNil@.  A one-block graph open at exit is represented by @GUnit@.
+A one block graph closed at exit is represented by @(GMany b [] NoTail)@.
+A multi-block graph is represented by a @GMany@, with a @Tail@ or @NoTail@
+depending on whether the graph is open or closed at exit.
 
 Now graph concatenation is easy to define:
+\par{\small
 \begin{code}
 gCat :: Graph n e O -> Graph n O x -> Graph n e x
+gCat GNil g2 = g2
+gCat g1 GNil = g1
+
 gCat (GUnit b1) (GUnit b2)             
   = GUnit (b1 `BCat` b2)
 
-gCat (GUnit b1) (GMany (Open b2) bs x) 
-  = GMany (Open (b1 `BCat` b2)) bs x
+gCat (GUnit b) (GMany e bs x) 
+  = GMany (b `BCat` e) bs x
 
-gCat (GMany e bs (Open b1)) (GUnit b2) 
-   = GMany e bs (Open (b1 `BCat` b2))
+gCat (GMany be bs (Tail bid bx)) (GUnit b2) 
+   = GMany be bs (Tail bid (bx `BCat` b2))
 
-gCat (GMany e bs1 (Open b1)) 
-     (GMany (Open b2) bs2 x)
-   = GMany e (b1 `BCat` b2 : bs1 ++ bs2) x
-\end{code}
-This defintion is a lovely example of the power of GADTs: the
+gCat (GMany be1 bs1 (Tail bid bx1)) (GMany be2 bs2 bx2)
+   = GMany be1 (addBlock bid (bx1 `BCat` be2) bs1 
+                `unionBlocks` bs2) bx2
+\end{code}}
+This defintion is a nice example of the power of GADTs: the
 pattern-matching is exhaustive, and all the open/closed invariants are
-statically checked.  For example, in the third equation for @gCat@,
-the first argument has type (@Graph@ @n@ @e@ @O@), so the third
-field of @GMany@, the @g_exit@ field\footnote{To save space we use positional,
-rather than named-field, syntax for @GMany@'s arguments; Haskell allows
-one to do either.}, must be of form (@Open b1@).  Moreover @b1@ must be closed-open,
-and @b2@ must be open-x.  So we can compose them in sequence with @BCat@ 
-to produce a closed-x block, which is the exit block of the compound graph.
-The other equations are similar.
+statically checked.  For example, in the last equation for @gCat@, the
+first argument has type (@Graph@ @n@ @e@ @O@), so the third field of
+@GMany@ must be of form (@Tail bid bx1@).  Moreover @bx1@ must be
+closed/open, and @be2@ must be open/closed.  So we can compose them in
+sequence with @BCat@ to produce a closed/closed block, which can be
+added to the @BlockGraph@ of the result.
 
-\subsection{Labels and successors} \seclabel{edges}
+\subsection{Summary}
 
-\begin{figure}
-\begin{code}
-class Edges n where
-  blockId    :: n C x -> BlockId
-  successors :: n e C -> [BlockId]
-\end{code}
-\caption{The {\tt Edges} class} \figlabel{edges}
-\end{figure}
-If \ourlib{} knows nothing about nodes, how can it know to which block a
-control transfer goes, or what is the @BlockId@ at the start of a block?
-In this situation the standard Haskell idiom is to provide a type class whose methods
-provide exactly the needed operations; it is given in \figref{edges}.
-The @blockId@ method takes a first node (one closed on entry, \secref{nodes})
-and returns its @BlockId@;
-the @successors@ method takes a last node (closed on exit) and returns the @BlockId@s to
-which it can transfer control.  In \ourlib{} a middle node (open-open) cannot refer to any @BlockId@s,
-as the absence of an interrogation function implies. 
+All three entities (nodes, blocks, graphs) share some 
+characteristics in common.  Suppose E is a node, block, or
+graph:
+\begin{itemize}
+\item Regardless of whether E is open or closed, 
+it has a unique entry point where execution begins.
+\item If E is open at exit, control leaves E
+\emph{only} by ``falling through'' from a unique exit point.
+\item If E is closed at exit, control leaves \emph{only}
+by an explicit branch to a label.
+\end{itemize}
+The body of a procedure would typically be represented by
+an open/closed graph, where execution begins at the open end.
+An alternative would be to represent a procedure body by a @BlockGraph@,
+together with a @BlockId@ where execution begins.
 
-When defining a node type, a \ourlib{} client should also make it an
-instance of @Edges@.  Thus for @CmmNode@ we would write
-\begin{code}
-instance Edges CmmNode where
-  blockId (Label l) = l
-  successors (Branch b) = [b]
-  successors (CondBranch e b1 b2) = [b1,b2]
-\end{code}
-Again, the pattern-matching for both functions is exhaustive, and
-the compiler statically checks this fact.  For example, @blockId@ simply
-cannot be applied to a @Assign@ or @Branch@ node; the type checker would
-reject any such attempt.
-
-\ourlib{} provides instances for its types @Block@ and @Graph@ thus:
-\begin{code}
-instance Edges n => Edges (Block n) where
-  blockId    (BUnit n)  = blockId n
-  blockId    (BCat b _) = blockId b
-  successors (BUnit n)  = successors n
-  successors (BCat _ b) = successors b
-
-instance Edges n => Edges (Graph n) where
-  blockId    (GUnit b)      = blockId b
-  blockId    (GMany ...)    = ???  -- eek!
-  successors (GUnit b)      = successors b
-  successors (GMany _ bs _) = concatMap successors bs 
-                              `minusList` map blockId bs
-\end{code}
-\simon{I now realise that this is why I wanted to know the entry block of a graph!
-Since an entry-closed node and block both have a unique block id, shouldn't an entry-closed
-graph have one too?}
-\simon{Also the successors thing is not pretty.}
+% 
+% \subsection{Labels and successors} \seclabel{edges}
+% 
+% \begin{figure}
+% \begin{code}
+% class Edges n where
+%   blockId    :: n C x -> BlockId
+%   successors :: n e C -> [BlockId]
+% \end{code}
+% \caption{The {\tt Edges} class} \figlabel{edges}
+% \end{figure}
+% If \ourlib{} knows nothing about nodes, how can it know to which block a
+% control transfer goes, or what is the @BlockId@ at the start of a block?
+% In this situation the standard Haskell idiom is to provide a type class whose methods
+% provide exactly the needed operations; it is given in \figref{edges}.
+% The @blockId@ method takes a first node (one closed on entry, \secref{nodes})
+% and returns its @BlockId@;
+% the @successors@ method takes a last node (closed on exit) and returns the @BlockId@s to
+% which it can transfer control.  In \ourlib{} a middle node (open-open) cannot refer to any @BlockId@s,
+% as the absence of an interrogation function implies. 
+% 
+% When defining a node type, a \ourlib{} client should also make it an
+% instance of @Edges@.  Thus for @CmmNode@ we would write
+% \begin{code}
+% instance Edges CmmNode where
+%   blockId (Label l) = l
+%   successors (Branch b) = [b]
+%   successors (CondBranch e b1 b2) = [b1,b2]
+% \end{code}
+% Again, the pattern-matching for both functions is exhaustive, and
+% the compiler statically checks this fact.  For example, @blockId@ simply
+% cannot be applied to a @Assign@ or @Branch@ node; the type checker would
+% reject any such attempt.
+% 
+% \ourlib{} provides instances for its types @Block@ and @Graph@ thus:
+% \begin{code}
+% instance Edges n => Edges (Block n) where
+%   blockId    (BUnit n)  = blockId n
+%   blockId    (BCat b _) = blockId b
+%   successors (BUnit n)  = successors n
+%   successors (BCat _ b) = successors b
+% 
+% instance Edges n => Edges (Graph n) where
+%   blockId    (GUnit b)      = blockId b
+%   blockId    (GMany ...)    = ???  -- eek!
+%   successors (GUnit b)      = successors b
+%   successors (GMany _ bs _) = concatMap successors bs 
+%                               `minusList` map blockId bs
+% \end{code}
+% \simon{I now realise that this is why I wanted to know the entry block of a graph!
+% Since an entry-closed node and block both have a unique block id, shouldn't an entry-closed
+% graph have one too?}
+% \simon{Also the successors thing is not pretty.}
+% 
 
 \section {Using \ourlib{} to analyse and transform graphs} \seclabel{using-hoopl}
 \seclabel{making-simple}
@@ -827,15 +844,14 @@ With these pieces in hand, a client can call \ourlib{}'s analysis-and-rewriting
 function:
 \begin{code}
  `analyseAndRewriteFwd
-  :: Edges n         
-  => DataflowLattice f      -- Lattice
+  :: DataflowLattice f      -- Lattice
   -> ForwardTransfer n f    -- Transfer function
   -> ForwardRewrite n f     -- Rewrite function
   -> RewritingDepth         -- Rewrite recursively?
-  -> Graph n e x            -- Graph or subgraph
   -> Fact e f               -- Input fact(s)
-  -> FuelMonad (Graph n e x,  -- Rewritten graph
-                Fact x f)     -- Output fact(s)
+  -> Graph n e x            -- Graph or subgraph
+  -> FuelMonad (Fact x f,     -- Output fact(s)
+                Graph n e x)  -- Rewritten graph
 \end{code}
 You can see that the function is polymorphic in the type of nodes @n@ and facts @f@.
 Roughly speaking, you can see that, given a lattice, a transfer function, and a 
@@ -847,7 +863,7 @@ example is shown in \figref{const-prop}. \simon{John: this is for you to fill in
 
 The user-level model of how @analyseAndRewriteFwd@ works is this.  The
 function walks forward over the graph.  At each node, it applies the
-rewrite function to the node and its incoming fact.  If the rewrite
+rewrite function to incoming fact and the node.  If the rewrite
 function returns @Nothing@, the node is retained as part of the output
 graph, the transfer function is used to compute the downstream fact,
 and we move on to the next node.
@@ -885,9 +901,8 @@ data `DataflowLattice a = DataflowLattice
 \begin{code}
 data ChangeFlag = NoChange | SomeChange
 data DataflowLattice a = DataflowLattice
- { fact_bot        :: a,
-   fact_add_to     :: a -> a -> (a, ChangeFlag),
-   fact_name       :: String } -- Debugging only
+ { fact_bot    :: a,
+   fact_extend :: a -> a -> (a, ChangeFlag) }
 \end{code}
 \fi
 \caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
@@ -927,8 +942,9 @@ where we assume @L1@ is the entry point:
 \end{verbatim}
 Since control flows to @L3@ from two places
 we must join the facts coming from those two places.  The fact at the
-first @goto L3@ is (@x=3@, @y=4@, @z=False@), while at the second @goto L3@
-the fact is (@x=7@, @y=4@, @z=True@).  Joining these gives the 
+end of block @L1@ is (@x=3@, @y=4@, @z=False@), while at the end of
+@L2@ the fact is (@x=7@, @y=4@, @z=True@).  Both blocks branch to @L3@
+where they must be joined, giving
 the fact (@x=@$\top$, @y=4@, @z=@$\top$) at @L3@, where the $\top$'s indicate
 that the analysis cannot
 nail down @x@ and @z@ to hold a single value at @L3@\footnote{
@@ -974,24 +990,27 @@ fixed point.
 
 \begin{figure}
 \begin{code}
-type InFactC  f = BlockId -> f
-type OutFactC f = [(BlockId, f)] 
-
 type ForwardTransfers n f 
-  = forall e x. n e x -> InFact e f -> OutFact x f 
-
+  = forall e x. f -> n e x -> TailFactF x f 
 type BackwardTransfers n f 
-  = forall e x. n e x -> InFact x f -> OutFact e f 
+  = forall e x. TailFactB x f -> n e x -> f
 
-type family   InFact e f :: *
-type instance InFact O f = f
-type instance InFact C f = InFactC f
+type ForwardRewrites n f 
+  = forall e x. f -> n e x -> Maybe (AGraph n e x)
+             -> Maybe (AGraph n e x)
+type BackwardRewrites n f 
+  = forall e x. TailFactB x f -> n e x 
 
-type family   OutFact x f :: *
-type instance OutFact O f = f
-type instance OutFact C f = OutFactC f
+type family   TailFactF x f :: *
+type instance TailFactF O f = f
+type instance TailFactF C f = [(BlockId,f)]
+
+type family   TailFactB x f :: *
+type instance TailFactB C f = BlockMap f
+type instance TailFactB O f = f
 \end{code}
-\caption{Transfer functions for forward and backward analyses} \figlabel{transfers}
+\caption{Transfer functions for forward and backward analyses} 
+  \figlabel{transfers}  \figlabel{rewrites}
 \end{figure}
 \ifpagetuning\vspace*{-1ex}\fi
 
@@ -1013,35 +1032,31 @@ function successively applying the transfer function to the nodes
 of @L1@, emerging with the fact \{@x=3@\} for @L2@.
 This is joined with the existing (bottom) fact for @L2@.
 Now the analysis propagates @L2@'s fact forward, again using the transfer
-function, this time emerging with a new fact \{@x=2@,@y=7@\} for @L2@.
+function, this time emerging with a new fact \{@x=2@, @y=7@\} for @L2@.
 Again, this is joined with the existing fact for @L2@, and the process
 is iterated until the facts for each label reach a fixed point.
 
 But wait!  What is the \emph{type} of the transfer function?
-If the node is open at entry and exit, it takes a fact and the node and produces a fact.
-But what if the node is \emph{closed} on entry or exit?
-If the node is closed on entry, the transfer function must be given a mapping
-from @BlockId@ to facts, which it can use to look up the fact for the entry
-@BlockId@.  If the node is closed on exit then the transfer function must
+If the node is open at exit, it takes a fact and the node and produces a fact.
+But what if the node is \emph{closed} on exit?
+In that case the transfer function must
 produce a list of (@BlockId@,fact) pairs, one for each outgoing edge.  
 
 \emph{So the types of the transfer function's argument and result each 
-depend on the open/closed-ness of the node.}
+depend on the open/closed-ness of the node's exit.}
 Fortunately, this is precisely what Haskell's (recently added) 
 indexed type families are for.
 The relevant \ourlib{} definitions are given in \figref{transfers}.
-\simon{For the @InFacts@ I think it's better to have a real function.}
 A forward transfer function, of type (@ForwardTransfers@ @n@ @f@), 
-is a function polymorphic in @e@ and @x@.  It takes a node of type (@n@ @e@ @x@), and
-an incoming fact-like thing of type (@InFact@ @e@ @f@), and produces an
-outgoing fact-like thing of type (@OutFact@ @x@ @f@).  The type constructor @InFact@
+is a function polymorphic in @e@ and @x@.  It takes a fact and a 
+node of type (@n@ @e@ @x@), and produces an
+outgoing fact-like thing of type (@TailFactF@ @x@ @f@).  The 
+type constructor @TailFactF@
 should be thought of as a type-level function; its signature is given in the
 @type family@ declaration, while its definition is given by two @type instance@
-declarations.  The first says that the fact-like thing coming into a node
-open at entry is just a fact @f@. The second says that if the node is closed
-on entry the incoming thing is an @InFactC f@, which is just a function from @BlockId@
-to @f@.   The same technique makes the result type of @ForwardTransfers@ vary with
-the exit flag @x@.
+declarations.  The first says that the fact-like thing coming out a node
+open at exit is just a fact @f@. The second says that if the node is closed
+on exit the outgoing thing is a list of @(BlockId,f)@ pairs.
 
 All the \ourlib{} client needs to do is to write the transfer function, with
 this type.  \figref{constant-prop} shows the transfer function for our
@@ -1061,12 +1076,20 @@ might go into an infinite flip-flop loop.
 type AGraph n e x 
   = BlockIdSupply -> (Graph n e x, BlockIdSupply)
 
-type ForwardRewrites n f 
-  = forall e x. n e x -> InFact e f -> Maybe (AGraph n e x)
-type BackwardRewrites n f 
-  = forall e x. n e x -> InFact x f -> Maybe (AGraph n e x)
+mkIfThenElse :: Expr -> AGraph CmmNode O O
+             -> AGraph CmmNode O -> AGraph CmmNode O O
+mkIfThenElse p t e
+  = withBlockIds 3 $ \[l1,l2,l3] ->
+    let entry = BUnit (CondBranch p l1 l2)
+        exit  = BUnit Head
+        bg = flattenG l1 (t `catNode` Branch l3)
+	       `unionBlocks`
+             flattenG l2 (e `catNode` Branch l3)
+        
+    GMany entry bg (Tail l3 exit)
+          
 \end{code}
-\caption{Types of forward and backward rewrite functions} \figlabel{rewrites}
+\caption{The \texttt{AGraph} type} \figlabel{agraph}
 \end{figure}
 
 We compute dataflow facts in order to enable code-improving
@@ -1082,12 +1105,11 @@ live at a call site might provoke us to insert a spill before the call; and so o
 Thus motivated, we allow the user to give \ourlib{} a rewriting function
 that takes a node and a fact, and optionally returns a graph, of the
 same open/closed shape as the node.   The type is given in \figref{rewrites}.
-As with the transfer functions, an entry-closed node does not get a single fact
-but rather an @InFact f@, using the same @InFact@ function as described
-in \figref{transfers}.  The @Maybe@ type expresses that the function can return
+The @Maybe@ type expresses that the function can return
 @Nothing@, meaning no rewrite, or (@Just g@) where @g@ is the replacement graph.
 
-More precisely, the rewriter returns an @AGraph@, a function that is given 
+More precisely, the rewriter returns an @AGraph@ rather than a @Graph@.
+An @AGraph@ is a function that is given 
 a supply of fresh @BlockId@s.  If the rewriter makes graphs containing blocks,
 it will need to conjure up some fresh @BlockIds@ and the @BlockIdSupply@ makes
 that possible. Notice that the open/closed is statically 
