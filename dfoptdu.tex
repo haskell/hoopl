@@ -26,8 +26,7 @@ soundness is justified by the assertions. Hoopl uses the algorithm of
 Lerner, Grove, and Chambers (2002), which can compose very simple
 analyses and transformations in a way that achieves the same precision
 as complex, handwritten "superanalyses." Hoopl will be the workhorse
-of a new back end for the Glasgow Haskell Compiler (version 6.12,
-forthcoming).
+of a new back end for the Glasgow Haskell Compiler.
 
 Because the major claim in the paper is that Hoopl makes it easy to
 implement program transformations, the paper is filled with examples,
@@ -60,7 +59,7 @@ implementation.
 
 
 \newif\ifnotesinmargin \notesinmarginfalse
-% \IfFileExists{notesinline.tex}{\notesinmarginfalse}{\relax}
+\IfFileExists{notesinmargin.tex}{\notesinmargintrue}{\relax}
 
 \documentclass[blockstyle,preprint,natbib,nocopyrightspace]{sigplanconf}
 
@@ -321,6 +320,16 @@ back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
 
 \section{Introduction}
 
+\john{We should agree on a consistent hyphenation of control-flow graph / control flow graph,
+  which differs throughout this paper. I don't know if it's a British-vs-American
+  English thing, but we should settle on something. Frankly, I don't
+  care about this case, since the meaning is clear,
+  but I know Norman's a stickler for this, and the American version would be hyphenated.
+  Is the British hyphenation rule different?}
+
+\norman{The British rule is exactly the same.  If Simon does not own a
+  copy of Fowler, his eldest unmarried daughter does.}
+
 If you write a compiler for an imperative language, you can exploit
 many years' work on code improvement
 (``optimization'').
@@ -367,7 +376,7 @@ simple analyses and transformations.
 Interleaving is tricky to implement,
 but by using 
 generalized algebraic data types 
-and continuation-passing style,
+and continuation-passing style\john{No longer true.},
 our new implementation expresses the algorithm with a clarity and a
 degree of 
 static checking that has not 
@@ -473,17 +482,25 @@ We also sketch a new implementation of interleaving (\secref{engine}).
 \seclabel{example:xforms}
 
 We begin by setting the scene, introducing some vocabulary, and
-articulating a small motivating example.
+showing a small motivating example.
 A control-flow graph, perhaps representing the body of a procedure,
 is a collection of \emph{basic blocks}
--- or just ``blocks'' -- each of which has a label at the 
-beginning.  Each block may branch to other blocks with arbitrarily
-complex control flow.
+-- or just ``blocks''.
+Each block is a sequence of instructions,
+beginning with a label and ending with a
+control-transfer instruction that branches to other blocks.
+% Each block has a label at the beginning,
+% a sequence of 
+%  -- each of which has a label at the 
+% beginning.  Each block may branch to other blocks with arbitrarily
+% complex control flow.
 The goal of dataflow optimization is to compute valid
 \emph{assertions} (or \emph{dataflow facts}), 
 then use those assertions to justify code-improving
 transformations (or \emph{rewrites}) on a \emph{control-flow graph}.  
 
+\john{This example is really a combination of constant propagation and
+ constant folding, as noted later in the paper; I think we should make that clear here.}
 Consider a concrete example: constant propagation.
 On the left we have a basic block; in the middle we have
 assertions that hold between statements (or \emph{nodes}) 
@@ -495,9 +512,9 @@ based on the assertions:
            	      {}
   x = 3+4  	                 x = 7
            	    {x=7}
-  z = x>5  	                 z = False
-           	{x=7, z=False}
-  if z                           goto L2
+  z = x>5  	                 z = True
+           	{x=7, z=True}
+  if z                       goto L1
    then goto L1
    else goto L2
 \end{verbatim}
@@ -507,33 +524,47 @@ Given the empty assertion and the node @x=3+4@ can we make a (constant-prop)
 \label{haskell.firstuse.x}% automated use
 \label{haskell.firstuse.+}% automated use
 transformation?
-Yes!  We can replace it with @x=7@.  Now, given this transformed node,
+Yes!  We can replace it with @x=7@.\john{That's constant-folding, not constant-prop.}
+Now, given this transformed node,
 and the original assertion, what assertion flows out of the bottom of
 the transformed node?  Clearly the assertion \{@x=7@\}.  
 Given the assertion \{@x=7@\} and the node @z=x>5@, can we make a
 \label{haskell.firstuse.z}% automated use
 \label{haskell.firstuse.>}% automated use
-transformation?  Yes: replace it with @z=False@.  And so the process
-\label{haskell.firstuse.False}% automated use
-continues. Notice that in the last node of the block we can transform
-a conditional jump to an unconditional one.
+transformation?  Yes: replace it with @z=True@.
+\label{haskell.firstuse.True}% automated use
+And so the process continues. Notice that in the last node of the block we can transform
+a conditional branch to an unconditional one.
 
 Notice that it is very convenient to \emph{interleave}
 transformation and analysis.  If we \emph{first} analysed the block
 and \emph{then} transformed it, the analysis would have to ``predict''
 the transformations.  For example, a pure analysis would have to
-evaluate @x>5@ under the assumption that {x=7} to get the outgoing
-fact \{@x=7@, @z=False@\}.  But the subsequent transformation must do exactly the
-same thing.  This duplication of knowledge becomes onerous when the
+evaluate @x>5@ under the assumption that \{@x=7@\} to get the outgoing
+fact \{@x=7@, @z=True@\}.  But the subsequent transformation must 
+\emph{also} evaluate @x>5@ under the assumption \{@x=7@\}, to transform
+@z=x>5@ to @z=True@!
+This duplication of knowledge becomes onerous when the
 transformation is complex, or if there are a number of interacting transformations;
 we encourage the reader to consult \cite{lerner-grove-chambers} for more substantial
 examples.
+\john{I think this last sentence should use the reference not to point out that this
+approach makes things simpler, but to assert that: by using interleaving, not only
+can you write simpler, compositional analyses, but you can get
+better results than by running the analyses in sequences (and cite here).}
+\john{Also, I think this example only does half the job: we should show the reader
+how the example becomes simpler when you have interleaving:
+const-prop uses {x==7} to produce z = 7 > 5,
+then constant-folding doesn't need any facts to produce z = True.
+Furthermore, even the implementation of the analysis requires absolutely no smarts:
+no special case required for x := y where y already holds a constant value.
+I think that's pretty darned cool.}
 
 Constant propagation works \emph{forwards}, and a fact is typically an
 assertion about the program state (such as ``variable @x@ holds value
 @7@'').  Many useful analyses work \emph{backwards}, from bottom to
-top.  An example is live-variable analysis, where the a fact takes the form
-``variable @x@ is dead'' and constitute an assertion about the
+top.  An example is live-variable analysis, where the fact takes the form
+``variable @x@ is dead'' and constitutes an assertion about the
 \emph{continuation} of a program point.  For example, the fact ``@x@ is
 dead'' at a program point P is an assertion that @x@ is unused on any program
 path starting at P.  The accompanying transformation is called dead-code elimination,
@@ -548,8 +579,8 @@ and transformations driven by these analyses, on control-flow graphs.
 In this section we describe the representation of these graphs.
 There are three fundamental entities, which we discuss in turn;
 \begin{itemize}
-\item A \emph{node} is defined by the library client, so that 
-\ourlib{} knows nothing about their representation (\secref{nodes}).
+\item A \emph{node} is defined by the library client,
+so \ourlib{} knows nothing about their representation (\secref{nodes}).
 \item A (basic) \emph{block} is a linear sequence of nodes (\secref{blocks}).
 \item A \emph{graph} is an arbitrarily complicated control flow graph,
 composed from basic blocks (\secref{graphs}).
@@ -558,7 +589,7 @@ composed from basic blocks (\secref{graphs}).
 \subsection{Nodes} \seclabel{nodes}
 
 The primitive constituents of a \ourlib{} control flow graph are
-\emph{nodes}, reprsented by a data type defined by the client.
+\emph{nodes}, represented by a data type defined by the client.
 Typically, a node might represent a machine instruction, such as an
 assignment, a call, or a conditional branch.  However, crucially,
 \ourlib{}'s graph representation is polymorphic in the node type, so
@@ -585,19 +616,20 @@ at exits can transfer control (see also \secref{edges}).
 A typical machine-code conditional branch, which transfers control
 \emph{and} falls through, must be represented as a two-target
 conditional branch, with the fall-through path in a separate block.  
-This restriction is quite standard \simon{Please
-cite sources}. It dramatically simplifies control-flow graph analyses
-and transformations, in practice costs nothing: a simple late-stage
-block lineariser can readily reconstruct the efficient code.
+This restriction is quite standard \cite{appel:modern}.
+It dramatically simplifies control-flow graph analyses
+and transformations,
+and it costs nothing in practice:
+a late-stage code-layout pass can readily reconstruct the efficient code.
 
 \begin{figure}
 \begin{code}
 data CmmNode e x where
   Label      :: BlockId -> Node C O
-  Assign     :: Reg -> Expr -> Node O O
-  Store      :: Expr -> Expr -> Node O O
+  Assign     :: Reg     -> Expr -> Node O O
+  Store      :: Expr    -> Expr -> Node O O
   Branch     :: BlockId -> Node O C
-  CondBranch :: BlockId -> BlockId -> Node O C
+  CondBranch :: Expr -> BlockId -> BlockId -> Node O C
   ...more constructors...
 \end{code}
 \caption{A typical node definition} \figlabel{cmm-node}
@@ -623,8 +655,9 @@ To make this concrete,
 \figref{cmm-node} gives a typical definition of a node type --- but
 please remember that this definition is written by the \emph{client} of the
 library. The example node type, @CmmNode@, is parameterised @e@ and @x@, for
-entry and exit respectively.  It is defined in GADT-style syntax \cite{pj-gadt},
-by giving the types of each of of its contructors.  For example, constructor @Label@
+entry and exit respectively.  It is defined in GADT-style syntax
+\cite{peyton-jones:generalized-algebraic},
+by giving the types of each of its constructors.  For example, constructor @Label@
 takes a @BlockId@ and returns a node of type @CmmNode C O@, where ``@C@'' says ``closed
 at entry'' and ``@O@'' says ``open at exit''.  The types @BlockId@, @O@, and @C@ are 
 exported by \ourlib{} (\figref{graph}).  
@@ -637,7 +670,7 @@ Finally, the control-transfer nodes @Branch@ and @CondBranch@ are open at entry
 and closed at exit.  
 
 In general, nodes closed on entry are the only targets of control transfers;
-noces open on entry and exit never perform control transfers;
+nodes open on entry and exit never perform control transfers;
 and nodes closed on exit always perform control transfers.
 We often call these \emph{first}, \emph{middle}, and \emph{last} nodes
 respectively, for obvious reasons.
@@ -649,50 +682,50 @@ respectively, for obvious reasons.
 data O   -- Open
 data C   -- Closed
 
-newtype BlockId = BlockId Int
-
 data Block n e x where
-  BNil  :: Block n O O
   BUnit :: n e x -> Block n e x
   BCat  :: Block n e O -> Block n O x -> Block n e x
 
-data Graph n e x where
-  GUnit :: Block n e x -> Graph n e x
-  GMany :: { g_entry  :: MaybeOC e (Block n O C)
-           , g_blocks :: [Block n C C]
-           , g_exit   :: MaybeOC x (Block n C O) }
-        -> Graph n e x
+newtype BlockId = BlockId Int
+type BlockGraph n = BlockMap (Block n C C)
+-- (BlockMap a) is a finite map from BlockId to a
 
-data MaybeOC oc a where
-  Closed :: MaybeOC C a
-  Open   :: a -> MaybeOC O a
+data Graph n e x where
+  GNil  :: Graph n O O
+  GUnit :: Block n e O -> Graph n e O
+  GMany :: Block n e C -> BlockGraph n
+        -> Tail n x -> Graph n e x
+
+data Tail n x where
+  NoTail :: Tail n C
+  Tail   :: BlockId -> Block n C O -> Tail n O
 \end{code}
 \caption{The \ourlib{} Block and Graph types} \figlabel{graph}
-\label{haskell.firstuse.Int}% automated use
 \label{haskell.firstuse.Block}% automated use
 \label{haskell.firstuse.n}% automated use
-\label{haskell.firstuse.BNil}% automated use
 \label{haskell.firstuse.BUnit}% automated use
 \label{haskell.firstuse.BCat}% automated use
+\label{haskell.firstuse.Int}% automated use
+\label{haskell.firstuse.BlockGraph}% automated use
+\label{haskell.firstuse.BlockMap}% automated use
+\label{haskell.firstuse.a}% automated use
+\label{haskell.firstuse.is}% automated use
+\label{haskell.firstuse.finite}% automated use
+\label{haskell.firstuse.map}% automated use
+\label{haskell.firstuse.from}% automated use
+\label{haskell.firstuse.to}% automated use
 \label{haskell.firstuse.Graph}% automated use
+\label{haskell.firstuse.GNil}% automated use
 \label{haskell.firstuse.GUnit}% automated use
 \label{haskell.firstuse.GMany}% automated use
-\label{haskell.firstuse.g:unentry}% automated use
-\label{haskell.firstuse.MaybeOC}% automated use
-\label{haskell.firstuse.g:unblocks}% automated use
-\label{haskell.firstuse.g:unexit}% automated use
-\label{haskell.firstuse.oc}% automated use
-\label{haskell.firstuse.a}% automated use
-\label{haskell.firstuse.Closed}% automated use
-\label{haskell.firstuse.Open}% automated use
+\label{haskell.firstuse.Tail}% automated use
+\label{haskell.firstuse.NoTail}% automated use
 \end{figure}
 
 So much for nodes.  The types for blocks and graphs are defined by \ourlib{}
-itself, with definitions given in \figref{graph}.  \simon{I've removed 
-the ``Z'' prefixes.} \simon{I have also added the {\tt BNil} empty block.
-It seems jolly useful.}
+itself, with definitions given in \figref{graph}.
 A @Block@ 
-is parameterised over the node type @n@ (of kind @*->*->*@), 
+is parameterised over the node type @n@ (of kind @*->*->*@),\john{No explanation required?}
 \label{haskell.firstuse.*->*->*}% automated use
 as well as over the same open/closed flags as nodes.  The @BUnit@
 constructor lifts a node to become a block, while @BCat@ concatenates
@@ -702,16 +735,20 @@ This ensures that control can fall through from the first into the second;
 for example, putting a @Branch@ before a @Assign@ is statically prevented.
 
 A @Block@ closed at both entry and exit is what we normally 
-call ``a basic block''.  (We will often informally say ``a closed-closed block'' 
-rather than ``a block of type (@Block@ @n@ @C@ @C@)'', 
-and simlarly for graphs and nodes.)
-In the case of @CmmNode@,
+call ``a basic block''.  
+In the case of @CmmNode@, for example,
 the types elegantly ensure that a block of type (@Block@ @CmmNode@ @C@ @C@)
-consists of a @Label@, followed
-by a sequence of @Assign@ and @Store@ nodes, and finsihing with a @Branch@
+consists of a @Head@, followed
+\label{haskell.firstuse.Head}% automated use
+by a sequence of @Assign@ and @Store@ nodes, and finishing with a @Branch@
 or @CondBranch@.  
+Also notice that the type guarantees that every @Block@ 
+has at least one node.
 
-Finally @BNil@ is a no-op, open at entry and exit.
+\john{We'd probably benefit from introducing this shorthand earlier, with nodes.}
+We will often informally say ``a closed/closed block'' 
+rather than ``a block of type (@Block@ @n@ @C@ @C@)'', 
+and simlarly for graphs and nodes.
 
 \subsection{Graphs} \seclabel{graphs}
 
@@ -719,135 +756,150 @@ The third important entity is the @Graph@, also defined by \ourlib{}, in
 \figref{graph}.  Just like @Block@, it is parameterised over
 the node type @n@, and can be open or closed at entry and exit.
 Indeed, the @GUnit@ constructor lifts a single block to be a graph, just
-as @BUnit@ lifted a node to a block.   \simon{Since we now have {\tt BNil} 
-we don't need an empty graph.  Norman thinks we need a closed-closed empty
+as @BUnit@ lifted a node to a block. We will soon return to the question
+of why @GUnit@ is restricted to blocks open on exit.
+\simon{Norman thinks we need a closed-closed empty
 graph but I don't see that, at least not yet.}
 
-The excitement comes in the @GMany@ constructor, which allows a graph
-to contain an arbitrary non-empty list of @Block@s, each closed at both ends.  The
-signature for @GMany@ uses Haskell's named-field syntax to say that
-@GMany@ has three argument fields, and to define a name for each.
-The @g_blocks@ field contains
-the non-empty list\footnote{In our actual implementation it is a bag, so that union
-takes constant time.} of closed-closed blocks, but what of @g_entry@
-and @g_exit@?
-
-Consider what it means to say that a graph is open at entry.  It means
-that the graph begins with an open-closed block, whose final node
-transfer control to one of the @g_blocks@. In contrast, a graph closed on entry
-has no such distinguished entry block.  This idea of
-``nothing if closed, but a open-closed block if open'' is expressed by
-the @MaybeOC@ type defined in \figref{graph}.  It is a GADT variant of 
-Hakell's existing @Maybe@ type, so that an open-x @Graph@ has
-\label{haskell.firstuse.Maybe}% automated use
-a @g_entry@ field of form @Open b@, where @b@ is an open-closed block;
+The excitement comes in the @GMany@ constructor. It has three fields:
+\begin{itemize}
+\item Every @Graph@ (whether open or closed) has a distinguished entry block,
+where control always enters the block.  This distinguished block, closed at the exit,
+ is the first argument of @GMany@.
+\item The second argument represents an
+arbitrary graph of blocks, each closed at both ends, and 
+each labelled with a @BlockId@.
+This graph, of type @BlockGraph n@, is represented as a finite map 
+from @BlockId@ to a closed/closed @Block@.
+\item The third field is called the ``tail'' of the @Graph@.  If
+the @Graph@ is closed on exit the tail is just @NoTail@.  If it is
+open on exit, the tail is a (labelled) @Block@, open on exit.
+\end{itemize}
+Every graph has a unique representation.  An empty graph is represented
+by @GNil@.  A one-block graph open at exit is represented by @GUnit@.
+A one block graph closed at exit is represented by @(GMany b [] NoTail)@.
 \label{haskell.firstuse.b}% automated use
-and a closed-x @Graph@ has a @g_entry@ field of form @Closed@.
-The same trick is used at exit.
-
-\simon{In @g\_blocks@ I've used a @[Block n C C]@ instead of a @BlockEnv@.
-\label{haskell.firstuse.BlockEnv}% automated use
-There's no reason for it to be a finite mapping now.  And from a @Block@
-we can get its @BlockId@ with @blockId@.  If we want to be sure that 
-\label{haskell.firstuse.blockId}% automated use
-that operation is O(1) we could, I suppose, change the rep of @Block@, or
-store a @[(BlockId,Block)]@ in @g\_blocks@.}
+A multi-block graph is represented by a @GMany@, with a @Tail@ or @NoTail@
+depending on whether the graph is open or closed at exit.
 
 Now graph concatenation is easy to define:
+\par{\small
 \begin{code}
 gCat :: Graph n e O -> Graph n O x -> Graph n e x
+gCat GNil g2 = g2
+gCat g1 GNil = g1
+
 gCat (GUnit b1) (GUnit b2)             
   = GUnit (b1 `BCat` b2)
 
-gCat (GUnit b1) (GMany (Open b2) bs x) 
-  = GMany (Open (b1 `BCat` b2)) bs x
+gCat (GUnit b) (GMany e bs x) 
+  = GMany (b `BCat` e) bs x
 
-gCat (GMany e bs (Open b1)) (GUnit b2) 
-   = GMany e bs (Open (b1 `BCat` b2))
+gCat (GMany be bs (Tail bid bx)) (GUnit b2) 
+   = GMany be bs (Tail bid (bx `BCat` b2))
 
-gCat (GMany e bs1 (Open b1)) 
-     (GMany (Open b2) bs2 x)
-   = GMany e (b1 `BCat` b2 : bs1 ++ bs2) x
-\end{code}
-\label{haskell.firstuse.++}% automated use
+gCat (GMany be1 bs1 (Tail bid bx1)) (GMany be2 bs2 bx2)
+   = GMany be1 (addBlock bid (bx1 `BCat` be2) bs1 
+                `unionBlocks` bs2) bx2
+\end{code}}
+\label{haskell.firstuse.unionBlocks}% automated use
+\label{haskell.firstuse.addBlock}% automated use
+\label{haskell.firstuse.bx2}% automated use
 \label{haskell.firstuse.bs2}% automated use
+\label{haskell.firstuse.be2}% automated use
+\label{haskell.firstuse.bx1}% automated use
 \label{haskell.firstuse.bs1}% automated use
+\label{haskell.firstuse.be1}% automated use
+\label{haskell.firstuse.bx}% automated use
+\label{haskell.firstuse.bid}% automated use
+\label{haskell.firstuse.be}% automated use
 \label{haskell.firstuse.bs}% automated use
 \label{haskell.firstuse.b2}% automated use
 \label{haskell.firstuse.b1}% automated use
+\label{haskell.firstuse.g1}% automated use
+\label{haskell.firstuse.g2}% automated use
 \label{haskell.firstuse.gCat}% automated use
-This defintion is a lovely example of the power of GADTs: the
+This defintion is a nice example of the power of GADTs: the
 pattern-matching is exhaustive, and all the open/closed invariants are
-statically checked.  For example, in the third equation for @gCat@,
-the first argument has type (@Graph@ @n@ @e@ @O@), so the third
-field of @GMany@, the @g_exit@ field\footnote{To save space we use positional,
-rather than named-field, syntax for @GMany@'s arguments; Haskell allows
-one to do either.}, must be of form (@Open b1@).  Moreover @b1@ must be closed-open,
-and @b2@ must be open-x.  So we can compose them in sequence with @BCat@ 
-to produce a closed-x block, which is the exit block of the compound graph.
-The other equations are similar.
+statically checked.  For example, in the last equation for @gCat@, the
+first argument has type (@Graph@ @n@ @e@ @O@), so the third field of
+@GMany@ must be of form (@Tail bid bx1@).  Moreover @bx1@ must be
+closed/open, and @be2@ must be open/closed.  So we can compose them in
+sequence with @BCat@ to produce a closed/closed block, which can be
+added to the @BlockGraph@ of the result.
 
-\subsection{Labels and successors} \seclabel{edges}
+\subsection{Summary}
 
-\begin{figure}
-\begin{code}
-class Edges n where
-  blockId    :: n C x -> BlockId
-  successors :: n e C -> [BlockId]
-\end{code}
-\caption{The {\tt Edges} class} \figlabel{edges}
-\label{haskell.firstuse.class}% automated use
-\label{haskell.firstuse.Edges}% automated use
-\label{haskell.firstuse.successors}% automated use
-\end{figure}
-If \ourlib{} knows nothing about nodes, how can it know to which block a
-control transfer goes, or what is the @BlockId@ at the start of a block?
-In this situation the standard Haskell idiom is to provide a type class whose methods
-provide exactly the needed operations; it is given in \figref{edges}.
-The @blockId@ method takes a first node (one closed on entry, \secref{nodes})
-and returns its @BlockId@;
-the @successors@ method takes a last node (closed on exit) and returns the @BlockId@s to
-which it can transfer control.  In \ourlib{} a middle node (open-open) cannot refer to any @BlockId@s,
-as the absence of an interrogation function implies. 
+All three entities (nodes, blocks, graphs) share some 
+characteristics in common.  Suppose E is a node, block, or
+graph:
+\begin{itemize}
+\item Regardless of whether E is open or closed, 
+it has a unique entry point where execution begins.
+\item If E is open at exit, control leaves E
+\emph{only} by ``falling through'' from a unique exit point.
+\item If E is closed at exit, control leaves \emph{only}
+by an explicit branch to a label.
+\end{itemize}
+The body of a procedure would typically be represented by
+an open/closed graph, where execution begins at the open end.
+An alternative would be to represent a procedure body by a @BlockGraph@,
+together with a @BlockId@ where execution begins.
 
-When defining a node type, a \ourlib{} client should also make it an
-instance of @Edges@.  Thus for @CmmNode@ we would write
-\begin{code}
-instance Edges CmmNode where
-  blockId (Label l) = l
-  successors (Branch b) = [b]
-  successors (CondBranch e b1 b2) = [b1,b2]
-\end{code}
-\label{haskell.firstuse.l}% automated use
-\label{haskell.firstuse.instance}% automated use
-Again, the pattern-matching for both functions is exhaustive, and
-the compiler statically checks this fact.  For example, @blockId@ simply
-cannot be applied to a @Assign@ or @Branch@ node; the type checker would
-reject any such attempt.
-
-\ourlib{} provides instances for its types @Block@ and @Graph@ thus:
-\begin{code}
-instance Edges n => Edges (Block n) where
-  blockId    (BUnit n)  = blockId n
-  blockId    (BCat b _) = blockId b
-  successors (BUnit n)  = successors n
-  successors (BCat _ b) = successors b
-
-instance Edges n => Edges (Graph n) where
-  blockId    (GUnit b)      = blockId b
-  blockId    (GMany ...)    = ???  -- eek!
-  successors (GUnit b)      = successors b
-  successors (GMany _ bs _) = concatMap successors bs 
-                              `minusList` map blockId bs
-\end{code}
-\label{haskell.firstuse.map}% automated use
-\label{haskell.firstuse.minusList}% automated use
-\label{haskell.firstuse.concatMap}% automated use
-\label{haskell.firstuse.???}% automated use
-\simon{I now realise that this is why I wanted to know the entry block of a graph!
-Since an entry-closed node and block both have a unique block id, shouldn't an entry-closed
-graph have one too?}
-\simon{Also the successors thing is not pretty.}
+% 
+% \subsection{Labels and successors} \seclabel{edges}
+% 
+% \begin{figure}
+% \begin{code}
+% class Edges n where
+%   blockId    :: n C x -> BlockId
+%   successors :: n e C -> [BlockId]
+% \end{code}
+% \caption{The {\tt Edges} class} \figlabel{edges}
+% \end{figure}
+% If \ourlib{} knows nothing about nodes, how can it know to which block a
+% control transfer goes, or what is the @BlockId@ at the start of a block?
+% In this situation the standard Haskell idiom is to provide a type class whose methods
+% provide exactly the needed operations; it is given in \figref{edges}.
+% The @blockId@ method takes a first node (one closed on entry, \secref{nodes})
+% and returns its @BlockId@;
+% the @successors@ method takes a last node (closed on exit) and returns the @BlockId@s to
+% which it can transfer control.  In \ourlib{} a middle node (open-open) cannot refer to any @BlockId@s,
+% as the absence of an interrogation function implies. 
+% 
+% When defining a node type, a \ourlib{} client should also make it an
+% instance of @Edges@.  Thus for @CmmNode@ we would write
+% \begin{code}
+% instance Edges CmmNode where
+%   blockId (Label l) = l
+%   successors (Branch b) = [b]
+%   successors (CondBranch e b1 b2) = [b1,b2]
+% \end{code}
+% Again, the pattern-matching for both functions is exhaustive, and
+% the compiler statically checks this fact.  For example, @blockId@ simply
+% cannot be applied to a @Assign@ or @Branch@ node; the type checker would
+% reject any such attempt.
+% 
+% \ourlib{} provides instances for its types @Block@ and @Graph@ thus:
+% \begin{code}
+% instance Edges n => Edges (Block n) where
+%   blockId    (BUnit n)  = blockId n
+%   blockId    (BCat b _) = blockId b
+%   successors (BUnit n)  = successors n
+%   successors (BCat _ b) = successors b
+% 
+% instance Edges n => Edges (Graph n) where
+%   blockId    (GUnit b)      = blockId b
+%   blockId    (GMany ...)    = ???  -- eek!
+%   successors (GUnit b)      = successors b
+%   successors (GMany _ bs _) = concatMap successors bs 
+%                               `minusList` map blockId bs
+% \end{code}
+% \simon{I now realise that this is why I wanted to know the entry block of a graph!
+% Since an entry-closed node and block both have a unique block id, shouldn't an entry-closed
+% graph have one too?}
+% \simon{Also the successors thing is not pretty.}
+% 
 
 \section {Using \ourlib{} to analyse and transform graphs} \seclabel{using-hoopl}
 \seclabel{making-simple}
@@ -886,18 +938,17 @@ in \secref{rewrites}
 With these pieces in hand, a client can call \ourlib{}'s analysis-and-rewriting
 function:
 \begin{code}
- analyseAndRewriteFwd
+  analyseAndRewriteFwd
   :: Edges n         
   => DataflowLattice f      -- Lattice
   -> ForwardTransfer n f    -- Transfer function
   -> ForwardRewrite n f     -- Rewrite function
   -> RewritingDepth         -- Rewrite recursively?
-  -> Graph n e x            -- Graph or subgraph
   -> Fact e f               -- Input fact(s)
-  -> FuelMonad (Graph n e x,  -- Rewritten graph
-                Fact x f)     -- Output fact(s)
+  -> Graph n e x            -- Graph or subgraph
+  -> FuelMonad (Fact x f,     -- Output fact(s)
+                Graph n e x)  -- Rewritten graph
 \end{code}
-\label{haskell.def.analyseAndRewriteFwd}% automated definition
 \label{haskell.firstuse.FuelMonad}% automated use
 \label{haskell.firstuse.Fact}% automated use
 \label{haskell.firstuse.RewritingDepth}% automated use
@@ -905,24 +956,141 @@ function:
 \label{haskell.firstuse.ForwardTransfer}% automated use
 \label{haskell.firstuse.f}% automated use
 \label{haskell.firstuse.DataflowLattice}% automated use
+\label{haskell.firstuse.Edges}% automated use
 \label{haskell.firstuse.analyseAndRewriteFwd}% automated use
 You can see that the function is polymorphic in the type of nodes @n@ and facts @f@.
-Roughly speaking, you can see that, given a lattice, a transfer function, and a 
+Roughly speaking, given a lattice, a transfer function, and a 
 rewrite function, @analyseAndRewriteFwd@ can transform a @Graph@ 
 into an optimised @Graph@.  In the rest of this section we flesh out this
 explanation, including describing all the types mentioned in the above signature.
 We will continue to use constant propagation as a running example; the complete
-example is shown in \figref{const-prop}. \simon{John: this is for you to fill in}
+example is shown in \figref{const-prop}.
+\john{Code is slightly simplified from original; can probably go a bit farther.
+  There are a few functions that are standard and should be reused throughout
+  the compiler that I haven't shown in the figure.}
+
+\begin{figure}
+\begin{code}
+data WithTop a = Elt a | Top
+type ConstFact = Map Reg (WithTop Const)
+
+constLattice = DataflowLattice
+  { fact_bot    = Map.empty
+  , fact_add_to = stdMapJoin constFactAdd
+  , fact_name   = "Const var value" }
+  where
+    constFactAdd new old = (ch, joined)
+      where joined = if new == old then new else Top
+            ch = if joined == old then NoChange else SomeChange
+
+varHasConst :: ForwardTransfers Node ConstFact
+varHasConst (Label bid)        f = lookupFact constLattice f bid
+varHasConst (Assign x (Const l)) f = Map.insert x (Elt l) f
+varHasConst (Assign x _)       f = Map.insert x Top f
+varHasConst (Store _ _)        f = f
+varHasConst (Branch bid)       f = [(bid, f)]
+varHasConst (Cond _ tid fid)   f = [(tid, f), (fid, f)]
+
+-- I think the getInFacts might disappear with Hoopl4?
+constProp :: ForwardRewrites Node ConstFact
+constProp n facts =
+  map_EN (map_EE rewriteE) n >>= return . toAGraph
+  where
+    rewriteE e@(Var v) =
+      case M.lookup v (getInFacts constLattice facts n) of
+        Just (Elt l) -> Just $ Const l
+        _            -> Nothing
+    rewriteE e = Nothing
+
+-- Simplification ("constant folding")
+simplify :: ForwardRewrites Node ConstFact
+simplify node _ = s node >>= return . toAGraph
+  where
+    s :: Node e x -> TxRes (Node e x)
+    s (Cond (Const (Bool True))  t _) = Just $ Branch t
+    s (Cond (Const (Bool False)) f _) = Just $ Branch f
+    s n = map_EN (map_EE s_e) n
+    s_e (Binop Add (Const (Int i1)) (Const (Int i2))) ->
+       Just $ Const $ Int $ i1 + i2
+    ....  -- more cases for constant folding
+\end{code}
+\caption{Representation of a dataflow lattice} \figlabel{const-prop}
+\label{haskell.firstuse.WithTop}% automated use
+\label{haskell.firstuse.Elt}% automated use
+\label{haskell.firstuse.Top}% automated use
+\label{haskell.firstuse.ConstFact}% automated use
+\label{haskell.firstuse.Map}% automated use
+\label{haskell.firstuse.Const}% automated use
+\label{haskell.firstuse.constLattice}% automated use
+\label{haskell.firstuse.fact:unbot}% automated use
+\label{haskell.firstuse.Map.empty}% automated use
+\label{haskell.firstuse..}% automated use
+\label{haskell.firstuse.fact:unadd:unto}% automated use
+\label{haskell.firstuse.stdMapJoin}% automated use
+\label{haskell.firstuse.constFactAdd}% automated use
+\label{haskell.firstuse.fact:unname}% automated use
+\label{haskell.firstuse.new}% automated use
+\label{haskell.firstuse.old}% automated use
+\label{haskell.firstuse.ch}% automated use
+\label{haskell.firstuse.joined}% automated use
+\label{haskell.firstuse.==}% automated use
+\label{haskell.firstuse.NoChange}% automated use
+\label{haskell.firstuse.SomeChange}% automated use
+\label{haskell.firstuse.varHasConst}% automated use
+\label{haskell.firstuse.ForwardTransfers}% automated use
+\label{haskell.firstuse.lookupFact}% automated use
+\label{haskell.firstuse.l}% automated use
+\label{haskell.firstuse.Map.insert}% automated use
+\label{haskell.firstuse.Cond}% automated use
+\label{haskell.firstuse.tid}% automated use
+\label{haskell.firstuse.fid}% automated use
+\label{haskell.firstuse.I}% automated use
+\label{haskell.firstuse.think}% automated use
+\label{haskell.firstuse.the}% automated use
+\label{haskell.firstuse.getInFacts}% automated use
+\label{haskell.firstuse.might}% automated use
+\label{haskell.firstuse.disappear}% automated use
+\label{haskell.firstuse.with}% automated use
+\label{haskell.firstuse.Hoopl4}% automated use
+\label{haskell.firstuse.?}% automated use
+\label{haskell.firstuse.constProp}% automated use
+\label{haskell.firstuse.ForwardRewrites}% automated use
+\label{haskell.firstuse.facts}% automated use
+\label{haskell.firstuse.map:unEN}% automated use
+\label{haskell.firstuse.map:unEE}% automated use
+\label{haskell.firstuse.rewriteE}% automated use
+\label{haskell.firstuse.return}% automated use
+\label{haskell.firstuse.toAGraph}% automated use
+\label{haskell.firstuse.>>=}% automated use
+\label{haskell.firstuse.Var}% automated use
+\label{haskell.firstuse.v}% automated use
+\label{haskell.firstuse.M.lookup}% automated use
+\label{haskell.firstuse.$}% automated use
+\label{haskell.firstuse.Simplification}% automated use
+\label{haskell.firstuse.simplify}% automated use
+\label{haskell.firstuse.node}% automated use
+\label{haskell.firstuse.s}% automated use
+\label{haskell.firstuse.TxRes}% automated use
+\label{haskell.firstuse.Bool}% automated use
+\label{haskell.firstuse.t}% automated use
+\label{haskell.firstuse.False}% automated use
+\label{haskell.firstuse.s:une}% automated use
+\label{haskell.firstuse.Binop}% automated use
+\label{haskell.firstuse.Add}% automated use
+\label{haskell.firstuse.i1}% automated use
+\label{haskell.firstuse.i2}% automated use
+\label{haskell.firstuse.....}% automated use
+\end{figure}
 
 The user-level model of how @analyseAndRewriteFwd@ works is this.  The
 function walks forward over the graph.  At each node, it applies the
-rewrite function to the node and its incoming fact.  If the rewrite
+rewrite function to incoming fact and the node.  If the rewrite
 function returns @Nothing@, the node is retained as part of the output
 graph, the transfer function is used to compute the downstream fact,
 and we move on to the next node.
 
 If the rewrite function returns @Just g@ then the next step is controlled
-hy the @RewritingDepth@ flag:
+by the @RewritingDepth@ flag:
 \begin{itemize}
 \item @RewriteDeep@: the entire @analyseAndRewriteFwd@ function is applied to 
 \label{haskell.firstuse.RewriteDeep}% automated use
@@ -930,9 +1098,9 @@ the rewritten graph, which in turn may be further rewritten.
 \item @RewriteShallow@: the rewritten graph is analysed \emph{but not further rewritten}.
 \label{haskell.firstuse.RewriteShallow}% automated use
 \end{itemize}
-Deep rewriting is sometimes essential to achieve the results of
+Deep rewriting is usually essential to achieve the results of
 \citet{lerner-grove-chambers:2002}.
-Shallow rewriting is also sometimes vital; for example, a rewrite that inserts
+But shallow rewriting is also sometimes vital; for example, a rewrite that inserts
 a spill before a call might risk repeatedly inserting the same spill if the 
 rewrite was iterated. 
 When deep rewriting is used, the rewrite functions must
@@ -950,15 +1118,14 @@ of rewriting upstream nodes.
 data ChangeFlag = NoChange | SomeChange
 data DataflowLattice a = DataflowLattice
  {fact_bot        :: a,
-  fact_add_to     :: a -> a -> (a, ChangeFlag) }
+  fact_add_to     :: a -> a -> (ChangeFlag, a) }
 \end{code}
 \else
 \begin{code}
 data ChangeFlag = NoChange | SomeChange
 data DataflowLattice a = DataflowLattice
- { fact_bot        :: a,
-   fact_add_to     :: a -> a -> (a, ChangeFlag),
-   fact_name       :: String } -- Debugging only
+ { fact_bot    :: a,
+   fact_extend :: a -> a -> (a, ChangeFlag) }
 \end{code}
 \fi
 \caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
@@ -968,32 +1135,27 @@ data DataflowLattice a = DataflowLattice
 \label{haskell.def.SomeChange}% automated definition
 \label{haskell.def.NoChange}% automated definition
 \label{haskell.def.ChangeFlag}% automated definition
-\label{haskell.firstuse.fact:unname}% automated use
-\label{haskell.firstuse.String}% automated use
+\label{haskell.firstuse.fact:unextend}% automated use
 \label{haskell.firstuse.ChangeFlag}% automated use
-\label{haskell.firstuse.NoChange}% automated use
-\label{haskell.firstuse.SomeChange}% automated use
-\label{haskell.firstuse.fact:unbot}% automated use
-\label{haskell.firstuse.fact:unadd:unto}% automated use
 \end{figure}
 
 For any one analysis or transformation the client must define a type
-of dataflow facts.  A dataflow facts typically represents an assertion
+of dataflow facts.  A dataflow fact typically represents an assertion
 about a program point.  (A program point is simply an edge in the 
 control-flow graph.)
 \begin{itemize}
 \item An assertion about all paths \emph{to} a program point is established
-by a \emph{forwards analysis}. For example the assertion ``$@x@=@3@$'' at P 
-might claim that variable @x@ holds value @3@ at P, regardless of the
-path by which P was reached.
+by a \emph{forwards analysis}. For example the assertion ``$@x@=@3@$'' at point P 
+claims that variable @x@ holds value @3@ at P, regardless of the
+path by which P is reached.
 \item An assertion about all paths \emph{from} a program point is 
 established by a \emph{backwards analysis}. For example, the 
-assertion ``@x@ is dead'' at P might claim that no path from P uses 
+assertion ``@x@ is dead'' at point P claims that no path from P uses 
 variable @x@.
 \end{itemize}
 
 A~set of dataflow facts must form a lattice, and \ourlib{} must know
-(a) the bottom element of the lattice and (b) how to join (take take 
+(a) the bottom element of the lattice and (b) how to join (take 
 the least upper bound of) two elements.  To ensure that analysis
 terminates, it is enough if no fact has more than finitely many
 distinct facts above it, so that any sequence of joins will terminate.
@@ -1010,21 +1172,23 @@ where we assume @L1@ is the entry point:
   L2: x=7; goto L3
   L3: ....
 \end{verbatim}
-Since control flows to @L3@ from two places
+Since control flows to @L3@ from two places,
 \label{haskell.firstuse.L3}% automated use
 we must join the facts coming from those two places.  The fact at the
-first @goto L3@ is (@x=3@, @y=4@, @z=False@), while at the second @goto L3@
-\label{haskell.firstuse.goto}% automated use
+end of block @L1@ is (@x=3@, @y=4@, @z=False@), while at the end of
 \label{haskell.firstuse.y}% automated use
-the fact is (@x=7@, @y=4@, @z=True@).  Joining these gives the 
-\label{haskell.firstuse.True}% automated use
+@L2@ the fact is (@x=7@, @y=4@, @z=True@).  
+\label{haskell.firstuse.L2}% automated use
+\john{Note to self: implementation isn't propagating constant value from branch condition.}
+Both blocks branch to @L3@
+where they must be joined, giving
 the fact (@x=@$\top$, @y=4@, @z=@$\top$) at @L3@, where the $\top$'s indicate
 that the analysis cannot
 nail down @x@ and @z@ to hold a single value at @L3@\footnote{
 In this example @x@ and @z@ really do vary at @L3@, but in general
 the analysis might simply be conservative.}.
 
-In general, joins occur at labels.
+In practice, joins are computed at labels.
 If~$f_{\mathit{id}}$ is the fact currently associated with the
 label~$\mathit{id}$, 
 and if a transfer function propagates a new fact~$f_{\mathit{new}}$
@@ -1051,8 +1215,12 @@ result differs.  (Note the assymmetry.)
 In the case of constant propagation, \figref{constant-prop} shows a
 possible concrete represetation of the facts described above.  A fact
 is represented as a finite map from a variable to a value of type
-\icode|Maybe Const|.  A~variable $x$ maps to @Nothing@ iff $x=\top$;
-$x$~maps to $@Just@\;k$ iff $x=k$.  Any one procedure has only
+@Maybe (WithTop Const)@.
+\label{haskell.firstuse.Maybe}% automated use
+A~variable $x$ maps to @Nothing@ iff $x=\bot$;
+$x$~maps to @Just Top@ iff $x=\top$;
+and $x$~maps to $@Just@ (Elt k)$ iff $x=k$.
+Any one procedure has only
 finitely many variables; only finitely many facts are computed at any
 program point; and in this lattice any one fact can increase at most
 twice.  These properties ensure that the dataflow engine will reach a
@@ -1063,39 +1231,41 @@ fixed point.
 
 \begin{figure}
 \begin{code}
-type InFactC  f = BlockId -> f
-type OutFactC f = [(BlockId, f)] 
-
 type ForwardTransfers n f 
-  = forall e x. n e x -> InFact e f -> OutFact x f 
-
+  = forall e x. f -> n e x -> TailFactF x f 
 type BackwardTransfers n f 
-  = forall e x. n e x -> InFact x f -> OutFact e f 
+  = forall e x. TailFactB x f -> n e x -> f
 
-type family   InFact e f :: *
-type instance InFact O f = f
-type instance InFact C f = InFactC f
+type ForwardRewrites n f 
+  = forall e x. f -> n e x -> Maybe (AGraph n e x)
+             -> Maybe (AGraph n e x)
+type BackwardRewrites n f 
+  = forall e x. TailFactB x f -> n e x 
 
-type family   OutFact x f :: *
-type instance OutFact O f = f
-type instance OutFact C f = OutFactC f
+type family   TailFactF x f :: *
+type instance TailFactF O f = f
+type instance TailFactF C f = [(BlockId,f)]
+
+type family   TailFactB x f :: *
+type instance TailFactB C f = BlockMap f
+type instance TailFactB O f = f
 \end{code}
-\caption{Transfer functions for forward and backward analyses} \figlabel{transfers}
-\label{haskell.firstuse.InFactC}% automated use
-\label{haskell.firstuse.OutFactC}% automated use
-\label{haskell.firstuse.ForwardTransfers}% automated use
+\caption{Transfer functions for forward and backward analyses} 
+  \figlabel{transfers}  \figlabel{rewrites}
 \label{haskell.firstuse.x.}% automated use
-\label{haskell.firstuse.InFact}% automated use
-\label{haskell.firstuse.OutFact}% automated use
-\label{haskell.firstuse..}% automated use
+\label{haskell.firstuse.TailFactF}% automated use
 \label{haskell.firstuse.BackwardTransfers}% automated use
+\label{haskell.firstuse.TailFactB}% automated use
+\label{haskell.firstuse.AGraph}% automated use
+\label{haskell.firstuse.BackwardRewrites}% automated use
 \label{haskell.firstuse.family}% automated use
 \label{haskell.firstuse.*}% automated use
+\label{haskell.firstuse.instance}% automated use
 \end{figure}
 \ifpagetuning\vspace*{-1ex}\fi
 
 A~transfer function is presented with the dataflow fact on the edge coming
-into a node, and it computes dataflow facts on outgoing edge.
+into a node, and it computes dataflow facts on the outgoing edge.
 In a forward analysis, the dataflow engine starts with the fact at the
 beginning of a block and applies the transfer function to successive 
 nodes in that block until eventually the transfer function for the last node
@@ -1106,52 +1276,53 @@ For example, consider this graph, with entry at @L1@:
   L2: y=x+4; x=x-1; 
       if x>0 then goto L2 else return
 \end{code}
-\label{haskell.firstuse.return}% automated use
 \label{haskell.firstuse.-}% automated use
-\label{haskell.firstuse.L2}% automated use
+\label{haskell.firstuse.goto}% automated use
 A forward analysis starts with the bottom fact \{\} at every label.
-Analysing @L1@ propagates this fact forward, by applying the transer 
-function successively applying the transfer function to the nodes
+Analysing @L1@ propagates this fact forward, by applying the transfer 
+function successively to the nodes
 of @L1@, emerging with the fact \{@x=3@\} for @L2@.
 This is joined with the existing (bottom) fact for @L2@.
 Now the analysis propagates @L2@'s fact forward, again using the transfer
-function, this time emerging with a new fact \{@x=2@,@y=7@\} for @L2@.
+function, this time emerging with a new fact \{@x=2@, @y=7@\} for @L2@.
 Again, this is joined with the existing fact for @L2@, and the process
 is iterated until the facts for each label reach a fixed point.
 
 But wait!  What is the \emph{type} of the transfer function?
-If the node is open at entry and exit, it takes a fact and the node and produces a fact.
-But what if the node is \emph{closed} on entry or exit?
-If the node is closed on entry, the transfer function must be given a mapping
-from @BlockId@ to facts, which it can use to look up the fact for the entry
-@BlockId@.  If the node is closed on exit then the transfer function must
+If the node is open at exit, it takes a fact and the node and produces a fact.
+But what if the node is \emph{closed} on exit?
+In that case the transfer function must
 produce a list of (@BlockId@,fact) pairs, one for each outgoing edge.  
 
 \emph{So the types of the transfer function's argument and result each 
-depend on the open/closed-ness of the node.}
+depend on the open/closed-ness of the node's exit.}
 Fortunately, this is precisely what Haskell's (recently added) 
 indexed type families are for.
 The relevant \ourlib{} definitions are given in \figref{transfers}.
-\simon{For the @InFacts@ I think it's better to have a real function.}
-\label{haskell.firstuse.InFacts}% automated use
 A forward transfer function, of type (@ForwardTransfers@ @n@ @f@), 
-is a function polymorphic in @e@ and @x@.  It takes a node of type (@n@ @e@ @x@), and
-an incoming fact-like thing of type (@InFact@ @e@ @f@), and produces an
-outgoing fact-like thing of type (@OutFact@ @x@ @f@).  The type constructor @InFact@
+is a function polymorphic in @e@ and @x@.  It takes a fact and a 
+node of type (@n@ @e@ @x@), and produces an
+outgoing fact-like thing of type (@TailFactF@ @x@ @f@).  The 
+type constructor @TailFactF@
 should be thought of as a type-level function; its signature is given in the
 @type family@ declaration, while its definition is given by two @type instance@
-declarations.  The first says that the fact-like thing coming into a node
-open at entry is just a fact @f@. The second says that if the node is closed
-on entry the incoming thing is an @InFactC f@, which is just a function from @BlockId@
-to @f@.   The same technique makes the result type of @ForwardTransfers@ vary with
-the exit flag @x@.
+declarations.  The first says that the fact-like thing coming out a node
+open at exit is just a fact @f@. The second says that if the node is closed
+on exit the outgoing thing is a list of @(BlockId,f)@ pairs.
 
 All the \ourlib{} client needs to do is to write the transfer function, with
 this type.  \figref{constant-prop} shows the transfer function for our
-constant-propagation example.  The supplied transrer function should be 
+constant-propagation example.  The supplied transfer function should be 
 \emph{monotonic} in the following sense: given a more informative fact in,
-it should produce a more informative fact out.  Otherwise the fixpoint-finder
-might go into an infinite flip-flop loop.
+it should produce a more informative fact out.  Otherwise Hoopl might not
+find a fixed point (although it will still terminate provided the join 
+function of the lattice is monotonic).
+\john{The last sentence is wrong. The fixpoint-finder only pushes facts
+up the lattice (using the join operation). Only a finite number of steps
+can be taken up the lattice. The particular input facts are completely irrelevant
+as far as termination is concerned.}
+\simon{How true! Yet a non-monotonic transfer function would be peculiar indeed.
+Our algorithm will terminate, but it will not terminate with a fixed point.}
 
 \ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
@@ -1164,16 +1335,33 @@ might go into an infinite flip-flop loop.
 type AGraph n e x 
   = BlockIdSupply -> (Graph n e x, BlockIdSupply)
 
-type ForwardRewrites n f 
-  = forall e x. n e x -> InFact e f -> Maybe (AGraph n e x)
-type BackwardRewrites n f 
-  = forall e x. n e x -> InFact x f -> Maybe (AGraph n e x)
+mkIfThenElse :: Expr -> AGraph CmmNode O O
+             -> AGraph CmmNode O -> AGraph CmmNode O O
+mkIfThenElse p t e
+  = withBlockIds 3 $ \[l1,l2,l3] ->
+    let entry = BUnit (CondBranch p l1 l2)
+        exit  = BUnit Head
+        bg = flattenG l1 (t `catNode` Branch l3)
+	       `unionBlocks`
+             flattenG l2 (e `catNode` Branch l3)
+        
+    GMany entry bg (Tail l3 exit)
+          
 \end{code}
-\caption{Types of forward and backward rewrite functions} \figlabel{rewrites}
-\label{haskell.firstuse.AGraph}% automated use
+\caption{The \texttt{AGraph} type} \figlabel{agraph}
 \label{haskell.firstuse.BlockIdSupply}% automated use
-\label{haskell.firstuse.ForwardRewrites}% automated use
-\label{haskell.firstuse.BackwardRewrites}% automated use
+\label{haskell.firstuse.mkIfThenElse}% automated use
+\label{haskell.firstuse.p}% automated use
+\label{haskell.firstuse.withBlockIds}% automated use
+\label{haskell.firstuse.l1}% automated use
+\label{haskell.firstuse.l2}% automated use
+\label{haskell.firstuse.l3}% automated use
+\label{haskell.firstuse.:bs}% automated use
+\label{haskell.firstuse.entry}% automated use
+\label{haskell.firstuse.exit}% automated use
+\label{haskell.firstuse.bg}% automated use
+\label{haskell.firstuse.flattenG}% automated use
+\label{haskell.firstuse.catNode}% automated use
 \end{figure}
 
 We compute dataflow facts in order to enable code-improving
@@ -1189,12 +1377,11 @@ live at a call site might provoke us to insert a spill before the call; and so o
 Thus motivated, we allow the user to give \ourlib{} a rewriting function
 that takes a node and a fact, and optionally returns a graph, of the
 same open/closed shape as the node.   The type is given in \figref{rewrites}.
-As with the transfer functions, an entry-closed node does not get a single fact
-but rather an @InFact f@, using the same @InFact@ function as described
-in \figref{transfers}.  The @Maybe@ type expresses that the function can return
+The @Maybe@ type expresses that the function can return
 @Nothing@, meaning no rewrite, or (@Just g@) where @g@ is the replacement graph.
 
-More precisely, the rewriter returns an @AGraph@, a function that is given 
+More precisely, the rewriter returns an @AGraph@ rather than a @Graph@.
+An @AGraph@ is a function that is given 
 a supply of fresh @BlockId@s.  If the rewriter makes graphs containing blocks,
 it will need to conjure up some fresh @BlockIds@ and the @BlockIdSupply@ makes
 \label{haskell.firstuse.BlockIds}% automated use
@@ -1212,12 +1399,18 @@ You will have noticed that the type of @analyseAndRewriteFwd@ is monadic
 (\secref{using-hoopl}).
 If the @FuelMonad@ determines that rewriting fuel is exhausted, then no more
 rewriting is done.  
+\john{Rewriting fuel appears out of the blue here, and I think we need to more clearly
+point out that the goal is to provide an easy way to debug optimizations.
+I'll take a hack at this section tomorrow when I'm less tired.}
 (Because each rewrite leaves the observable behavior of the
 program unchanged, it is safe to suppress rewrites at
 any point.)
+\john{This sentence takes as read a completely new idea. We need to
+articulate our philosophy on how optimizations should be written (sequence of
+simple, semantics-preserving transformations).}
 This allows the Hoopl library client to use a very powerful
 debugging technique for dataflow transformations,
-first suggested by Whalley\cite{whalley:isolation}.
+first suggested by Whalley \cite{whalley:isolation}.
 In~normal operation, the optimizer has unlimited fuel.  But suppose that the program
 being compiled works without optimisation, but fails with optimisation. Then
 the client can use binary search to halt rewriting just before or just after the
@@ -1225,7 +1418,7 @@ rewrite that introduces the failure, thereby identifying the buggy rewrite.
 
 The @FuelMonad@ is a simple state monad maintaining the supply of unused
 fuel.  It also holds a supply of fresh labels, which are used by the rewriter
-for making new blocks; more precisely, the client-provide @ForwardRewrites@
+for making new blocks; more precisely, the client-provided @ForwardRewrites@
 function produces an @AGraph@ (\figref{rewrites}) which Hoopl converts to
 a @Graph@ by supplying the @AGraph@ with a supply of @BlockIds@ from the @FuelMonad@.
 
@@ -1246,11 +1439,14 @@ mutate a graph in-place.  But it is trivially easy in a functional program:
 all we need do is to revert to the original graph at the start
 of each fixpoint iteration.
 
+\john{Is it just me, or have we lost all the text claiming that analyses should
+  just be strongest postconds/ weakest preconds? Is this by design?}
+
 \subsection{Correctness} \seclabel{correctness}
 
 \simon{This section seems a bit laboured}
 
-Facts computed by the @analyseAndRewriteFwd@ depend on graphs produced by rewrite
+Facts computed by the @analyseAndRewriteFwd@ depend on graphs produced by the rewrite
 function, which in turn depend on facts computed by the transfer function.
 How~do we know this algorithm is sound, or even if it terminates?
 A~proof requires its own POPL paper
@@ -1264,11 +1460,15 @@ assumptions expressed by the incoming dataflow fact @f@.
 Moreover the rewrite function must be \emph{consistent} with the transfer function
 that is, (@transfer n f@ $\sqsubseteq$ @transfer g f@).
 \label{haskell.firstuse.transfer}% automated use
+\john{Isn't this implied by ``observationally equivalent''?}
 For example, if the analysis says that x is dead before the node @n@,
 then it had better still be dead if @n@ is replaced by @g@.  Without
 the consistency condition there would be no guarantee of reaching a fixed point.
 \simon{I still think this is true, although you do not (see comments in the source file. We 
 should debate.}
+\john{I'm not sure which source file to look at, but I still maintain that this is
+false. The argument for reaching a fixed point is clearly defined in terms of
+the lattice; I don't see how the results of the analysis are relevant.}
 Given these assumptions:
 
 \begin{itemize} 
@@ -1354,13 +1554,8 @@ Interleaving
  analysis with transformation makes it
 possible to implement useful  transformations using startlingly simple
 client code.
-In the rest of this section we present two examples:
-\secref{sink-reloads} shows how to insert a reload instruction just
-before each use of each spilled variable, and
-\secref{dead-code-elim} shows how to eliminate dead assignments.
-When these two transformations are run in sequence, the effect is to
-sink reloads and produce programs like the example shown in
-\secref{spill-reload-example}. 
+\john{And maybe this is the place to brag that we now have a startlingly simple
+implementation?}
 
 \finalremark{Doesn't the rewrite have to be have the following property:
 for a forward analysis/transform, if (rewrite P s) = Just s',
@@ -1428,6 +1623,7 @@ points;
 giving each type of graph node its own analysis function, 
 which also performs speculative rewriting;
 and \simon{Complete this list}.
+\john{And remove the bogus parts: monad, one fn per analysis...}
 
 \subsection{Overview}
 
@@ -1443,6 +1639,8 @@ newtype GFT thing n f
          -> InFact e f
          -> FuelMonad (Graph n e x, OutFact x f))
 \end{code}
+\label{haskell.firstuse.OutFact}% automated use
+\label{haskell.firstuse.InFact}% automated use
 \label{haskell.firstuse.thing}% automated use
 \label{haskell.firstuse.GFT}% automated use
 Here we intend @thing@ to range over nodes, blocks, and graphs, thus:
@@ -1461,7 +1659,7 @@ Note that the result is a @Graph@, regardless of whether @thing@ is a node, bloc
 We can now build a modular implementation as follows:
 \begin{itemize} 
 \item From the supplied @ForwardTransfers@ and @ForwardRewrites@, produce a @GFT_Node@
-tha transforms nodes:  
+that transforms nodes:  
 \begin{code}
 gftNodeRewrite :: ForwardTransfers n f
                -> ForwardRewrites n f
@@ -1502,20 +1700,18 @@ analyseAndRewrite depth lattice tf rw
  where 
   gft_g, gft_g_sh, gft_g_rec :: GFT_Graph n f
   gft_g     = gftGraph lattice (gftBlock gft_n)
-  gft_g_sh  = gftGraph lattice (gftBlock gft_node_sh)
+  gft_g_sh  = gftGraph lattice (gftBlock gft_n_sh)
   gft_g_rec = case depth of
                 RewriteShallow -> gft_g_sh
                 RewriteDeep    -> gft_g
 
   gft_n, gft_n_sh :: GFT_Node n f
-  gft_n    = gftNodeRewrite tf rw gft_graph_rec
+  gft_n    = gftNodeRewrite tf rw gft_g_rec
   gft_n_sh = gftNodeTransfer transfers
 \end{code}
 \label{haskell.firstuse.transfers}% automated use
 \label{haskell.firstuse.gftNodeTransfer}% automated use
-\label{haskell.firstuse.gft:ungraph:unrec}% automated use
 \label{haskell.firstuse.gft:unn:unsh}% automated use
-\label{haskell.firstuse.gft:unnode:unsh}% automated use
 \label{haskell.firstuse.gft:unn}% automated use
 \label{haskell.firstuse.gft:ung:unrec}% automated use
 \label{haskell.firstuse.gft:ung:unsh}% automated use
@@ -1527,23 +1723,28 @@ analyseAndRewrite depth lattice tf rw
 \label{haskell.firstuse.f.}% automated use
 \label{haskell.firstuse.analyseAndRewrite}% automated use
 }
+\john{Inquisitive reader wants to know how analyseAndRewrite relates to
+analyseAndRewriteFwd.}
 This beautifully compact code does the following:
 \begin{itemize}
 \item The result, @gft_g@ is built by applying @gftGraph@ and @gftBlock@ to
 the node-rewriting engine, @gft_n@.
-\item The node-rewriting engine is constructed @gftNodeRewrite@, instructing the
-latter to use @gft_g_rec@ for recursive applications to rewritten graphs.
+\item The node-rewriting engine is instructs @gftNodeRewrite@
+to use @gft_g_rec@ for recursive applications to rewritten graphs.
 \item When deep rewriting is used, the @gft_g_rec@ engine is simply a recursive
 use of the main function, @gft_g@. But if shallow rewriting is required, it instead
 uses the shallow engine @gft_g_sh@. 
 \item This shallow engine does no rewriting at all: it just performs the dataflow
-analysis.  However, it can still be constructed by applying @gftGraph@ and @gftBlock@
+analysis.  However, it can still be constructed by applying the same functions
+@gftGraph@ and @gftBlock@
 to the shallow node engine, @gft_n_sh@.
 \item Finally, the shallow node engine, which merely performs dataflow transfers on a single
 node, with no rewriting, is built with @gftNodeTransfer@.
 \end{itemize}
 And that is all.  Note the way that the shallow/deep distinction is made
 here, and here alone; none of the other functions are aware of the issue.
+\john{Are we showing the code that does the interleaving? I feel like that's
+a pretty essential part of the story.}
 
 
 \subsection{From nodes to blocks}
@@ -1562,9 +1763,7 @@ gftBlock (GFT node_trans) = GFT block_trans
 	   ; return (g1 `gCat` g2, f2) }
 \end{code}
 \label{haskell.firstuse.f2}% automated use
-\label{haskell.firstuse.g2}% automated use
 \label{haskell.firstuse.f1}% automated use
-\label{haskell.firstuse.g1}% automated use
 \label{haskell.firstuse.r}% automated use
 \label{haskell.firstuse.GFTR}% automated use
 \label{haskell.firstuse.block:untrans}% automated use
@@ -1633,13 +1832,17 @@ presents many examples of both particular analyses and related
 algorithms.
 \fi
 
-In our previous work we describes a zipper-based representation of control-flow
-grpahs \cite{ramsey-dias:applicative-flow-graph}, stressing the advantages
+In our previous work we described a zipper-based representation of control-flow
+graphs \cite{ramsey-dias:applicative-flow-graph}, stressing the advantages
 of immutability for writing dataflow optimisers.
 Our new representation, described in \secref{graph-rep}, is a major improvement:
 \begin{itemize}
 \item
-We can find the exit point of a graph in constant time. \simon{What does this mean?}
+We can find the exit point of a graph in constant time.
+\simon{What does this mean?}
+\john{It means we don't need to do a linear search through a list of blocks;
+instead, we can look at the g\_exit. I think this used to be vaguely relevant for
+splicing graphs.}
 \item
 We can concatenate nodes, blocks, and graphs, in constant time.
 Previously, we had to resort to Hughes's
@@ -1651,7 +1854,7 @@ compile-compile time by Haskell's static
 type system.
 In~earlier implementations, such errors were not detected until
 the compiler~ran, at which point \ourlib\ tried to compensate
-for the errors%
+for the errors
 \ifcutting---but
 \else
 by inserting branch instructions and then issued a warning message.
@@ -1665,6 +1868,8 @@ for~GHC\fi.
 
 \section{Conclusions}
 
+\john{Lots of obsolete claims here: continuations, monad, separate node types,
+HavingSuccessors.}
 Compiler textbooks make dataflow optimization appear
 difficult and complicated.
 In~this paper, we show how to engineer a library, \ourlib, which makes
