@@ -34,6 +34,7 @@ local reserved =
               'if', 'then', 'else', 'data', 'type', 'newtype', 'module',
               'import', 'case', 'of', ';', '{', '}', 'do', '<-', 'forall',
               '...', -- not really a reserved word, but treated as such
+              '@', -- ditto
             }
 
 for id in io.lines 'hsprelude' do
