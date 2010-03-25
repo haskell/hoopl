@@ -20,15 +20,13 @@ data Block n e x where
   BUnit :: n e x -> Block n e x
   BCat  :: Block n e O -> Block n O x -> Block n e x
 
-type LBlocks n = [LBlock n C]
-data LBlock n x = LB BlockId (Block n C x)
+type BlockGraph n = BlockMap (Block n C C)
 
 data Graph n e x where
   GNil  :: Graph n O O
   GUnit :: Block n e O -> Graph n e O
-  GMany   { g_entry  :: Block n e C
-          , g_blocks :: LBlocks n
-	  , g_exit   :: Tail n x } :: Graph n e x
+  GMany :: Block n e C -> BlockGraph n
+	-> Tail n x -> Graph n e x
 
    -- If a graph has a Tail, then that tail is the only  
    -- exit from the graph, even if the Tail is closed
@@ -41,10 +39,11 @@ data Tail n x where
 class LiftNode x where
    liftNode :: n e x -> Graph n e x
 instance LiftNode ZClosed where
-   liftNode n = GMany (BUnit n) [] NoTail
+   liftNode n = GMany (BUnit n) noBlocks NoTail
 instance LiftNode ZOpen where
    liftNode n = GUnit (BUnit n)
 
+{- 	Edges is not currently used
 class Edges thing where
   successors :: thing e C -> [BlockId]
 
@@ -56,45 +55,22 @@ instance Edges n => Edges (Graph n) where
   successors (GMany b bs NoTail) 
      = blockSetElems (all_succs `minusBlockSet` all_blk_ids)
      where 
-       all_succs   = mkBlockSet (successors b ++ [bid | LB _ b <- bs, bid <- successors b])
-       all_blk_ids = mkBlockSet [bid | LB bid _ <- bs]
+       (bids, blks) = unzip (blocksToList bs)      
+       all_succs   = mkBlockSet (successors b ++ [bid | b <- blks, bid <- successors b])
+       all_blk_ids = mkBlockSet bids
+-}
 
-
-ecGraph :: Graph n e C -> (Block n e C, LBlocks n)
+ecGraph :: Graph n e C -> (Block n e C, BlockGraph n)
 ecGraph (GMany b bs NoTail) = (b, bs)
 
-cxGraph :: BlockId -> Graph n C O -> (LBlocks n, Tail n O)
-cxGraph bid (GUnit b)          = ([], Tail bid b)
-cxGraph bid (GMany be bs tail) = (LB bid be:bs, tail)
+cxGraph :: BlockId -> Graph n C O -> (BlockGraph n, Tail n O)
+cxGraph bid (GUnit b)          = (noBlocks, Tail bid b)
+cxGraph bid (GMany be bs tail) = (addBlock bid be bs, tail)
 
-flattenG :: BlockId -> Graph n C C -> LBlocks n
-flattenG bid (GMany e bs NoTail) = LB bid e : bs
+flattenG :: BlockId -> Graph n C C -> BlockGraph n
+flattenG bid (GMany e bs NoTail) = addBlock bid e bs
 
 gCat :: Graph n e O -> Graph n O x -> Graph n e x
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 gCat GNil g2 = g2
 gCat g1 GNil = g1
 
@@ -108,38 +84,37 @@ gCat (GMany e bs (Tail bid x)) (GUnit b2)
    = GMany e bs (Tail bid (x `BCat` b2))
 
 gCat (GMany e1 bs1 (Tail bid x1)) (GMany e2 bs2 x2)
-   = GMany e1 (LB bid (x1 `BCat` e2) : bs1 ++ bs2) x2
+   = GMany e1 (addBlock bid (x1 `BCat` e2) bs1 `unionBlocks` bs2) x2
 
-forwardBlockList, backwardBlockList :: LBlocks n -> LBlocks n
+forwardBlockList, backwardBlockList :: BlockGraph n -> [(BlockId,Block n C C)]
 -- This produces a list of blocks in order suitable for forward analysis.
 -- ToDo: Do a topological sort to improve convergence rate of fixpoint
 --       This will require a (HavingSuccessors l) class constraint
-forwardBlockList blks = blks
-backwardBlockList blks = blks
+forwardBlockList blks = blocksToList blks
+backwardBlockList blks = blocksToList blks
 
 -----------------------------------------------------------------------------
 --		DataflowLattice
 -----------------------------------------------------------------------------
 
 data DataflowLattice a = DataflowLattice  { 
-  fact_name       :: String,                 -- Documentation
-  fact_bot        :: a,                      -- Lattice bottom element
-  fact_add_to     :: a -> a -> TxRes a,      -- Lattice join plus change flag
-  fact_do_logging :: Bool                    -- log changes
+  fact_name       :: String,                   -- Documentation
+  fact_bot        :: a,                        -- Lattice bottom element
+  fact_extend     :: a -> a -> (ChangeFlag,a), -- Lattice join plus change flag
+  fact_do_logging :: Bool                      -- log changes
 }
 
 data ChangeFlag = NoChange | SomeChange
-data TxRes a = TxRes ChangeFlag a
 
 -----------------------------------------------------------------------------
 --		The main Hoopl API
 -----------------------------------------------------------------------------
 
 type ForwardTransfers n f 
-  = forall e x. n e x -> f -> TailFactF x f 
+  = forall e x. f -> n e x -> TailFactF x f 
 
 type ForwardRewrites n f 
-  = forall e x. n e x -> f -> Maybe (AGraph n e x)
+  = forall e x. f -> n e x -> Maybe (AGraph n e x)
 
 type family   TailFactF x f :: *
 type instance TailFactF C f = [(BlockId, f)] 
@@ -164,7 +139,7 @@ data TxFactBase n fact
                                    -- These are BlockIds of the *original* 
                                    -- (not transformed) blocks
 
-         , tfb_blks  :: LBlocks n   -- Transformed blocks
+         , tfb_blks  :: BlockGraph n   -- Transformed blocks
     }
 
 factBaseInFacts :: DataflowLattice f -> TxFactBase n f -> BlockId -> f
@@ -189,44 +164,29 @@ updateFact lat (bid, new_fact) tx_fb@(TxFB { tfb_fbase = fbase, tfb_bids = bids}
   | otherwise               = tx_fb { tfb_fbase = new_fbase }
   where
     old_fact = lookupFact lat fbase bid
-    TxRes cha2 res_fact = fact_add_to lat old_fact new_fact
+    (cha2, res_fact) = fact_extend lat old_fact new_fact
     new_fbase = extendFactBase fbase bid res_fact
 
-updateFacts :: Edges n
-            => DataflowLattice f 
+updateFacts :: DataflowLattice f 
 	    -> BlockId
-            -> (FactBase f -> FuelMonad (Graph n C C, [(BlockId,f)]))
+            -> (FactBase f -> FuelMonad ([(BlockId,f)], Graph n C C))
             -> TxFactBase n f -> FuelMonad (TxFactBase n f)
 -- Works regardless of direction
 updateFacts lat bid fb_trans
     tx_fb@(TxFB { tfb_fbase = fbase, tfb_bids = bids, tfb_blks = blks })
-  = do { (graph, out_facts) <- fb_trans fbase
+  = do { (out_facts, graph) <- fb_trans fbase
        ; let tx_fb' = tx_fb { tfb_bids = extendBlockSet bids bid
-                            , tfb_blks = flattenG bid graph ++ blks }
+                            , tfb_blks = flattenG bid graph `unionBlocks` blks }
        ; return (foldr (updateFact lat) tx_fb' out_facts) }
 
 -----------------------------------------------------------------------------
 --		The Trans arrow
 -----------------------------------------------------------------------------
 
-type Trans a b = a -> FuelMonad b 
- -- Transform a into b, with facts of type f
- -- Deals with optimsation fuel and unique supply too
-  
-(>>>) :: Trans a b -> Trans b c -> Trans a c
--- Compose two dataflow transfers in sequence
-(dft1 >>> dft2) f = do { f1 <- dft1 f; f2 <- dft2 f1; return f2 }
-
-liftTrans :: (a->b) -> Trans a b
-liftTrans f x = return (f x)
-
-idTrans :: Trans a a
-idTrans x = return x
-
-fixpointTrans :: forall n f. 
+fixpoint :: forall n f. 
                  (TxFactBase n f -> FuelMonad (TxFactBase n f))
               -> (FactBase f     -> FuelMonad (TxFactBase n f))
-fixpointTrans tx_fb_trans init_fbase
+fixpoint tx_fb_trans init_fbase
   = do { fuel <- getFuel  
        ; loop fuel init_fbase }
   where
@@ -234,7 +194,7 @@ fixpointTrans tx_fb_trans init_fbase
     loop fuel fbase 
       = do { tx_fb <- tx_fb_trans (TxFB { tfb_fbase = fbase
                                         , tfb_cha = NoChange
-                                        , tfb_blks = []
+                                        , tfb_blks = noBlocks
                                         , tfb_bids = emptyBlockSet })
            ; case tfb_cha tx_fb of
                NoChange   -> return tx_fb
@@ -250,18 +210,18 @@ fixpointTrans tx_fb_trans init_fbase
 -- then finally to graph transfer functions (which requires iteration).
 
 type ARF thing n f = forall e x. LiftNode x 
-                              => thing e x -> f 
-                              -> FuelMonad (Graph n e x, TailFactF x f)
+                              => f -> thing e x
+                              -> FuelMonad (TailFactF x f, Graph n e x)
 
 type ARF_Node  n f = ARF n         n f
 type ARF_Block n f = ARF (Block n) n f
 type ARF_Graph n f = ARF (Graph n) n f
 -----------------------------------------------------------------------------
 
-arfNodeTransfer :: forall n f . ForwardTransfers n f -> ARF_Node n f
+arfNodeTransfer :: forall n f. ForwardTransfers n f -> ARF_Node n f
 -- Lifts ForwardTransfers to ARF_Node; simple transfer only
-arfNodeTransfer transfer_fn node f
-  = return (liftNode node, transfer_fn node f)
+arfNodeTransfer transfer_fn f node
+  = return (transfer_fn f node, liftNode node)
 
 arfNodeRewrite :: forall n f.
                   ForwardTransfers n f
@@ -271,66 +231,70 @@ arfNodeRewrite :: forall n f.
 -- Lifts (ForwardTransfers,ForwardRewrites) to ARF_Node; 
 -- this time we do rewriting as well. 
 -- The ARF_Graph parameters specifies what to do with the rewritten graph
-arfNodeRewrite transfer_fn rewrite_fn graph_trans node f
-  = do { mb_g <- withFuel (rewrite_fn node f)
+arfNodeRewrite transfer_fn rewrite_fn graph_trans f node
+  = do { mb_g <- withFuel (rewrite_fn f node)
        ; case mb_g of
-           Nothing -> arfNodeTransfer transfer_fn node f
-      	   Just g  -> do { g' <- graphOfAGraph g
-      		         ; graph_trans g' f } }
+           Nothing -> arfNodeTransfer transfer_fn f node
+      	   Just ag -> do { g <- graphOfAGraph ag
+      		         ; graph_trans f g } }
 
 arfBlock :: forall n f. ARF_Node n f -> ARF_Block n f
 -- Lift from nodes to blocks
-arfBlock arf_node (BUnit node)   f = arf_node node f
-arfBlock arf_node (BCat hd mids) f = do { (g1,f1) <- arfBlock arf_node hd f
-                                        ; (g2,f2) <- arfBlock arf_node mids f1
-	                                ; return (g1 `gCat` g2, f2) }
+arfBlock arf_node f (BUnit node)   = arf_node f node
+arfBlock arf_node f (BCat hd mids) = do { (f1,g1) <- arfBlock arf_node f  hd
+                                        ; (f2,g2) <- arfBlock arf_node f1 mids
+	                                ; return (f2, g1 `gCat` g2) }
 
-arfGraph :: forall n f. Edges n => DataflowLattice f -> ARF_Block n f -> ARF_Graph n f
+arfGraph :: forall n f. DataflowLattice f -> ARF_Block n f -> ARF_Graph n f
 -- Lift from blocks to graphs
-arfGraph lattice arf_block GNil        f = return (GNil, f)
-arfGraph lattice arf_block (GUnit blk) f = arf_block blk f
-arfGraph lattice arf_block (GMany entry blocks exit) f
-  = do { (entry_g, f1)     <- arf_block entry f
+arfGraph lattice arf_block f GNil        = return (f, GNil)
+arfGraph lattice arf_block f (GUnit blk) = arf_block f blk
+arfGraph lattice arf_block f (GMany entry blocks exit)
+  = do { (f1, entry_g)     <- arf_block f entry
        ; tx_fb             <- ft_blocks blocks (mkFactBase f1)
-       ; (bs2, exit', f3)  <- ft_exit exit tx_fb 
+       ; (f3, bs2, exit')  <- ft_exit tx_fb exit 
        ; let (entry', bs1) = ecGraph entry_g
-       ; return (GMany entry' (bs1 ++ tfb_blks tx_fb ++ bs2) exit', f3) }
+             final_bs = bs1 `unionBlocks` tfb_blks tx_fb `unionBlocks` bs2
+       ; return (f3, GMany entry' final_bs exit') }
   where
 	-- It's a bit disgusting that the TxFactBase has to be
         -- preserved as far as the Tail block, becaues the TxFactBase
         -- is really concerned with the fixpoint calculation
         -- But I can't see any other tidy way to compute the 
         -- LastOutFacts in the NoTail case
-    ft_exit :: Tail n x  -> TxFactBase n f
-            -> FuelMonad (LBlocks n, Tail n x, TailFactF x f)
-    ft_exit (Tail bid blk) f 
-      = do { (g, f1) <- arf_block blk (factBaseInFacts lattice f bid)
+    ft_exit :: TxFactBase n f -> Tail n x
+            -> FuelMonad (TailFactF x f, BlockGraph n, Tail n x)
+    ft_exit f (Tail bid blk)
+      = do { (f1, g) <- arf_block (factBaseInFacts lattice f bid) blk
 	   ; let (bs, exit) = cxGraph bid g
-           ; return (bs, exit, f1) }
-    ft_exit NoTail f 
-      = return ([], NoTail, factBaseOutFacts f)
+           ; return (f1, bs, exit) }
+    ft_exit f NoTail
+      = return (factBaseOutFacts f, noBlocks, NoTail)
 
-    ft_block_once :: LBlock n C -> TxFactBase n f
+    ft_block_once :: (BlockId, Block n C C) -> TxFactBase n f
                   -> FuelMonad (TxFactBase n f)
-    ft_block_once (LB bid b) = updateFacts lattice bid $ \fbase ->
-                               arf_block b (lookupFact lattice fbase bid)
+    ft_block_once (bid, b) = updateFacts lattice bid $ \fbase ->
+                             arf_block (lookupFact lattice fbase bid) b
 
-    ft_blocks_once :: LBlocks n -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-    ft_blocks_once blks = foldr ((>>>) . ft_block_once) idTrans blks
+    ft_blocks_once :: [(BlockId, Block n C C)] 
+                   -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+    ft_blocks_once []     tx_fb = return tx_fb
+    ft_blocks_once (b:bs) tx_fb = do { tx_fb1 <- ft_block_once b tx_fb
+                                     ; ft_blocks_once bs tx_fb1 }
 
-    ft_blocks :: LBlocks n -> FactBase f -> FuelMonad (TxFactBase n f)
-    ft_blocks blocks = fixpointTrans (ft_blocks_once (forwardBlockList blocks))
+    ft_blocks :: BlockGraph n -> FactBase f -> FuelMonad (TxFactBase n f)
+    ft_blocks blocks = fixpoint (ft_blocks_once (forwardBlockList blocks))
 
 ----------------------------------------------------------------
 --       The pièce de resistance: cunning transfer functions
 ----------------------------------------------------------------
 
-pureAnalysis :: Edges n => DataflowLattice f -> ForwardTransfers n f -> ARF_Graph n f
+pureAnalysis :: DataflowLattice f -> ForwardTransfers n f -> ARF_Graph n f
 pureAnalysis lattice f = arfGraph lattice (arfBlock (arfNodeTransfer f))
 
 analyseAndRewriteFwd
-   :: forall n f. Edges n
-   => DataflowLattice f
+   :: forall n f. 
+      DataflowLattice f
    -> ForwardTransfers n f
    -> ForwardRewrites n f
    -> RewritingDepth
@@ -342,32 +306,33 @@ data RewritingDepth = RewriteShallow | RewriteDeep
 --  * "shallow": accept the new graph, analyse it without further rewriting
 --  * "deep": recursively analyse-and-rewrite the new graph
 
-analyseAndRewriteFwd depth lattice transfers rewrites
-  = arf_graph_cunning
+analyseAndRewriteFwd lattice transfers rewrites depth
+  = anal_rewrite
   where 
-    arf_graph_base, arf_graph_cunning, arf_graph_recurse :: ARF_Graph n f
+    anal_rewrite, anal_only, arf_rec :: ARF_Graph n f
 
-    arf_graph_base    = arfGraph lattice $ arfBlock $ 
-                        arfNodeTransfer transfers
-    arf_graph_cunning = arfGraph lattice $ arfBlock $ 
-                        arfNodeRewrite transfers rewrites arf_graph_recurse
+    anal_rewrite = arfGraph lattice $ arfBlock $ 
+                   arfNodeRewrite transfers rewrites arf_rec
 
-    arf_graph_recurse = case depth of
-                          RewriteShallow -> arf_graph_base
-                          RewriteDeep    -> arf_graph_cunning
+    anal_only    = arfGraph lattice $ arfBlock $ 
+                   arfNodeTransfer transfers
+
+    arf_rec = case depth of
+                RewriteShallow -> anal_only
+                RewriteDeep    -> anal_rewrite
 
 -----------------------------------------------------------------------------
 --		Backward rewriting
 -----------------------------------------------------------------------------
 
 type BackwardTransfers n f 
-  = forall e x. n e x -> TailFactB x f -> f 
+  = forall e x. TailFactB x f -> n e x -> f 
 type BackwardRewrites n f 
-  = forall e x. n e x -> TailFactB x f -> Maybe (AGraph n e x)
+  = forall e x. TailFactB x f -> n e x -> Maybe (AGraph n e x)
 
 type ARB thing n f = forall e x. LiftNode x 
-                              => thing e x -> TailFactB x f 
-                              -> FuelMonad (Graph n e x, f)
+                              => TailFactB x f -> thing e x
+                              -> FuelMonad (f, Graph n e x)
 
 type family   TailFactB x f :: *
 type instance TailFactB C f = FactBase f
@@ -379,8 +344,8 @@ type ARB_Graph n f = ARB (Graph n) n f
 
 arbNodeTransfer :: forall n f . BackwardTransfers n f -> ARB_Node n f
 -- Lifts BackwardTransfers to ARB_Node; simple transfer only
-arbNodeTransfer transfer_fn node f
-  = return (liftNode node, transfer_fn node f)
+arbNodeTransfer transfer_fn f node
+  = return (transfer_fn f node, liftNode node)
 
 arbNodeRewrite :: forall n f.
                   BackwardTransfers n f
@@ -390,78 +355,82 @@ arbNodeRewrite :: forall n f.
 -- Lifts (BackwardTransfers,BackwardRewrites) to ARB_Node; 
 -- this time we do rewriting as well. 
 -- The ARB_Graph parameters specifies what to do with the rewritten graph
-arbNodeRewrite transfer_fn rewrite_fn graph_trans node f
-  = do { mb_g <- withFuel (rewrite_fn node f)
+arbNodeRewrite transfer_fn rewrite_fn graph_trans f node
+  = do { mb_g <- withFuel (rewrite_fn f node)
        ; case mb_g of
-           Nothing -> arbNodeTransfer transfer_fn node f
-      	   Just g  -> do { g' <- graphOfAGraph g
-      		         ; graph_trans g' f } }
+           Nothing -> arbNodeTransfer transfer_fn f node
+      	   Just ag -> do { g <- graphOfAGraph ag
+      		         ; graph_trans f g } }
 
 arbBlock :: forall n f. ARB_Node n f -> ARB_Block n f
 -- Lift from nodes to blocks
-arbBlock arb_node (BUnit node) f = arb_node node f
-arbBlock arb_node (BCat b1 b2) f = do { (g2,f2) <- arbBlock arb_node b2 f
-                                      ; (g1,f1) <- arbBlock arb_node b1 f2
-	                              ; return (g1 `gCat` g2, f1) }
+arbBlock arb_node f (BUnit node) = arb_node f node
+arbBlock arb_node f (BCat b1 b2) = do { (f2,g2) <- arbBlock arb_node f  b2
+                                      ; (f1,g1) <- arbBlock arb_node f2 b1
+	                              ; return (f1, g1 `gCat` g2) }
 
-arbGraph :: forall n f. Edges n => DataflowLattice f -> ARB_Block n f -> ARB_Graph n f
-arbGraph lattice arb_block GNil        f = return (GNil, f)
-arbGraph lattice arb_block (GUnit blk) f = arb_block blk f
-arbGraph lattice arb_block (GMany entry blocks exit) f
-  = do { (bs2, exit', f1)  <- bt_exit exit f
+arbGraph :: forall n f. DataflowLattice f -> ARB_Block n f -> ARB_Graph n f
+arbGraph lattice arb_block f GNil        = return (f, GNil)
+arbGraph lattice arb_block f (GUnit blk) = arb_block f blk
+arbGraph lattice arb_block f (GMany entry blocks exit)
+  = do { (f1, bs2, exit')  <- bt_exit f exit
        ; tx_fb             <- bt_blocks blocks f1
-       ; (entry_g, f3)     <- arb_block entry (tfb_fbase tx_fb)
+       ; (f3, entry_g)     <- arb_block (tfb_fbase tx_fb) entry 
        ; let (entry', bs1) = ecGraph entry_g
-       ; return (GMany entry' (bs1 ++ tfb_blks tx_fb ++ bs2) exit', f3) }
+             final_bs = bs1 `unionBlocks` tfb_blks tx_fb `unionBlocks` bs2
+       ; return (f3, GMany entry' final_bs exit') }
   where
 	-- It's a bit disgusting that the TxFactBase has to be
         -- preserved as far as the Tail block, becaues the TxFactBase
         -- is really concerned with the fixpoint calculation
         -- But I can't see any other tidy way to compute the 
         -- LastOutFacts in the NoTail case
-    bt_exit :: Tail n x -> TailFactB x f
-            -> FuelMonad (LBlocks n, Tail n x, FactBase f)
-    bt_exit (Tail bid blk) f 
-      = do { (g, f1) <- arb_block blk f
+    bt_exit :: TailFactB x f -> Tail n x
+            -> FuelMonad (FactBase f, BlockGraph n, Tail n x)
+    bt_exit f (Tail bid blk)
+      = do { (f1, g) <- arb_block f blk
 	   ; let (bs, exit) = cxGraph bid g
-           ; return (bs, exit, mkFactBase [(bid,f1)]) }
-    bt_exit NoTail f 
-      = return ([], NoTail, f)
+           ; return (mkFactBase [(bid,f1)], bs, exit) }
+    bt_exit f NoTail
+      = return (f, noBlocks, NoTail)
 
-    bt_block_once :: LBlock n C -> TxFactBase n f
+    bt_block_once :: (BlockId, Block n C C) -> TxFactBase n f
                   -> FuelMonad (TxFactBase n f)
-    bt_block_once (LB bid b) = updateFacts lattice bid $ \fbase ->
-                               do { (g, f) <- arb_block b fbase
-                                  ; return (g, [(bid,f)]) }
+    bt_block_once (bid, b) = updateFacts lattice bid $ \fbase ->
+                             do { (f, g) <- arb_block fbase b
+                                ; return ([(bid,f)], g) }
 
-    bt_blocks_once :: LBlocks n -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-    bt_blocks_once blks = foldr ((>>>) . bt_block_once) idTrans blks
+    bt_blocks_once :: [(BlockId,Block n C C)] 
+                   -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+    bt_blocks_once []     tx_fb = return tx_fb
+    bt_blocks_once (b:bs) tx_fb = do { tx_fb' <- bt_block_once b tx_fb
+                                     ; bt_blocks_once bs tx_fb' }
 
-    bt_blocks :: LBlocks n -> FactBase f -> FuelMonad (TxFactBase n f)
-    bt_blocks blocks = fixpointTrans (bt_blocks_once (backwardBlockList blocks))
+    bt_blocks :: BlockGraph n -> FactBase f -> FuelMonad (TxFactBase n f)
+    bt_blocks blocks = fixpoint (bt_blocks_once (backwardBlockList blocks))
 
 analyseAndRewriteBwd
-   :: forall n f. Edges n
-   => DataflowLattice f
+   :: forall n f. 
+      DataflowLattice f
    -> BackwardTransfers n f
    -> BackwardRewrites n f
    -> RewritingDepth
    -> ARB_Graph n f
 
-analyseAndRewriteBwd depth lattice transfers rewrites
-  = arb_graph_cunning
+analyseAndRewriteBwd lattice transfers rewrites depth
+  = anal_rewrite
   where 
-    arb_graph_base, arb_graph_cunning, arb_graph_recurse :: ARB_Graph n f
+    anal_rewrite, anal_only, arb_rec :: ARB_Graph n f
 
-    arb_graph_base    = arbGraph lattice (arbBlock arb_node_base)
-    arb_graph_cunning = arbGraph lattice (arbBlock arb_node_cunning)
-    arb_graph_recurse = case depth of
-                          RewriteShallow -> arb_graph_base
-                          RewriteDeep    -> arb_graph_cunning
+    anal_rewrite = arbGraph lattice $ arbBlock $ 
+                   arbNodeRewrite transfers rewrites arb_rec
 
-    arb_node_base, arb_node_cunning :: ARB_Node n f
-    arb_node_base    = arbNodeTransfer transfers
-    arb_node_cunning = arbNodeRewrite  transfers rewrites arb_graph_recurse
+    anal_only    = arbGraph lattice $ arbBlock $ 
+                   arbNodeTransfer transfers
+
+    arb_rec = case depth of
+                RewriteShallow -> anal_only
+                RewriteDeep    -> anal_rewrite
 
 
 -----------------------------------------------------------------------------
@@ -499,6 +468,21 @@ type BlockId = Int
 
 mkBlockId :: Int -> BlockId
 mkBlockId uniq = uniq
+
+----------------------
+type BlockMap a = M.IntMap a
+
+noBlocks :: BlockGraph n
+noBlocks = M.empty
+
+addBlock :: BlockId -> Block n C C -> BlockGraph n -> BlockGraph n
+addBlock = M.insert
+
+unionBlocks :: BlockGraph n -> BlockGraph n -> BlockGraph n
+unionBlocks = M.union
+
+blocksToList :: BlockGraph n -> [(BlockId,Block n C C)]
+blocksToList = M.toList
 
 ----------------------
 type FactBase a = M.IntMap a
