@@ -1,5 +1,65 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies #-}
 
+{- Notes about the genesis of Hoopl5
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+As well as addressing your concerns I had some of my own:
+
+* In Hoopl4, a closed/closed graph starts with a distinguished
+  closed/closed block (the entry block).  But this block is
+  *un-labelled*.  That means that there is no way to branch back to
+  the entry point of a procedure, which seems a bit unclean.
+
+* In general I have to admit that it does seem a bit unintuitive to
+  have block that is
+	a) closed on entry, but
+	b) does not have a label
+
+* If you look at MkZipCfgCmm you'll see stuff like this:
+     mkCmmIfThen e tbranch
+       = withFreshLabel "end of if"     $ \endif ->
+         withFreshLabel "start of then" $ \tid ->
+         mkCbranch e tid endif <*>
+         mkLabel tid   <*> tbranch <*> mkBranch endif <*>
+         mkLabel endif
+
+   We are trying to present a user model *graphs* as
+	a sequence, connected by <*>,
+	of little graphs
+   Moreover, one of the little graphs is (mkLabel BlockId), and I
+   don't see how to make a graph for that in Hoopl4.
+
+   (Norman I know that this may be what you have been trying to say
+   about "graphs under construction" for some time, but looking at
+   MkZipCfgCmm made it far more concrete for me.)
+
+
+Specifically, in Hoopl5:
+
+* I put the BlockId back in a first node, as John wanted.
+
+* To make it possible to branch to the label of the entry block of a
+  Graph it does make sense to put that block in the BlockGraph that is
+  the main payload of the graph
+
+* That militates in favour of a Maybe-kind-of-thing on entry to a
+  Graph, just as Norman wanted.
+
+* However I am Very Very Keen to maintain the similar properties of
+  nodes, blocks, graphs; and in particular the single point of entry.
+  (For a multi-entry procedure, the procedure can be represented by a
+  BlockGraph plus a bunch of BlockIds, rather than a Graph.)  So I
+  made the Head contain the BlockId of the entry point.
+
+* The BlockGraph in a Graph is a finite map, as you wanted.  Notice
+  that this embodies an invariant: a BlockId must map to a block whose
+  entry point is that BlockId.
+
+* With that in mind I was happy to introduce the analogous invariant
+  for the exit block in Tail; it is very very convenient to have that
+  BlockId (cached though it may be) to hand.
+
+-}
+
 module Hoopl5 where
 
 import qualified Data.IntMap as M
