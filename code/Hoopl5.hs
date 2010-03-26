@@ -35,6 +35,9 @@ As well as addressing your concerns I had some of my own:
 
 Specifically, in Hoopl5:
 
+* The ARF type is no longer overloaded over the LiftNode class.  
+  It has a simple and beautiful type.
+
 * I put the BlockId back in a first node, as John wanted.
 
 * To make it possible to branch to the label of the entry block of a
@@ -177,6 +180,7 @@ backwardBlockList blks = blocksToList blks
 
 -----------------------------------------------------------------------------
 --	PG: an internal data type for graphs under construction
+--          TOTALLY internal to Hoopl
 -----------------------------------------------------------------------------
 
 data OCFlag oc where
