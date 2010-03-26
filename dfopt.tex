@@ -1481,23 +1481,20 @@ Do we?  I see no mention of @HavingSuccessors@ for example, which is rather impo
 for polymorphism.  Indeed, a subsection on that point might be a good way
 to substantiate the claims of the last bullet of the conclusion.}
 
-In Sections \ref{sec:making-simple}
-through~\ref{sec:rewrites},
-we give the user's eye view, showing how to use 
+In Section \ref{sec:making-simple}
+we gave a client's-eye view, showing how to use 
 \ourlib\ to create analyses and transformations.
-We now sketch the implementation of the main part of \ourlib:
-the dataflow engine.
-While a full description of the implementation is beyond the scope of
-this paper, a sketch 
-demonstrates the new ideas that make this implementation simpler
-than the original:
-using pure functional code throughout;
-using an explicit state monad to manage the computation of fixed
-points;
-giving each type of graph node its own analysis function, 
-which also performs speculative rewriting;
-and \simon{Complete this list}.
-\john{And remove the bogus parts: monad, one fn per analysis...}
+The interface is simple, but 
+\emph{implementation} of interleaved analysis and rewriting is 
+quite complicated.  \citet{lerner-grove-chambers:2002} 
+do not describe their implementation at all.  We have made 
+at least three attempts to implement the algorithm all of which
+were long, hard to understand, and lacked any static open/closed
+shape guarantees.  We are not confident that any of them are correct.
+
+In this section we describe our new implementation.  It is short
+(about a third of the size of our last attempt), elegant, and offers
+strong static shape guarantees.  
 
 \subsection{Overview}
 
@@ -1507,43 +1504,42 @@ The implementation is built on the hierarchy of nodes, blocks, and graphs
 that we described in \secref{graph-rep}.  For each such thing
 we will develop a function of this type:
 \begin{code}
-newtype GFT thing n f 
-  = GFT (forall e x. 
-         thing e x 
-         -> InFact e f
-         -> FuelMonad (Graph n e x, OutFact x f))
+type ARF thing n f 
+  = forall e x. f
+             -> thing e x 
+             -> FuelMonad (OutFact x f, Graph n e x, )
 \end{code}
 Here we intend @thing@ to range over nodes, blocks, and graphs, thus:
 \begin{code}
-type GFT_Node  n f = GFT n         n f
-type GFT_Block n f = GFT (Block n) n f
-type GFT_Graph n f = GFT (Graph n) n f
+type ARF_Node  n f = ARF n         n f
+type ARF_Block n f = ARF (Block n) n f
+type ARF_Graph n f = ARF (Graph n) n f
 \end{code}
-A GFT (short for ``generic forward transfer'') takes a @thing@ and an input fact of
-appropriate shape, and returns a @Graph@ and a suitably-shaped output fact.
+A ARF (short for ``analyse and rewrite forward'') takes an input fact and a @thing@,
+and returns a correspondingly-shaped output fact and rewritten @Graph@.
 Note that the result is a @Graph@, regardless of whether @thing@ is a node, block, or graph.
 
 We can now build a modular implementation as follows:
 \begin{itemize} 
-\item From the supplied @ForwardTransfers@ and @ForwardRewrites@, produce a @GFT_Node@
+\item From the supplied @ForwardTransfers@ and @ForwardRewrites@, produce a @ARF_Node@
 that transforms nodes:  
 \begin{code}
-gftNodeRewrite :: ForwardTransfers n f
-               -> ForwardRewrites n f
-               -> GFT_Graph n f
-               -> GFT_Node n f
+  gftNode :: ForwardTransfers n f
+          -> ForwardRewrites n f
+          -> ARF_Graph n f
+          -> ARF_Node n f
 \end{code}
 In addition to the transfer and rewrite functions, @gftNodeRewrite@ takes the function
 to analyse and rewrite the rewritten graph.
-\item From this @GFT_Node@, produce a @GFT_Block@ that transforms blocks.
+\item From this @ARF_Node@, produce a @ARF_Block@ that transforms blocks.
 \begin{code}
-gftBlock :: GFT_Node n f -> GFT_Block n f
+  gftBlock :: ARF_Node n f -> ARF_Block n f
 \end{code}
  
-\item From this @GFT_Block@, produce a @GFT_Graph@ that tranforms graphs.
+\item From this @ARF_Block@, produce a @ARF_Graph@ that tranforms graphs.
 \begin{code}
-gftGraph :: DataflowLattice f
-         -> GFT_Block n f -> GFT_Graph n f
+  gftGraph :: DataflowLattice f
+           -> ARF_Block n f -> ARF_Graph n f
 \end{code}
 This is where the fixpoint computation takes place, so @gftGraph@ must
 take a @DataflowLattice@ as an additional argument.
@@ -1553,44 +1549,45 @@ Given these three functions, it is rather easy to write the main analyser:
 \begin{code}
 analyseAndRewrite
    :: forall n f. Edges n
-   => RewritingDepth
-   -> DataflowLattice f
+   => DataflowLattice f
    -> ForwardTransfers n f
    -> ForwardRewrites n f
-   -> GFT_Graph n f
+   -> RewritingDepth
+   -> ARF_Graph n f
 
-analyseAndRewrite depth lattice tf rw
- = gft_g
- where 
-  gft_g, gft_g_sh, gft_g_rec :: GFT_Graph n f
-  gft_g     = gftGraph lattice (gftBlock gft_n)
-  gft_g_sh  = gftGraph lattice (gftBlock gft_n_sh)
-  gft_g_rec = case depth of
-                RewriteShallow -> gft_g_sh
-                RewriteDeep    -> gft_g
+analyseAndRewriteFwd lat tf rw depth
+  = anal_rewrite
+  where 
+    anal_rewrite, anal_only, arf_rec :: ARF_Graph n f
 
-  gft_n, gft_n_sh :: GFT_Node n f
-  gft_n    = gftNodeRewrite tf rw gft_g_rec
-  gft_n_sh = gftNodeTransfer transfers
+    anal_rewrite = arfGraph lat $ arfBlock $ arfNode tf rw arf_rec
+
+    anal_only    = arfGraph lat $ arfBlock $ arfNodeTransfer tf
+
+    arf_rec = case depth of
+                RewriteShallow -> anal_only
+                RewriteDeep    -> anal_rewrite
+
+arfNodeTransfer :: ForwardTranfsers n f
+                -> ARF_Node n f
+arfNodeTransfers tf f n = return (f, nodeToGraph n)
 \end{code}
 }
-\john{Inquisitive reader wants to know how analyseAndRewrite relates to
-analyseAndRewriteFwd.}
 This beautifully compact code does the following:
 \begin{itemize}
-\item The result, @gft_g@ is built by applying @gftGraph@ and @gftBlock@ to
-the node-rewriting engine, @gft_n@.
-\item The node-rewriting engine is instructs @gftNodeRewrite@
-to use @gft_g_rec@ for recursive applications to rewritten graphs.
-\item When deep rewriting is used, the @gft_g_rec@ engine is simply a recursive
-use of the main function, @gft_g@. But if shallow rewriting is required, it instead
-uses the shallow engine @gft_g_sh@. 
+\item The result, @anal_rewrite@ is built by applying @arfGraph@ and @arfBlock@ to
+the node-rewriting engine, @arf_n@.
+\item The node-rewriting engine instructs @arfNode@
+to use @arf_rec@ for recursive applications to rewritten graphs.
+\item When deep rewriting is used, the @arf_rec@ engine is simply a recursive
+use of the main function, @anal_rewrite@. But if shallow rewriting is required, it instead
+uses the shallow engine @anal_only@. 
 \item This shallow engine does no rewriting at all: it just performs the dataflow
 analysis.  However, it can still be constructed by applying the same functions
-@gftGraph@ and @gftBlock@
-to the shallow node engine, @gft_n_sh@.
+@arfGraph@ and @arfBlock@
+to the shallow node engine, @arfNodeTransfer tf@.
 \item Finally, the shallow node engine, which merely performs dataflow transfers on a single
-node, with no rewriting, is built with @gftNodeTransfer@.
+node, with no rewriting, is built with @arfNodeTransfer@.
 \end{itemize}
 And that is all.  Note the way that the shallow/deep distinction is made
 here, and here alone; none of the other functions are aware of the issue.
@@ -1600,12 +1597,12 @@ a pretty essential part of the story.}
 
 \subsection{From nodes to blocks}
 
-We start with the second task, of ''lifting'' a @GFT_Node@ to a @GFT_Block@:
+We start with the second task, of ''lifting'' a @ARF_Node@ to a @ARF_Block@:
 \begin{code}
-gftBlock :: forall n f. GFT_Node n f -> GFT_Block n f
-gftBlock (GFT node_trans) = GFT block_trans
+arfBlock :: forall n f. ARF_Node n f -> ARF_Block n f
+arfBlock (ARF node_trans) = ARF block_trans
   where 
-    block_trans :: GFTR (Block n) n f
+    block_trans :: ARFR (Block n) n f
     block_trans (BUnit n)   f 
       = node_trans n f
     block_trans (BCat l r) f 
@@ -1614,7 +1611,7 @@ gftBlock (GFT node_trans) = GFT block_trans
 	   ; return (g1 `gCat` g2, f2) }
 \end{code}
 The code is childishly simple.  In the @BUnit@ case 
-we appeal to the node-level @GFT_Node@ tranform.
+we appeal to the node-level @ARF_Node@ tranform.
 For @BCat@ we recursively apply @block_trans@ to the two
 sub-blocks, threading the output fact from the first as the 
 input to the second.  Each will produce a rewritten @Graph@, 
