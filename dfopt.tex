@@ -1284,9 +1284,9 @@ performed in any iteration other than the last may be unsound, and
 must be discarded}.  That is, each iteration of the fixpoint must
 start afresh with the original graph.  
 
-Nevertheless, \emph{those rewrites
-must still be performed} (albeit tentatively, but possibly recursively)
-so that the correct downstream facts can be computed.
+\emph{Nevertheless, those rewrites
+should still be performed} (albeit tentatively, but possibly recursively)
+so that the correct downstream facts can be computed as accurately as possible.
 For example, consider this graph, with entry at @L1@:
 \par{\small
 \begin{code}
@@ -1297,14 +1297,14 @@ The first traversal of block @L2@ will start with the ``fact'' \{x=0\};
 but it will propagate the new fact \{x=1\} to @L2@, which will join the
 existing fact to get \{x=$\top$\}.
 But now suppose that the predicate in the conditional branch was @x<10@ instead
-of @x==10@.  Again the first iteration will begin with the ``fact'' \{x=0\}.
+of @x==10@.  Again the first iteration will begin with the tentative fact \{x=0\}.
 Using that fact we can rewrite the conditional branch to an unconditional
 branch @goto L3@.  Hence no new fact is propagated to @L2@, and we have successfully
 cut the loop.  This example is a little contrived, but it illustrates that 
-we must
+for best results we should:
 \begin{itemize}
 \item Perform the rewrites on every iteration
-\item Begin each iteration with the orignal, virgin graph.
+\item Begin each new iteration with the orignal, virgin graph.
 \end{itemize}
 This sort of thing is hard to achieve in an imperative setting, where rewrites
 mutate a graph in-place.  But it is trivially easy in a functional program:
