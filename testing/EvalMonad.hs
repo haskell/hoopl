@@ -112,6 +112,9 @@ get_proc name = get_state >>= mlookup "proc" name . procs
 newFrame :: VarEnv v -> [B] -> EvalM v ()
 newFrame vars blocks = upd_state $ \s -> s { frames = (vars, blockEnv) : frames s}
   where blockEnv = mkBlockEnv (zip (map blockId blocks) blocks)
+        blockId :: Block Node C x -> BlockId
+        blockId (BUnit (Label bid)) = bid
+        blockId (b1 `BCat`  _) = blockId b1
 
 popFrame :: EvalM v ()
 popFrame = upd_state f

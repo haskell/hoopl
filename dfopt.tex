@@ -58,7 +58,7 @@ implementation.
 
 
 \newif\ifnotesinmargin \notesinmarginfalse
-% \IfFileExists{notesinline.tex}{\notesinmarginfalse}{\relax}
+\IfFileExists{notesinmargin.tex}{\notesinmargintrue}{\relax}
 
 \documentclass[blockstyle,preprint,natbib,nocopyrightspace]{sigplanconf}
 
@@ -325,6 +325,9 @@ back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
   care about this case, since the meaning is clear,
   but I know Norman's a stickler for this, and the American version would be hyphenated.
   Is the British hyphenation rule different?}
+
+\norman{The British rule is exactly the same.  If Simon does not own a
+  copy of Fowler, his eldest unmarried daughter does.}
 
 If you write a compiler for an imperative language, you can exploit
 many years' work on code improvement
@@ -606,7 +609,7 @@ at exits can transfer control (see also \secref{edges}).
 A typical machine-code conditional branch, which transfers control
 \emph{and} falls through, must be represented as a two-target
 conditional branch, with the fall-through path in a separate block.  
-This restriction is quite standard \cite{appel-modern}.
+This restriction is quite standard \cite{appel:modern}.
 It dramatically simplifies control-flow graph analyses
 and transformations,
 and it costs nothing in practice:
@@ -631,7 +634,8 @@ To make this concrete,
 \figref{cmm-node} gives a typical definition of a node type --- but
 please remember that this definition is written by the \emph{client} of the
 library. The example node type, @CmmNode@, is parameterised @e@ and @x@, for
-entry and exit respectively.  It is defined in GADT-style syntax \cite{pj-gadt},
+entry and exit respectively.  It is defined in GADT-style syntax
+\cite{peyton-jones:generalized-algebraic},
 by giving the types of each of its constructors.  For example, constructor @Label@
 takes a @BlockId@ and returns a node of type @CmmNode C O@, where ``@C@'' says ``closed
 at entry'' and ``@O@'' says ``open at exit''.  The types @BlockId@, @O@, and @C@ are 
@@ -1060,7 +1064,7 @@ result differs.  (Note the assymmetry.)
 In the case of constant propagation, \figref{constant-prop} shows a
 possible concrete represetation of the facts described above.  A fact
 is represented as a finite map from a variable to a value of type
-\icode|Maybe (WithTop Const)|.
+@Maybe (WithTop Const)@.
 A~variable $x$ maps to @Nothing@ iff $x=\bot$;
 $x$~maps to @Just Top@ iff $x=\top$;
 and $x$~maps to $@Just@ (Elt k)$ iff $x=k$.

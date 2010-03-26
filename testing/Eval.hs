@@ -4,7 +4,8 @@
 module Eval (evalProg, ErrorM) where
 
 import Control.Monad.Error
-import qualified Data.Map as M
+import qualified Data.IntMap as IM
+import qualified Data.Map    as M
 import Prelude hiding (succ)
 
 import EvalMonad
@@ -28,9 +29,8 @@ evalProc' (Proc {name=_, args, body, entry}) actuals =
 
 -- Responsible for allocating and deallocating its own stack frame.
 evalG :: EvalTarget v => VarEnv v -> Graph Node C C -> BlockId -> EvalM v [v]
-evalG _ GNil _ = throwError "can't evaluate an empty graph"
-evalG vars (GMany {g_entry = ClosedLink, g_blocks, g_exit = ClosedLink}) entry =
-  do ress <- inNewFrame vars g_blocks $ get_block entry >>= evalB 
+evalG vars (GMany b bs NoTail) entry =
+  do ress <- inNewFrame vars (b : map snd (IM.toList bs)) $ get_block entry >>= evalB 
 
      return ress
 -- GADT checker can't see that preceding pattern is exhaustive.
