@@ -54,7 +54,6 @@ evalB_OC (BUnit n)    = evalN_OC n
 
 evalN_CO :: EvalTarget v => Node C O -> EvalM v ()
 evalN_CO (Label _) = return ()
-evalN_CO _         = gadtCheck "evalN: CO nodes"
 
 evalN_OO :: EvalTarget v => Node O O -> EvalM v ()
 evalN_OO (Assign var e) =
@@ -65,7 +64,6 @@ evalN_OO (Store addr e) =
      v_e    <- eval e
      -- StoreEvt recorded in set_heap
      set_heap v_addr v_e
-evalN_OO _ = gadtCheck "evalB: OO nodes"
 
 evalN_OC :: EvalTarget v => Node O C -> EvalM v [v]
 evalN_OC (Branch bid) =
@@ -80,14 +78,13 @@ evalN_OC (Call ress f args succ) =
      f_ress <- evalProc f v_args
      if length ress == length f_ress then return ()
       else throwError $ "function " ++ f ++ " returned unexpected # of args"
-     mapM (uncurry set_var) $ zip ress f_ress
+     _ <- mapM (uncurry set_var) $ zip ress f_ress
      evalN_OC $ Branch succ
 
 evalN_OC (Return es) =
   do vs <- mapM eval es
      event $ RetEvt vs
      return vs
-evalN_OC _ = gadtCheck "evalN: OC nodes"
 
 class Show v => EvalTarget v where
   toAddr :: v   -> EvalM v Integer
