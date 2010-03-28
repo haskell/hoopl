@@ -498,9 +498,7 @@ The goal of dataflow optimization is to compute valid
 then use those assertions to justify code-improving
 transformations (or \emph{rewrites}) on a \emph{control-flow graph}.  
 
-\john{This example is really a combination of constant propagation and
- constant folding, as noted later in the paper; I think we should make that clear here.}
-Consider a concrete example: constant propagation.
+Consider a concrete example: constant propagation with constant folding.
 On the left we have a basic block; in the middle we have
 assertions that hold between statements (or \emph{nodes}) 
 in the block; and at
@@ -519,12 +517,16 @@ based on the assertions:
 \end{verbatim}
 Constant-propagation works
 from top to bottom.  We start with the empty assertion.  
-Given the empty assertion and the node @x:=3+4@ can we make a (constant-prop)
+Given the empty assertion and the node @x:=3+4@ can we make a (constant-folding)
 transformation?
-Yes!  We can replace it with @x:=7@.\john{That's constant-folding, not constant-prop.}
+Yes!  We can replace it with @x:=7@.
 \simon{Is the distinction between constant-folding and constant-prop really
 helpful here, or is it just pedantry?  One would hardly want do to constant-prop
-without constant folding!  And pobably vice versa.}
+without constant folding!  And probably vice versa.}
+\john{I think it's important for 3 reasons: (1) any compiler text will describe
+them separately, (2) the code is simpler when they're implemented separately
+(the payoff of this approach),
+(3) constant-folding can be useful without constant-prop (as in QC--)}
 Now, given this transformed node,
 and the original assertion, what assertion flows out of the bottom of
 the transformed node?  Clearly the assertion \{@x=7@\}.  
@@ -533,14 +535,17 @@ transformation?  Yes: replace it with @z:=True@.
 And so the process continues. Notice that in the last node of the block we can transform
 a conditional branch to an unconditional one, @goto L1@
 
-Notice that it is very convenient to \emph{interleave}
-transformation and analysis.  If we \emph{first} analysed the block
+Notice that our example \emph{interleaves} transformation and analysis;
+interleaving makes it easier to write effective analyses.
+If, instead, we \emph{first} analysed the block
 and \emph{then} transformed it, the analysis would have to ``predict''
-the transformations.  For example, a pure analysis would have to
-evaluate @x>5@ under the assumption that \{@x=7@\} to get the outgoing
-fact \{@x=7@, @z=True@\}.  But the subsequent transformation must 
-\emph{also} evaluate @x>5@ under the assumption \{@x=7@\}, to transform
-@z:=x>5@ to @z:=True@!
+the transformations.
+For example, given the incoming fact \{@x=7@\}
+and the instruction @z:=x>5@,
+a pure analysis would produce the outgoing fact
+\{@x=7@, @z=True@\} by simplifying @x>5@ to @True@.
+But the subsequent transformation must perform
+\emph{exactly the same simplification} when it transforms the instruction to @z:=True@!
 If instead we \emph{first} rewrite the node to @z:=True@, 
 and \emph{then} apply the transfer function to the rewritten node, 
 the transfer function becomes laughably simple: it merely has to see if the
@@ -549,18 +554,6 @@ The gain is even more compelling if there are a number of interacting
 analyses and/or transformations;
 we encourage the reader to consult \cite{lerner-grove-chambers} for more substantial
 examples.
-\simon{I have improved a bit, I think. If not enough, can you reword?}
-\john{I think this last sentence should use the reference not to point out that this
-approach makes things simpler, but to assert that: by using interleaving, not only
-can you write simpler, compositional analyses, but you can get
-better results than by running the analyses in sequences (and cite here).}
-\john{Also, I think this example only does half the job: we should show the reader
-how the example becomes simpler when you have interleaving:
-const-prop uses {x==7} to produce z = 7 > 5,
-then constant-folding doesn't need any facts to produce z = True.
-Furthermore, even the implementation of the analysis requires absolutely no smarts:
-no special case required for x := y where y already holds a constant value.
-I think that's pretty darned cool.}
 
 Constant propagation works \emph{forwards}, and a fact is typically an
 assertion about the program state (such as ``variable @x@ holds value
@@ -1246,28 +1239,28 @@ withLabel fn = \(b:bs) -> (fn b, bs)
 \seclabel{vpoiso}
 \seclabel{fuel}
 
-\simon{John, You offered to reword this section, so I'm leaving it alone}
-You will have noticed that the type of @analyseAndRewriteFwd@ is monadic
-(\secref{using-hoopl}).
-If the @FuelMonad@ determines that rewriting fuel is exhausted, then no more
-rewriting is done.  
-\john{Rewriting fuel appears out of the blue here, and I think we need to more clearly
-point out that the goal is to provide an easy way to debug optimizations.
-I'll take a hack at this section tomorrow when I'm less tired.}
-(Because each rewrite leaves the observable behavior of the
-program unchanged, it is safe to suppress rewrites at
-any point.)
-\john{This sentence takes as read a completely new idea. We need to
-articulate our philosophy on how optimizations should be written (sequence of
-simple, semantics-preserving transformations).}
-This allows the Hoopl library client to use a very powerful
-debugging technique for dataflow transformations,
-first suggested by Whalley \cite{whalley:isolation}.
-In~normal operation, the optimizer has unlimited fuel.  But suppose that the program
-being compiled works without optimisation, but fails with optimisation. Then
+Writing and debugging an optimization can be tricky:
+an optimization may rewrite the instructions in a procedure hundreds
+of times, and any of those rewrites could be incorrect.
+To debug such an optimization, we use a powerful technique,
+first suggested by Whalley \cite{whalley:isolation},
+to identify the first rewrite that 
+transforms the procedure from working code to faulty code.
+
+The key idea is to~limit the number of rewrites that
+are performed while optimizing a procedure.
+Because each rewrite leaves the observable behavior of the
+program unchanged, it is safe to suppress rewrites at any point.
+Therefore, given a program that fails when compiled with optimisation,
 the client can use binary search to halt rewriting just before or just after the
 rewrite that introduces the failure, thereby identifying the buggy rewrite.
+We control the number of rewrites by giving the optimiser
+a fixed quantity of ``optimization fuel'';
+each rewrite costs one unit of fuel,
+and when the fuel is exhausted, no more rewrites are performed.
 
+You will have noticed that the type of @analyseAndRewriteFwd@
+returns a value in the @FuelMonad@ (\secref{using-hoopl}).
 The @FuelMonad@ is a simple state monad maintaining the supply of unused
 fuel.  It also holds a supply of fresh labels, which are used by the rewriter
 for making new blocks; more precisely, the client-provided @ForwardRewrites@
