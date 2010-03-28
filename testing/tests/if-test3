@@ -1,0 +1,12 @@
+f(x) {
+0:
+  if x > 5 then goto 1 else goto 2
+1:
+  z = 1
+  goto 3
+2:
+  z = 1
+  goto 3
+3:
+  ret (z)
+}

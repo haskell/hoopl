@@ -1,10 +1,12 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies #-}
 
-module Hoopl (BlockId, O, C, Block (..), Graph (..), Tail (..), AGraph, TailFactF (..),
+module Hoopl (BlockId, O, C, Block (..), Graph (..), Tail (..), AGraph,
+              TailFactF (..), TailFactB (..),
               BlockGraph, BlockMap,
               BlockEnv, findBEnv, mkBlockEnv, lookupFact, ChangeFlag (..),
               analyseAndRewriteFwd, analyseAndRewriteBwd, RewritingDepth (..), mkFactBase, agraphOfNode, runFuelMonad,
-              DataflowLattice (..), ForwardTransfers, ForwardRewrites) where
+              DataflowLattice (..), ForwardTransfers, ForwardRewrites,
+              BackwardTransfers, BackwardRewrites) where
 
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
@@ -543,3 +545,46 @@ minusBlockSet = S.difference
 
 mkBlockSet :: [BlockId] -> BlockSet
 mkBlockSet = S.fromList
+
+----------------------
+
+{-
+data Reachable f = Reachable f
+                 | Unreachable
+instance Monad Reachable where
+  return = Reachable
+  Unreachable >>= _ = Unreachable
+  Reachable a >>= k = k a
+
+reachable :: (DataflowLattice f, ForwardTransfers n f, ForwardRewrites n f)
+          -> (DataflowLattice (Reachable f), ForwardTransfers n (Reachable f),
+                                             ForwardRewrites  n (Reachable f))
+reachable (lattice, transfer, rewrite) = (lat, tr, rew)
+  where lat = DataflowLattice (fact_name lattice) Unreachable add
+                              (fact_do_logging lattice)
+        add Unreachable a = (NoChange,  a)
+        add a Unreachable = (SomeChange, a)
+        add (Reachable new) (Reachable old) =
+            fmap Reachable $ fact_extend lattice new old
+
+        tr f n = transfer f n
+        tx_first id = liftM $ ft_first_out transfers id
+        tx_middle m = liftM $ ft_middle_out transfers m
+        tx_last l in' = -- there must be a cleaner way to do this
+           case in' of Reachable a -> lift_last_outs $ ft_last_outs transfers l a
+                       Unreachable -> LastOutFacts []
+
+        rew = ForwardRewrites rew_first rew_middle rew_last rew_exit
+        rew_first  = rewrite . fr_first  rewrites 
+        rew_middle = rewrite . fr_middle rewrites 
+        rew_last   = rewrite . fr_last   rewrites
+        rew_exit   = rewrite $ fr_exit   rewrites
+                                                    
+
+lift_last_outs :: LastOutFacts a -> LastOutFacts (Reachable a)
+lift_last_outs (LastOutFacts l) = LastOutFacts [ (id, Reachable a) | (id, a) <- l ]
+
+rewrite :: (a -> Maybe b) -> (Reachable a -> Maybe b)
+rewrite _ Unreachable = Nothing
+rewrite f (Reachable a) = f a
+-}

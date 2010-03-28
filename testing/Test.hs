@@ -8,6 +8,7 @@ import ConstProp
 import Eval  (evalProg, ErrorM)
 import Hoopl
 import IR
+import Live
 import OptSupport
 import Parse (parseCode)
 import Simplify
@@ -48,11 +49,16 @@ optTest' file text =
   do procs  <- parse file text
      mapM optProc procs
   where
-    optProc proc = return $ proc { body = body' }
+    optProc proc@(Proc {body}) = return $ proc { body = body'' }
       where
-        (_, body') = runFuelMonad rewriter 100 0
-        rewriter   = analyseAndRewriteFwd constLattice varHasLit (combine constProp simplify) RewriteDeep 
-                          (fact_bot constLattice) (body proc)
+        fuel        = 999999999
+        rewriteFwd  = analyseAndRewriteFwd constLattice varHasLit
+                          (combine constProp simplify) RewriteDeep 
+                          (fact_bot constLattice) body
+        (_, body')  = runFuelMonad rewriteFwd fuel 0
+        rewriteBwd  = analyseAndRewriteBwd liveLattice liveness deadAsstElim RewriteDeep
+                          (mkFactBase []) body'
+        (_, body'') = runFuelMonad rewriteBwd fuel 0
 
 optTest :: String -> IO ()
 optTest file =
