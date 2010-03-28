@@ -83,8 +83,7 @@ type BlockGraph n = BlockMap (Block n C C)
 data Graph n e x where
   GNil  :: Graph n O O
   GUnit :: Block n O O -> Graph n O O
-  GMany :: Head n e -> BlockGraph n
-	-> Tail n x -> Graph n e x
+  GMany :: Head n e -> BlockGraph n -> Tail n x -> Graph n e x
   -- If Head is NoHead, then BlockGraph is non-empty
 
 data Head n e where
@@ -196,8 +195,7 @@ type BlockGraphWithFacts n f = (BlockGraph n, FactBase f)	-- Domains are identic
 data PG n e x where	-- Will have facts too in due course
   PGNil   :: PG n O O
   PGBlock :: Block n e x -> PG n e x
-  PGMany  :: Head n e -> BlockGraph n
-	  -> Tail n x -> PG n e x
+  PGMany  :: Head n e -> BlockGraph n -> Tail n x -> PG n e x
   PGCat   :: PG n e O -> PG n O x -> PG n e x
 
 normalise :: forall n e x. (IsOC e, IsOC x, Edges n)
@@ -336,8 +334,7 @@ fixpoint tx_fb_trans init_fbase
 -- move to basic-block transfer functions (we have exactly four shapes),
 -- then finally to graph transfer functions (which requires iteration).
 
-type ARF thing n f = forall e x. f -> thing e x
-                              -> FuelMonad (TailFactF x f, PG n e x)
+type ARF thing n f = forall e x. f -> thing e x -> FuelMonad (TailFactF x f, PG n e x)
 
 type ARF_Node  n f = ARF n         n f
 type ARF_Block n f = ARF (Block n) n f
