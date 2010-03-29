@@ -65,7 +65,7 @@ stdMapJoin eltJoin new old = M.foldWithKey add (NoChange, old) new
 ----------------------------------------------
 
 -- Combine the transformations, executing the 2nd if the 1st does no rewriting.
-combine :: (n -> f -> Maybe g) -> (n -> f -> Maybe g) -> n -> f -> Maybe g
+combine :: (f -> n -> Maybe g) -> (f -> n -> Maybe g) -> f -> n -> Maybe g
 combine r1 r2 = \n f -> case r1 n f of Nothing -> r2 n f
                                        x -> x
 
@@ -130,10 +130,10 @@ fold_EN f z (Return es)     = foldl f z es
 
 -- Probably not quite what we want long term
 toAGraph :: Node e x -> AGraph Node e x
-toAGraph n@(Label _) = agraphOfNode n
-toAGraph n@(Assign _ _) = agraphOfNode n
-toAGraph n@(Store _ _) = agraphOfNode n
-toAGraph n@(Branch _) = agraphOfNode n
-toAGraph n@(Cond _ _ _) = agraphOfNode n
+toAGraph n@(Label _)      = agraphOfNode n
+toAGraph n@(Assign _ _)   = agraphOfNode n
+toAGraph n@(Store _ _)    = agraphOfNode n
+toAGraph n@(Branch _)     = agraphOfNode n
+toAGraph n@(Cond _ _ _)   = agraphOfNode n
 toAGraph n@(Call _ _ _ _) = agraphOfNode n
-toAGraph n@(Return _) = agraphOfNode n
+toAGraph n@(Return _)     = agraphOfNode n
