@@ -175,12 +175,12 @@ instance Edges n => Edges (Graph n) where
                      Head b   -> bg_succs `unionBlockSet` mkBlockSet (successors b)
        all_blk_ids = mkBlockSet bids
 
-forwardBlockList, backwardBlockList :: BlockGraph n -> [(BlockId,Block n C C)]
+forwardBlockList, backwardBlockList :: [BlockId] -> BlockGraph n -> [(BlockId,Block n C C)]
 -- This produces a list of blocks in order suitable for forward analysis.
 -- ToDo: Do a topological sort to improve convergence rate of fixpoint
 --       This will require a (HavingSuccessors l) class constraint
-forwardBlockList blks = blocksToList blks
-backwardBlockList blks = blocksToList blks
+forwardBlockList  _ blks = blocksToList blks
+backwardBlockList _ blks = blocksToList blks
 
 -----------------------------------------------------------------------------
 --	RG: an internal data type for graphs under construction
@@ -190,20 +190,15 @@ backwardBlockList blks = blocksToList blks
 -- "RG" stands for "rewritten graph", and embodies
 -- both the result graph and its internal facts
 
+data RL n f x where
+  RL     :: BlockId -> f -> RG n f C x -> RL n f x
+  RLMany :: BlockGraphWithFacts n f -> RL n f C
+
 data RG n f e x where	-- Will have facts too in due course
-  RGNil   :: RG n f O O
+  RGNil   :: RG n f a a
   RGBlock :: Block n e x -> RG n f e x
-  RGMany  :: RGHead n f e -> BlockGraphWithFacts n f
-          -> RGTail n f x -> RG n f e x
-  RGCat   :: RG n f e O -> RG n f O x -> RG n f e x
-
-data RGHead n f e where
-  RGNoHead :: RGHead n f C
-  RGHead   :: RG n f O C -> RGHead n f O
-
-data RGTail n f x where
-  RGNoTail :: RGTail n f C
-  RGTail   :: BlockId -> f -> RG n f C O -> RGTail n f O
+  RGCatO  :: RG n f e O -> RG n f O x -> RG n f e x
+  RGCatC  :: RG n f e C -> RL n f x   -> RG n f e x
 
 type BlockGraphWithFacts n f = (BlockGraph n, FactBase f)
   -- A BlockGraph together with the facts for that graph
@@ -212,37 +207,40 @@ type BlockGraphWithFacts n f = (BlockGraph n, FactBase f)
 -- 'normalise' converts a closed/closed result graph into a BlockGraph
 -- It uses three auxiliary functions, 
 -- specialised for various argument shapes
-normalise :: BlockId -> f -> RG n f C C -> BlockGraphWithFacts n f
-normalise _ _ (RGMany _ bg _) = bg
-normalise l f (RGBlock b)     = unitBWF l f b
-normalise l f (RGCat rg1 rg2) = normalise2 l f rg1 rg2
+normRL :: RL n f C -> BlockGraphWithFacts n f
+normRL (RL l f b)  = normRG l f b
+normRL (RLMany bg) = bg
 
-normalise2 :: BlockId -> f -> RG n f C O -> RG n f O C -> BlockGraphWithFacts n f
--- normalise (rg1 `RGCat` rg2)
-normalise2 l f (RGCat rg1 rg2) rg3 = normalise2 l f rg1 (rg2 `RGCat` rg3)
-normalise2 _ _ (RGMany RGNoHead bg1 (RGTail lt f rgt)) rg2
-  = bg1 `unionBWF` normalise2 lt f rgt rg2
-normalise2 l f (RGBlock b)  rg = normaliseB l f b rg
+normRL_O :: RL n f O -> RG n f O C -> BlockGraphWithFacts n f
+normRL_O (RL l f b) rg = normRG_O l f b rg
 
-normaliseB :: BlockId -> f -> Block n C O -> RG n f O C -> BlockGraphWithFacts n f
--- normalise (Block b `RGCat` rg2)
-normaliseB l f b (rg1 `RGCat` rg2) = normaliseB2 l f b rg1 rg2
-normaliseB lh f bh (RGBlock bt)    = unitBWF lh f (bh `BCat` bt)
-normaliseB l f b1 (RGMany (RGHead rg2) bg RGNoTail) 
-  = normaliseB l f b1 rg2 `unionBWF` bg
+normRG :: BlockId -> f -> RG n f C C -> BlockGraphWithFacts n f
+normRG l f (RGBlock b)      = unitBWF l f b
+normRG l f (RGCatO rg1 rg2) = normRG_O l f rg1 rg2
+normRG l f (RGCatC rg1 rg2) = normRG l f rg1 `unionBWF` normRL rg2
 
-normaliseB2 :: BlockId -> f -> Block n C O -> RG n f O O -> RG n f O C
-            -> BlockGraphWithFacts n f
--- normalise (Block b `RGCat` rg2 `RGCat` rg3)
-normaliseB2 l f b RGNil rg3 = normaliseB l f b rg3
-normaliseB2 l f b (RGCat rg1 rg2) rg3
-  = normaliseB2 l f b rg1 (rg2 `RGCat` rg3)
-normaliseB2 lh f bh (RGBlock bt) rg
-  = normaliseB lh f (bh `BCat` bt) rg
-normaliseB2 lh fh bh (RGMany (RGHead rg1) bg (RGTail lt ft rg2)) rg3
-  = normaliseB lh fh bh rg1 `unionBWF`
-    bg                      `unionBWF`
-    normalise2 lt ft rg2 rg3
+normRG_O :: BlockId -> f -> RG n f C O -> RG n f O C -> BlockGraphWithFacts n f
+-- normalise (rg1 `RGCatO` rg2)
+normRG_O l f (RGBlock b)      rg  = normB l f b rg
+normRG_O l f (RGCatO rg1 rg2) rg3 = normRG_O l f rg1 (rg2 `RGCatO` rg3)
+normRG_O l f (RGCatC rg1 rg2) rg3 = normRG l f rg1 `unionBWF` normRL_O rg2 rg3
+
+normB :: BlockId -> f -> Block n C O -> RG n f O C -> BlockGraphWithFacts n f
+-- normalise (Block b `RGCatO` rg2)
+normB l f b1 (RGBlock b2)     = unitBWF l f (b1 `BCat` b2)
+normB l f b  (RGCatO rg1 rg2) = normB_O l f b rg1 rg2
+normB l f b  (RGCatC rg1 rg2) = normB  l f b rg1 `unionBWF` normRL rg2
+
+normB_O :: BlockId -> f -> Block n C O -> RG n f O O -> RG n f O C
+        -> BlockGraphWithFacts n f
+-- normalise (Block b `RGCatO` rg2 `RGCatO` rg3)
+normB_O l f  b  RGNil           rg  = normB l f b rg
+normB_O l f bh (RGBlock bt)     rg  = normB l f (bh `BCat` bt) rg
+normB_O l f b  (RGCatC rg1 rg2) rg3 = normB l f b rg1 `unionBWF` normRL_O rg2 rg3
+normB_O l f b  (RGCatO rg1 rg2) rg3 = normB_O l f b rg1 (rg2 `RGCatO` rg3)
+
+noBWF :: BlockGraphWithFacts n f
+noBWF = (noBlocks, noFacts)
 
 unitBWF :: BlockId -> f -> Block n C C -> BlockGraphWithFacts n f
 unitBWF lbl f b = (unitBlock lbl b, unitFactBase lbl f)
@@ -318,7 +316,7 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
 fixpoint :: forall n f. 
             DataflowLattice f
          -> (BlockId -> Block n C C -> FactBase f 
-                     -> FuelMonad ([(BlockId,f)], RG n f C C))
+                     -> FuelMonad ([(BlockId,f)], RL n f C))
          -> [(BlockId, Block n C C)]
          -> FactBase f 
          -> FuelMonad (FactBase f, BlockGraphWithFacts n f)
@@ -346,14 +344,14 @@ fixpoint lat do_block blocks init_fbase
 		-- reached a fixed point, so it doesn't matter
 		-- whether we get f from fbase or fbase'
            ; return (TxFB { tfb_bids = extendBlockSet lbls lbl
-                          , tfb_blks = normalise lbl f rg `unionBWF` blks
+                          , tfb_blks = normRL rg `unionBWF` blks
                           , tfb_fbase = fbase', tfb_cha = cha' }) }
 
     loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
     loop fuel fbase 
       = do { let init_tx_fb = TxFB { tfb_fbase = fbase
                                    , tfb_cha   = NoChange
-                                   , tfb_blks  = (noBlocks, noFacts)
+                                   , tfb_blks  = noBWF
                                    , tfb_bids  = emptyBlockSet }
            ; tx_fb <- tx_blocks blocks init_tx_fb
            ; case tfb_cha tx_fb of
@@ -402,45 +400,46 @@ arfBlock :: forall n f. ARF_Node n f -> ARF_Block n f
 arfBlock arf_node f (BUnit node)   = arf_node f node
 arfBlock arf_node f (BCat hd mids) = do { (f1,g1) <- arfBlock arf_node f  hd
                                         ; (f2,g2) <- arfBlock arf_node f1 mids
-	                                ; return (f2, g1 `RGCat` g2) }
+	                                ; return (f2, g1 `RGCatO` g2) }
 
 arfBlocks :: forall n f. DataflowLattice f 
-          -> ARF_Node n f -> FactBase f -> BlockGraph n 
+          -> ARF_Node n f -> [(BlockId,f)] -> BlockGraph n 
           -> FuelMonad (FactBase f, BlockGraphWithFacts n f)
 		-- Outgoing factbase is restricted to BlockIds *not* in
 		-- in the BlockGraph; the facts for BlockIds
 		-- *in* the BlockGraph are in the BlockGraphWithFacts
-arfBlocks lattice arf_node init_fbase blocks
-  = fixpoint lattice do_block (forwardBlockList blocks) init_fbase
+arfBlocks lattice arf_node in_facts blocks
+  = fixpoint lattice do_block 
+             (forwardBlockList (map fst in_facts) blocks) 
+             (mkFactBase in_facts)
   where
     do_block :: BlockId -> Block n C C -> FactBase f
-             -> FuelMonad ([(BlockId,f)], RG n f C C)
-    do_block bid blk fbase = arfBlock arf_node (lookupFact lattice fbase bid) blk
+             -> FuelMonad ([(BlockId,f)], RL n f C)
+    do_block l blk fbase = do { let f = lookupFact lattice fbase l
+                              ; (fs, rg) <- arfBlock arf_node f blk
+			      ; return (fs, RL l f rg) }
 
 arfGraph :: forall n f. DataflowLattice f -> ARF_Node n f -> ARF_Graph n f
 -- Lift from blocks to graphs
-arfGraph _       _         f GNil       = return (f, RGNil)
+arfGraph _       _        f GNil       = return (f, RGNil)
 arfGraph _       arf_node f (GUnit blk) = arfBlock arf_node f blk
 arfGraph lattice arf_node f (GMany entry blks exit)
-  = do { (f1, entry') <- ft_entry f entry
-       ; (f2, blks')  <- arfBlocks lattice arf_node (mkFactBase f1) blks
-       ; (f3, exit')  <- ft_exit f2 exit 
-       ; return (f3, RGMany entry' blks' exit') }
+  = do { (f1, entry') <- arf_entry f entry
+       ; (f2, blks')  <- arfBlocks lattice arf_node f1 blks
+       ; (f3, exit')  <- arf_exit f2 exit 
+       ; return (f3, entry' `RGCatC` RLMany blks' `RGCatC` exit') }
   where
-    ft_entry :: f -> Head e (Block n O C) 
-             -> FuelMonad ([(BlockId,f)], RGHead n f e)
-    ft_entry fh (NoHead lh) = return ([(lh,fh)], RGNoHead)
-    ft_entry fh (Head b) = do { (fs, rg) <- arfBlock arf_node fh b
-                              ; return (fs, RGHead rg) }
+    arf_entry :: f -> Head e (Block n O C) 
+             -> FuelMonad ([(BlockId,f)], RG n f e C)
+    arf_entry fh (NoHead lh) = return ([(lh,fh)], RGNil)
+    arf_entry fh (Head b)    = arfBlock arf_node fh b
 
-    ft_exit :: FactBase f -> Tail x (Block n C O)
-            -> FuelMonad (TailFactF x f, RGTail n f x)
-    ft_exit fb NoTail
-      = return (factBaseList fb, RGNoTail)
-    ft_exit fb (Tail lt blk)
-      = do { let ft = lookupFact lattice fb lt
-           ; (f1, rg) <- arfBlock arf_node ft blk
-           ; return (f1, RGTail lt ft rg) }
+    arf_exit :: FactBase f -> Tail x (Block n C O)
+            -> FuelMonad (TailFactF x f, RL n f x)
+    arf_exit fb NoTail        = return (factBaseList fb, RLMany noBWF)
+    arf_exit fb (Tail lt blk) = do { let ft = lookupFact lattice fb lt
+                                   ; (f1, rg) <- arfBlock arf_node ft blk
+                                   ; return (f1, RL lt ft rg) }
 
 ----------------------------------------------------------------
 --       The pièce de resistance: cunning transfer functions
@@ -519,40 +518,42 @@ arbBlock :: forall n f. ARB_Node n f -> ARB_Block n f
 arbBlock arb_node f (BUnit node) = arb_node f node
 arbBlock arb_node f (BCat b1 b2) = do { (f2,g2) <- arbBlock arb_node f  b2
                                       ; (f1,g1) <- arbBlock arb_node f2 b1
-	                              ; return (f1, g1 `RGCat` g2) }
+	                              ; return (f1, g1 `RGCatO` g2) }
 
 
 arbBlocks :: forall n f. DataflowLattice f 
           -> ARB_Node n f -> FactBase f
           -> BlockGraph n -> FuelMonad (FactBase f, BlockGraphWithFacts n f)
 arbBlocks lattice arb_node init_fbase blocks
-  = fixpoint lattice do_block (backwardBlockList blocks) init_fbase
+  = fixpoint lattice do_block 
+             (backwardBlockList (factBaseBlockIds init_fbase) blocks) 
+             init_fbase
   where
     do_block :: BlockId -> Block n C C -> FactBase f
-             -> FuelMonad ([(BlockId,f)], RG n f C C)
+             -> FuelMonad ([(BlockId,f)], RL n f C)
     do_block l b fbase = do { (fb, rg) <- arbBlock arb_node fbase b
-                            ; return ([(l,fb)], rg) }
+			    ; let f = lookupFact lattice fbase l
+                            ; return ([(l,fb)], RL l f rg) }
 
 arbGraph :: forall n f. DataflowLattice f -> ARB_Node n f -> ARB_Graph n f
-arbGraph _       _         f GNil       = return (f, RGNil)
+arbGraph _       _        f GNil        = return (f, RGNil)
 arbGraph _       arb_node f (GUnit blk) = arbBlock arb_node f blk
 arbGraph lattice arb_node f (GMany entry blks exit)
-  = do { (f1, exit')  <- bt_exit f exit
+  = do { (f1, exit')  <- arb_exit f exit
        ; (f2, blks')  <- arbBlocks lattice arb_node f1 blks
-       ; (f3, entry') <- bt_entry f2 entry 
-       ; return (f3, RGMany entry' blks' exit') }
+       ; (f3, entry') <- arb_entry f2 entry 
+       ; return (f3, entry' `RGCatC` RLMany blks' `RGCatC` exit') }
   where
-    bt_entry :: FactBase f -> Head e (Block n O C)
-    	     -> FuelMonad (f, RGHead n f e)
-    bt_entry fbase (NoHead l) = return (lookupFact lattice fbase l, RGNoHead)
-    bt_entry fbase (Head blk) = do { (fh, rg) <- arbBlock arb_node fbase blk
-                                   ; return (fh, RGHead rg) }
+    arb_entry :: FactBase f -> Head e (Block n O C)
+              -> FuelMonad (f, RG n f e C)
+    arb_entry fbase (NoHead l) = return (lookupFact lattice fbase l, RGNil)
+    arb_entry fbase (Head blk) = arbBlock arb_node fbase blk
 
-    bt_exit :: TailFactB x f -> Tail x (Block n C O)
-            -> FuelMonad (FactBase f, RGTail n f x)
-    bt_exit ft (Tail lt blk) = do { (f1, rg) <- arbBlock arb_node ft blk
-                                  ; return (mkFactBase [(lt,f1)], RGTail lt f1 rg) }
-    bt_exit ft NoTail        = return (ft, RGNoTail)
+    arb_exit :: TailFactB x f -> Tail x (Block n C O)
+            -> FuelMonad (FactBase f, RL n f x)
+    arb_exit ft NoTail        = return (ft, RLMany noBWF)
+    arb_exit ft (Tail lt blk) = do { (f1, rg) <- arbBlock arb_node ft blk
+                                   ; return (mkFactBase [(lt,f1)], RL lt f1 rg) }
 
 analyseAndRewriteBwd
    :: forall n f. 
@@ -649,6 +650,9 @@ extendFactBase env blk_id f = M.insert blk_id f env
 
 unionFactBase :: FactBase f -> FactBase f -> FactBase f
 unionFactBase = M.union
+
+factBaseBlockIds :: FactBase f -> [BlockId]
+factBaseBlockIds = M.keys
 
 factBaseList :: FactBase f -> [(BlockId, f)]
 factBaseList = M.toList 
