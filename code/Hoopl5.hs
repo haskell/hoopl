@@ -93,17 +93,17 @@ type BlockGraph n = BlockMap (Block n C C)
 data Graph n e x where
   GNil  :: Graph n O O
   GUnit :: Block n O O -> Graph n O O
-  GMany :: Head e (Block n O C) -> BlockGraph n
-        -> Tail x (Block n C O) -> Graph n e x
+  GMany :: Head n e -> BlockGraph n
+        -> Tail n x -> Graph n e x
   -- If Head is NoHead, then BlockGraph is non-empty
 
-data Head e thing where
-  NoHead :: BlockId -> Head C thing
-  Head   :: thing -> Head O thing
+data Head n e where
+  NoHead :: BlockId -> Head n C
+  Head   :: Block n O C -> Head n O
 
-data Tail x thing where
-  NoTail :: Tail C thing
-  Tail   :: BlockId -> thing -> Tail O thing
+data Tail n x where
+  NoTail :: Tail n C
+  Tail   :: BlockId -> Block n C O -> Tail n O
   -- Invariant: the BlockId is the entryBlockId of the block
 
 -----------------------------------------------------------------------------
@@ -175,12 +175,45 @@ instance Edges n => Edges (Graph n) where
                      Head b   -> bg_succs `unionBlockSet` mkBlockSet (successors b)
        all_blk_ids = mkBlockSet bids
 
-forwardBlockList, backwardBlockList :: [BlockId] -> BlockGraph n -> [(BlockId,Block n C C)]
--- This produces a list of blocks in order suitable for forward analysis.
--- ToDo: Do a topological sort to improve convergence rate of fixpoint
---       This will require a (HavingSuccessors l) class constraint
-forwardBlockList  _ blks = blocksToList blks
-backwardBlockList _ blks = blocksToList blks
+data OCFlag oc where
+  IsOpen   :: OCFlag O
+  IsClosed :: OCFlag C
+
+class IsOC oc where
+  ocFlag :: OCFlag oc
+
+instance IsOC O where
+  ocFlag = IsOpen
+instance IsOC C where
+  ocFlag = IsClosed
+
+mkIfThenElse :: forall n x. IsOC x 
+             => (BlockId -> BlockId -> n O C)	-- The conditional branch instruction
+             -> (BlockId -> n C O)		-- Make a head node 
+	     -> (BlockId -> n O C)		-- Make an unconditional branch
+	     -> Graph n O x -> Graph n O x	-- Then and else branches
+	     -> [BlockId]			-- Block supply
+             -> Graph n O x			-- The complete thing
+mkIfThenElse mk_cbranch mk_lbl mk_branch then_g else_g (tl:el:jl:_)
+  = case (ocFlag :: OCFlag x) of
+      IsOpen   -> gUnitOC (mk_cbranch tl el)
+                  `gCat` (mk_lbl_g tl `gCat` then_g `gCat` mk_branch_g jl)
+                  `gCat` (mk_lbl_g el `gCat` else_g `gCat` mk_branch_g jl)
+                  `gCat` (mk_lbl_g jl)
+      IsClosed -> gUnitOC (mk_cbranch tl el)
+                  `gCat` (mk_lbl_g tl `gCat` then_g)
+                  `gCat` (mk_lbl_g el `gCat` else_g)
+  where
+    mk_lbl_g :: BlockId -> Graph n C O
+    mk_lbl_g lbl = gUnitCO lbl (mk_lbl lbl)
+    mk_branch_g :: BlockId -> Graph n O C
+    mk_branch_g lbl = gUnitOC (mk_branch lbl)
+
+gUnitCO :: BlockId -> n C O -> Graph n C O
+gUnitCO lbl n = GMany (NoHead lbl) noBlocks (Tail lbl (BUnit n))
+
+gUnitOC :: n O C -> Graph n O C
+gUnitOC n = GMany (Head (BUnit n)) noBlocks NoTail
 
 -----------------------------------------------------------------------------
 --	RG: an internal data type for graphs under construction
@@ -421,7 +454,7 @@ arfBlocks lattice arf_node in_facts blocks
 
 arfGraph :: forall n f. DataflowLattice f -> ARF_Node n f -> ARF_Graph n f
 -- Lift from blocks to graphs
-arfGraph _       _        f GNil       = return (f, RGNil)
+arfGraph _       _        f GNil        = return (f, RGNil)
 arfGraph _       arf_node f (GUnit blk) = arfBlock arf_node f blk
 arfGraph lattice arf_node f (GMany entry blks exit)
   = do { (f1, entry') <- arf_entry f entry
@@ -429,17 +462,23 @@ arfGraph lattice arf_node f (GMany entry blks exit)
        ; (f3, exit')  <- arf_exit f2 exit 
        ; return (f3, entry' `RGCatC` RLMany blks' `RGCatC` exit') }
   where
-    arf_entry :: f -> Head e (Block n O C) 
+    arf_entry :: f -> Head n e
              -> FuelMonad ([(BlockId,f)], RG n f e C)
     arf_entry fh (NoHead lh) = return ([(lh,fh)], RGNil)
     arf_entry fh (Head b)    = arfBlock arf_node fh b
 
-    arf_exit :: FactBase f -> Tail x (Block n C O)
+    arf_exit :: FactBase f -> Tail n x
             -> FuelMonad (TailFactF x f, RL n f x)
     arf_exit fb NoTail        = return (factBaseList fb, RLMany noBWF)
     arf_exit fb (Tail lt blk) = do { let ft = lookupFact lattice fb lt
                                    ; (f1, rg) <- arfBlock arf_node ft blk
                                    ; return (f1, RL lt ft rg) }
+
+forwardBlockList :: [BlockId] -> BlockGraph n -> [(BlockId,Block n C C)]
+-- This produces a list of blocks in order suitable for forward analysis.
+-- ToDo: Do a topological sort to improve convergence rate of fixpoint
+--       This will require a (HavingSuccessors l) class constraint
+forwardBlockList  _ blks = blocksToList blks
 
 ----------------------------------------------------------------
 --       The pièce de resistance: cunning transfer functions
@@ -544,16 +583,20 @@ arbGraph lattice arb_node f (GMany entry blks exit)
        ; (f3, entry') <- arb_entry f2 entry 
        ; return (f3, entry' `RGCatC` RLMany blks' `RGCatC` exit') }
   where
-    arb_entry :: FactBase f -> Head e (Block n O C)
+    arb_entry :: FactBase f -> Head n e
               -> FuelMonad (f, RG n f e C)
     arb_entry fbase (NoHead l) = return (lookupFact lattice fbase l, RGNil)
     arb_entry fbase (Head blk) = arbBlock arb_node fbase blk
 
-    arb_exit :: TailFactB x f -> Tail x (Block n C O)
+    arb_exit :: TailFactB x f -> Tail n x
             -> FuelMonad (FactBase f, RL n f x)
     arb_exit ft NoTail        = return (ft, RLMany noBWF)
     arb_exit ft (Tail lt blk) = do { (f1, rg) <- arbBlock arb_node ft blk
                                    ; return (mkFactBase [(lt,f1)], RL lt f1 rg) }
+
+backwardBlockList :: [BlockId] -> BlockGraph n -> [(BlockId,Block n C C)]
+-- This produces a list of blocks in order suitable for backward analysis.
+backwardBlockList _ blks = blocksToList blks
 
 analyseAndRewriteBwd
    :: forall n f. 
