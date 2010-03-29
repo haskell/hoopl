@@ -573,12 +573,12 @@ the assignment @x=e@ into a no-op.
 
 \ourlib{} is a library that makes it easy to define dataflow analyses,
 and transformations driven by these analyses, on control-flow graphs.
-In this section we describe the representation of these graphs.
-There are three fundamental entities, which we discuss in turn;
+Graphs are composed from smaller units, which we discuss from the
+bottom up:
 \begin{itemize}
-\item A \emph{node} is defined by the library client,
-so \ourlib{} knows nothing about their representation (\secref{nodes}).
-\item A basic \emph{block} is a linear sequence of nodes (\secref{blocks}).
+\item A \emph{node} is defined by the library client;
+\ourlib{} knows nothing about the representation of nodes (\secref{nodes}).
+\item A basic \emph{block} is a sequence of nodes (\secref{blocks}).
 \item A \emph{graph} is an arbitrarily complicated control-flow graph,
 composed from basic blocks (\secref{graphs}).
 \end{itemize}
@@ -586,18 +586,22 @@ composed from basic blocks (\secref{graphs}).
 \subsection{Nodes} \seclabel{nodes}
 
 The primitive constituents of a \ourlib{} control-flow graph are
-\emph{nodes}, represented by a data type defined by the client.
+\emph{nodes}, which are defined by the client.
 Typically, a node might represent a machine instruction, such as an
-assignment, a call, or a conditional branch.  However, crucially,
-\ourlib{}'s graph representation is polymorphic in the node type, so
-that graphs can include arbitrary client-specified data, including
-(say) C statements, method calls in an object oriented language, or
+assignment, a call, or a conditional branch.  
+But \ourlib{}'s graph representation is polymorphic in the node type,
+so each client can define nodes as it likes.
+Because they contain nodes defined by the client,
+graphs can include arbitrary client-specified data, including
+(say) C~statements, method calls in an object-oriented language, or
 whatever.
 
-A node may be \emph{open or closed at entry}
+Each node must be \emph{open or closed at entry}
 and \emph{open or closed at exit}.  
-By ``open'' we mean that control may ``fall through'' this path, whereas
-that is not allowed in the ``closed'' case.  To take some examples:
+An \emph{open} point is one at which control may implicitly ``fall through;''
+to  transfer control at a \emph{close} point requires an explicit
+control-tranfer instruction.
+For example,
 \begin{itemize}
 \item A multiply instruction is open on entry (because control can fall into it
 from the preceding instruction), and open on exit (because control falls through
@@ -607,46 +611,63 @@ control cannot fall through to the next instruction).
 \item A label is closed on entry (because in \ourlib{} we do not allow
 control to fall through into a branch target), but open on exit.
 \end{itemize}
-This taxonomy embodies certain restrictions, specifically: only nodes
-closed at entry can be the targets of branches; and only nodes closed
+This taxonomy enables \ourlib{} to enforce invariants:
+only nodes
+closed at entry can be the targets of branches, and only nodes closed
 at exits can transfer control (see also \secref{edges}).
-A typical machine-code conditional branch, which transfers control
-\emph{and} falls through, must be represented as a two-target
+As~a consequence, all control transfers originate at control-transfer
+instructions and terminated at labels; this invariant dramatically
+simplifies analysis and transformation. 
+\footnote{%
+To obey these invariants,
+a conditional-branch instruction, which typically may either transfer control
+\emph{or} fall through, must be represented as a two-target
 conditional branch, with the fall-through path in a separate block.  
-This restriction is quite standard \cite{appel:modern}.
-It dramatically simplifies analysis
-and transformation,
+This representation is standard \cite{appel:modern},
 and it costs nothing in practice:
-a late-stage code-layout pass can readily reconstruct the efficient code.
+a late-stage code-layout pass can readily reconstruct efficient code.
+}
 
 \begin{figure}
 \begin{code}
-data CmmNode e x where
-  Label      :: BlockId -> Node C O
-  Assign     :: Reg     -> Expr -> Node O O
-  Store      :: Expr    -> Expr -> Node O O
-  Branch     :: BlockId -> Node O C
-  CondBranch :: Expr -> BlockId -> BlockId -> Node O C
-  ...more constructors...
+data `Node e x where
+  `Label      :: BlockId -> Node C O
+  `Assign     :: Reg     -> Expr -> Node O O
+  `Store      :: Expr    -> Expr -> Node O O
+  `Branch     :: BlockId -> Node O C
+  `CondBranch :: Expr -> BlockId -> BlockId -> Node O C
+    ...more constructors...
 \end{code}
-\caption{A typical node definition} \figlabel{cmm-node}
+\caption{A typical node type, as it might be defined by a client} 
+\figlabel{cmm-node}
 \end{figure}
 
-\ourlib{} expresses these open/closed properties by parameterising the 
-\emph{type} of a node over two (type-level) flags, one for entry and one for exit.
-To make this concrete, 
-\figref{cmm-node} gives a typical definition of a node type --- but
-please remember that this definition is written by the \emph{client} of the
-library. The example node type, @CmmNode@, is parameterised @e@ and @x@, for
-entry and exit respectively.  It is defined in GADT-style syntax
-\cite{peyton-jones:generalized-algebraic},
-by giving the types of each of its constructors.  For example, constructor @Label@
-takes a @BlockId@ and returns a node of type @CmmNode C O@, where ``@C@'' says ``closed
-at entry'' and ``@O@'' says ``open at exit''.  The types @BlockId@, @O@, and @C@ are 
+\ourlib{} knows \emph{at compile time} whether a node is open or
+  closed at entry and exit:
+the type of a node has kind @*->*->*@, where the two type paramters
+are type-level flags, one for entry and one for exit.
+Such a type parameter may be instantiated only with type @O@~(for
+open) or type~@C@ (for closed).
+As an example,
+\figref{cmm-node} shows a typical node type as it might be written by
+one of \ourlib's \emph{clients}.
+The type parameters are written @e@ and @x@, for
+entry and exit respectively.  
+The type is a generalized algebraic data type, and
+it is defined in using syntax
+that gives the type of each constructor.  
+\cite{peyton-jones:unification-based-gadts}.
+For example, constructor @Label@
+takes a @BlockId@ and returns a node of type @Node C O@, where ``@C@''~says ``closed
+at entry'' and ``@O@''~says ``open at exit''.  
+(We often abbreviate ``a node of type (@Node@ @C@ @O@)''
+to ``a closed/open node'',  
+and similarly for blocks and graphs.)
+The types @BlockId@, @O@, and @C@ are 
 exported by \ourlib{} (\figref{graph}).  
 
 Similarly, an @Assign@ node takes a register and an expression, and
-returns a @CmmNode@ open at both entry and exit; the @Store@ node is
+returns a @Node@ open at both entry and exit; the @Store@ node is
 similar.  The types @Reg@ and @Expr@ are private to the client, and
 \ourlib{} knows nothing of them.  
 Finally, the control-transfer nodes @Branch@ and @CondBranch@ are open at entry
@@ -656,37 +677,36 @@ In general, nodes closed on entry are the only targets of control transfers;
 nodes open on entry and exit never perform control transfers;
 and nodes closed on exit always perform control transfers.
 We often call these \emph{first}, \emph{middle}, and \emph{last} nodes
-respectively, for obvious reasons.
-We will often abbreviate ``a node of type (@CmmNode@ @C@ @O@)''
-to ``a closed/open node'',  
-and similarly for blocks and graphs.
+respectively, because of the position each type of node occupies in a
+basic block.
 
 \subsection{Blocks} \seclabel{blocks}
 
 \begin{figure}
 \begin{code}
-data O   -- Open
-data C   -- Closed
+data `O   -- Open
+data `C   -- Closed
 
-data Block n e x where
-  BUnit :: n e x -> Block n e x
-  BCat  :: Block n e O -> Block n O x -> Block n e x
+data `Block n e x where
+  `BUnit :: n e x -> Block n e x
+  `BCat  :: Block n e O -> Block n O x -> Block n e x
 
-newtype BlockId = BlockId Int
-type BlockGraph n = BlockMap (Block n C C)
+newtype `BlockId = BlockId Int
+type `BlockGraph n = BlockMap (Block n C C)
 -- (BlockMap a) is a finite map from BlockId to a
 
-data Graph n e x where
-  GNil  :: Graph n O O
-  GUnit :: Block n e O -> Graph n e O
-  GMany :: Block n e C -> BlockGraph n
+data `Graph n e x where
+  `GNil  :: Graph n O O
+  `GUnit :: Block n e O -> Graph n e O
+  `GMany :: Block n e C -> BlockGraph n
         -> Tail n x -> Graph n e x
 
-data Tail n x where
-  NoTail :: Tail n C
+data `Tail n x where
+  `NoTail :: Tail n C
   Tail   :: BlockId -> Block n C O -> Tail n O
 \end{code}
-\caption{The \ourlib{} Block and Graph types} \figlabel{graph}
+\caption{The \ourlib{} Block and Graph types} 
+\figlabel{graph}
 \end{figure}
 
 So much for nodes.  The types for blocks and graphs are defined by \ourlib{}
