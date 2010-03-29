@@ -320,24 +320,26 @@ type ARF_Block n f = ARF (Block n) n f
 type ARF_Graph n f = ARF (Graph n) n f
 -----------------------------------------------------------------------------
 
-arfNodeTransfer :: forall n f. ForwardTransfers n f -> ARF_Node n f
+arfNodeNoRW :: forall n f. ForwardTransfers n f -> ARF_Node n f
  -- Lifts ForwardTransfers to ARF_Node; simple transfer only
-arfNodeTransfer transfer_fn f node
+arfNodeNoRW transfer_fn f node
   = return (transfer_fn f node, RGBlock (BUnit node))
-arfNodeRewrite :: forall n f.
-                  ForwardTransfers n f
-               -> ForwardRewrites n f
-               -> ARF_Graph n f
-               -> ARF_Node n f
+
+arfNode :: forall n f.
+       	  DataflowLattice f
+        -> ForwardTransfers n f
+        -> ForwardRewrites n f
+        -> ARF_Node n f
+        -> ARF_Node n f
 -- Lifts (ForwardTransfers,ForwardRewrites) to ARF_Node; 
 -- this time we do rewriting as well. 
 -- The ARF_Graph parameters specifies what to do with the rewritten graph
-arfNodeRewrite transfer_fn rewrite_fn graph_trans f node
+arfNode lattice transfer_fn rewrite_fn arf_node f node
   = do { mb_g <- withFuel (rewrite_fn f node)
        ; case mb_g of
-           Nothing -> arfNodeTransfer transfer_fn f node
+           Nothing -> arfNodeNoRW transfer_fn f node
       	   Just ag -> do { g <- graphOfAGraph ag
-      		         ; graph_trans f g } }
+      		         ; arfGraph lattice arf_node f g } }
 
 arfBlock :: forall n f. ARF_Node n f -> ARF_Block n f
 -- Lift from nodes to blocks
@@ -398,7 +400,7 @@ arfGraph lattice arf_node f (GMany entry blks exit)
 ----------------------------------------------------------------
 
 pureAnalysis :: DataflowLattice f -> ForwardTransfers n f -> ARF_Graph n f
-pureAnalysis lattice f = arfGraph lattice (arfNodeTransfer f)
+pureAnalysis lattice f = arfGraph lattice (arfNodeNoRW f)
 
 analyseAndRewriteFwd
    :: forall n f. 
@@ -415,19 +417,14 @@ data RewritingDepth = RewriteShallow | RewriteDeep
 --  * "deep": recursively analyse-and-rewrite the new graph
 
 analyseAndRewriteFwd lattice transfers rewrites depth
-  = anal_rewrite
+  = arfGraph lattice arf_node
   where 
-    anal_rewrite, anal_only, arf_rec :: ARF_Graph n f
+    arf_node, rec_node :: ARF_Node n f
+    arf_node = arfNode lattice transfers rewrites rec_node
 
-    anal_rewrite = arfGraph lattice $ 
-                   arfNodeRewrite transfers rewrites arf_rec
-
-    anal_only    = arfGraph lattice $ 
-                   arfNodeTransfer transfers
-
-    arf_rec = case depth of
-                RewriteShallow -> anal_only
-                RewriteDeep    -> anal_rewrite
+    rec_node = case depth of
+                RewriteShallow -> arfNodeNoRW transfers
+                RewriteDeep    -> arf_node
 
 -----------------------------------------------------------------------------
 --		Backward rewriting
@@ -449,25 +446,26 @@ type ARB_Node  n f = ARB n         n f
 type ARB_Block n f = ARB (Block n) n f
 type ARB_Graph n f = ARB (Graph n) n f
 
-arbNodeTransfer :: forall n f . BackwardTransfers n f -> ARB_Node n f
+arbNodeNoRW :: forall n f . BackwardTransfers n f -> ARB_Node n f
 -- Lifts BackwardTransfers to ARB_Node; simple transfer only
-arbNodeTransfer transfer_fn f node
+arbNodeNoRW transfer_fn f node
   = return (transfer_fn f node, RGBlock (BUnit node))
 
-arbNodeRewrite :: forall n f.
-                  BackwardTransfers n f
-               -> BackwardRewrites n f
-               -> ARB_Graph n f
-               -> ARB_Node n f
+arbNode :: forall n f.
+           DataflowLattice f
+        -> BackwardTransfers n f
+        -> BackwardRewrites n f
+        -> ARB_Node n f
+        -> ARB_Node n f
 -- Lifts (BackwardTransfers,BackwardRewrites) to ARB_Node; 
 -- this time we do rewriting as well. 
 -- The ARB_Graph parameters specifies what to do with the rewritten graph
-arbNodeRewrite transfer_fn rewrite_fn graph_trans f node
+arbNode lattice transfer_fn rewrite_fn arf_node f node
   = do { mb_g <- withFuel (rewrite_fn f node)
        ; case mb_g of
-           Nothing -> arbNodeTransfer transfer_fn f node
+           Nothing -> arbNodeNoRW transfer_fn f node
       	   Just ag -> do { g <- graphOfAGraph ag
-      		         ; graph_trans f g } }
+      		         ; arbGraph lattice arf_node f g } }
 
 arbBlock :: forall n f. ARB_Node n f -> ARB_Block n f
 -- Lift from nodes to blocks
@@ -526,20 +524,14 @@ analyseAndRewriteBwd
    -> ARB_Graph n f
 
 analyseAndRewriteBwd lattice transfers rewrites depth
-  = anal_rewrite
+  = arbGraph lattice arb_node
   where 
-    anal_rewrite, anal_only, arb_rec :: ARB_Graph n f
+    arb_node, rec_node :: ARB_Node n f
+    arb_node = arbNode lattice transfers rewrites rec_node
 
-    anal_rewrite = arbGraph lattice $ 
-                   arbNodeRewrite transfers rewrites arb_rec
-
-    anal_only    = arbGraph lattice $ 
-                   arbNodeTransfer transfers
-
-    arb_rec = case depth of
-                RewriteShallow -> anal_only
-                RewriteDeep    -> anal_rewrite
-
+    rec_node = case depth of
+                RewriteShallow -> arbNodeNoRW transfers
+                RewriteDeep    -> arb_node
 
 -----------------------------------------------------------------------------
 --		The fuel monad
