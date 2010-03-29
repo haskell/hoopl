@@ -175,12 +175,12 @@ instance Edges n => Edges (Graph n) where
                      Head b   -> bg_succs `unionBlockSet` mkBlockSet (successors b)
        all_blk_ids = mkBlockSet bids
 
-forwardBlockList, backwardBlockList :: BlockGraph n -> [(BlockId,Block n C C)]
+forwardBlockList, backwardBlockList :: [BlockId] -> BlockGraph n -> [(BlockId,Block n C C)]
 -- This produces a list of blocks in order suitable for forward analysis.
 -- ToDo: Do a topological sort to improve convergence rate of fixpoint
 --       This will require a (HavingSuccessors l) class constraint
-forwardBlockList blks = blocksToList blks
-backwardBlockList blks = blocksToList blks
+forwardBlockList  _ blks = blocksToList blks
+backwardBlockList _ blks = blocksToList blks
 
 -----------------------------------------------------------------------------
 --	RG: an internal data type for graphs under construction
@@ -409,7 +409,9 @@ arfBlocks :: forall n f. DataflowLattice f
 		-- in the BlockGraph; the facts for BlockIds
 		-- *in* the BlockGraph are in the BlockGraphWithFacts
 arfBlocks lattice arf_node in_facts blocks
-  = fixpoint lattice do_block (forwardBlockList blocks) (mkFactBase in_facts)
+  = fixpoint lattice do_block 
+             (forwardBlockList (map fst in_facts) blocks) 
+             (mkFactBase in_facts)
   where
     do_block :: BlockId -> Block n C C -> FactBase f
              -> FuelMonad ([(BlockId,f)], RL n f C)
@@ -523,7 +525,9 @@ arbBlocks :: forall n f. DataflowLattice f
           -> ARB_Node n f -> FactBase f
           -> BlockGraph n -> FuelMonad (FactBase f, BlockGraphWithFacts n f)
 arbBlocks lattice arb_node init_fbase blocks
-  = fixpoint lattice do_block (backwardBlockList blocks) init_fbase
+  = fixpoint lattice do_block 
+             (backwardBlockList (factBaseBlockIds init_fbase) blocks) 
+             init_fbase
   where
     do_block :: BlockId -> Block n C C -> FactBase f
              -> FuelMonad ([(BlockId,f)], RL n f C)
@@ -646,6 +650,9 @@ extendFactBase env blk_id f = M.insert blk_id f env
 
 unionFactBase :: FactBase f -> FactBase f -> FactBase f
 unionFactBase = M.union
+
+factBaseBlockIds :: FactBase f -> [BlockId]
+factBaseBlockIds = M.keys
 
 factBaseList :: FactBase f -> [(BlockId, f)]
 factBaseList = M.toList 
