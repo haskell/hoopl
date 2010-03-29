@@ -319,15 +319,7 @@ back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
 
 \section{Introduction}
 
-\john{We should agree on a consistent hyphenation of control-flow graph / control flow graph,
-  which differs throughout this paper. I don't know if it's a British-vs-American
-  English thing, but we should settle on something. Frankly, I don't
-  care about this case, since the meaning is clear,
-  but I know Norman's a stickler for this, and the American version would be hyphenated.
-  Is the British hyphenation rule different?}
-
-\norman{The British rule is exactly the same.  If Simon does not own a
-  copy of Fowler, his eldest unmarried daughter does.}
+\simon{``Control-flow graph'' (hyphenated) should be consistent now.}
 
 If you write a compiler for an imperative language, you can exploit
 many years' work on code improvement
@@ -391,7 +383,7 @@ in a test program \cite{whalley:isolation}.
 \ourlib's polymorphic, higher-order design makes it reusable
 with many languages.
 \hoopl\ is designed to help optimize imperative code
-with arbitrary control flow,
+with arbitrary control-flow,
 including low-level intermediate languages and machine languages.
 As \citet{benitez-davidson:portable-optimizer} have shown, all the
 classic scalar and loop optimizations can be performed over such
@@ -452,7 +444,7 @@ codes.
 % %
 % \hoopl\ is designed to help optimize imperative procedures (after
 % inlining). 
-% \ourlib\ supports local-level codes with arbitrary control flow,
+% \ourlib\ supports local-level codes with arbitrary control-flow,
 % including intermediate 
 % languages and machine 
 % languages.
@@ -498,9 +490,7 @@ The goal of dataflow optimization is to compute valid
 then use those assertions to justify code-improving
 transformations (or \emph{rewrites}) on a \emph{control-flow graph}.  
 
-\john{This example is really a combination of constant propagation and
- constant folding, as noted later in the paper; I think we should make that clear here.}
-Consider a concrete example: constant propagation.
+Consider a concrete example: constant propagation with constant folding.
 On the left we have a basic block; in the middle we have
 assertions that hold between statements (or \emph{nodes}) 
 in the block; and at
@@ -519,12 +509,16 @@ based on the assertions:
 \end{verbatim}
 Constant-propagation works
 from top to bottom.  We start with the empty assertion.  
-Given the empty assertion and the node @x:=3+4@ can we make a (constant-prop)
+Given the empty assertion and the node @x:=3+4@ can we make a (constant-folding)
 transformation?
-Yes!  We can replace it with @x:=7@.\john{That's constant-folding, not constant-prop.}
+Yes!  We can replace it with @x:=7@.
 \simon{Is the distinction between constant-folding and constant-prop really
 helpful here, or is it just pedantry?  One would hardly want do to constant-prop
-without constant folding!  And pobably vice versa.}
+without constant folding!  And probably vice versa.}
+\john{I think it's important for 3 reasons: (1) any compiler text will describe
+them separately, (2) the code is simpler when they're implemented separately
+(the payoff of this approach),
+(3) constant-folding can be useful without constant-prop (as in QC--)}
 Now, given this transformed node,
 and the original assertion, what assertion flows out of the bottom of
 the transformed node?  Clearly the assertion \{@x=7@\}.  
@@ -533,14 +527,17 @@ transformation?  Yes: replace it with @z:=True@.
 And so the process continues. Notice that in the last node of the block we can transform
 a conditional branch to an unconditional one, @goto L1@
 
-Notice that it is very convenient to \emph{interleave}
-transformation and analysis.  If we \emph{first} analysed the block
+Notice that our example \emph{interleaves} transformation and analysis;
+interleaving makes it easier to write effective analyses.
+If, instead, we \emph{first} analysed the block
 and \emph{then} transformed it, the analysis would have to ``predict''
-the transformations.  For example, a pure analysis would have to
-evaluate @x>5@ under the assumption that \{@x=7@\} to get the outgoing
-fact \{@x=7@, @z=True@\}.  But the subsequent transformation must 
-\emph{also} evaluate @x>5@ under the assumption \{@x=7@\}, to transform
-@z:=x>5@ to @z:=True@!
+the transformations.
+For example, given the incoming fact \{@x=7@\}
+and the instruction @z:=x>5@,
+a pure analysis would produce the outgoing fact
+\{@x=7@, @z=True@\} by simplifying @x>5@ to @True@.
+But the subsequent transformation must perform
+\emph{exactly the same simplification} when it transforms the instruction to @z:=True@!
 If instead we \emph{first} rewrite the node to @z:=True@, 
 and \emph{then} apply the transfer function to the rewritten node, 
 the transfer function becomes laughably simple: it merely has to see if the
@@ -549,18 +546,6 @@ The gain is even more compelling if there are a number of interacting
 analyses and/or transformations;
 we encourage the reader to consult \cite{lerner-grove-chambers} for more substantial
 examples.
-\simon{I have improved a bit, I think. If not enough, can you reword?}
-\john{I think this last sentence should use the reference not to point out that this
-approach makes things simpler, but to assert that: by using interleaving, not only
-can you write simpler, compositional analyses, but you can get
-better results than by running the analyses in sequences (and cite here).}
-\john{Also, I think this example only does half the job: we should show the reader
-how the example becomes simpler when you have interleaving:
-const-prop uses {x==7} to produce z = 7 > 5,
-then constant-folding doesn't need any facts to produce z = True.
-Furthermore, even the implementation of the analysis requires absolutely no smarts:
-no special case required for x := y where y already holds a constant value.
-I think that's pretty darned cool.}
 
 Constant propagation works \emph{forwards}, and a fact is typically an
 assertion about the program state (such as ``variable @x@ holds value
@@ -573,7 +558,7 @@ path starting at P.  The accompanying transformation is called dead-code elimina
 and allows the assignment @x=e@ to be rewritten to a no-op if @x@ is dead.
 
 % ----------------------------------------
-\section{Representing control flow graphs} \seclabel{graph-rep}
+\section{Representing control-flow graphs} \seclabel{graph-rep}
 
 \ourlib{} is a library that makes it easy to define dataflow analyses,
 and transformations driven by these analyses, on control-flow graphs.
@@ -583,13 +568,13 @@ There are three fundamental entities, which we discuss in turn;
 \item A \emph{node} is defined by the library client,
 so \ourlib{} knows nothing about their representation (\secref{nodes}).
 \item A basic \emph{block} is a linear sequence of nodes (\secref{blocks}).
-\item A \emph{graph} is an arbitrarily complicated control flow graph,
+\item A \emph{graph} is an arbitrarily complicated control-flow graph,
 composed from basic blocks (\secref{graphs}).
 \end{itemize}
 
 \subsection{Nodes} \seclabel{nodes}
 
-The primitive constituents of a \ourlib{} control flow graph are
+The primitive constituents of a \ourlib{} control-flow graph are
 \emph{nodes}, represented by a data type defined by the client.
 Typically, a node might represent a machine instruction, such as an
 assignment, a call, or a conditional branch.  However, crucially,
@@ -661,10 +646,9 @@ nodes open on entry and exit never perform control transfers;
 and nodes closed on exit always perform control transfers.
 We often call these \emph{first}, \emph{middle}, and \emph{last} nodes
 respectively, for obvious reasons.
-More generally, we will often informally 
-say ``a closed/open node'' 
-rather than ``a node of type (@CmmNode@ @C@ @O@)'', 
-and simlarly for blocks and graphs.
+We will often abbreviate ``a node of type (@CmmNode@ @C@ @O@)''
+to ``a closed/open node'',  
+and similarly for blocks and graphs.
 
 \subsection{Blocks} \seclabel{blocks}
 
@@ -791,7 +775,7 @@ it has a unique entry point where execution begins.
 \item If E is open at exit, control leaves E
 \emph{only} by ``falling through'' from a unique exit point.
 \item If E is closed at exit, control leaves \emph{only}
-by an explicit branch to a label.
+by explicit branches from closed-on-exit nodes.
 \end{itemize}
 The body of a procedure would typically be represented by
 an open/closed graph, where execution begins at the open end.
@@ -1011,15 +995,15 @@ of rewriting upstream nodes.
 \begin{code}
 data `ChangeFlag = `NoChange | `SomeChange
 data `DataflowLattice a = DataflowLattice
- {`fact_bot        :: a,
-  `fact_add_to     :: a -> a -> (ChangeFlag, a) }
+ {`fact_bot    :: a,
+  `fact_extend :: a -> a -> (ChangeFlag, a) }
 \end{code}
 \else
 \begin{code}
 data ChangeFlag = NoChange | SomeChange
 data DataflowLattice a = DataflowLattice
  { fact_bot    :: a,
-   fact_extend :: a -> a -> (a, ChangeFlag) }
+   fact_extend :: a -> a -> (ChangeFlag, a) }
 \end{code}
 \fi
 \caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
@@ -1089,7 +1073,7 @@ it is often cheap to learn if the join is equal to one of the
 arguments.  Moreover, as noted in the previous paragraph, that
 knowledge is precisely what \ourlib{} needs to know.  Hence, instead
 of requiring an equality operation on facts (which might be
-expensive), we instead ask @fact_add_to@ to return a @ChangeFlag@ as
+expensive), we instead ask @fact_extend@ to return a @ChangeFlag@ as
 well as the joined value.  The @ChangeFlag@ should be @NoChange@ if
 the result is the same as the second argument, and @SomeChange@ if the
 result differs.  (Note the assymmetry.)
@@ -1165,7 +1149,7 @@ In that case the transfer function must
 produce a list of (@BlockId@,fact) pairs, one for each outgoing edge.  
 
 \emph{So the type of the transfer function's result 
-depends on the open/closed-ness of the node's exit.}
+depends on the open or closed-ness of the node's exit.}
 Fortunately, this dependency is precisely what Haskell's (recently added) 
 indexed type families can express.
 The relevant \ourlib{} definitions are given in \figref{transfers}.
@@ -1259,28 +1243,28 @@ withLabel fn = \(b:bs) -> (fn b, bs)
 \seclabel{vpoiso}
 \seclabel{fuel}
 
-\simon{John, You offered to reword this section, so I'm leaving it alone}
-You will have noticed that the type of @analyseAndRewriteFwd@ is monadic
-(\secref{using-hoopl}).
-If the @FuelMonad@ determines that rewriting fuel is exhausted, then no more
-rewriting is done.  
-\john{Rewriting fuel appears out of the blue here, and I think we need to more clearly
-point out that the goal is to provide an easy way to debug optimizations.
-I'll take a hack at this section tomorrow when I'm less tired.}
-(Because each rewrite leaves the observable behavior of the
-program unchanged, it is safe to suppress rewrites at
-any point.)
-\john{This sentence takes as read a completely new idea. We need to
-articulate our philosophy on how optimizations should be written (sequence of
-simple, semantics-preserving transformations).}
-This allows the Hoopl library client to use a very powerful
-debugging technique for dataflow transformations,
-first suggested by Whalley \cite{whalley:isolation}.
-In~normal operation, the optimizer has unlimited fuel.  But suppose that the program
-being compiled works without optimisation, but fails with optimisation. Then
+Writing and debugging an optimization can be tricky:
+an optimization may rewrite the instructions in a procedure hundreds
+of times, and any of those rewrites could be incorrect.
+To debug such an optimization, we use a powerful technique,
+first suggested by Whalley \cite{whalley:isolation},
+to identify the first rewrite that 
+transforms the procedure from working code to faulty code.
+
+The key idea is to~limit the number of rewrites that
+are performed while optimizing a procedure.
+Because each rewrite leaves the observable behavior of the
+program unchanged, it is safe to suppress rewrites at any point.
+Therefore, given a program that fails when compiled with optimisation,
 the client can use binary search to halt rewriting just before or just after the
 rewrite that introduces the failure, thereby identifying the buggy rewrite.
+We control the number of rewrites by giving the optimiser
+a fixed quantity of ``optimization fuel'';
+each rewrite costs one unit of fuel,
+and when the fuel is exhausted, no more rewrites are performed.
 
+You will have noticed that the type of @analyseAndRewriteFwd@
+returns a value in the @FuelMonad@ (\secref{using-hoopl}).
 The @FuelMonad@ is a simple state monad maintaining the supply of unused
 fuel.  It also holds a supply of fresh labels, which are used by the rewriter
 for making new blocks; more precisely, the client-provided @ForwardRewrites@
@@ -1335,7 +1319,7 @@ correctness, which follows next?  Can you do that?}
 
 \simon{This section seems a bit laboured}
 
-Facts computed by the @analyseAndRewriteFwd@ depend on graphs produced by the rewrite
+Facts computed by @analyseAndRewriteFwd@ depend on graphs produced by the rewrite
 function, which in turn depend on facts computed by the transfer function.
 How~do we know this algorithm is sound, or even if it terminates?
 A~proof requires its own POPL paper
@@ -1344,19 +1328,19 @@ intuition.
 
 The rewrite function must, of course, be \emph{sound}:
 if it replaces a node @n@ by a replacement graph
-@g@, then $g$ should be observationally equivalent to $n$ under the 
-assumptions expressed by the incoming dataflow fact @f@.
-Moreover the rewrite function must be \emph{consistent} with the transfer function
-that is, (@transfer n f@ $\sqsubseteq$ @transfer g f@).
-\john{Isn't this implied by ``observationally equivalent''?}
+@g@, then $g$ must be observationally equivalent to $n$ under the 
+assumptions expressed by the incoming dataflow fact @f@.%
+\footnote{Our algorithm does not permit a transformation to change
+  the @BlockId@ of a node. We have not found any optimizations
+  that are prevented (or even affected) by this restriction.}
+Moreover the rewrite function must be \emph{consistent} with the transfer function;
+that is, \mbox{@transfer n f@ $\sqsubseteq$ @transfer g f@}.
 For example, if the analysis says that x is dead before the node @n@,
-then it had better still be dead if @n@ is replaced by @g@.  Without
-the consistency condition there would be no guarantee of reaching a fixed point.
-\simon{I still think this is true, although you do not (see comments in the source file. We 
-should debate.}
-\john{I'm not sure which source file to look at, but I still maintain that this is
-false. The argument for reaching a fixed point is clearly defined in terms of
-the lattice; I don't see how the results of the analysis are relevant.}
+then it had better still be dead if @n@ is replaced by @g@.
+Without the consistency condition,
+our algorithm will still terminate,
+but there is no guarantee that it will compute
+a fixed point of the analysis.
 Given these assumptions:
 
 \begin{itemize} 
@@ -1397,21 +1381,24 @@ dataflow engine never to rewrite a replacement graph,
 rewrite functions must not return replacement
 graphs which contain nodes that could be rewritten indefinitely.
 
-Why use such a complex algorithm?
-\ifcutting Because interleaving \else
-\citet{lerner-grove-chambers:2002} write
-\begin{quote}
-\emph{Previous efforts to exploit [the mutually beneficial
-interactions of dataflow analyses] either (1)~iteratively performed
-each individual analysis until no further improvements are discovered
-or (2)~developed [handwritten] ``super-analyses'' that manually
-combine conceptually separate analyses. We have devised a new approach
-that allows analyses to be defined independently while still enabling
-them to be combined automatically and profitably. Our approach avoids
-the loss of precision associated with iterating individual analyses
-and the implementation difficulties of manually writing a
-super-analysis.}
-\end{quote}
+% \john{If we haven't sold the audience by now, they're not going
+%   to be convinced by this quote.}
+%
+% Why use such a complex algorithm?
+% \ifcutting Because interleaving \else
+% \citet{lerner-grove-chambers:2002} write
+% \begin{quote}
+% \emph{Previous efforts to exploit [the mutually beneficial
+% interactions of dataflow analyses] either (1)~iteratively performed
+% each individual analysis until no further improvements are discovered
+% or (2)~developed [handwritten] ``super-analyses'' that manually
+% combine conceptually separate analyses. We have devised a new approach
+% that allows analyses to be defined independently while still enabling
+% them to be combined automatically and profitably. Our approach avoids
+% the loss of precision associated with iterating individual analyses
+% and the implementation difficulties of manually writing a
+% super-analysis.}
+% \end{quote}
 
 
 
@@ -1437,13 +1424,13 @@ super-analysis.}
 %%  
 %%  \textbf{NR}: Good questions, but let's have a forward reference to \secref{dfengine}}
 
-Interleaving
-\fi
- analysis with transformation makes it
-possible to implement useful  transformations using startlingly simple
-client code.
-\john{And maybe this is the place to brag that we now have a startlingly simple
-implementation?}
+% Interleaving
+% \fi
+%  analysis with transformation makes it
+% possible to implement useful  transformations using startlingly simple
+% client code.
+% \john{And maybe this is the place to brag that we now have a startlingly simple
+% implementation?}
 
 \finalremark{Doesn't the rewrite have to be have the following property:
 for a forward analysis/transform, if (rewrite P s) = Just s',
@@ -1518,9 +1505,8 @@ that we described in \secref{graph-rep}.  For each such thing
 we will develop a function of this type:
 \begin{code}
 type ARF thing n f 
-  = forall e x. f
-             -> thing e x 
-             -> FuelMonad (OutFact x f, Graph n e x, )
+  = forall e x. f -> thing e x 
+             -> FuelMonad (OutFact x f, RG n e x)
 \end{code}
 Here we intend @thing@ to range over nodes, blocks, and graphs, thus:
 \begin{code}
@@ -1529,30 +1515,42 @@ type ARF_Block n f = ARF (Block n) n f
 type ARF_Graph n f = ARF (Graph n) n f
 \end{code}
 A ARF (short for ``analyse and rewrite forward'') takes an input fact and a @thing@,
-and returns a correspondingly-shaped output fact and rewritten @Graph@.
-Note that the result is a @Graph@, regardless of whether @thing@ is a node, block, or graph.
+and returns a correspondingly-shaped output fact, and a rewritten graph of type @(RG n e x)@.
+We cannot simply return a @Graph@ for two reasons:
+\begin{itemize}
+\item The client is often interested not only in the facts flowing
+out of the graph, but also in the facts on the \emph{internal} blocks
+of the graph.  A rewritten graph, of type @(RG n e x)@ is decorated with
+these internal facts.
+\item The @Graph@ has deliberately restrictive invariants; for example,
+a @GMany@ with a @Tail@ is always open at exit (\figref{graph}).  It turns
+out to be awkward to maintain these invariants \emph{during} rewriting,
+but easy to restore them \emph{after} rewriting by ``normalising'' an @RG@.
+\end{itemize}
+Note that the result is a rewritten graph, regardless of whether @thing@ is a node, block, or graph.
 
 We can now build a modular implementation as follows:
 \begin{itemize} 
 \item From the supplied @ForwardTransfers@ and @ForwardRewrites@, produce a @ARF_Node@
-that transforms nodes:  
+that transforms nodes (\secref{arf-node}):  
 \begin{code}
-  arfNode :: ForwardTransfers n f
+  arfNode :: DataflowLattice f
+          -> ForwardTransfers n f
           -> ForwardRewrites n f
-          -> ARF_Graph n f
+          -> ARF_Node n f
           -> ARF_Node n f
 \end{code}
 In addition to the transfer and rewrite functions, @arfNode@ takes the function
 to analyse and rewrite the rewritten graph.
-\item From this @ARF_Node@, produce a @ARF_Block@ that transforms blocks.
+\item From this @ARF_Node@, produce a @ARF_Block@ that transforms blocks (\secref{arf-block}):
 \begin{code}
   arfBlock :: ARF_Node n f -> ARF_Block n f
 \end{code}
  
-\item From this @ARF_Block@, produce a @ARF_Graph@ that tranforms graphs.
+\item From this @ARF_Block@, produce a @ARF_Graph@ that tranforms graphs (\secref{arf-graph}):
 \begin{code}
   arfGraph :: DataflowLattice f
-           -> ARF_Block n f -> ARF_Graph n f
+           -> ARF_Node n f -> ARF_Graph n f
 \end{code}
 This is where the fixpoint computation takes place, so @arfGraph@ must
 take a @DataflowLattice@ as an additional argument.
@@ -1566,29 +1564,27 @@ analyseAndRewrite
    -> ForwardRewrites n f -> RewritingDepth
    -> ARF_Graph n f
 analyseAndRewriteFwd lat tf rw depth
- = anal_rw
+ = arfGraph lat arf_node
  where 
-  anal_rw, anal_only, arf_rec :: ARF_Graph n f
-  anal_rw = arfGraph lat $ arfBlock $ arfNode tf rw arf_rec
-  anal_tf = arfGraph lat $ arfBlock $ arfNodeNoRW tf
-  arf_rec = case depth of
-              RewriteShallow -> anal_tf
-              RewriteDeep    -> anal_rw
+  arf_node, rec_node :: ARF_Node n f
+  arf_node = arfNode lat tf rw rec_node
+
+  rec_node = case depth of
+              RewriteShallow -> arfNodeNoRW tf
+              RewriteDeep    -> arf_node
 \end{code}
 }
 This beautifully compact code does the following:
 \begin{itemize}
-\item The result, @anal_rw@ is built by composing
-@arfGraph@, @arfBlock@, and @arfNode@.
-\item The call to @arfNode@ passes the client-supplied transfer and rewrite
-functions, and @arf_rec@ to analyse and further rewrite rewritten graphs.
-\item When deep rewriting is used, the @arf_rec@ engine is simply a recursive
-use of the main function, @anal_rw@. But if shallow rewriting is required, it instead
-uses the shallow engine @anal_tf@. 
-\item This shallow engine does no rewriting at all: it just performs the dataflow
-analysis.  However, it can still be constructed by applying the same functions
-@arfGraph@ and @arfBlock@
-to the shallow node engine, @arfNodeNoRW tf@.
+\item The result is built by applying @arfGraph@ to @arf_node@, the 
+function to use when @arfGraph@ reaches an individual node.
+\item In turn @arf_node@ is built by applying @arfNode@ to the client-supplied
+transfer and rewrite functions and, crucially, @rec_node@.  
+\item @rec_node@ is used by @arfNode@ when analysing and transforming graphs
+produced by rewriting.
+When deep rewriting is used, the @rec_node@ engine is simply @arf_node@:
+straight recursion. However, if shallow rewriting is required, it instead
+uses a simpler analyse-only function on the node, built by @arfNodeNoRW@.
 We define the latter in \secref{arf-node}.
 \end{itemize}
 And that is all.  Note the way that the shallow/deep distinction is made
@@ -1606,13 +1602,13 @@ arfNodeNoRW :: ForwardTranfsers n f
             -> ARF_Node n f
 arfNodeNoRW tf f n = return (f, nodeToGraph n)
 
-arfNodeRewrite transfer_fn rewrite_fn graph_trans f node
+arfNode transfer_fn rewrite_fn graph_trans f node
   = do { mb_g <- withFuel (rewrite_fn f node)
        ; case mb_g of
-           Nothing -> arfNodeTransfer transfer_fn f node
+           Nothing -> arfNodeNoRW transfer_fn f node
       	   Just ag -> do { g <- graphOfAGraph ag
       		         ; graph_trans f g } }
-
+\end{code}
 
 \subsection{From nodes to blocks}
 
