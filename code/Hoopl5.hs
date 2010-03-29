@@ -421,7 +421,7 @@ arfBlocks lattice arf_node in_facts blocks
 
 arfGraph :: forall n f. DataflowLattice f -> ARF_Node n f -> ARF_Graph n f
 -- Lift from blocks to graphs
-arfGraph _       _         f GNil       = return (f, RGNil)
+arfGraph _       _        f GNil       = return (f, RGNil)
 arfGraph _       arf_node f (GUnit blk) = arfBlock arf_node f blk
 arfGraph lattice arf_node f (GMany entry blks exit)
   = do { (f1, entry') <- arf_entry f entry
@@ -536,24 +536,24 @@ arbBlocks lattice arb_node init_fbase blocks
                             ; return ([(l,fb)], RL l f rg) }
 
 arbGraph :: forall n f. DataflowLattice f -> ARB_Node n f -> ARB_Graph n f
-arbGraph _       _         f GNil       = return (f, RGNil)
+arbGraph _       _        f GNil        = return (f, RGNil)
 arbGraph _       arb_node f (GUnit blk) = arbBlock arb_node f blk
 arbGraph lattice arb_node f (GMany entry blks exit)
-  = do { (f1, exit')  <- bt_exit f exit
+  = do { (f1, exit')  <- arb_exit f exit
        ; (f2, blks')  <- arbBlocks lattice arb_node f1 blks
-       ; (f3, entry') <- bt_entry f2 entry 
+       ; (f3, entry') <- arb_entry f2 entry 
        ; return (f3, entry' `RGCatC` RLMany blks' `RGCatC` exit') }
   where
-    bt_entry :: FactBase f -> Head e (Block n O C)
-    	     -> FuelMonad (f, RG n f e C)
-    bt_entry fbase (NoHead l) = return (lookupFact lattice fbase l, RGNil)
-    bt_entry fbase (Head blk) = arbBlock arb_node fbase blk
+    arb_entry :: FactBase f -> Head e (Block n O C)
+              -> FuelMonad (f, RG n f e C)
+    arb_entry fbase (NoHead l) = return (lookupFact lattice fbase l, RGNil)
+    arb_entry fbase (Head blk) = arbBlock arb_node fbase blk
 
-    bt_exit :: TailFactB x f -> Tail x (Block n C O)
+    arb_exit :: TailFactB x f -> Tail x (Block n C O)
             -> FuelMonad (FactBase f, RL n f x)
-    bt_exit ft NoTail        = return (ft, RLMany noBWF)
-    bt_exit ft (Tail lt blk) = do { (f1, rg) <- arbBlock arb_node ft blk
-                                  ; return (mkFactBase [(lt,f1)], RL lt f1 rg) }
+    arb_exit ft NoTail        = return (ft, RLMany noBWF)
+    arb_exit ft (Tail lt blk) = do { (f1, rg) <- arbBlock arb_node ft blk
+                                   ; return (mkFactBase [(lt,f1)], RL lt f1 rg) }
 
 analyseAndRewriteBwd
    :: forall n f. 
