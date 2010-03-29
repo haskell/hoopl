@@ -319,15 +319,7 @@ back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
 
 \section{Introduction}
 
-\john{We should agree on a consistent hyphenation of control-flow graph / control flow graph,
-  which differs throughout this paper. I don't know if it's a British-vs-American
-  English thing, but we should settle on something. Frankly, I don't
-  care about this case, since the meaning is clear,
-  but I know Norman's a stickler for this, and the American version would be hyphenated.
-  Is the British hyphenation rule different?}
-
-\norman{The British rule is exactly the same.  If Simon does not own a
-  copy of Fowler, his eldest unmarried daughter does.}
+\simon{``Control-flow graph'' (hyphenated) should be consistent now.}
 
 If you write a compiler for an imperative language, you can exploit
 many years' work on code improvement
@@ -391,7 +383,7 @@ in a test program \cite{whalley:isolation}.
 \ourlib's polymorphic, higher-order design makes it reusable
 with many languages.
 \hoopl\ is designed to help optimize imperative code
-with arbitrary control flow,
+with arbitrary control-flow,
 including low-level intermediate languages and machine languages.
 As \citet{benitez-davidson:portable-optimizer} have shown, all the
 classic scalar and loop optimizations can be performed over such
@@ -452,7 +444,7 @@ codes.
 % %
 % \hoopl\ is designed to help optimize imperative procedures (after
 % inlining). 
-% \ourlib\ supports local-level codes with arbitrary control flow,
+% \ourlib\ supports local-level codes with arbitrary control-flow,
 % including intermediate 
 % languages and machine 
 % languages.
@@ -566,7 +558,7 @@ path starting at P.  The accompanying transformation is called dead-code elimina
 and allows the assignment @x=e@ to be rewritten to a no-op if @x@ is dead.
 
 % ----------------------------------------
-\section{Representing control flow graphs} \seclabel{graph-rep}
+\section{Representing control-flow graphs} \seclabel{graph-rep}
 
 \ourlib{} is a library that makes it easy to define dataflow analyses,
 and transformations driven by these analyses, on control-flow graphs.
@@ -576,13 +568,13 @@ There are three fundamental entities, which we discuss in turn;
 \item A \emph{node} is defined by the library client,
 so \ourlib{} knows nothing about their representation (\secref{nodes}).
 \item A basic \emph{block} is a linear sequence of nodes (\secref{blocks}).
-\item A \emph{graph} is an arbitrarily complicated control flow graph,
+\item A \emph{graph} is an arbitrarily complicated control-flow graph,
 composed from basic blocks (\secref{graphs}).
 \end{itemize}
 
 \subsection{Nodes} \seclabel{nodes}
 
-The primitive constituents of a \ourlib{} control flow graph are
+The primitive constituents of a \ourlib{} control-flow graph are
 \emph{nodes}, represented by a data type defined by the client.
 Typically, a node might represent a machine instruction, such as an
 assignment, a call, or a conditional branch.  However, crucially,
@@ -654,10 +646,9 @@ nodes open on entry and exit never perform control transfers;
 and nodes closed on exit always perform control transfers.
 We often call these \emph{first}, \emph{middle}, and \emph{last} nodes
 respectively, for obvious reasons.
-More generally, we will often informally 
-say ``a closed/open node'' 
-rather than ``a node of type (@CmmNode@ @C@ @O@)'', 
-and simlarly for blocks and graphs.
+We will often abbreviate ``a node of type (@CmmNode@ @C@ @O@)''
+to ``a closed/open node'',  
+and similarly for blocks and graphs.
 
 \subsection{Blocks} \seclabel{blocks}
 
@@ -784,7 +775,7 @@ it has a unique entry point where execution begins.
 \item If E is open at exit, control leaves E
 \emph{only} by ``falling through'' from a unique exit point.
 \item If E is closed at exit, control leaves \emph{only}
-by an explicit branch to a label.
+by explicit branches from closed-on-exit nodes.
 \end{itemize}
 The body of a procedure would typically be represented by
 an open/closed graph, where execution begins at the open end.
@@ -991,15 +982,15 @@ of rewriting upstream nodes.
 \begin{code}
 data `ChangeFlag = `NoChange | `SomeChange
 data `DataflowLattice a = DataflowLattice
- {`fact_bot        :: a,
-  `fact_add_to     :: a -> a -> (ChangeFlag, a) }
+ {`fact_bot    :: a,
+  `fact_extend :: a -> a -> (ChangeFlag, a) }
 \end{code}
 \else
 \begin{code}
 data ChangeFlag = NoChange | SomeChange
 data DataflowLattice a = DataflowLattice
  { fact_bot    :: a,
-   fact_extend :: a -> a -> (a, ChangeFlag) }
+   fact_extend :: a -> a -> (ChangeFlag, a) }
 \end{code}
 \fi
 \caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
@@ -1069,7 +1060,7 @@ it is often cheap to learn if the join is equal to one of the
 arguments.  Moreover, as noted in the previous paragraph, that
 knowledge is precisely what \ourlib{} needs to know.  Hence, instead
 of requiring an equality operation on facts (which might be
-expensive), we instead ask @fact_add_to@ to return a @ChangeFlag@ as
+expensive), we instead ask @fact_extend@ to return a @ChangeFlag@ as
 well as the joined value.  The @ChangeFlag@ should be @NoChange@ if
 the result is the same as the second argument, and @SomeChange@ if the
 result differs.  (Note the assymmetry.)
@@ -1145,7 +1136,7 @@ In that case the transfer function must
 produce a list of (@BlockId@,fact) pairs, one for each outgoing edge.  
 
 \emph{So the type of the transfer function's result 
-depends on the open/closed-ness of the node's exit.}
+depends on the open or closed-ness of the node's exit.}
 Fortunately, this dependency is precisely what Haskell's (recently added) 
 indexed type families can express.
 The relevant \ourlib{} definitions are given in \figref{transfers}.
@@ -1501,9 +1492,8 @@ that we described in \secref{graph-rep}.  For each such thing
 we will develop a function of this type:
 \begin{code}
 type ARF thing n f 
-  = forall e x. f
-             -> thing e x 
-             -> FuelMonad (OutFact x f, Graph n e x, )
+  = forall e x. f -> thing e x 
+             -> FuelMonad (OutFact x f, RG n e x)
 \end{code}
 Here we intend @thing@ to range over nodes, blocks, and graphs, thus:
 \begin{code}
@@ -1512,30 +1502,42 @@ type ARF_Block n f = ARF (Block n) n f
 type ARF_Graph n f = ARF (Graph n) n f
 \end{code}
 A ARF (short for ``analyse and rewrite forward'') takes an input fact and a @thing@,
-and returns a correspondingly-shaped output fact and rewritten @Graph@.
-Note that the result is a @Graph@, regardless of whether @thing@ is a node, block, or graph.
+and returns a correspondingly-shaped output fact, and a rewritten graph of type @(RG n e x)@.
+We cannot simply return a @Graph@ for two reasons:
+\begin{itemize}
+\item The client is often interested not only in the facts flowing
+out of the graph, but also in the facts on the \emph{internal} blocks
+of the graph.  A rewritten graph, of type @(RG n e x)@ is decorated with
+these internal facts.
+\item The @Graph@ has deliberately restrictive invariants; for example,
+a @GMany@ with a @Tail@ is always open at exit (\figref{graph}).  It turns
+out to be awkward to maintain these invariants \emph{during} rewriting,
+but easy to restore them \emph{after} rewriting by ``normalising'' an @RG@.
+\end{itemize}
+Note that the result is a rewritten graph, regardless of whether @thing@ is a node, block, or graph.
 
 We can now build a modular implementation as follows:
 \begin{itemize} 
 \item From the supplied @ForwardTransfers@ and @ForwardRewrites@, produce a @ARF_Node@
-that transforms nodes:  
+that transforms nodes (\secref{arf-node}):  
 \begin{code}
-  arfNode :: ForwardTransfers n f
+  arfNode :: DataflowLattice f
+          -> ForwardTransfers n f
           -> ForwardRewrites n f
-          -> ARF_Graph n f
+          -> ARF_Node n f
           -> ARF_Node n f
 \end{code}
 In addition to the transfer and rewrite functions, @arfNode@ takes the function
 to analyse and rewrite the rewritten graph.
-\item From this @ARF_Node@, produce a @ARF_Block@ that transforms blocks.
+\item From this @ARF_Node@, produce a @ARF_Block@ that transforms blocks (\secref{arf-block}):
 \begin{code}
   arfBlock :: ARF_Node n f -> ARF_Block n f
 \end{code}
  
-\item From this @ARF_Block@, produce a @ARF_Graph@ that tranforms graphs.
+\item From this @ARF_Block@, produce a @ARF_Graph@ that tranforms graphs (\secref{arf-graph}):
 \begin{code}
   arfGraph :: DataflowLattice f
-           -> ARF_Block n f -> ARF_Graph n f
+           -> ARF_Node n f -> ARF_Graph n f
 \end{code}
 This is where the fixpoint computation takes place, so @arfGraph@ must
 take a @DataflowLattice@ as an additional argument.
@@ -1549,29 +1551,27 @@ analyseAndRewrite
    -> ForwardRewrites n f -> RewritingDepth
    -> ARF_Graph n f
 analyseAndRewriteFwd lat tf rw depth
- = anal_rw
+ = arfGraph lat arf_node
  where 
-  anal_rw, anal_only, arf_rec :: ARF_Graph n f
-  anal_rw = arfGraph lat $ arfBlock $ arfNode tf rw arf_rec
-  anal_tf = arfGraph lat $ arfBlock $ arfNodeNoRW tf
-  arf_rec = case depth of
-              RewriteShallow -> anal_tf
-              RewriteDeep    -> anal_rw
+  arf_node, rec_node :: ARF_Node n f
+  arf_node = arfNode lat tf rw rec_node
+
+  rec_node = case depth of
+              RewriteShallow -> arfNodeNoRW tf
+              RewriteDeep    -> arf_node
 \end{code}
 }
 This beautifully compact code does the following:
 \begin{itemize}
-\item The result, @anal_rw@ is built by composing
-@arfGraph@, @arfBlock@, and @arfNode@.
-\item The call to @arfNode@ passes the client-supplied transfer and rewrite
-functions, and @arf_rec@ to analyse and further rewrite rewritten graphs.
-\item When deep rewriting is used, the @arf_rec@ engine is simply a recursive
-use of the main function, @anal_rw@. But if shallow rewriting is required, it instead
-uses the shallow engine @anal_tf@. 
-\item This shallow engine does no rewriting at all: it just performs the dataflow
-analysis.  However, it can still be constructed by applying the same functions
-@arfGraph@ and @arfBlock@
-to the shallow node engine, @arfNodeNoRW tf@.
+\item The result is built by applying @arfGraph@ to @arf_node@, the 
+function to use when @arfGraph@ reaches an individual node.
+\item In turn @arf_node@ is built by applying @arfNode@ to the client-supplied
+transfer and rewrite functions and, crucially, @rec_node@.  
+\item @rec_node@ is used by @arfNode@ when analysing and transforming graphs
+produced by rewriting.
+When deep rewriting is used, the @rec_node@ engine is simply @arf_node@:
+straight recursion. However, if shallow rewriting is required, it instead
+uses a simpler analyse-only function on the node, built by @arfNodeNoRW@.
 We define the latter in \secref{arf-node}.
 \end{itemize}
 And that is all.  Note the way that the shallow/deep distinction is made
@@ -1589,13 +1589,13 @@ arfNodeNoRW :: ForwardTranfsers n f
             -> ARF_Node n f
 arfNodeNoRW tf f n = return (f, nodeToGraph n)
 
-arfNodeRewrite transfer_fn rewrite_fn graph_trans f node
+arfNode transfer_fn rewrite_fn graph_trans f node
   = do { mb_g <- withFuel (rewrite_fn f node)
        ; case mb_g of
-           Nothing -> arfNodeTransfer transfer_fn f node
+           Nothing -> arfNodeNoRW transfer_fn f node
       	   Just ag -> do { g <- graphOfAGraph ag
       		         ; graph_trans f g } }
-
+\end{code}
 
 \subsection{From nodes to blocks}
 
