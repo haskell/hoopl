@@ -1508,15 +1508,19 @@ type ARF thing n f
   = forall e x. f -> thing e x 
              -> FuelMonad (OutFact x f, RG n e x)
 \end{code}
-Here we intend @thing@ to range over nodes, blocks, and graphs, thus:
+Here we intend ``@thing@'' to range over nodes, blocks, and graphs, thus:
 \begin{code}
-type ARF_Node  n f = ARF n         n f
-type ARF_Block n f = ARF (Block n) n f
-type ARF_Graph n f = ARF (Graph n) n f
+  type ARF_Node  n f = ARF n         n f
+  type ARF_Block n f = ARF (Block n) n f
+  type ARF_Graph n f = ARF (Graph n) n f
 \end{code}
-A ARF (short for ``analyse and rewrite forward'') takes an input fact and a @thing@,
+An @ARF@ (short for ``analyse and rewrite forward'') takes an input fact and a @thing@,
 and returns a correspondingly-shaped output fact, and a rewritten graph of type @(RG n e x)@.
-We cannot simply return a @Graph@ for two reasons:
+Note that the result is a rewritten graph, 
+regardless of whether @thing@ is a node, block, or graph.
+
+Why do we return @RG@ not @Graph@?  We cannot simply return 
+a @Graph@ for two reasons:
 \begin{itemize}
 \item The client is often interested not only in the facts flowing
 out of the graph, but also in the facts on the \emph{internal} blocks
@@ -1527,7 +1531,12 @@ a @GMany@ with a @Tail@ is always open at exit (\figref{graph}).  It turns
 out to be awkward to maintain these invariants \emph{during} rewriting,
 but easy to restore them \emph{after} rewriting by ``normalising'' an @RG@.
 \end{itemize}
-Note that the result is a rewritten graph, regardless of whether @thing@ is a node, block, or graph.
+The normalisation function expresses the above two points, by splitting 
+a rewritten graph into a @BlockGraph@ and its corresponding @FactBase@:
+\begin{code}
+normalise :: BlockId -> f
+          -> RG n f C C -> (BlockGraph n, FactBase f)
+\end{code}
 
 We can now build a modular implementation as follows:
 \begin{itemize} 

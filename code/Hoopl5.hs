@@ -187,7 +187,7 @@ backwardBlockList blks = blocksToList blks
 --          TOTALLY internal to Hoopl
 -----------------------------------------------------------------------------
 
--- "RG" stands for "result graph", and will ultimately embody
+-- "RG" stands for "rewritten graph", and embodies
 -- both the result graph and its internal facts
 
 data RG n f e x where	-- Will have facts too in due course
@@ -206,6 +206,8 @@ data RGTail n f x where
   RGTail   :: BlockId -> f -> RG n f C O -> RGTail n f O
 
 type BlockGraphWithFacts n f = (BlockGraph n, FactBase f)
+  -- A BlockGraph together with the facts for that graph
+  -- The domains of the two maps should be identical
 
 -- 'normalise' converts a closed/closed result graph into a BlockGraph
 -- It uses three auxiliary functions, 
@@ -337,19 +339,22 @@ fixpoint lat do_block blocks init_fbase
              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_block lbl blk (TxFB { tfb_fbase = fbase, tfb_bids = lbls
                            , tfb_blks = blks, tfb_cha = cha })
-      = do { (out_facts, graph) <- do_block lbl blk fbase
+      = do { (out_facts, rg) <- do_block lbl blk fbase
            ; let (cha',fbase') = foldr (updateFact lat lbls) (cha,fbase) out_facts
                  f = lookupFact lat fbase lbl
+		-- tfb_blks will be discarded unless we have 
+		-- reached a fixed point, so it doesn't matter
+		-- whether we get f from fbase or fbase'
            ; return (TxFB { tfb_bids = extendBlockSet lbls lbl
-                          , tfb_blks = normalise lbl f graph `unionBWF` blks
+                          , tfb_blks = normalise lbl f rg `unionBWF` blks
                           , tfb_fbase = fbase', tfb_cha = cha' }) }
 
     loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
     loop fuel fbase 
       = do { let init_tx_fb = TxFB { tfb_fbase = fbase
-                                   , tfb_cha = NoChange
-                                   , tfb_blks = (noBlocks, noFacts)
-                                   , tfb_bids = emptyBlockSet }
+                                   , tfb_cha   = NoChange
+                                   , tfb_blks  = (noBlocks, noFacts)
+                                   , tfb_bids  = emptyBlockSet }
            ; tx_fb <- tx_blocks blocks init_tx_fb
            ; case tfb_cha tx_fb of
                NoChange   -> return tx_fb
@@ -406,11 +411,11 @@ arfBlocks :: forall n f. DataflowLattice f
 		-- in the BlockGraph; the facts for BlockIds
 		-- *in* the BlockGraph are in the BlockGraphWithFacts
 arfBlocks lattice arf_node init_fbase blocks
-  = fixpoint lattice ft_block (forwardBlockList blocks) init_fbase
+  = fixpoint lattice do_block (forwardBlockList blocks) init_fbase
   where
-    ft_block :: BlockId -> Block n C C -> FactBase f
+    do_block :: BlockId -> Block n C C -> FactBase f
              -> FuelMonad ([(BlockId,f)], RG n f C C)
-    ft_block bid blk fbase = arfBlock arf_node (lookupFact lattice fbase bid) blk
+    do_block bid blk fbase = arfBlock arf_node (lookupFact lattice fbase bid) blk
 
 arfGraph :: forall n f. DataflowLattice f -> ARF_Node n f -> ARF_Graph n f
 -- Lift from blocks to graphs
@@ -521,11 +526,11 @@ arbBlocks :: forall n f. DataflowLattice f
           -> ARB_Node n f -> FactBase f
           -> BlockGraph n -> FuelMonad (FactBase f, BlockGraphWithFacts n f)
 arbBlocks lattice arb_node init_fbase blocks
-  = fixpoint lattice bt_block (backwardBlockList blocks) init_fbase
+  = fixpoint lattice do_block (backwardBlockList blocks) init_fbase
   where
-    bt_block :: BlockId -> Block n C C -> FactBase f
+    do_block :: BlockId -> Block n C C -> FactBase f
              -> FuelMonad ([(BlockId,f)], RG n f C C)
-    bt_block l b fbase = do { (fb, rg) <- arbBlock arb_node fbase b
+    do_block l b fbase = do { (fb, rg) <- arbBlock arb_node fbase b
                             ; return ([(l,fb)], rg) }
 
 arbGraph :: forall n f. DataflowLattice f -> ARB_Node n f -> ARB_Graph n f
