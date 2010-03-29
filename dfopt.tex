@@ -726,8 +726,8 @@ first into the second; for example, putting a @Branch@ before a
 
 A @Block@ closed at both entry and exit is what we normally 
 call ``a basic block''.  
-In the case of @CmmNode@, for example,
-the types elegantly ensure that a block of type (@Block@ @CmmNode@ @C@ @C@)
+In the case of @Node@, for example,
+the types elegantly ensure that a block of type (@Block@ @Node@ @C@ @C@)
 consists of a @Head@, followed
 by a sequence of @Assign@ and @Store@ nodes, and finishing with a @Branch@
 or @CondBranch@.  
@@ -835,9 +835,9 @@ together with a @BlockId@ where execution begins.
 % as the absence of an interrogation function implies. 
 % 
 % When defining a node type, a \ourlib{} client should also make it an
-% instance of @Edges@.  Thus for @CmmNode@ we would write
+% instance of @Edges@.  Thus for @Node@ we would write
 % \begin{code}
-% instance Edges CmmNode where
+% instance Edges Node where
 %   blockId (Label l) = l
 %   successors (Branch b) = [b]
 %   successors (CondBranch e b1 b2) = [b1,b2]
@@ -1207,8 +1207,8 @@ Our algorithm will terminate, but it will not terminate with a fixed point.}
 type AGraph n e x 
   = BlockIdSupply -> (Graph n e x, BlockIdSupply)
 
-mkIfThenElse :: Expr -> AGraph CmmNode O O
-             -> AGraph CmmNode O -> AGraph CmmNode O O
+`mkIfThenElse :: Expr -> AGraph Node O O
+             -> AGraph Node O -> AGraph Node O O
 mkIfThenElse p t e
   = withBlockIds 3 $ \[l1,l2,l3] ->
     let entry = BUnit (CondBranch p l1 l2)
