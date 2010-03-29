@@ -282,6 +282,7 @@ implementation.
 \maketitle
  
 \begin{abstract}
+\remark{Needs a complete rewrite}
 We present \ourlib, a Haskell library that makes it easy for compiler writers
 to implement program transformations based on dataflow analyses.
 The compiler writer must identify (a)~logical assertions
@@ -609,8 +610,8 @@ A typical machine-code conditional branch, which transfers control
 \emph{and} falls through, must be represented as a two-target
 conditional branch, with the fall-through path in a separate block.  
 This restriction is quite standard \cite{appel:modern}.
-It dramatically simplifies control-flow graph analyses
-and transformations,
+It dramatically simplifies analysis
+and transformation,
 and it costs nothing in practice:
 a late-stage code-layout pass can readily reconstruct the efficient code.
 
