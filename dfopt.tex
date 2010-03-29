@@ -901,63 +901,71 @@ example is shown in \figref{const-prop}.
 
 \begin{figure}
 \begin{code}
-data HasConst = Top | B Bool | Int Integer
+-- Types and definition of the lattice
+data HasConst = Top | B Bool | I Integer
 type ConstFact = Map Reg HasConst
-
 constLattice = DataflowLattice
   { fact_bot    = Map.empty
   , fact_extend = stdMapJoin constFactAdd }
   where
-    constFactAdd new old = (ch, joined)
-      where joined = if new == old then new else Top
-            ch = if joined == old then NoChange else SomeChange
+    constFactAdd new old = (c, j)
+      where j = if new == old then new else Top
+            c = if j == old then NoChange else SomeChange
 
-varHasConst :: ForwardTransfers Node ConstFact
-varHasConst (Label bid)         f = f
-varHasConst (Assign x (Bool b)) f = Map.insert x (B b) f
-varHasConst (Assign x (Int  i)) f = Map.insert x (I i) f
-varHasConst (Assign x _)        f = Map.insert x Top f
-varHasConst (Store _ _)         f = f
-varHasConst (Branch bid)        f = [(bid, f)]
-varHasConst (Cond (Bool b) tid fid) f =
-  [(tid, Map.insert x (B b) f), (fid, Map.insert x (B b) f)]
-varHasConst (Cond _ tid fid)   f = [(tid, f), (fid, f)]
+-- Analysis: register has constant value
+regHasConst :: ForwardTransfers Node ConstFact
+regHasConst f (Label bid)            = f
+regHasConst f (Assign x (Bool b))    = Map.insert x (B b) f
+regHasConst f (Assign x (Int  i))    = Map.insert x (I i) f
+regHasConst f (Assign x _)           = Map.insert x Top   f
+regHasConst f (Store _ _)            = f
+regHasConst f (Branch bid)           = [(bid, f)]
+regHasConst f (Cond (Reg x) tid fid) =
+  [(tid, Map.insert x (B True)  f),
+   (fid, Map.insert x (B False) f)]
+regHasConst f (Cond _ tid fid)       = [(tid, f), (fid, f)]
 
--- I think the getInFacts might disappear with Hoopl4?
+-- Constant propagation
 constProp :: ForwardRewrites Node ConstFact
-constProp n facts =
-  map_EN rewriteE n >>= return . toAGraph
+constProp facts n =
+  mapE rewriteE n >>= return . toAGraph
   where
-    rewriteE e@(Var v) =
-      case M.lookup v (getInFacts constLattice facts n) of
-        Just (Elt l) -> Just $ Const l
-        _            -> Nothing
+    rewriteE e@(Reg r) =
+      case M.lookup r facts of
+        Just (B b) -> Just $ Bool b
+        Just (I i) -> Just $ Int  i
+        _          -> Nothing
     rewriteE e = Nothing
 
 -- Simplification ("constant folding")
-simplify :: ForwardRewrites Node ConstFact
-simplify node _ = s node >>= return . toAGraph
+simplify :: ForwardRewrites Node f
+simplify _ node = s node >>= return . toAGraph
   where
     s :: Node e x -> TxRes (Node e x)
-    s (Cond (Const (Bool True))  t _) = Just $ Branch t
-    s (Cond (Const (Bool False)) f _) = Just $ Branch f
-    s n = map_EN s_e n
-    s_e (Binop Add (Const (Int i1)) (Const (Int i2))) ->
-       Just $ Const $ Int $ i1 + i2
+    s (Cond (Bool b) t f) = Just $ Branch (if b then t else f)
+    s n                   = mapE exps n
+    exps (Binop Add (Int i1) (Int i2)) ->
+       Just $ Int $ i1 + i2
     ....  -- more cases for constant folding
 
--- Recursive rewriting of expressions
-map_EN :: (Expr -> Maybe Expr) -> Node e x -> Maybe (Node e x)
-map_EN f (Label _ ) = Nothing
-map_EN f (Assign x e@(Add e1 e2)) =
-  case (f e1, f e2) of
-    (Nothing, Nothing) -> f e
-    (e1', e2') -> Just $ fmb e (f (fmb e1 e1') (fmb e2 e2'))
-                    where fmb _ (Just e) = e
-                          fmb e Nothing  = e
- ... more cases to rewrite expressions
+-- Rewriting expressions
+mapE :: (Expr -> Maybe Expr) -> Node e x -> Maybe (Node e x)
+mapE f   (Label _)    = Nothing
+mapE f n@(Assign x e) = fmap (Assign x) $ f e
+ ... more cases for rewriting expressions
+
+-- Combining transformations
+combine :: (f -> n -> Maybe g) -> (f -> n -> Maybe g)
+        -> (f -> n -> Maybe g)
+combine r1 r2 = \n f -> case r1 n f of Nothing -> r2 n f
+                                       x -> x
+
+-- Running the analysis
+rewriteFwd  = analyseAndRewriteFwd constLattice regHasConst
+                  (combine constProp simplify) RewriteDeep 
+                  (fact_bot constLattice) graph
 \end{code}
-\caption{The constant-propagation client} \figlabel{const-prop}
+\caption{The client for constant-propagation and constant-folding} \figlabel{const-prop}
 \end{figure}
 
 \subsection{Interleaved analysis and rewriting}
@@ -1166,17 +1174,7 @@ on exit the outgoing thing is a list of @(BlockId,f)@ pairs.
 
 All the \ourlib{} client needs to do is to write the transfer function, with
 this type.  \figref{const-prop} shows the transfer function for our
-constant-propagation example.  The supplied transfer function should be 
-\emph{monotonic} in the following sense: given a more informative fact in,
-it should produce a more informative fact out.  Otherwise Hoopl might not
-find a fixed point (although it will still terminate provided the join 
-function of the lattice is monotonic).
-\john{The last sentence is wrong. The fixpoint-finder only pushes facts
-up the lattice (using the join operation). Only a finite number of steps
-can be taken up the lattice. The particular input facts are completely irrelevant
-as far as termination is concerned.}
-\simon{How true! Yet a non-monotonic transfer function would be peculiar indeed.
-Our algorithm will terminate, but it will not terminate with a fixed point.}
+constant-propagation example.
 
 \ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
@@ -1326,22 +1324,30 @@ A~proof requires its own POPL paper
 \cite{lerner-grove-chambers:2002}, but we can give some
 intuition.
 
+The transfer function must be 
+\emph{monotonic} in the following sense: given a more informative fact in,
+it should produce a more informative fact out.
+
 The rewrite function must, of course, be \emph{sound}:
 if it replaces a node @n@ by a replacement graph
-@g@, then $g$ must be observationally equivalent to $n$ under the 
+@g@, then @g@ must be observationally equivalent to @n@ under the 
 assumptions expressed by the incoming dataflow fact @f@.%
-\footnote{Our algorithm does not permit a transformation to change
+\footnote{We do not permit a transformation to change
   the @BlockId@ of a node. We have not found any optimizations
   that are prevented (or even affected) by this restriction.}
 Moreover the rewrite function must be \emph{consistent} with the transfer function;
 that is, \mbox{@transfer n f@ $\sqsubseteq$ @transfer g f@}.
-For example, if the analysis says that x is dead before the node @n@,
+For example, if the analysis says that @x@ is dead before the node~@n@,
 then it had better still be dead if @n@ is replaced by @g@.
-Without the consistency condition,
+Also, to ensure termination, a transformation that uses deep rewriting
+must not return replacement graphs which 
+contain nodes that could be rewritten indefinitely.
+
+Without the conditions on montonicity and consistency,
 our algorithm will still terminate,
 but there is no guarantee that it will compute
 a fixed point of the analysis.
-Given these assumptions:
+Given these conditions:
 
 \begin{itemize} 
 \item
@@ -1373,13 +1379,6 @@ sound transfer functions,
 sound rewrite functions,
 and a
 lattice with no infinite ascending chains.
-And unless client code specifies shallow rewriting,
-\ifcutting
-\else which tells the
-dataflow engine never to rewrite a replacement graph,
-\fi
-rewrite functions must not return replacement
-graphs which contain nodes that could be rewritten indefinitely.
 
 % \john{If we haven't sold the audience by now, they're not going
 %   to be convinced by this quote.}
