@@ -769,7 +769,7 @@ depending on whether the graph is open or closed at exit.
 Now graph concatenation is easy to define:
 \par{\small
 \begin{code}
-gCat :: Graph n e O -> Graph n O x -> Graph n e x
+`gCat :: Graph n e O -> Graph n O x -> Graph n e x
 gCat GNil g2 = g2
 gCat g1 GNil = g1
 
@@ -932,10 +932,10 @@ example is shown in \figref{const-prop}.
 
 \begin{figure}
 \begin{code}
-data WithTop a = Elt a | Top
-type ConstFact = Map Reg (WithTop Const)
+data `WithTop a = `Elt a | `Top
+type `ConstFact = Map Reg (WithTop Const)
 
-constLattice = DataflowLattice
+`constLattice = DataflowLattice
   { fact_bot    = Map.empty
   , fact_add_to = stdMapJoin constFactAdd
   , fact_name   = "Const var value" }
@@ -944,7 +944,7 @@ constLattice = DataflowLattice
       where joined = if new == old then new else Top
             ch = if joined == old then NoChange else SomeChange
 
-varHasConst :: ForwardTransfers Node ConstFact
+`varHasConst :: ForwardTransfers Node ConstFact
 varHasConst (Label bid)        f = lookupFact constLattice f bid
 varHasConst (Assign x (Const l)) f = Map.insert x (Elt l) f
 varHasConst (Assign x _)       f = Map.insert x Top f
@@ -953,7 +953,7 @@ varHasConst (Branch bid)       f = [(bid, f)]
 varHasConst (Cond _ tid fid)   f = [(tid, f), (fid, f)]
 
 -- I think the getInFacts might disappear with Hoopl4?
-constProp :: ForwardRewrites Node ConstFact
+`constProp :: ForwardRewrites Node ConstFact
 constProp n facts =
   map_EN (map_EE rewriteE) n >>= return . toAGraph
   where
@@ -964,7 +964,7 @@ constProp n facts =
     rewriteE e = Nothing
 
 -- Simplification ("constant folding")
-simplify :: ForwardRewrites Node ConstFact
+`simplify :: ForwardRewrites Node ConstFact
 simplify node _ = s node >>= return . toAGraph
   where
     s :: Node e x -> TxRes (Node e x)
@@ -1114,22 +1114,22 @@ fixed point.
 
 \begin{figure}
 \begin{code}
-type ForwardTransfers n f 
+type `ForwardTransfers n f 
   = forall e x. f -> n e x -> TailFactF x f 
-type BackwardTransfers n f 
+type `BackwardTransfers n f 
   = forall e x. TailFactB x f -> n e x -> f
 
-type ForwardRewrites n f 
+type `ForwardRewrites n f 
   = forall e x. f -> n e x -> Maybe (AGraph n e x)
              -> Maybe (AGraph n e x)
-type BackwardRewrites n f 
+type `BackwardRewrites n f 
   = forall e x. TailFactB x f -> n e x 
 
-type family   TailFactF x f :: *
+type family   `TailFactF x f :: *
 type instance TailFactF O f = f
 type instance TailFactF C f = [(BlockId,f)]
 
-type family   TailFactB x f :: *
+type family   `TailFactB x f :: *
 type instance TailFactB C f = BlockMap f
 type instance TailFactB O f = f
 \end{code}
@@ -1253,7 +1253,7 @@ An @AGraph@ makes it possible for the rewriter to do so conveniently,
 using @withLabel@:
 \par{\small
 \begin{code}
-withLabel :: (BlockId -> AGraph n e x) -> AGraph n e x
+`withLabel :: (BlockId -> AGraph n e x) -> AGraph n e x
 withLabel fn = \(b:bs) -> (fn b, bs)
 \end{code}}
 
@@ -1522,15 +1522,15 @@ The implementation is built on the hierarchy of nodes, blocks, and graphs
 that we described in \secref{graph-rep}.  For each such thing
 we will develop a function of this type:
 \begin{code}
-type ARF thing n f 
+type `ARF thing n f 
   = forall e x. f -> thing e x 
              -> FuelMonad (OutFact x f, RG n e x)
 \end{code}
 Here we intend ``@thing@'' to range over nodes, blocks, and graphs, thus:
 \begin{code}
-  type ARF_Node  n f = ARF n         n f
-  type ARF_Block n f = ARF (Block n) n f
-  type ARF_Graph n f = ARF (Graph n) n f
+  type `ARF_Node  n f = ARF n         n f
+  type `ARF_Block n f = ARF (Block n) n f
+  type `ARF_Graph n f = ARF (Graph n) n f
 \end{code}
 An @ARF@ (short for ``analyse and rewrite forward'') takes an input fact and a @thing@,
 and returns a correspondingly-shaped output fact, and a rewritten graph of type @(RG n e x)@.
@@ -1552,7 +1552,7 @@ but easy to restore them \emph{after} rewriting by ``normalising'' an @RG@.
 The normalisation function expresses the above two points, by splitting 
 a rewritten graph into a @BlockGraph@ and its corresponding @FactBase@:
 \begin{code}
-normalise :: BlockId -> f
+`normalise :: BlockId -> f
           -> RG n f C C -> (BlockGraph n, FactBase f)
 \end{code}
 
@@ -1561,7 +1561,7 @@ We can now build a modular implementation as follows:
 \item From the supplied @ForwardTransfers@ and @ForwardRewrites@, produce a @ARF_Node@
 that transforms nodes (\secref{arf-node}):  
 \begin{code}
-  arfNode :: DataflowLattice f
+  `arfNode :: DataflowLattice f
           -> ForwardTransfers n f
           -> ForwardRewrites n f
           -> ARF_Node n f
@@ -1571,12 +1571,12 @@ In addition to the transfer and rewrite functions, @arfNode@ takes the function
 to analyse and rewrite the rewritten graph.
 \item From this @ARF_Node@, produce a @ARF_Block@ that transforms blocks (\secref{arf-block}):
 \begin{code}
-  arfBlock :: ARF_Node n f -> ARF_Block n f
+  `arfBlock :: ARF_Node n f -> ARF_Block n f
 \end{code}
  
 \item From this @ARF_Block@, produce a @ARF_Graph@ that tranforms graphs (\secref{arf-graph}):
 \begin{code}
-  arfGraph :: DataflowLattice f
+  `arfGraph :: DataflowLattice f
            -> ARF_Node n f -> ARF_Graph n f
 \end{code}
 This is where the fixpoint computation takes place, so @arfGraph@ must
@@ -1585,7 +1585,7 @@ take a @DataflowLattice@ as an additional argument.
 Given these three functions, it is rather easy to write the main analyser:
 \par {\small
 \begin{code}
-analyseAndRewrite
+`analyseAndRewriteFwd
    :: forall n f. Edges n
    => DataflowLattice f   -> ForwardTransfers n f
    -> ForwardRewrites n f -> RewritingDepth
