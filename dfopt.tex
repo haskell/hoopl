@@ -1315,7 +1315,7 @@ correctness, which follows next?  Can you do that?}
 
 \simon{This section seems a bit laboured}
 
-Facts computed by the @analyseAndRewriteFwd@ depend on graphs produced by the rewrite
+Facts computed by @analyseAndRewriteFwd@ depend on graphs produced by the rewrite
 function, which in turn depend on facts computed by the transfer function.
 How~do we know this algorithm is sound, or even if it terminates?
 A~proof requires its own POPL paper
@@ -1324,19 +1324,19 @@ intuition.
 
 The rewrite function must, of course, be \emph{sound}:
 if it replaces a node @n@ by a replacement graph
-@g@, then $g$ should be observationally equivalent to $n$ under the 
-assumptions expressed by the incoming dataflow fact @f@.
-Moreover the rewrite function must be \emph{consistent} with the transfer function
-that is, (@transfer n f@ $\sqsubseteq$ @transfer g f@).
-\john{Isn't this implied by ``observationally equivalent''?}
+@g@, then $g$ must be observationally equivalent to $n$ under the 
+assumptions expressed by the incoming dataflow fact @f@.%
+\footnote{Our algorithm does not permit a transformation to change
+  the @BlockId@ of a node. We have not found any optimizations
+  that are prevented (or even affected) by this restriction.}
+Moreover the rewrite function must be \emph{consistent} with the transfer function;
+that is, \mbox{@transfer n f@ $\sqsubseteq$ @transfer g f@}.
 For example, if the analysis says that x is dead before the node @n@,
-then it had better still be dead if @n@ is replaced by @g@.  Without
-the consistency condition there would be no guarantee of reaching a fixed point.
-\simon{I still think this is true, although you do not (see comments in the source file. We 
-should debate.}
-\john{I'm not sure which source file to look at, but I still maintain that this is
-false. The argument for reaching a fixed point is clearly defined in terms of
-the lattice; I don't see how the results of the analysis are relevant.}
+then it had better still be dead if @n@ is replaced by @g@.
+Without the consistency condition,
+our algorithm will still terminate,
+but there is no guarantee that it will compute
+a fixed point of the analysis.
 Given these assumptions:
 
 \begin{itemize} 
@@ -1377,21 +1377,24 @@ dataflow engine never to rewrite a replacement graph,
 rewrite functions must not return replacement
 graphs which contain nodes that could be rewritten indefinitely.
 
-Why use such a complex algorithm?
-\ifcutting Because interleaving \else
-\citet{lerner-grove-chambers:2002} write
-\begin{quote}
-\emph{Previous efforts to exploit [the mutually beneficial
-interactions of dataflow analyses] either (1)~iteratively performed
-each individual analysis until no further improvements are discovered
-or (2)~developed [handwritten] ``super-analyses'' that manually
-combine conceptually separate analyses. We have devised a new approach
-that allows analyses to be defined independently while still enabling
-them to be combined automatically and profitably. Our approach avoids
-the loss of precision associated with iterating individual analyses
-and the implementation difficulties of manually writing a
-super-analysis.}
-\end{quote}
+% \john{If we haven't sold the audience by now, they're not going
+%   to be convinced by this quote.}
+%
+% Why use such a complex algorithm?
+% \ifcutting Because interleaving \else
+% \citet{lerner-grove-chambers:2002} write
+% \begin{quote}
+% \emph{Previous efforts to exploit [the mutually beneficial
+% interactions of dataflow analyses] either (1)~iteratively performed
+% each individual analysis until no further improvements are discovered
+% or (2)~developed [handwritten] ``super-analyses'' that manually
+% combine conceptually separate analyses. We have devised a new approach
+% that allows analyses to be defined independently while still enabling
+% them to be combined automatically and profitably. Our approach avoids
+% the loss of precision associated with iterating individual analyses
+% and the implementation difficulties of manually writing a
+% super-analysis.}
+% \end{quote}
 
 
 
@@ -1417,13 +1420,13 @@ super-analysis.}
 %%  
 %%  \textbf{NR}: Good questions, but let's have a forward reference to \secref{dfengine}}
 
-Interleaving
-\fi
- analysis with transformation makes it
-possible to implement useful  transformations using startlingly simple
-client code.
-\john{And maybe this is the place to brag that we now have a startlingly simple
-implementation?}
+% Interleaving
+% \fi
+%  analysis with transformation makes it
+% possible to implement useful  transformations using startlingly simple
+% client code.
+% \john{And maybe this is the place to brag that we now have a startlingly simple
+% implementation?}
 
 \finalremark{Doesn't the rewrite have to be have the following property:
 for a forward analysis/transform, if (rewrite P s) = Just s',
