@@ -257,7 +257,8 @@ implementation.
 \hyphenation{there-by}
 
 \begin{document}
-\title{\ourlib: Dataflow Optimization Made Simple}
+%\title{\ourlib: Dataflow Optimization Made Simple}
+\title{Implementing Dataflow Analysis and Optimization by Lifting Node Functions to Basic Blocks and Control-Flow Graphs}
 %\subtitle{\today}
 
 %\titlebanner{\textsf{\mdseries\itshape Submitted to the 2010 ACM Symposium on Principles
@@ -281,6 +282,7 @@ implementation.
 \maketitle
  
 \begin{abstract}
+\remark{Needs a complete rewrite}
 We present \ourlib, a Haskell library that makes it easy for compiler writers
 to implement program transformations based on dataflow analyses.
 The compiler writer must identify (a)~logical assertions
@@ -319,7 +321,12 @@ back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
 
 \section{Introduction}
 
-\simon{``Control-flow graph'' (hyphenated) should be consistent now.}
+%%% \simon{``Control-flow graph'' (hyphenated) should be consistent
+%%% now.}
+%%%   Confirmed, and expunge a couple of unnecessary hyphens (NR).
+
+\remark{This is an intro the old paper.  We need an intro to the new paper.}
+
 
 If you write a compiler for an imperative language, you can exploit
 many years' work on code improvement
@@ -383,7 +390,7 @@ in a test program \cite{whalley:isolation}.
 \ourlib's polymorphic, higher-order design makes it reusable
 with many languages.
 \hoopl\ is designed to help optimize imperative code
-with arbitrary control-flow,
+with arbitrary control flow,
 including low-level intermediate languages and machine languages.
 As \citet{benitez-davidson:portable-optimizer} have shown, all the
 classic scalar and loop optimizations can be performed over such
@@ -444,7 +451,7 @@ codes.
 % %
 % \hoopl\ is designed to help optimize imperative procedures (after
 % inlining). 
-% \ourlib\ supports local-level codes with arbitrary control-flow,
+% \ourlib\ supports local-level codes with arbitrary control flow,
 % including intermediate 
 % languages and machine 
 % languages.
@@ -475,8 +482,7 @@ We also sketch a new implementation of interleaving (\secref{engine}).
 We begin by setting the scene, introducing some vocabulary, and
 showing a small motivating example.
 A control-flow graph, perhaps representing the body of a procedure,
-is a collection of \emph{basic blocks}
--- or just ``blocks''.
+is a collection of \emph{basic blocks}---or just ``blocks''.
 Each block is a sequence of instructions,
 beginning with a label and ending with a
 control-transfer instruction that branches to other blocks.
@@ -518,14 +524,17 @@ without constant folding!  And probably vice versa.}
 \john{I think it's important for 3 reasons: (1) any compiler text will describe
 them separately, (2) the code is simpler when they're implemented separately
 (the payoff of this approach),
-(3) constant-folding can be useful without constant-prop (as in QC--)}
+(3) constant-folding can be useful without constant-prop (as in QC--)
+[I~agree ---NR]}
 Now, given this transformed node,
 and the original assertion, what assertion flows out of the bottom of
-the transformed node?  Clearly the assertion \{@x=7@\}.  
+the transformed node?  
+The assertion \{@x=7@\}.  
 Given the assertion \{@x=7@\} and the node @z:=x>5@, can we make a
-transformation?  Yes: replace it with @z:=True@.
-And so the process continues. Notice that in the last node of the block we can transform
-a conditional branch to an unconditional one, @goto L1@
+transformation?  Yes: replace the node with @z:=True@.
+And so the process continues to the end of the bloc, where we
+transform
+a conditional branch to an unconditional one, @goto L1@.
 
 Notice that our example \emph{interleaves} transformation and analysis;
 interleaving makes it easier to write effective analyses.
@@ -544,8 +553,8 @@ the transfer function becomes laughably simple: it merely has to see if the
 right hand side is a constant.
 The gain is even more compelling if there are a number of interacting 
 analyses and/or transformations;
-we encourage the reader to consult \cite{lerner-grove-chambers} for more substantial
-examples.
+for more substantial
+examples, consult \citet{lerner-grove-chambers}.
 
 Constant propagation works \emph{forwards}, and a fact is typically an
 assertion about the program state (such as ``variable @x@ holds value
@@ -554,8 +563,10 @@ top.  An example is live-variable analysis, where the fact takes the form
 ``variable @x@ is dead'' and constitutes an assertion about the
 \emph{continuation} of a program point.  For example, the fact ``@x@ is
 dead'' at a program point P is an assertion that @x@ is unused on any program
-path starting at P.  The accompanying transformation is called dead-code elimination,
-and allows the assignment @x=e@ to be rewritten to a no-op if @x@ is dead.
+path starting at P.  
+The accompanying transformation is called dead-code elimination;
+if @x@~is dead, this transformation rewrites
+the assignment @x=e@ into a no-op.
 
 % ----------------------------------------
 \section{Representing control-flow graphs} \seclabel{graph-rep}
@@ -603,8 +614,8 @@ A typical machine-code conditional branch, which transfers control
 \emph{and} falls through, must be represented as a two-target
 conditional branch, with the fall-through path in a separate block.  
 This restriction is quite standard \cite{appel:modern}.
-It dramatically simplifies control-flow graph analyses
-and transformations,
+It dramatically simplifies analysis
+and transformation,
 and it costs nothing in practice:
 a late-stage code-layout pass can readily reconstruct the efficient code.
 
