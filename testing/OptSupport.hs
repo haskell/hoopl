@@ -130,10 +130,10 @@ fold_EN f z (Return es)     = foldl f z es
 
 -- Probably not quite what we want long term
 toAGraph :: Node e x -> AGraph Node e x
-toAGraph n@(Label _) = agraphOfNode n
-toAGraph n@(Assign _ _) = agraphOfNode n
-toAGraph n@(Store _ _) = agraphOfNode n
-toAGraph n@(Branch _) = agraphOfNode n
-toAGraph n@(Cond _ _ _) = agraphOfNode n
+toAGraph n@(Label _)      = agraphOfNode n
+toAGraph n@(Assign _ _)   = agraphOfNode n
+toAGraph n@(Store _ _)    = agraphOfNode n
+toAGraph n@(Branch _)     = agraphOfNode n
+toAGraph n@(Cond _ _ _)   = agraphOfNode n
 toAGraph n@(Call _ _ _ _) = agraphOfNode n
-toAGraph n@(Return _) = agraphOfNode n
+toAGraph n@(Return _)     = agraphOfNode n
