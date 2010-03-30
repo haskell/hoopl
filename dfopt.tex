@@ -537,6 +537,7 @@ transform
 a conditional branch to an unconditional one, @goto L1@.
 
 \seclabel{simple-tx}
+\paragraph{Interleaved transforamtion and analysis.}
 Notice that our example \emph{interleaves} transformation and analysis;
 interleaving makes it easier to write effective analyses.
 If, instead, we \emph{first} analysed the block
@@ -557,6 +558,7 @@ analyses and/or transformations;
 for more substantial
 examples, consult \citet{lerner-grove-chambers:2002}.
 
+\paragraph{Forwards and backwards.}
 Constant propagation works \emph{forwards}, and a fact is typically an
 assertion about the program state (such as ``variable @x@ holds value
 @7@'').  Many useful analyses work \emph{backwards}, from bottom to
@@ -689,31 +691,39 @@ data `O   -- Open
 data `C   -- Closed
 
 data `Block n e x where
-  `BUnit :: n e x -> Block n e x
-  `BCat  :: Block n e O -> Block n O x -> Block n e x
+ `BUnit :: n e x -> Block n e x
+ `BCat  :: Block n e O -> Block n O x -> Block n e x
 
-newtype `BlockId = BlockId Int
-type `BlockGraph n = BlockMap (Block n C C)
--- (BlockMap a) is a finite map from BlockId to a
+newtype 'BlockId = BlockId Int
+type `Graph n = BlockMap (Block n C C)
+-- (BlockMap a) is a finite map from BlockId to 'a'
 
-data `Graph n e x where
-  `GNil  :: Graph n O O
-  `GUnit :: Block n e O -> Graph n e O
-  `GMany :: Block n e C -> BlockGraph n
-        -> Tail n x -> Graph n e x
+data `PGraph n e x where
+ `PNil  :: PGraph n O O
+ `PUnit :: Block n O O -> PGraph n O O
+ `PMany :: Head n e -> Graph n
+       -> Tail n x -> PGraph n e x
 
-data `Tail n x where
-  `NoTail :: Tail n C
-  Tail   :: BlockId -> Block n C O -> Tail n O
+data `Head n e where
+ `NoHead :: BlockId -> Head n C
+ `Head   :: Block n O C -> Head n O
+
+data Tail n x where
+ `NoTail :: Tail n C
+ `Tail   :: BlockId -> Block n C O -> Tail n O
+
+-- Building Graphs
+addBlock   :: BlockId -> Block n C C
+           -> Graph n -> Graph n
+unionGraph :: Graph n -> Graph n -> Graph n
 \end{code}
 \caption{The \ourlib{} Block and Graph types} 
 \figlabel{graph}
 \end{figure}
 
-So much for nodes.  The types for blocks and graphs are defined by \ourlib{}
+The types for blocks and graphs are defined by \ourlib{}
 itself, with definitions given in \figref{graph}.
-A @Block@ 
-is parameterised over the node type @n@
+A @Block@ is parameterised over the node type @n@
 as well as over the same open/closed flags as nodes.  
 Since the node type is itself parameterised over its open/closed flags,
 @n@ has kind @*->*->*@.
@@ -738,67 +748,100 @@ has at least one node.
 
 \subsection{Graphs} \seclabel{graphs}
 
-The third important entity is the @Graph@, also defined by \ourlib{} in
-\figref{graph}.  Just like @Block@, it is parameterised over
-the node type @n@, and can be open or closed at entry and exit.
-Indeed, the @GUnit@ constructor lifts a single block to be a graph, just
-as @BUnit@ lifted a node to a block. We will soon return to the question
+\ourlib{} defines two distinct types of control-flow graphs.  The first,
+@Graph@, is entirely straightforward (see \figref{graph}): it is simply
+a collection of closed/closed @Block@s, represented as a
+a finite mapping from a @BlockId@ to @Block@.  We choose this representation
+to stress that each @Block@ in the graph has a distinct entry @BlockId@.
+A procedure might be represented by a @Graph@ together with the @BlockId@
+at which execution starts.
+
+As we saw in \secref{constant-propagation}, the \ourlib{} client specifies
+a rewrite function that optionally rewrites a node.  But what does it
+rewrite the node \emph{to}?  At first one might
+expect that rewriting returns a new node, but that is not enough.
+For example, perhaps we want to replace a high-level operation
+with a tree of conditional branches or a loop, which entails introducing new blocks.
+Another important special case is rewriting a node to a no-op.
+So in general the rewrite function must return an \emph{arbitrary graph}.
+But this graph cannot be a @Graph@, because a @Graph@ is closed at both ends;
+indeed a @Graph@ does not even have shape parameters @e@ and @x@.
+Rather, the rewrite function should return a ``partial graph'', 
+or @PGraph@, which can be open or closed at either
+end just like a node or block.  
+
+The definition of @PGraph@ is given in \figref{graph}.
+It includes a @PNil@ constructor for the empty graph,
+and a @PUnit@ constructor to lift an @Block@ to be @PGraph@.
+We will soon return to the question
 of why @GUnit@ is restricted to blocks open on exit.
 \simon{Norman thinks we need a closed-closed empty
 graph but I don't see that, at least not yet.}
 
-The excitement comes in the @GMany@ constructor. It has three fields:
+The most general form of @PGraph@ uses the @PMany@ constructor,
+which has three fields:
 \begin{itemize}
-\item Every @Graph@ (whether open or closed) has a distinguished entry block,
-where control always enters the block.  This distinguished block, closed at the exit,
- is the first argument of @GMany@.
-\item The second argument represents an
-arbitrary graph of blocks, each closed at both ends, and 
-each labelled with a @BlockId@.
-This graph, of type @BlockGraph n@, is represented as a finite map 
-from @BlockId@ to a closed/closed @Block@.
-\item The third field is called the ``tail'' of the @Graph@.  If
+\item The first field is called the ``head'' of the @PGraph@.
+If it is $@(Head@\;b@)@$, the @PGraph@ is open on entry, with initial block $b$.
+If it is $@(NoHead@\;l@)@$, the @PGraph@ is closed on entry, and execution begins
+at block $l$. We need the @BlockId@ $l$, because the @PGraph@ 
+may replace a node, so just as a node closed at entry has a unique entry point,
+so does a @PGraph@.
+\item The second argument is simply an arbitrary @Graph@ of blocks,
+as already discussed.
+\item The third field is the ``tail'' of the @PGraph@.  If
 the @Graph@ is closed on exit the tail is just @NoTail@.  If it is
 open on exit, the tail is a (labelled) @Block@, open on exit.
 \end{itemize}
-Every graph has a unique representation.  An empty graph is represented
-by @GNil@.  A one-block graph open at exit is represented by @GUnit@.
-A one block graph closed at exit is represented by @(GMany b [] NoTail)@.
-A multi-block graph is represented by a @GMany@, with a @Tail@ or @NoTail@
-depending on whether the graph is open or closed at exit.
-
-Now graph concatenation is easy to define:
+Partial graphs compose nicely.  For example, concatenation is easy to define:
 \par{\small
 \begin{code}
-`gCat :: Graph n e O -> Graph n O x -> Graph n e x
-gCat GNil g2 = g2
-gCat g1 GNil = g1
+`pCat :: Graph n e O -> Graph n O x -> Graph n e x
+pCat PNil g2 = g2
+ pCat g1 PNil = g1
 
-gCat (GUnit b1) (GUnit b2)             
-  = GUnit (b1 `BCat` b2)
+pCat (PUnit b1) (PUnit b2)             
+ = PUnit (b1 `BCat` b2)
 
-gCat (GUnit b) (GMany e bs x) 
-  = GMany (b `BCat` e) bs x
+pCat (PUnit b) (PMany (Head e) bs x) 
+ = PMany (Head (b `BCat` e)) bs x
 
-gCat (GMany be bs (Tail bid bx)) (GUnit b2) 
-   = GMany be bs (Tail bid (bx `BCat` b2))
+pCat (PMany e bs (Tail l x)) (PUnit b2) 
+ = PMany e bs (Tail l (x `BCat` b2))
 
-gCat (GMany be1 bs1 (Tail bid bx1)) (GMany be2 bs2 bx2)
-   = GMany be1 (addBlock bid (bx1 `BCat` be2) bs1 
-                `unionBlocks` bs2) bx2
+pCat (PMany e1 bs1 (Tail l x1)) (PMany (Head e2) bs2 x2)
+ = PMany e1 (addBlock l (x1 `BCat` e2) bs1 
+   `unionBlocks` bs2) x2
 \end{code}}
 This defintion is a nice example of the power of GADTs: the
 pattern-matching is exhaustive, and all the open/closed invariants are
-statically checked.  For example, in the last equation for @gCat@, the
+statically checked.  For example, in the last equation for @pCat@, the
 first argument has type (@Graph@ @n@ @e@ @O@), so the third field of
-@GMany@ must be of form (@Tail bid bx1@).  Moreover @bx1@ must be
+@GMany@ must be of form (@Tail l bx1@).  Moreover @bx1@ must be
 closed/open, and @be2@ must be open/closed.  So we can compose them in
 sequence with @BCat@ to produce a closed/closed block, which can be
 added to the @BlockGraph@ of the result.
 
+Every graph has a unique representation.  An empty graph is represented
+by @GNil@.  The representation of a @PGraph@ consisting of a single block @b@ 
+depends on the shape of @b@, thus:
+\begin{center}
+\begin{tabular}{ll}
+O/O & @PUnit b@ \\
+O/C & @PMany (Head b) emptyG NoTail@ \\
+C/O & @PMany (NoHead l) emptyG (Tail l b)@ \\
+C/C & @PMany (NoHead l) (unitG l b) NoTail@
+\end{tabular}
+\end{center}
+where @l@ is the entry @BlockId@ of @b@.
+Multi-block graphs are similar.
+From this table we can see why @PUnit@ is restricted to open/open
+blocks; if it was more accommodating then there would be 
+multiple representations for a single graph.
+
 \subsection{Summary}
 
-All three entities (nodes, blocks, graphs) share some 
+Nodes, blocks, and partial graphs share some 
 characteristics in common.  Suppose E is a node, block, or
 graph:
 \begin{itemize}
@@ -809,10 +852,6 @@ it has a unique entry point where execution begins.
 \item If E is closed at exit, control leaves \emph{only}
 by explicit branches from closed-on-exit nodes.
 \end{itemize}
-The body of a procedure would typically be represented by
-an open/closed graph, where execution begins at the open end.
-An alternative would be to represent a procedure body by a @BlockGraph@,
-together with a @BlockId@ where execution begins.
 
 % 
 % \subsection{Labels and successors} \seclabel{edges}
@@ -893,10 +932,6 @@ the node (\secref{transfers}).
 and produces either @Nothing@,
 or @(Just g)@ where @g@ is an \emph{arbitrary graph} that should
 replace the node.  The ability to replace a node by an arbitrary graph is crucial;
-for example, perhaps we want to replace a high-level operation
-with a set of conditional branches or a loop, which entails introducing new blocks.
-Another important special case is replacing the node by the empty graph, 
-thereby deleting the node.
 We discuss the rewrite function
 in \secref{rewrites}.
 \end{itemize}
@@ -997,6 +1032,7 @@ we use the @combine@ function and deep rewriting to apply both transformations
 recursively.
 
 \begin{figure}
+{\small
 \begin{code}
 -- Types and definition of the lattice
 data `HasConst = `Top | `B Bool | `I Integer
@@ -1011,57 +1047,60 @@ constLattice = DataflowLattice
 
 -- Analysis: register has constant value
 `regHasConst :: ForwardTransfers Node ConstFact
-regHasConst f (Label bid)            = f
-regHasConst f (Assign x (Bool b))    = Map.insert x (B b) f
-regHasConst f (Assign x (Int  i))    = Map.insert x (I i) f
-regHasConst f (Assign x _)           = Map.insert x Top   f
-regHasConst f (Store _ _)            = f
-regHasConst f (Branch bid)           = [(bid, f)]
-regHasConst f (Cond (Reg x) tid fid) =
-  [(tid, Map.insert x (B True)  f),
-   (fid, Map.insert x (B False) f)]
-regHasConst f (Cond _ tid fid)       = [(tid, f), (fid, f)]
+regHasConst f (Label l)           = f
+regHasConst f (Assign x (Bool b)) = Map.insert x (B b) f
+regHasConst f (Assign x (Int  i)) = Map.insert x (I i) f
+regHasConst f (Assign x _)        = Map.insert x Top   f
+regHasConst f (Store _ _)         = f
+regHasConst f (Branch l)          = [(l, f)]
+regHasConst f (Cond (Reg x) tid fid) 
+  = [(tid, Map.insert x (B True)  f),
+     (fid, Map.insert x (B False) f)]
+regHasConst f (Cond _ tid fid)    = [(tid, f), (fid, f)]
 
 -- Constant propagation
 `constProp :: ForwardRewrites Node ConstFact
-constProp facts n =
-  mapE rewriteE n >>= return . toAGraph
+constProp facts node
+  = fmap toAGraph (mapE rewriteE node)
   where
     rewriteE e@(Reg r) =
-      case M.lookup r facts of
-        Just (B b) -> Just $ Bool b
-        Just (I i) -> Just $ Int  i
-        _          -> Nothing
+      = case M.lookup r facts of
+          Just (B b) -> Just $ Bool b
+          Just (I i) -> Just $ Int  i
+          _          -> Nothing
     rewriteE e = Nothing
 
 -- Simplification ("constant folding")
 `simplify :: ForwardRewrites Node f
-simplify _ node = s node >>= return . toAGraph
+simplify _ (Cond (Bool b) t f)
+  = Just $ Branch (if b then t else f)
+simplify _ node = fmap toAGraph (mapE s_exp node)
   where
-    exps (Binop Add (Int i1) (Int i2)) ->
-       Just $ Int $ i1 + i2
+    s_exp (Binop Add (Int i1) (Int i2))
+       = Just $ Int $ i1 + i2
     ....  -- more cases for constant folding
-    s :: Node e x -> Maybe (Node e x)
-    s (Cond (Bool b) t f) = Just $ Branch (if b then t else f)
-    s n                   = mapE exps n
 
 -- Rewriting expressions
-`mapE :: (Expr -> Maybe Expr) -> Node e x -> Maybe (Node e x)
-mapE f   (Label _)    = Nothing
-mapE f n@(Assign x e) = fmap (Assign x) $ f e
+`mapE :: (Expr    -> Maybe Expr) 
+      -> Node e x -> Maybe (Node e x)
+mapE f (Label _)    = Nothing
+mapE f (Assign x e) = fmap (Assign x) $ f e
  ... more cases for rewriting expressions
 
 -- Combining transformations
-`combine :: (f -> n -> Maybe g) -> (f -> n -> Maybe g)
-        -> (f -> n -> Maybe g)
-combine r1 r2 = \n f -> case r1 n f of Nothing -> r2 n f
-                                       x -> x
+`combineFRW :: ForwardRewrites n f
+            -> ForwardRewrites n f
+            -> ForwardRewrites n f
+combine r1 r2 
+   = \n f -> case r1 n f of Nothing -> r2 n f
+                            Just g  -> Just g
 
 -- Running the analysis
 `rewriteFwd  = analyseAndRewriteFwd constLattice regHasConst
-                  (combine constProp simplify) RewriteDeep 
-                  (fact_bot constLattice) graph
-\end{code}
+                  (constProp `combineFRW` simplify) 
+                  RewriteDeep 
+                  graph noFacts
+\end{code}}
 \caption{The client for constant-propagation and constant-folding} \figlabel{const-prop}
 \end{figure}
 
@@ -1728,14 +1767,14 @@ arfBlock (ARF node_trans) = ARF block_trans
     block_trans (BCat l r) f 
       = do { (g1,f1) <- block_trans l f
            ; (g2,f2) <- block_trans r f1
-	   ; return (g1 `gCat` g2, f2) }
+	   ; return (g1 `pCat` g2, f2) }
 \end{code}
 The code is childishly simple.  In the @BUnit@ case 
 we appeal to the node-level @ARF_Node@ tranform.
 For @BCat@ we recursively apply @block_trans@ to the two
 sub-blocks, threading the output fact from the first as the 
 input to the second.  Each will produce a rewritten @Graph@, 
-which we connect together in sequence with @gCat@. 
+which we connect together in sequence with @pCat@. 
 
 \subsection{Rewriting graphs}
 
@@ -2130,7 +2169,7 @@ listed in Appendix~\ref{sec:prelude}.
 \begingroup
 \raggedright
 
-\input{defuse}%
+% \input{defuse}%
 \ifundefinedsection.\fi
 
 \undefinedsectionfalse
@@ -2157,7 +2196,7 @@ listed in Appendix~\ref{sec:prelude}.
 \let\nothsfigdef\dropit
 \let\nothslinedef\dropit
 
-\input{defuse}
+% \input{defuse}
 \ifundefinedsection.\fi
 
 
