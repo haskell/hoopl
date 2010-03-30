@@ -1025,173 +1025,36 @@ in \secref{rewrites}.
 With these pieces in hand, a client can call \ourlib{}'s analysis-and-rewriting
 function:
 \begin{code}
-  analyseAndRewriteFwd
+analyseAndRewriteFwd
   :: Edges n         
   => DataflowLattice f      -- Lattice
   -> ForwardTransfer n f    -- Transfer function
   -> ForwardRewrite n f     -- Rewrite function
   -> RewritingDepth         -- Rewrite recursively?
-  -> Fact e f               -- Input fact(s)
-  -> Graph n e x            -- Graph or subgraph
-  -> FuelMonad (Fact x f,     -- Output fact(s)
-                Graph n e x)  -- Rewritten graph
+  -> FactBase f             -- Input fact(s)
+  -> Graph n                -- Input graph
+  -> FuelMonad (Graph n,    -- Result graph
+                FactBase f) -- ...and its facts
+
+type FactBase f = BlockMap f
 \end{code}
-Roughly speaking, given a lattice, a transfer function, and a 
-rewrite function, @analyseAndRewriteFwd@ can transform a @Graph@ 
-into an optimised @Graph@.  
-One thing that is immediately obvious from this type is that it is
-polymorphic  in the type of nodes @n@ and facts @f@; these are entirely
-under the control of the client.
-In the rest of this section we flesh out other details of the 
-interface to @analyseAndRewriteFwd@, leaving the implementation for \secref{engine}.
+Roughly speaking, given a lattice, a transfer function, and a rewrite
+function, @analyseAndRewriteFwd@ can transform a @Graph@ into an
+optimised @Graph@.  One thing that is immediately obvious from this
+type is that it is polymorphic in the type of nodes @n@ and facts @f@;
+these are entirely under the control of the client.
 
-\subsection{Example: Constant propagation and constant folding}
-
-Meanwhile, it may be helpful to see how @analyseAndRewriteFwd@ can
-be called by a client.  
-We will continue to use constant propagation with constant folding as a running example;
-the complete example is shown in \figref{const-prop}.
-
-For each register, the analysis may conclude one of three facts:
-the register must store a constant value (Boolean or integer),
-the register might store a non-constant value,
-or nothing is known about the contents of the register (bottom).
-We~represent these facts using a finite map from registers to dataflow facts
-(@HasConst@).
-A register with a constant value maps to @Just v@, where @v@ is the constant value;
-a register with a non-constant value maps to @Just Top@;
-and a register with an unknown value maps to @Nothing@.
-
-The definition of the lattice (@constLattice@) is straightforward.
-The bottom element is an empty map (nothing is known about the contents of any register).
-We use the @stdMapJoin@ function to lift the join operation
-for a single register (@constFactAdd@) up to the map containing facts
-for all registers.
-
-For the transfer function, there are two interesting kinds of nodes:
-assignment and conditional branch.
-In the first two cases for assignment, a register gets a constant value,
-so we produce a dataflow fact mapping the register to its value.
-In the thired case for assignment, the register gets a non-constant value,
-so we produce a dataflow fact mapping the register to @Top@.
-The last interesting case is a conditional branch where the condition
-is a register.
-Based on whether the conditional-branch flows to the true or false successor,
-we can infer whether the value of the register is @True@ or @False@,
-so we update the fact flowing to each successor accordingly.
-
-Notice that we don't need to consider complicated cases such as
-an assignment @x:=y@ where @y@ holds a constant value @k@.
-Instead, we will rely on the interleaving of transformation
-and analyses to first transform the assignment to @x:=k@,
-which is exactly what our simple transfer function expects.
-As we mentioned in \secref{simple-tx},
-interleaving makes it possible to write
-the simplest imaginable transfer functions, with no loss of performance.
-
-The rewrite function for constant propagation
-rewrites each use of a register to its constant value.
-The @rewriteE@ function checks if the register has a constant
-value and makes the substitution.
-We use the auxiliary function @mapE@
-to apply @rewriteE@ to each use of a register in each kind of node.
-
-The rewrite function for constant folding (@simplify@) is similar;
-the main purpose is to simplify expressions that contain only constants.
-The function @exps@ simplifies a variety of simple expressions;
-we then use the function @s@ to lift the simplification to nodes.
-There is one additional case for the node-simplifying function:
-we also convert a conditional branch with a known condition
-to an unconditional branch.
-
-Note that the @simplify@ function is polymorphic in the type of fact
-because it does not need to rely on any dataflow facts.
-For example, we don't need to~check whether a register holds a constant
-value because we can rely on the constant-propagation transformation
-to~replace the register with its constant value.
-
-We can invoke the analysis by calling the function @analyseAndRewriteFwd@.
-with the lattice, the transfer function, the rewrite functions,
-an input dataflow fact (bottom),
-and the input graph.
-Because constant-propagation and constant-folding are mutually beneficial,
-we use the @combine@ function and deep rewriting to apply both transformations
-recursively.
-
-\begin{figure}
-{\small
-\begin{code}
--- Types and definition of the lattice
-data `HasConst = `Top | `B Bool | `I Integer
-type `ConstFact = Map Reg HasConst
-constLattice = DataflowLattice
-  { fact_bot    = Map.empty
-  , fact_extend = stdMapJoin constFactAdd }
-  where
-    constFactAdd new old = (c, j)
-      where j = if new == old then new else Top
-            c = if j == old then NoChange else SomeChange
-
--- Analysis: register has constant value
-`regHasConst :: ForwardTransfers Node ConstFact
-regHasConst f (Label l)           = f
-regHasConst f (Assign x (Bool b)) = Map.insert x (B b) f
-regHasConst f (Assign x (Int  i)) = Map.insert x (I i) f
-regHasConst f (Assign x _)        = Map.insert x Top   f
-regHasConst f (Store _ _)         = f
-regHasConst f (Branch l)          = [(l, f)]
-regHasConst f (Cond (Reg x) tid fid) 
-  = [(tid, Map.insert x (B True)  f),
-     (fid, Map.insert x (B False) f)]
-regHasConst f (Cond _ tid fid)    = [(tid, f), (fid, f)]
-
--- Constant propagation
-`constProp :: ForwardRewrites Node ConstFact
-constProp facts node
-  = fmap toAGraph (mapE rewriteE node)
-  where
-    rewriteE e@(Reg r) =
-      = case M.lookup r facts of
-          Just (B b) -> Just $ Bool b
-          Just (I i) -> Just $ Int  i
-          _          -> Nothing
-    rewriteE e = Nothing
-
--- Simplification ("constant folding")
-`simplify :: ForwardRewrites Node f
-simplify _ (Cond (Bool b) t f)
-  = Just $ Branch (if b then t else f)
-simplify _ node = fmap toAGraph (mapE s_exp node)
-  where
-    s_exp (Binop Add (Int i1) (Int i2))
-       = Just $ Int $ i1 + i2
-    ....  -- more cases for constant folding
-
--- Rewriting expressions
-`mapE :: (Expr    -> Maybe Expr) 
-      -> Node e x -> Maybe (Node e x)
-mapE f (Label _)    = Nothing
-mapE f (Assign x e) = fmap (Assign x) $ f e
- ... more cases for rewriting expressions
-
--- Combining transformations
-`combineFRW :: ForwardRewrites n f
-            -> ForwardRewrites n f
-            -> ForwardRewrites n f
-combine r1 r2 
-   = \n f -> case r1 n f of Nothing -> r2 n f
-                            Just g  -> Just g
-
--- Running the analysis
-`rewriteFwd  = analyseAndRewriteFwd constLattice regHasConst
-                  (constProp `combineFRW` simplify) 
-                  RewriteDeep 
-                  graph noFacts
-\end{code}}
-\caption{The client for constant-propagation and constant-folding} \figlabel{const-prop}
-\end{figure}
-
-\subsection{Interleaved analysis and rewriting}
+As well as taking and returning a @Graph@, the function also takes
+some input facts (the @FactBase@) and produces output facts. A
+@FactBase@ is simply a finite mapping from @BlockId@ to facts.  The
+output @FactBase@ maps each @BlockId@ in the @Graph@ to its fact; if
+the @BlockId@ is not in the domain of the @FactBase@ its fact is the
+bottom of the lattice.  Similarly the input @FactBase@ supplies any
+facts that hold on entry to the @Graph@.  For example, in our constant
+propagation example, if the @Graph@ represents the body of a procedure
+with parameters $x,y,z$ we would map the entry @BlockId@ to a fact
+$@[@(x,@Top@), (y,@Top@), (z,@Top@)@]@$, to specify the the procedure
+parameters have unknown values.
 
 The user-level model of how @analyseAndRewriteFwd@ works is this.  The
 function walks forward over the graph.  At each node, it applies the
@@ -1200,24 +1063,9 @@ function returns @Nothing@, the node is retained as part of the output
 graph, the transfer function is used to compute the downstream fact,
 and we move on to the next node.
 
-If the rewrite function returns @Just g@ then the next step is controlled
-by the @RewritingDepth@ flag:
-\begin{itemize}
-\item @RewriteDeep@: the entire @analyseAndRewriteFwd@ function is applied to 
-the rewritten graph, which in turn may be further rewritten.
-\item @RewriteShallow@: the rewritten graph is analysed \emph{but not further rewritten}.
-\end{itemize}
-Deep rewriting is usually essential to achieve the results of
-\citet{lerner-grove-chambers:2002}.
-But shallow rewriting is also sometimes vital; for example, a rewrite that inserts
-a spill before a call might risk repeatedly inserting the same spill if the 
-rewrite was iterated. 
-When deep rewriting is used, the rewrite functions must
-ensure that the graphs they produce are not rewritten indefinitely (\secref{correctness}).
-
-Notice that in either case, the nodes following the rewritten node see 
-\emph{up-to-date} facts; that is, their input facts are computed from the result 
-of rewriting upstream nodes.
+In the rest of this section we flesh out other details of the
+interface to @analyseAndRewriteFwd@, leaving the implementation for
+\secref{engine}.  
 
 \subsection{Dataflow lattices} \seclabel{lattices} \seclabel{facts}
 
@@ -1459,6 +1307,176 @@ using @withLabel@:
 `withLabel :: (BlockId -> AGraph n e x) -> AGraph n e x
 withLabel fn = \(b:bs) -> (fn b, bs)
 \end{code}}
+
+\subsection{The {\tt RewritingDepth} flag}
+
+If the rewrite function returns @Just g@ then the next step is controlled
+by the @RewritingDepth@ flag:
+\begin{itemize}
+\item @RewriteDeep@: the entire @analyseAndRewriteFwd@ function is applied to 
+the rewritten graph, which in turn may be further rewritten.
+\item @RewriteShallow@: the rewritten graph is analysed \emph{but not further rewritten}.
+\end{itemize}
+Deep rewriting is usually essential to achieve the results of
+\citet{lerner-grove-chambers:2002}.
+But shallow rewriting is also sometimes vital; for example, a rewrite that inserts
+a spill before a call might risk repeatedly inserting the same spill if the 
+rewrite was iterated. 
+When deep rewriting is used, the rewrite functions must
+ensure that the graphs they produce are not rewritten indefinitely (\secref{correctness}).
+
+Notice that in either case, the nodes following the rewritten node see 
+\emph{up-to-date} facts; that is, their input facts are computed from the result 
+of rewriting upstream nodes.
+
+\subsection{Example: Constant propagation and constant folding}
+
+
+\begin{figure}
+{\small
+\begin{code}
+-- Types and definition of the lattice
+data `HasConst = `Top | `B Bool | `I Integer
+type `ConstFact = Map Reg HasConst
+constLattice = DataflowLattice
+  { fact_bot    = Map.empty
+  , fact_extend = stdMapJoin constFactAdd }
+  where
+    constFactAdd new old = (c, j)
+      where j = if new == old then new else Top
+            c = if j == old then NoChange else SomeChange
+
+-- Analysis: register has constant value
+`regHasConst :: ForwardTransfers Node ConstFact
+regHasConst f (Label _)           = f
+regHasConst f (Store _ _)         = f
+regHasConst f (Assign x (Bool b)) = Map.insert x (B b) f
+regHasConst f (Assign x (Int  i)) = Map.insert x (I i) f
+regHasConst f (Assign x _)        = Map.insert x Top   f
+regHasConst f (Branch l)          = [(l, f)]
+regHasConst f (Cond (Reg x) tid fid) 
+  = [(tid, Map.insert x (B True)  f),
+     (fid, Map.insert x (B False) f)]
+regHasConst f (Cond _ tid fid)    = [(tid, f), (fid, f)]
+
+-- Constant propagation
+`constProp :: ForwardRewrites Node ConstFact
+constProp facts node
+  = fmap toAGraph (mapE rewriteE node)
+  where
+    rewriteE e@(Reg r) =
+      = case M.lookup r facts of
+          Just (B b) -> Just $ Bool b
+          Just (I i) -> Just $ Int  i
+          _          -> Nothing
+    rewriteE e = Nothing
+
+-- Simplification ("constant folding")
+`simplify :: ForwardRewrites Node f
+simplify _ (Cond (Bool b) t f)
+  = Just $ toAGraph $ Branch (if b then t else f)
+simplify _ node = fmap toAGraph (mapE s_exp node)
+  where
+    s_exp (Binop Add (Int i1) (Int i2))
+       = Just $ Int $ i1 + i2
+    ....  -- more cases for constant folding
+
+-- Rewriting expressions
+`mapE :: (Expr    -> Maybe Expr) 
+      -> Node e x -> Maybe (Node e x)
+mapE f (Label _)    = Nothing
+mapE f (Assign x e) = fmap (Assign x) $ f e
+ ... more cases for rewriting expressions
+
+-- Combining transformations
+`combineFRW :: ForwardRewrites n f
+            -> ForwardRewrites n f
+            -> ForwardRewrites n f
+combine r1 r2 
+   = \n f -> case r1 n f of Nothing -> r2 n f
+                            Just g  -> Just g
+
+-- Running the analysis
+`rewriteFwd  = analyseAndRewriteFwd constLattice regHasConst
+                  (constProp `combineFRW` simplify) 
+                  RewriteDeep 
+                  graph noFacts
+\end{code}}
+\caption{The client for constant-propagation and constant-folding} \figlabel{const-prop}
+\end{figure}
+\figref{const-prop} shows how to use @analyseAndRewriteFwd@ to
+perform constant propagation and constant folding.
+For each register, the analysis may conclude one of three facts:
+the register must store a constant value (Boolean or integer),
+the register might store a non-constant value,
+or nothing is known about the contents of the register (bottom).
+We~represent these facts using a finite map from registers to dataflow facts
+(@HasConst@).
+A register with a constant value maps to @Just v@, where @v@ is the constant value;
+a register with a non-constant value maps to @Just Top@;
+and a register with an unknown value maps to @Nothing@ (i.e. is not
+in the domain of the finite map).
+
+The definition of the lattice (@constLattice@) is straightforward.
+The bottom element is an empty map (nothing is known about the contents of any register).
+We use the @stdMapJoin@ function to lift the join operation
+for a single register (@constFactAdd@) up to the map containing facts
+for all registers.
+
+For the transfer function, @regHasConst@, 
+there are two interesting kinds of nodes:
+assignment and conditional branch.
+In the first two cases for assignment, a register gets a constant value,
+so we produce a dataflow fact mapping the register to its value.
+In the thired case for assignment, the register gets a non-constant value,
+so we produce a dataflow fact mapping the register to @Top@.
+The last interesting case is a conditional branch where the condition
+is a register.
+Based on whether the conditional-branch flows to the true or false successor,
+we can infer whether the value of the register is @True@ or @False@,
+so we update the fact flowing to each successor accordingly.
+
+Notice that we do not need to consider complicated cases such as
+an assignment @x:=y@ where @y@ holds a constant value @k@.
+Instead, we will rely on the interleaving of transformation
+and analyses to first transform the assignment to @x:=k@,
+which is exactly what our simple transfer function expects.
+As we mentioned in \secref{simple-tx},
+interleaving makes it possible to write
+the simplest imaginable transfer functions, with no loss of performance.
+
+The rewrite function for constant propagation, @constProp@,
+simply rewrites each use of a register to its constant value.
+We use the auxiliary function @mapE@
+to apply @rewriteE@ to each use of a register in each kind of node;
+in turn, @rewriteE@ function checks if the register has a constant
+value and makes the substitution.  We assume an auxiliary function
+\begin{code}
+  toAGraph :: Node e x -> AGraph e x
+\end{code}
+\figref{const-prop} also gives a completely separate rewrite function 
+to perform constant
+folding, called @simplify@.  It rewrites a conditional branch on a
+boolean constant to an unconditional branch, and runs @s_exp@
+on every sub-expression to constant sub-expressions.
+
+We have written two @ForwardRewrites@ functions 
+because they are sometimes independely useful.  But in this case we
+want to apply them successively, first @constProp@ and then @simplify@.
+So we compose them together with a simple combinator, @combineFRW@, 
+and pass the combined rewrite to @analyseAndRewriteFwd@ (see \figref{const-prop}).
+
+Note that @simplify@ does not need to check whether a register holds a constant
+value, because it can rely @constProp@ to have replaced the register by the constant;
+indeed @simplify@ does not consult the incoming fact at all, and hence is
+polymorphis in @f@.
+
+We can invoke the analysis by calling  @analyseAndRewriteFwd@.
+with the lattice, the transfer function, the combined rewrite functions,
+an empty @FactBase@, and the input graph.
+Because constant-propagation and constant-folding are mutually beneficial,
+we use deep rewriting to apply both transformations
+recursively.  \simon{I find it hard to see how deep rewriting could be beneficial here.}
 
 \subsection{Throttling the dataflow engine using ``optimization fuel''}
 \seclabel{vpoiso}
@@ -1721,45 +1739,49 @@ strong static shape guarantees.
 \subsection{Overview}
 
 We will concentrate on implementing @analyseAndRewriteFwd@, whose
-tpye signature is in \secref{running-rewriter}.
+tpye signature is in \secref{using-hoopl}.
 The implementation is built on the hierarchy of nodes, blocks, and graphs
 that we described in \secref{graph-rep}.  For each such thing
 we will develop a function of this type:
 \begin{code}
 type `ARF thing n f 
   = forall e x. f -> thing e x 
-             -> FuelMonad (OutFact x f, RG n e x)
+             -> FuelMonad (TailFactF x f, RG n e x)
 \end{code}
+An @ARF@ (short for ``analyse and rewrite forward'') is a combination of
+a rewrite and transfer function, and is also 
+generalised over nodes, blocks, and partial graphs.
+An @ARF@ takes an input fact and a @thing@,
+and returns a correspondingly-shaped output fact, and a rewritten graph of type @(RG n e x)@.
 Here we intend ``@thing@'' to range over nodes, blocks, and graphs, thus:
 \begin{code}
-  type `ARF_Node  n f = ARF n         n f
-  type `ARF_Block n f = ARF (Block n) n f
-  type `ARF_Graph n f = ARF (Graph n) n f
+  type `ARF_Node   n f = ARF n          n f
+  type `ARF_Block  n f = ARF (Block n)  n f
+  type `ARF_PGraph n f = ARF (PGraph n) n f
 \end{code}
-An @ARF@ (short for ``analyse and rewrite forward'') takes an input fact and a @thing@,
-and returns a correspondingly-shaped output fact, and a rewritten graph of type @(RG n e x)@.
 Note that the result is a rewritten graph, 
 regardless of whether @thing@ is a node, block, or graph.
 
-Why do we return @RG@ not @Graph@?  We cannot simply return 
-a @Graph@ for two reasons:
+Why do we return @RG@ not @PGraph@?  
+We return a rewritten graph @RG@ rather than a @PGraph@ 
+for two reasons:
 \begin{itemize}
 \item The client is often interested not only in the facts flowing
-out of the graph, but also in the facts on the \emph{internal} blocks
-of the graph.  A rewritten graph, of type @(RG n e x)@ is decorated with
+out of the graph (which are returned as the @TailFactF@), 
+but also in the facts on the \emph{internal} blocks
+of the graph. A rewritten graph, of type @(RG n e x)@ is decorated with
 these internal facts.
-\item The @Graph@ has deliberately restrictive invariants; for example,
-a @GMany@ with a @Tail@ is always open at exit (\figref{graph}).  It turns
+\item A @PGraph@ has deliberately restrictive invariants; for example,
+a @PMany@ with a @Tail@ is always open at exit (\figref{graph}).  It turns
 out to be awkward to maintain these invariants \emph{during} rewriting,
 but easy to restore them \emph{after} rewriting by ``normalising'' an @RG@.
 \end{itemize}
 The normalisation function expresses the above two points, by splitting 
-a rewritten graph into a @BlockGraph@ and its corresponding @FactBase@:
+a rewritten graph into a @Graph@ and its corresponding @FactBase@:
 \begin{code}
 `normalise :: BlockId -> f
-          -> RG n f C C -> (BlockGraph n, FactBase f)
+          -> RG n f C C -> (Graph n, FactBase f)
 \end{code}
-
 We can now build a modular implementation as follows:
 \begin{itemize} 
 \item From the supplied @ForwardTransfers@ and @ForwardRewrites@, produce a @ARF_Node@
@@ -1778,7 +1800,16 @@ to analyse and rewrite the rewritten graph.
   `arfBlock :: ARF_Node n f -> ARF_Block n f
 \end{code}
  
-\item From this @ARF_Block@, produce a @ARF_Graph@ that tranforms graphs (\secref{arf-graph}):
+\item From this @ARF_Block@, produce an @ARF_Blocks@ that 
+transforms a @Graph@:
+\begin{code}
+'arfBlocks :: forall n f. DataflowLattice f 
+           -> ARF_Node n f 
+           -> FactBase f -> Graph n 
+           -> FuelMonad (FactBase f, (Graph n, FactBase f))
+\end{code}
+
+\item From this @ARF_Blocks@, produce a @ARF_Graph@ that tranforms graphs (\secref{arf-graph}):
 \begin{code}
   `arfGraph :: DataflowLattice f
            -> ARF_Node n f -> ARF_Graph n f
@@ -1823,7 +1854,7 @@ here, and here alone; none of the other functions are aware of the issue.
 \john{Are we showing the code that does the interleaving? I feel like that's
 a pretty essential part of the story.}
 
-\subsection{Analysing and rewriting nodes}
+\subsection{Analysing and rewriting nodes} \seclabel{arf-node}
 
 The core of the interleaved analyse-and-rewrite idea is expressed
 by the functions @arfNode@ and @arfNodeNoRW@:
@@ -1841,7 +1872,7 @@ arfNode transfer_fn rewrite_fn graph_trans f node
       		         ; graph_trans f g } }
 \end{code}
 
-\subsection{From nodes to blocks}
+\subsection{From nodes to blocks} \seclabel{arf-node}
 
 We start with the second task, of ''lifting'' a @ARF_Node@ to a @ARF_Block@:
 \begin{code}
@@ -1863,7 +1894,7 @@ sub-blocks, threading the output fact from the first as the
 input to the second.  Each will produce a rewritten @Graph@, 
 which we connect together in sequence with @pCat@. 
 
-\subsection{Rewriting graphs}
+\subsection{Rewriting graphs} \seclabel{arf-graph}
 
 Next we tackle .... \simon{not finished}
 
