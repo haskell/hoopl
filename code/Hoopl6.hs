@@ -115,43 +115,6 @@ data IfOpen e thing where -- wanted value constructors IsOpen, IsClosed (in use)
 --   OC   GMany (Head b)   []  NoTail
 --   CC   GMany (NoHead l) [b] NoTail
 
-bFilter :: forall n. (n O O -> Bool) -> Block n C C -> Block n C C
-bFilter keep (BUnit n)  = BUnit n
-bFilter keep (BCat h t) = bFilterH h (bFilterT t)
-  where
-    bFilterH :: Block n C O -> Block n O C -> Block n C C
-    bFilterH (BUnit n)    rest = BUnit n `BCat` rest
-    bFilterH (h `BCat` m) rest = bFilterH h (bFilterM m rest)
-
-    bFilterT :: Block n O C -> Block n O C
-    bFilterT (BUnit n)    = BUnit n
-    bFilterT (m `BCat` t) = bFilterM m (bFilterT t)
-
-    bFilterM :: Block n O O -> Block n O C -> Block n O C
-    bFilterM (BUnit n) rest | keep n    = BUnit n `BCat` rest
-                            | otherwise = rest 
-    bFilterM (b1 `BCat` b2) rest = bFilterM b1 (bFilterM b2 rest)
-
-pCat :: Graph n e a -> Graph n a x -> Graph n e x
-pCat GNil g2 = g2
-pCat g1 GNil = g1
-
-pCat (GUnit b1) (GUnit b2)             
-  = GUnit (b1 `BCat` b2)
-
-pCat (GUnit b) (GMany (OpenThing e) bs x) 
-  = GMany (OpenThing (b `BCat` e)) bs x
-
-pCat (GMany e bs (OpenThing x)) (GUnit b2) 
-   = GMany e bs (OpenThing (x `BCat` b2))
-
-pCat (GMany e1 bs1 (OpenThing x1)) (GMany (OpenThing e2) bs2 x2)
-   = GMany e1 (add (x1 `BCat` e2) bs1 `unionBlocks` bs2) x2
-  where add b = addBlock (entryBlockId b) b
-
-pCat (GMany e1 bs1 NoOpenThing) (GMany (NoOpenThing _) bs2 x2)
-   = GMany e1 (bs1 `unionBlocks` bs2) x2
-
 class Edges thing where
   entryBlockId :: thing C x -> BlockId
   successors :: thing e C -> [BlockId]
@@ -162,58 +125,17 @@ instance Edges n => Edges (Block n) where
   successors (BUnit n)   = successors n
   successors (BCat _ b)  = successors b
 
-instance Edges n => Edges (Graph n) where
-  entryBlockId (GMany (NoOpenThing bid) _ _) = bid
-  successors (GMany h bg NoOpenThing) 
-     = blockSetElems (all_succs `minusBlockSet` all_blk_ids)
-     where 
-       (bids, blks) = unzip (blocksToList bg)
-       bg_succs = mkBlockSet [bid | b <- blks, bid <- successors b]
-       all_succs :: BlockSet
-       all_succs = case h of
-                     NoOpenThing _ -> bg_succs
-                     OpenThing b   -> bg_succs `unionBlockSet` mkBlockSet (successors b)
-       all_blk_ids = mkBlockSet bids
+data IfClosed e thing where
+  IsClosed    :: thing -> IfClosed O thing
+  IsNotClosed ::          IfClosed C thing
 
-data OCFlag oc where
-  IsOpen   :: OCFlag O
-  IsClosed :: OCFlag C
+-- nobody is too happy about the following, but 
+-- at least it concentrates the hair in one place
 
-class IsOC oc where
-  ocFlag :: OCFlag oc
+class Edges thing => Node thing where
+  closedId :: thing e x -> IfClosed e BlockId
+--  entryBlockId n = case closedId n of IsClosed id -> id
 
-instance IsOC O where
-  ocFlag = IsOpen
-instance IsOC C where
-  ocFlag = IsClosed
-
-mkIfThenElse :: forall n x. IsOC x 
-             => (BlockId -> BlockId -> n O C)	-- The conditional branch instruction
-             -> (BlockId -> n C O)		-- Make a head node 
-	     -> (BlockId -> n O C)		-- Make an unconditional branch
-	     -> Graph n O x -> Graph n O x	-- Then and else branches
-	     -> [BlockId]			-- Block supply
-             -> Graph n O x			-- The complete thing
-mkIfThenElse mk_cbranch mk_lbl mk_branch then_g else_g (tl:el:jl:_)
-  = case (ocFlag :: OCFlag x) of
-      IsOpen   -> gUnitOC (mk_cbranch tl el)
-                  `pCat` (mk_lbl_g tl `pCat` then_g `pCat` mk_branch_g jl)
-                  `pCat` (mk_lbl_g el `pCat` else_g `pCat` mk_branch_g jl)
-                  `pCat` (mk_lbl_g jl)
-      IsClosed -> gUnitOC (mk_cbranch tl el)
-                  `pCat` (mk_lbl_g tl `pCat` then_g)
-                  `pCat` (mk_lbl_g el `pCat` else_g)
-  where
-    mk_lbl_g :: BlockId -> Graph n C O
-    mk_lbl_g lbl = gUnitCO lbl (mk_lbl lbl)
-    mk_branch_g :: BlockId -> Graph n O C
-    mk_branch_g lbl = gUnitOC (mk_branch lbl)
-
-gUnitCO :: n C O -> Graph n C O
-gUnitCO n = GMany (NoOpenThing) noBlocks (OpenThing (BUnit n))
-
-gUnitOC :: n O C -> Graph n O C
-gUnitOC n = GMany (OpenThing (BUnit n)) noBlocks NoOpenThing
 
 -----------------------------------------------------------------------------
 --	RG: an internal data type for graphs under construction
@@ -729,3 +651,91 @@ unionBlockSet = S.union
 
 mkBlockSet :: [BlockId] -> BlockSet
 mkBlockSet = S.fromList
+
+----------------------------------------------------------------
+--
+--   DROPPINGS follow...
+--
+----------------------------------------------------------------
+{-
+
+data OCFlag oc where
+  IsOpen   :: OCFlag O
+  IsClosed :: OCFlag C
+
+class IsOC oc where
+  ocFlag :: OCFlag oc
+
+instance IsOC O where
+  ocFlag = IsOpen
+instance IsOC C where
+  ocFlag = IsClosed
+
+mkIfThenElse :: forall n x. IsOC x 
+             => (BlockId -> BlockId -> n O C)	-- The conditional branch instruction
+             -> (BlockId -> n C O)		-- Make a head node 
+	     -> (BlockId -> n O C)		-- Make an unconditional branch
+	     -> Graph n O x -> Graph n O x	-- Then and else branches
+	     -> [BlockId]			-- Block supply
+             -> Graph n O x			-- The complete thing
+mkIfThenElse mk_cbranch mk_lbl mk_branch then_g else_g (tl:el:jl:_)
+  = case (ocFlag :: OCFlag x) of
+      IsOpen   -> gUnitOC (mk_cbranch tl el)
+                  `pCat` (mk_lbl_g tl `pCat` then_g `pCat` mk_branch_g jl)
+                  `pCat` (mk_lbl_g el `pCat` else_g `pCat` mk_branch_g jl)
+                  `pCat` (mk_lbl_g jl)
+      IsClosed -> gUnitOC (mk_cbranch tl el)
+                  `pCat` (mk_lbl_g tl `pCat` then_g)
+                  `pCat` (mk_lbl_g el `pCat` else_g)
+  where
+    mk_lbl_g :: BlockId -> Graph n C O
+    mk_lbl_g lbl = gUnitCO (mk_lbl lbl)
+    mk_branch_g :: BlockId -> Graph n O C
+    mk_branch_g lbl = gUnitOC (mk_branch lbl)
+
+gUnitCO :: n C O -> Graph n C O
+gUnitCO n = GMany (IsNotOpen) noBlocks (IsOpen (BUnit n))
+
+gUnitOC :: n O C -> Graph n O C
+gUnitOC n = GMany (IsOpen (BUnit n)) noBlocks IsNotOpen
+-}
+
+
+
+bFilter :: forall n. (n O O -> Bool) -> Block n C C -> Block n C C
+bFilter keep (BUnit n)  = BUnit n
+bFilter keep (BCat h t) = bFilterH h (bFilterT t)
+  where
+    bFilterH :: Block n C O -> Block n O C -> Block n C C
+    bFilterH (BUnit n)    rest = BUnit n `BCat` rest
+    bFilterH (h `BCat` m) rest = bFilterH h (bFilterM m rest)
+
+    bFilterT :: Block n O C -> Block n O C
+    bFilterT (BUnit n)    = BUnit n
+    bFilterT (m `BCat` t) = bFilterM m (bFilterT t)
+
+    bFilterM :: Block n O O -> Block n O C -> Block n O C
+    bFilterM (BUnit n) rest | keep n    = BUnit n `BCat` rest
+                            | otherwise = rest 
+    bFilterM (b1 `BCat` b2) rest = bFilterM b1 (bFilterM b2 rest)
+
+
+pCat :: Edges n => Graph n e a -> Graph n a x -> Graph n e x
+pCat GNil g2 = g2
+pCat g1 GNil = g1
+
+pCat (GUnit b1) (GUnit b2)             
+  = GUnit (b1 `BCat` b2)
+
+pCat (GUnit b) (GMany (IsOpen e) bs x) 
+  = GMany (IsOpen (b `BCat` e)) bs x
+
+pCat (GMany e bs (IsOpen x)) (GUnit b2) 
+   = GMany e bs (IsOpen (x `BCat` b2))
+
+pCat (GMany e1 bs1 (IsOpen x1)) (GMany (IsOpen e2) bs2 x2)
+   = GMany e1 (add (x1 `BCat` e2) bs1 `unionBlocks` bs2) x2
+  where add b = addBlock (entryBlockId b) b
+
+pCat (GMany e1 bs1 IsNotOpen) (GMany IsNotOpen bs2 x2)
+   = GMany e1 (bs1 `unionBlocks` bs2) x2
