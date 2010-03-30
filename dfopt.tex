@@ -997,7 +997,7 @@ multiple representations for a single graph.
 
 Nodes, blocks, and partial graphs share some 
 characteristics in common.  Suppose E is a node, block, or
-graph:
+graph:\remark{This analogy should be developed early and often}
 \begin{itemize}
 \item Regardless of whether E is open or closed, 
 it has a unique entry point where execution begins.
@@ -1006,6 +1006,9 @@ it has a unique entry point where execution begins.
 \item If E is closed at exit, control leaves \emph{only}
 by explicit branches from closed-on-exit nodes.
 \end{itemize}
+
+\remark{We've lost the client's ability to choose the representation
+of a full function/procedure/method}
 
 % 
 % \subsection{Labels and successors} \seclabel{edges}
@@ -1066,8 +1069,9 @@ by explicit branches from closed-on-exit nodes.
 \seclabel{making-simple}
 \seclabel{create-analysis}
 
-Now that we have graphs in hand, we are ready to return to dataflow
-optimisation.  The goal of \ourlib{} is to make it extremely easy for a
+Now that we have graphs in hand, we return to dataflow
+optimisation.
+\ourlib{} makes it  easy for a
 client to build a new dataflow analysis and optimisation.  To do this
 the client must supply the following pieces:
 \begin{itemize}
