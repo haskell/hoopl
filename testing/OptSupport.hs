@@ -65,7 +65,7 @@ stdMapJoin eltJoin new old = M.foldWithKey add (NoChange, old) new
 ----------------------------------------------
 
 -- Combine the transformations, executing the 2nd if the 1st does no rewriting.
-combine :: (f -> n -> Maybe g) -> (f -> n -> Maybe g) -> f -> n -> Maybe g
+combine :: ForwardRewrites n f -> ForwardRewrites n f -> ForwardRewrites n f
 combine r1 r2 = \n f -> case r1 n f of Nothing -> r2 n f
                                        x -> x
 
