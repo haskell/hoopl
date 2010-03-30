@@ -536,6 +536,7 @@ And so the process continues to the end of the bloc, where we
 transform
 a conditional branch to an unconditional one, @goto L1@.
 
+\seclabel{simple-tx}
 Notice that our example \emph{interleaves} transformation and analysis;
 interleaving makes it easier to write effective analyses.
 If, instead, we \emph{first} analysed the block
@@ -922,13 +923,78 @@ under the control of the client.
 In the rest of this section we flesh out other details of the 
 interface to @analyseAndRewriteFwd@, leaving the implementation for \secref{engine}.
 
-Meanwhile, it may also be helpful to see how @analyseAndRewriteFwd@ can
+\subsection{Example: Constant propagation and constant folding}
+
+Meanwhile, it may be helpful to see how @analyseAndRewriteFwd@ can
 be called by a client.  
-We will continue to use constant propagation as a running example; the complete
-example is shown in \figref{const-prop}.
-\john{Code is slightly simplified from original; can probably go a bit farther.
-  There are a few functions that are standard and should be reused throughout
-  the compiler that I haven't shown in the figure.}
+We will continue to use constant propagation with constant folding as a running example;
+the complete example is shown in \figref{const-prop}.
+
+For each register, the analysis may conclude one of three facts:
+the register must store a constant value (Boolean or integer),
+the register might store a non-constant value,
+or nothing is known about the contents of the register (bottom).
+We~represent these facts using a finite map from registers to dataflow facts
+(@HasConst@).
+A register with a constant value maps to @Just v@, where @v@ is the constant value;
+a register with a non-constant value maps to @Just Top@;
+and a register with an unknown value maps to @Nothing@.
+
+The definition of the lattice (@constLattice@) is straightforward.
+The bottom element is an empty map (nothing is known about the contents of any register).
+We use the @stdMapJoin@ function to lift the join operation
+for a single register (@constFactAdd@) up to the map containing facts
+for all registers.
+
+For the transfer function, there are two interesting kinds of nodes:
+assignment and conditional branch.
+In the first two cases for assignment, a register gets a constant value,
+so we produce a dataflow fact mapping the register to its value.
+In the thired case for assignment, the register gets a non-constant value,
+so we produce a dataflow fact mapping the register to @Top@.
+The last interesting case is a conditional branch where the condition
+is a register.
+Based on whether the conditional-branch flows to the true or false successor,
+we can infer whether the value of the register is @True@ or @False@,
+so we update the fact flowing to each successor accordingly.
+
+Notice that we don't need to consider complicated cases such as
+an assignment @x:=y@ where @y@ holds a constant value @k@.
+Instead, we will rely on the interleaving of transformation
+and analyses to first transform the assignment to @x:=k@,
+which is exactly what our simple transfer function expects.
+As we mentioned in \secref{simple-tx},
+interleaving makes it possible to write
+the simplest imaginable transfer functions, with no loss of performance.
+
+The rewrite function for constant propagation
+rewrites each use of a register to its constant value.
+The @rewriteE@ function checks if the register has a constant
+value and makes the substitution.
+We use the auxiliary function @mapE@
+to apply @rewriteE@ to each use of a register in each kind of node.
+
+The rewrite function for constant folding (@simplify@) is similar;
+the main purpose is to simplify expressions that contain only constants.
+The function @exps@ simplifies a variety of simple expressions;
+we then use the function @s@ to lift the simplification to nodes.
+There is one additional case for the node-simplifying function:
+we also convert a conditional branch with a known condition
+to an unconditional branch.
+
+Note that the @simplify@ function is polymorphic in the type of fact
+because it does not need to rely on any dataflow facts.
+For example, we don't need to~check whether a register holds a constant
+value because we can rely on the constant-propagation transformation
+to~replace the register with its constant value.
+
+We can invoke the analysis by calling the function @analyseAndRewriteFwd@.
+with the lattice, the transfer function, the rewrite functions,
+an input dataflow fact (bottom),
+and the input graph.
+Because constant-propagation and constant-folding are mutually beneficial,
+we use the @combine@ function and deep rewriting to apply both transformations
+recursively.
 
 \begin{figure}
 \begin{code}
@@ -972,12 +1038,12 @@ constProp facts n =
 `simplify :: ForwardRewrites Node f
 simplify _ node = s node >>= return . toAGraph
   where
-    s :: Node e x -> TxRes (Node e x)
-    s (Cond (Bool b) t f) = Just $ Branch (if b then t else f)
-    s n                   = mapE exps n
     exps (Binop Add (Int i1) (Int i2)) ->
        Just $ Int $ i1 + i2
     ....  -- more cases for constant folding
+    s :: Node e x -> Maybe (Node e x)
+    s (Cond (Bool b) t f) = Just $ Branch (if b then t else f)
+    s n                   = mapE exps n
 
 -- Rewriting expressions
 `mapE :: (Expr -> Maybe Expr) -> Node e x -> Maybe (Node e x)
