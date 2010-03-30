@@ -1133,7 +1133,7 @@ constLattice = DataflowLattice
             c = if j == old then NoChange else SomeChange
 
 -- Analysis: register has constant value
-`regHasConst :: ForwardTransfers Node ConstFact
+`regHasConst :: ForwardTransfer Node ConstFact
 regHasConst f (Label l)           = f
 regHasConst f (Assign x (Bool b)) = Map.insert x (B b) f
 regHasConst f (Assign x (Int  i)) = Map.insert x (I i) f
@@ -1146,7 +1146,7 @@ regHasConst f (Cond (Reg x) tid fid)
 regHasConst f (Cond _ tid fid)    = [(tid, f), (fid, f)]
 
 -- Constant propagation
-`constProp :: ForwardRewrites Node ConstFact
+`constProp :: ForwardRewrite Node ConstFact
 constProp facts node
   = fmap toAGraph (mapE rewriteE node)
   where
@@ -1158,7 +1158,7 @@ constProp facts node
     rewriteE e = Nothing
 
 -- Simplification ("constant folding")
-`simplify :: ForwardRewrites Node f
+`simplify :: ForwardRewrite Node f
 simplify _ (Cond (Bool b) t f)
   = Just $ Branch (if b then t else f)
 simplify _ node = fmap toAGraph (mapE s_exp node)
@@ -1175,9 +1175,9 @@ mapE f (Assign x e) = fmap (Assign x) $ f e
  ... more cases for rewriting expressions
 
 -- Combining transformations
-`combineFRW :: ForwardRewrites n f
-            -> ForwardRewrites n f
-            -> ForwardRewrites n f
+`combineFRW :: ForwardRewrite n f
+            -> ForwardRewrite n f
+            -> ForwardRewrite n f
 combine r1 r2 
    = \n f -> case r1 n f of Nothing -> r2 n f
                             Just g  -> Just g
@@ -1327,15 +1327,15 @@ fixed point.
 
 \begin{figure}
 \begin{code}
-type `ForwardTransfers n f 
+type `ForwardTransfer n f 
   = forall e x. f -> n e x -> TailFactF x f 
-type `BackwardTransfers n f 
+type `BackwardTransfer n f 
   = forall e x. TailFactB x f -> n e x -> f
 
-type `ForwardRewrites n f 
+type `ForwardRewrite n f 
   = forall e x. f -> n e x -> Maybe (AGraph n e x)
              -> Maybe (AGraph n e x)
-type `BackwardRewrites n f 
+type `BackwardRewrite n f 
   = forall e x. TailFactB x f -> n e x 
 
 type family   `TailFactF x f :: *
@@ -1384,7 +1384,7 @@ depends on the open or closed-ness of the node's exit.}
 Fortunately, this dependency is precisely what Haskell's (recently added) 
 indexed type families can express.
 The relevant \ourlib{} definitions are given in \figref{transfers}.
-A forward transfer function, of type (@ForwardTransfers@ @n@ @f@), 
+A forward transfer function, of type (@ForwardTransfer@ @n@ @f@), 
 is a function polymorphic in @e@ and @x@.  It takes a fact and a 
 node of type (@n@ @e@ @x@), and produces an
 outgoing ``fact-like thing'' of type (@TailFactF@ @x@ @f@).  The 
@@ -1488,7 +1488,7 @@ You will have noticed that the type of @analyseAndRewriteFwd@
 returns a value in the @FuelMonad@ (\secref{using-hoopl}).
 The @FuelMonad@ is a simple state monad maintaining the supply of unused
 fuel.  It also holds a supply of fresh labels, which are used by the rewriter
-for making new blocks; more precisely, the client-provided @ForwardRewrites@
+for making new blocks; more precisely, the client-provided @ForwardRewrite@
 function produces an @AGraph@ (\figref{rewrites}) which Hoopl converts to
 a @Graph@ by supplying the @AGraph@ with a supply of @BlockIds@ from the @FuelMonad@.
 
@@ -1762,12 +1762,12 @@ a rewritten graph into a @BlockGraph@ and its corresponding @FactBase@:
 
 We can now build a modular implementation as follows:
 \begin{itemize} 
-\item From the supplied @ForwardTransfers@ and @ForwardRewrites@, produce a @ARF_Node@
+\item From the supplied @ForwardTransfer@ and @ForwardRewrite@, produce a @ARF_Node@
 that transforms nodes (\secref{arf-node}):  
 \begin{code}
   `arfNode :: DataflowLattice f
-          -> ForwardTransfers n f
-          -> ForwardRewrites n f
+          -> ForwardTransfer n f
+          -> ForwardRewrite n f
           -> ARF_Node n f
           -> ARF_Node n f
 \end{code}
@@ -1791,8 +1791,8 @@ Given these three functions, it is rather easy to write the main analyser:
 \begin{code}
 `analyseAndRewriteFwd
    :: forall n f. Edges n
-   => DataflowLattice f   -> ForwardTransfers n f
-   -> ForwardRewrites n f -> RewritingDepth
+   => DataflowLattice f   -> ForwardTransfer n f
+   -> ForwardRewrite n f -> RewritingDepth
    -> ARF_Graph n f
 analyseAndRewriteFwd lat tf rw depth
  = arfGraph lat arf_node

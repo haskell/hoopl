@@ -298,10 +298,10 @@ data ChangeFlag = NoChange | SomeChange
 --		The main Hoopl API
 -----------------------------------------------------------------------------
 
-type ForwardTransfers n f 
+type ForwardTransfer n f 
   = forall e x. f -> n e x -> TailFactF x f 
 
-type ForwardRewrites n f 
+type ForwardRewrite n f 
   = forall e x. f -> n e x -> Maybe (AGraph n e x)
 
 type family   TailFactF x f :: *
@@ -407,18 +407,18 @@ type ARF_Block n f = ARF (Block n) n f
 type ARF_PGraph n f = ARF (PGraph n) n f
 -----------------------------------------------------------------------------
 
-arfNodeNoRW :: forall n f. ForwardTransfers n f -> ARF_Node n f
- -- Lifts ForwardTransfers to ARF_Node; simple transfer only
+arfNodeNoRW :: forall n f. ForwardTransfer n f -> ARF_Node n f
+ -- Lifts ForwardTransfer to ARF_Node; simple transfer only
 arfNodeNoRW transfer_fn f node
   = return (transfer_fn f node, RGBlock (BUnit node))
 
 arfNode :: forall n f.
        	  DataflowLattice f
-        -> ForwardTransfers n f
-        -> ForwardRewrites n f
+        -> ForwardTransfer n f
+        -> ForwardRewrite n f
         -> ARF_Node n f
         -> ARF_Node n f
--- Lifts (ForwardTransfers,ForwardRewrites) to ARF_Node; 
+-- Lifts (ForwardTransfer,ForwardRewrite) to ARF_Node; 
 -- this time we do rewriting as well. 
 -- The ARF_PGraph parameters specifies what to do with the rewritten graph
 arfNode lattice transfer_fn rewrite_fn arf_node f node
@@ -484,14 +484,14 @@ forwardBlockList  _ blks = blocksToList blks
 --       The pièce de resistance: cunning transfer functions
 ----------------------------------------------------------------
 
-pureAnalysis :: DataflowLattice f -> ForwardTransfers n f -> ARF_PGraph n f
+pureAnalysis :: DataflowLattice f -> ForwardTransfer n f -> ARF_PGraph n f
 pureAnalysis lattice f = arfGraph lattice (arfNodeNoRW f)
 
 analyseAndRewriteFwd
    :: forall n f. 
       DataflowLattice f
-   -> ForwardTransfers n f
-   -> ForwardRewrites n f
+   -> ForwardTransfer n f
+   -> ForwardRewrite n f
    -> RewritingDepth
    -> Graph n
    -> FactBase f
@@ -518,9 +518,9 @@ analyseAndRewriteFwd lattice transfers rewrites depth graph facts
 --		Backward rewriting
 -----------------------------------------------------------------------------
 
-type BackwardTransfers n f 
+type BackwardTransfer n f 
   = forall e x. TailFactB x f -> n e x -> f 
-type BackwardRewrites n f 
+type BackwardRewrite n f 
   = forall e x. TailFactB x f -> n e x -> Maybe (AGraph n e x)
 
 type ARB thing n f = forall e x. TailFactB x f -> thing e x
@@ -534,18 +534,18 @@ type ARB_Node  n f = ARB n         n f
 type ARB_Block n f = ARB (Block n) n f
 type ARB_PGraph n f = ARB (PGraph n) n f
 
-arbNodeNoRW :: forall n f . BackwardTransfers n f -> ARB_Node n f
--- Lifts BackwardTransfers to ARB_Node; simple transfer only
+arbNodeNoRW :: forall n f . BackwardTransfer n f -> ARB_Node n f
+-- Lifts BackwardTransfer to ARB_Node; simple transfer only
 arbNodeNoRW transfer_fn f node
   = return (transfer_fn f node, RGBlock (BUnit node))
 
 arbNode :: forall n f.
            DataflowLattice f
-        -> BackwardTransfers n f
-        -> BackwardRewrites n f
+        -> BackwardTransfer n f
+        -> BackwardRewrite n f
         -> ARB_Node n f
         -> ARB_Node n f
--- Lifts (BackwardTransfers,BackwardRewrites) to ARB_Node; 
+-- Lifts (BackwardTransfer,BackwardRewrite) to ARB_Node; 
 -- this time we do rewriting as well. 
 -- The ARB_PGraph parameters specifies what to do with the rewritten graph
 arbNode lattice transfer_fn rewrite_fn arf_node f node
@@ -604,8 +604,8 @@ backwardBlockList _ blks = blocksToList blks
 analyseAndRewriteBwd
    :: forall n f. 
       DataflowLattice f
-   -> BackwardTransfers n f
-   -> BackwardRewrites n f
+   -> BackwardTransfer n f
+   -> BackwardRewrite n f
    -> RewritingDepth
    -> ARB_PGraph n f
 
