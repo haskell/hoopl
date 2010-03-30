@@ -473,6 +473,93 @@ analyses (\secref{example-analyses}) and transformations
 (\secref{example-rewrites}) from the Glasgow Haskell Compiler.
 We also sketch a new implementation of interleaving (\secref{engine}).
 
+\subsection{The new story}
+
+Just notes!
+
+One story of this paper is that we can think similar thoughts about
+assembly code, IR nodes, basic blocks, and control-flow graphs.
+Morever these thoughts are reflected in the types.
+Observations:
+\begin{itemize}
+\item
+In compilation and optimization, things are always easiest to analyze
+when there is a single entry and single exit.  (Lesson of structured
+programming.)
+\item
+In assembly code, we introduce labels (not present in the hardware) to
+be able to code what we mean by branch targets.
+\item
+In a control-flow graph, unlike in assembly code, \emph{every} edge
+out of a control-transfer instruction is associated with a label.
+This invariant simplifies the representation and gives us freedom to
+lay out assembly code in an order that, e.g., is good for the I-cache,
+or that minimizes branch instructions on hot paths.  (Foreshadow that
+blocks in our @Graph@ body are unordered.
+\item
+We distinguish labels, computational instructions, control transfers.
+They are distinguished by the number of predecessors and successors.
+We~express this distinction in Haskell by attaching to each
+entry and exit point one of two types: \emph{open} means there is exactly
+one predecessor or successor, and control can ``fall through;''
+\emph{closed} means that control cannot fall through, but can be
+transferred only by an explicit branch---but the \emph{number} of
+successors or predecessors is not constrained \emph{a~priori}.
+\item
+The open/closed concepts lifts to sequences of straight-line code and
+to full control-flow graphs.
+As~a special case, a sequence of straight-line code that is closed at
+both ends---beginning with a label and ending with a control
+transfer---is the familiar \emph{basic block}.
+\item
+By making open/closed part of the types, we can ensure that a client
+of \ourlib{} builds only sequences and graphs that respect our
+invariants. 
+Moreover, the types provide guidance (really???)
+\end{itemize}
+
+
+A second story of this paper is that we can think of dataflow analysis
+as a specialization of program logic.
+\begin{itemize}
+\item
+A forward dataflow analysis is represented by a predicate transformer
+that is related to \emph{strongest postconditions} \cite{floyd}.
+\item
+A backward dataflow analysis is represented by a predicate transformer
+that is related to \emph{weakest preconditions} \cite{dijkstra:discipline}.
+\end{itemize}
+A~client of \ourlib{} defines a type of node, a type of predicate
+(aka dataflow fact), and a function which, given a node, returns a
+predicate transformer.
+The beauty of our approach is that we can \emph{lift} a client's
+predicate transformer from nodes into sequences and control-flow
+graphs.
+Moreover, with help from the client, we can iterate the transformer
+over an entire function body
+until it reaches a fixed point, the result of which is a dataflow
+analysis.
+
+In addition, we can do Lerner/Grove/Chambers.
+
+Finally, our implementation has some especially wonderful Haskell
+(Simon please flesh out these bits):
+\begin{itemize}
+\item
+Our open/closed tags aren't just phantom types.  By virtue of GADTs,
+they are real. 
+And we get exhaustiveness checking, etc --- the works.
+\item
+There's more!  By using higher-rank polymorphism, we can define a
+\emph{single} kind of widget, then instantiate it at nodes, blocks,
+graphs.
+SO WHAT?  This is wonderful because\ldots
+\item
+More wonderfulness?
+\end{itemize}
+
+
+
 
 \section{Dataflow analysis {\&} transformation by \rlap{example}}
 \seclabel{constant-propagation}
