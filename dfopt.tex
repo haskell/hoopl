@@ -689,8 +689,8 @@ whatever.
 Each node must be \emph{open or closed at entry}
 and \emph{open or closed at exit}.  
 An \emph{open} point is one at which control may implicitly ``fall through;''
-to  transfer control at a \emph{close} point requires an explicit
-control-tranfer instruction.
+to  transfer control at a \emph{closed} point requires an explicit
+control-transfer instruction.
 For example,
 \begin{itemize}
 \item A multiply instruction is open on entry (because control can fall into it
@@ -734,7 +734,7 @@ data `Node e x where
 
 \ourlib{} knows \emph{at compile time} whether a node is open or
   closed at entry and exit:
-the type of a node has kind @*->*->*@, where the two type paramters
+the type of a node has kind @*->*->*@, where the two type parameters
 are type-level flags, one for entry and one for exit.
 Such a type parameter may be instantiated only with type @O@~(for
 open) or type~@C@ (for closed).
@@ -750,10 +750,10 @@ that gives the type of each constructor.
 For example, constructor @Label@
 takes a @BlockId@ and returns a node of type @Node C O@, where ``@C@''~says ``closed
 at entry'' and ``@O@''~says ``open at exit''.  
-(We often abbreviate ``a node of type (@Node@ @C@ @O@)''
+(We often abbreviate ``a node of type @Node@~@C@~@O@''
 to ``a closed/open node'',  
 and similarly for blocks and graphs.)
-The types @BlockId@, @O@, and @C@ are 
+The types @BlockId@, @O@, and~@C@ are 
 exported by \ourlib{} (\figref{graph}).  
 
 Similarly, an @Assign@ node takes a register and an expression, and
@@ -763,10 +763,10 @@ similar.  The types @Reg@ and @Expr@ are private to the client, and
 Finally, the control-transfer nodes @Branch@ and @CondBranch@ are open at entry
 and closed at exit.  
 
-In general, nodes closed on entry are the only targets of control transfers;
+Nodes closed on entry are the only targets of control transfers;
 nodes open on entry and exit never perform control transfers;
 and nodes closed on exit always perform control transfers.
-We often call these \emph{first}, \emph{middle}, and \emph{last} nodes
+We~often call these nodes \emph{first}, \emph{middle}, and \emph{last} nodes
 respectively, because of the position each type of node occupies in a
 basic block.
 
@@ -778,10 +778,10 @@ data `O   -- Open
 data `C   -- Closed
 
 data `Block n e x where
- `BUnit :: n e x -> Block n e x
+ `BUnit :: n e x       -> Block n e x
  `BCat  :: Block n e O -> Block n O x -> Block n e x
 
-newtype 'BlockId = BlockId Int
+newtype `BlockId = BlockId Int
 type `Graph n = BlockMap (Block n C C)
 -- (BlockMap a) is a finite map from BlockId to 'a'
 
@@ -804,83 +804,150 @@ addBlock   :: BlockId -> Block n C C
            -> Graph n -> Graph n
 unionGraph :: Graph n -> Graph n -> Graph n
 \end{code}
-\caption{The \ourlib{} Block and Graph types} 
+\caption{The block and graph types defined by \ourlib} 
 \figlabel{graph}
 \end{figure}
 
-The types for blocks and graphs are defined by \ourlib{}
-itself, with definitions given in \figref{graph}.
-A @Block@ is parameterised over the node type @n@
-as well as over the same open/closed flags as nodes.  
-Since the node type is itself parameterised over its open/closed flags,
-@n@ has kind @*->*->*@.
+\ourlib\ combines the client's nodes into
+blocks and graphs, which, unlike the nodes, are defined by \ourlib{}
+ (\figref{graph}).
+A~@Block@ is parameterised over the node type~@n@
+as well as over the same flag types that make it open or closed at
+ entry and exit.
 
-The @BUnit@ constructor lifts a node to become a block, while @BCat@
-concatenates two blocks. Note carefully the type of @BCat@: it
-requires its first argument to be open on exit, and its second to be
-open on entry.  This ensures that control can fall through from the
-first into the second; for example, putting a @Branch@ before a
-@Assign@ is statically prevented.
+The @BUnit@ constructor lifts a node to become a block; @BCat@
+concatenates blocks in sequence. 
+It~makes sense to concatenate blocks only when control can fall
+through from the first to the second; therefore, 
+two blocks may be concatenated {only} if each block is open at
+the point of concatenation.
+We~enforce this restriction by using the open/closed flags we have
+introduced:\remark{I'm trying to signpost this as an innovation}
+@BCat@
+requires its first argument to be open on exit and its second to be
+open on entry.  
+It~is statically impossible, for example, to put a @Branch@
+immediately before an
+@Assign@.
+Also notice that the definition of @Block@ guarantees that every @Block@ 
+has at least one node.\remark{So what? Who cares?  Why is it important
+that no block is empty?  (And if we had an empty block, we could ditch
+@PNil@ from @PGraph@, which woudl be an improvement.)}
 
-A @Block@ closed at both entry and exit is what we normally 
-call ``a basic block''.  
+
+A @Block@ closed at both entry and exit is what compiler writers normally 
+call a ``basic block.''
 In the case of @Node@, for example,
-the types elegantly ensure that a block of type (@Block@ @Node@ @C@ @C@)
-consists of a @Head@, followed
-by a sequence of @Assign@ and @Store@ nodes, and finishing with a @Branch@
-or @CondBranch@.  
-Also notice that the type guarantees that every @Block@ 
-has at least one node.
+the types elegantly ensure that a block of type \mbox{@Block@ @Node@ @C@ @C@}
+begins with a @Label@, 
+continues with a (possibly empty) sequence of @Assign@s and @Store@s,
+and finishes with a @Branch@ or @CondBranch@.  
 
 
 \subsection{Graphs} \seclabel{graphs}
 
-\ourlib{} defines two distinct types of control-flow graphs.  The first,
-@Graph@, is entirely straightforward (see \figref{graph}): it is simply
-a collection of closed/closed @Block@s, represented as a
-a finite mapping from a @BlockId@ to @Block@.  We choose this representation
-to stress that each @Block@ in the graph has a distinct entry @BlockId@.
-A procedure might be represented by a @Graph@ together with the @BlockId@
+\ourlib{} composes blocks into graphs, which are also defined by
+\ourlib\ in  \figref{graph}.
+\ourlib{} defines two distinct types of control-flow
+graphs.\remark{Why?  Wouldn't it be simpler to have just one type?
+(Not only do I think a reader will have this question, but I myself am
+not liking this direction\ldots)
+}
+The first,
+@Graph@, is entirely straightforward (see \figref{graph}): it is a
+collection of basic blocks, each with its own label.
+To~ensure that each label refers to a unique basic block, we represent
+the graph as a finite map from @BlockId@ to \mbox{@Block@ @n@ @C@ @C@}.  
+A~procedure might be represented by a @Graph@ together with the @BlockId@
 at which execution starts.
 
-As we saw in \secref{constant-propagation}, the \ourlib{} client specifies
-a rewrite function that optionally rewrites a node.  But what does it
-rewrite the node \emph{to}?  At first one might
-expect that rewriting returns a new node, but that is not enough.
-For example, perhaps we want to replace a high-level operation
-with a tree of conditional branches or a loop, which entails introducing new blocks.
-Another important special case is rewriting a node to a no-op.
-So in general the rewrite function must return an \emph{arbitrary graph}.
-But this graph cannot be a @Graph@, because a @Graph@ is closed at both ends;
+As illustrated in \secref{constant-propagation}, a client of \ourlib{} 
+may rewrite a node.
+But what does it rewrite the node \emph{to}?  
+In~\secref{constant-propagation}, it is enough to rewrite a node into
+a new node.
+But in general, a node might be rewritten into a graph, possibly with
+internal control flow:
+\begin{itemize}
+\item
+A redundant assignment might be eliminated by rewriting it into an
+empty graph.
+\item
+A~single node representing a ``safe'' divide instruction (that detects
+overflow) might be rewritten into a small graph of machine
+instructions that requires a test and conditional branch to detect
+overflow.
+\item
+A~single node that copies a large object might be rewritten into an
+internal loop that copies the words of the object individually.
+\end{itemize}
+None of these graphs can be represented as a @Graph@, because a
+@Graph@ is closed at both ends; 
 indeed a @Graph@ does not even have shape parameters @e@ and @x@.
 Rather, the rewrite function should return a ``partial graph'', 
 or @PGraph@, which can be open or closed at either
 end just like a node or block.  
+\remark{Not only don't I like this story, but I think it vitiates one
+of the beautiful parts of the paper: nodes are like blocks are like
+graphs.
+Instead of introducing @Graph@ as standard and treating @PGraph@ as
+special, I'd like to do it exactly the other way round.}
 
 The definition of @PGraph@ is given in \figref{graph}.
 It includes a @PNil@ constructor for the empty graph,
-and a @PUnit@ constructor to lift an @Block@ to be @PGraph@.
-We will soon return to the question
-of why @GUnit@ is restricted to blocks open on exit.
-\simon{Norman thinks we need a closed-closed empty
-graph but I don't see that, at least not yet.}
-
-The most general form of @PGraph@ uses the @PMany@ constructor,
-which has three fields:
+and a @PUnit@ constructor to lift a single @Block@ to be a @PGraph@.
+But in general, a graph has many blocks, and is built by
+\finalremark{Tabling the question of the closed/closed empty graph}%
+%\simon{Norman thinks we need a closed-closed empty
+%graph but I don't see that, at least not yet.}
+the @PMany@ constructor:
 \begin{itemize}
-\item The first field is called the ``head'' of the @PGraph@.
-If it is $@(Head@\;b@)@$, the @PGraph@ is open on entry, with initial block $b$.
-If it is $@(NoHead@\;l@)@$, the @PGraph@ is closed on entry, and execution begins
-at block $l$. We need the @BlockId@ $l$, because the @PGraph@ 
+\item
+A~graph that is open at the entry has a ``head'' block that is open at
+the entry and closed at the exit.\remark{Why isn't this called the
+``entry sequence?''  Seems better than ``head''\ldots}
+A~graph that is closed at the entry doesn't have a ``head'' block.
+This choice is represented by a field of type @Head n O@ or @Head n e@:
+If the field's type is @Head n O@, it is created with the @Head@ value
+constructor, and it contains an entry sequence of type @Block n O C@.
+If the field's type is @Head n C@, it is created with the @NoHead@ value
+constructor, and it contains only a @BlockId@.\remark{Why a @BlockId@
+instead of nothing?}
+%\item The first field is called the ``head'' of the @PGraph@.
+%If it is $@(Head@\;b@)@$, the @PGraph@ is open on entry, with initial block $b$.
+%If it is $@(NoHead@\;l@)@$, the @PGraph@ is closed on entry, and execution begins
+%at block $l$. 
+We need the @BlockId@ $l$, because the @PGraph@ 
 may replace a node, so just as a node closed at entry has a unique entry point,
-so does a @PGraph@.
-\item The second argument is simply an arbitrary @Graph@ of blocks,
-as already discussed.
-\item The third field is the ``tail'' of the @PGraph@.  If
-the @Graph@ is closed on exit the tail is just @NoTail@.  If it is
-open on exit, the tail is a (labelled) @Block@, open on exit.
+so does a @PGraph@.\remark{This argument just seems like special
+pleading to me.   If you want the node analogy, \emph{start} from the
+node analogy.  And the actual reasoning goes like this: if the
+@PGraph@ replaces a node closed at entry, the replacement graph must
+begin with the \emph{same} label as the node it replaces.
+Now this reader starts to wonder why one would store  that label twice.}
+\item
+A~general graph, no matter how it is shaped at the entry or exit,
+contains a collection of labelled closed/closed (basic) blocks.
+This collection is represented as a @Graph@ of blocks,
+as discussed above.
+\item
+A~graph that is open at the exit has a ``tail'' block that is closed at
+the entry and open at the exit.\remark{Why isn't this called the
+``exit sequence?''  Seems better than ``tail\ldots}
+A~graph that is closed at the exit doesn't have a ``tail'' block.
+The exit sequence (or lack thereof) is represented by a value of type
+@Tail n x@, where @x@~describes the shape of the exit.
+\remark{And if we could get rid of the beastly block IDs, we could
+have the \emph{same} construct here as at the entry sequence, and
+ enjoy a little parallel structure.}
+If the @Graph@ is closed on exit the tail is just @NoTail@.
+If it is open on exit, the tail is a (labelled) @Block@, open on
+ exit.\remark{Why is it labelled?  None of the other blocks closed on
+ entry is labelled?  What's special about this one?}
 \end{itemize}
-Partial graphs compose nicely.  For example, concatenation is easy to define:
+Partial graphs compose nicely.  
+For example, like blocks, two graphs may be concatenated exactly when
+they are both open at the point of concatenation:
 \par{\small
 \begin{code}
 `pCat :: Graph n e O -> Graph n O x -> Graph n e x
@@ -1175,15 +1242,15 @@ fixed point.
 
 \begin{figure}
 \begin{code}
-type `ForwardTransfers n f 
+type `ForwardTransfer n f 
   = forall e x. f -> n e x -> TailFactF x f 
-type `BackwardTransfers n f 
+type `BackwardTransfer n f 
   = forall e x. TailFactB x f -> n e x -> f
 
-type `ForwardRewrites n f 
+type `ForwardRewrite n f 
   = forall e x. f -> n e x -> Maybe (AGraph n e x)
              -> Maybe (AGraph n e x)
-type `BackwardRewrites n f 
+type `BackwardRewrite n f 
   = forall e x. TailFactB x f -> n e x 
 
 type family   `TailFactF x f :: *
@@ -1232,7 +1299,7 @@ depends on the open or closed-ness of the node's exit.}
 Fortunately, this dependency is precisely what Haskell's (recently added) 
 indexed type families can express.
 The relevant \ourlib{} definitions are given in \figref{transfers}.
-A forward transfer function, of type (@ForwardTransfers@ @n@ @f@), 
+A forward transfer function, of type (@ForwardTransfer@ @n@ @f@), 
 is a function polymorphic in @e@ and @x@.  It takes a fact and a 
 node of type (@n@ @e@ @x@), and produces an
 outgoing ``fact-like thing'' of type (@TailFactF@ @x@ @f@).  The 
@@ -1347,7 +1414,7 @@ constLattice = DataflowLattice
             c = if j == old then NoChange else SomeChange
 
 -- Analysis: register has constant value
-`regHasConst :: ForwardTransfers Node ConstFact
+`regHasConst :: ForwardTransfer Node ConstFact
 regHasConst f (Label _)           = f
 regHasConst f (Store _ _)         = f
 regHasConst f (Assign x (Bool b)) = Map.insert x (B b) f
@@ -1360,7 +1427,7 @@ regHasConst f (Cond (Reg x) tid fid)
 regHasConst f (Cond _ tid fid)    = [(tid, f), (fid, f)]
 
 -- Constant propagation
-`constProp :: ForwardRewrites Node ConstFact
+`constProp :: ForwardRewrite Node ConstFact
 constProp facts node
   = fmap toAGraph (mapE rewriteE node)
   where
@@ -1372,7 +1439,7 @@ constProp facts node
     rewriteE e = Nothing
 
 -- Simplification ("constant folding")
-`simplify :: ForwardRewrites Node f
+`simplify :: ForwardRewrite Node f
 simplify _ (Cond (Bool b) t f)
   = Just $ toAGraph $ Branch (if b then t else f)
 simplify _ node = fmap toAGraph (mapE s_exp node)
@@ -1389,9 +1456,9 @@ mapE f (Assign x e) = fmap (Assign x) $ f e
  ... more cases for rewriting expressions
 
 -- Combining transformations
-`combineFRW :: ForwardRewrites n f
-            -> ForwardRewrites n f
-            -> ForwardRewrites n f
+`combineFRW :: ForwardRewrite n f
+            -> ForwardRewrite n f
+            -> ForwardRewrite n f
 combine r1 r2 
    = \n f -> case r1 n f of Nothing -> r2 n f
                             Just g  -> Just g
@@ -1506,7 +1573,7 @@ You will have noticed that the type of @analyseAndRewriteFwd@
 returns a value in the @FuelMonad@ (\secref{using-hoopl}).
 The @FuelMonad@ is a simple state monad maintaining the supply of unused
 fuel.  It also holds a supply of fresh labels, which are used by the rewriter
-for making new blocks; more precisely, the client-provided @ForwardRewrites@
+for making new blocks; more precisely, the client-provided @ForwardRewrite@
 function produces an @AGraph@ (\figref{rewrites}) which Hoopl converts to
 a @Graph@ by supplying the @AGraph@ with a supply of @BlockIds@ from the @FuelMonad@.
 
@@ -1784,12 +1851,12 @@ a rewritten graph into a @Graph@ and its corresponding @FactBase@:
 \end{code}
 We can now build a modular implementation as follows:
 \begin{itemize} 
-\item From the supplied @ForwardTransfers@ and @ForwardRewrites@, produce a @ARF_Node@
+\item From the supplied @ForwardTransfer@ and @ForwardRewrite@, produce a @ARF_Node@
 that transforms nodes (\secref{arf-node}):  
 \begin{code}
   `arfNode :: DataflowLattice f
-          -> ForwardTransfers n f
-          -> ForwardRewrites n f
+          -> ForwardTransfer n f
+          -> ForwardRewrite n f
           -> ARF_Node n f
           -> ARF_Node n f
 \end{code}
@@ -1822,8 +1889,8 @@ Given these three functions, it is rather easy to write the main analyser:
 \begin{code}
 `analyseAndRewriteFwd
    :: forall n f. Edges n
-   => DataflowLattice f   -> ForwardTransfers n f
-   -> ForwardRewrites n f -> RewritingDepth
+   => DataflowLattice f   -> ForwardTransfer n f
+   -> ForwardRewrite n f -> RewritingDepth
    -> ARF_Graph n f
 analyseAndRewriteFwd lat tf rw depth
  = arfGraph lat arf_node
