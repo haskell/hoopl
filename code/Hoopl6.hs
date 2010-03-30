@@ -130,13 +130,6 @@ data IfClosed e thing where
   IsClosed    :: thing -> IfClosed C thing
   IsNotClosed ::          IfClosed O thing
 
--- nobody is too happy about the following, but 
--- at least it concentrates the hair in one place
-
-
-entryBlockId :: Edges thing => thing C x -> BlockId
-entryBlockId thing = case closedId thing of IsClosed id -> id
-
 
 -----------------------------------------------------------------------------
 --	RG: an internal data type for graphs under construction
@@ -397,7 +390,7 @@ arfGraph lattice arf_node f (GMany entry blks exit)
     arf_exit fb (IsOpen blk) = do { let ft = lookupFact lattice fb lt
                                      ; (f1, rg) <- arfBlock arf_node ft blk
                                      ; return (f1, RL lt ft rg) }
-      where lt = entryBlockId blk
+      where IsClosed lt :: IfClosed C BlockId = closedId blk
 
 forwardBlockList :: [BlockId] -> BlockMap (Block n C C) -> [(BlockId,Block n C C)]
 -- This produces a list of blocks in order suitable for forward analysis.
@@ -531,7 +524,7 @@ arbGraph lattice arb_node f eid (GMany entry blks exit)
     arb_exit ft IsNotOpen        = return (ft, RLMany noBWF)
     arb_exit ft (IsOpen blk) = do { (f1, rg) <- arbBlock arb_node ft blk
                                      ; return (mkFactBase [(lt,f1)], RL lt f1 rg) }
-      where lt = entryBlockId blk
+      where IsClosed lt :: IfClosed C BlockId = closedId blk
 
 backwardBlockList :: [BlockId] -> BlockMap (Block n C C) -> [(BlockId,Block n C C)]
 -- This produces a list of blocks in order suitable for backward analysis.
@@ -753,7 +746,8 @@ pCat (GMany e bs (IsOpen x)) (GUnit b2)
 
 pCat (GMany e1 bs1 (IsOpen x1)) (GMany (IsOpen e2) bs2 x2)
    = GMany e1 (add (x1 `BCat` e2) bs1 `unionBlocks` bs2) x2
-  where add b = addBlock (entryBlockId b) b
+  where add b = addBlock id b
+          where IsClosed id :: IfClosed C BlockId = closedId b
 
 pCat (GMany e1 bs1 IsNotOpen) (GMany IsNotOpen bs2 x2)
    = GMany e1 (bs1 `unionBlocks` bs2) x2
