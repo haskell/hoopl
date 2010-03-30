@@ -493,8 +493,8 @@ analyseAndRewriteFwd
    -> ForwardTransfer n f
    -> ForwardRewrite n f
    -> RewritingDepth
-   -> Graph n
    -> FactBase f
+   -> Graph n
    -> FuelMonad (Graph n, FactBase f)
 
 data RewritingDepth = RewriteShallow | RewriteDeep
@@ -503,7 +503,7 @@ data RewritingDepth = RewriteShallow | RewriteDeep
 --  * "shallow": accept the new graph, analyse it without further rewriting
 --  * "deep": recursively analyse-and-rewrite the new graph
 
-analyseAndRewriteFwd lattice transfers rewrites depth graph facts
+analyseAndRewriteFwd lattice transfers rewrites depth facts graph
   = do { (_, gwf) <- arfBlocks lattice arf_node facts graph
        ; return gwf }
   where 
