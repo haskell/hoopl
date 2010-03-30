@@ -307,10 +307,10 @@ data ChangeFlag = NoChange | SomeChange
 -----------------------------------------------------------------------------
 
 type ForwardTransfer n f 
-  = forall e x. f -> n e x -> TailFactF x f 
+  = forall e x. n e x -> f -> TailFactF x f 
 
 type ForwardRewrite n f 
-  = forall e x. f -> n e x -> Maybe (AGraph n e x)
+  = forall e x. n e x -> f -> Maybe (AGraph n e x)
 
 type family   TailFactF x f :: *
 type instance TailFactF C f = [(BlockId, f)] 
@@ -418,7 +418,7 @@ type ARF_PGraph n f = ARF (PGraph n) n f
 arfNodeNoRW :: forall n f. ForwardTransfer n f -> ARF_Node n f
  -- Lifts ForwardTransfer to ARF_Node; simple transfer only
 arfNodeNoRW transfer_fn f node
-  = return (transfer_fn f node, RGBlock (BUnit node))
+  = return (transfer_fn node f, RGBlock (BUnit node))
 
 arfNode :: forall n f.
        	  DataflowLattice f
@@ -430,7 +430,7 @@ arfNode :: forall n f.
 -- this time we do rewriting as well. 
 -- The ARF_PGraph parameters specifies what to do with the rewritten graph
 arfNode lattice transfer_fn rewrite_fn arf_node f node
-  = do { mb_g <- withFuel (rewrite_fn f node)
+  = do { mb_g <- withFuel (rewrite_fn node f)
        ; case mb_g of
            Nothing -> arfNodeNoRW transfer_fn f node
       	   Just ag -> do { g <- graphOfAGraph ag
@@ -527,9 +527,9 @@ analyseAndRewriteFwd lattice transfers rewrites depth facts graph
 -----------------------------------------------------------------------------
 
 type BackwardTransfer n f 
-  = forall e x. TailFactB x f -> n e x -> f 
+  = forall e x. n e x -> TailFactB x f -> f 
 type BackwardRewrite n f 
-  = forall e x. TailFactB x f -> n e x -> Maybe (AGraph n e x)
+  = forall e x. n e x -> TailFactB x f -> Maybe (AGraph n e x)
 
 type ARB thing n f = forall e x. TailFactB x f -> thing e x
                               -> FuelMonad (f, RG n f e x)
@@ -545,7 +545,7 @@ type ARB_PGraph n f = ARB (PGraph n) n f
 arbNodeNoRW :: forall n f . BackwardTransfer n f -> ARB_Node n f
 -- Lifts BackwardTransfer to ARB_Node; simple transfer only
 arbNodeNoRW transfer_fn f node
-  = return (transfer_fn f node, RGBlock (BUnit node))
+  = return (transfer_fn node f, RGBlock (BUnit node))
 
 arbNode :: forall n f.
            DataflowLattice f
@@ -557,7 +557,7 @@ arbNode :: forall n f.
 -- this time we do rewriting as well. 
 -- The ARB_PGraph parameters specifies what to do with the rewritten graph
 arbNode lattice transfer_fn rewrite_fn arf_node f node
-  = do { mb_g <- withFuel (rewrite_fn f node)
+  = do { mb_g <- withFuel (rewrite_fn node f)
        ; case mb_g of
            Nothing -> arbNodeNoRW transfer_fn f node
       	   Just ag -> do { g <- graphOfAGraph ag
