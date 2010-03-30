@@ -76,6 +76,7 @@ Specifically, in Hoopl5:
   blocks.  (Because unlike graphs, blocks *are* made from other
   blocks.
 
+
 -}
 
 module Hoopl5 where
@@ -101,9 +102,9 @@ data Graph n e x where
   GMany :: IfOpen e (Block n O C) -> BlockMap (Block n C C)
         -> IfOpen x (Block n C O) -> Graph n e x
 
-data IfOpen e thing where -- wanted value constructors IsOpen, IsClosed (in use)
-  OpenThing   :: thing -> IfOpen O thing
-  NoOpenThing ::          IfOpen C thing
+data IfOpen e thing where
+  IsOpen    :: thing -> IfOpen O thing
+  IsNotOpen ::          IfOpen C thing
 
 -----------------------------------------------------------------------------
 --		Defined here but not used
@@ -155,7 +156,7 @@ data RG n f e x where	-- Will have facts too in due course
   RGCatO  :: RG n f e O -> RG n f O x -> RG n f e x
   RGCatC  :: RG n f e C -> RL n f x   -> RG n f e x
 
-type GraphWithFacts n f = (Graph n, FactBase f)
+type GraphWithFacts n f = (BlockMap (Block n C C), FactBase f)
   -- A Graph together with the facts for that graph
   -- The domains of the two maps should be identical
 
@@ -335,7 +336,8 @@ arfNodeNoRW transfer_fn f node
   = return (transfer_fn f node, RGBlock (BUnit node))
 
 arfNode :: forall n f.
-       	  DataflowLattice f
+           Edges n
+        => DataflowLattice f
         -> ForwardTransfer n f
         -> ForwardRewrite n f
         -> ARF_Node n f
@@ -358,7 +360,7 @@ arfBlock arf_node f (BCat hd mids) = do { (f1,g1) <- arfBlock arf_node f  hd
 	                                ; return (f2, g1 `RGCatO` g2) }
 
 arfBlocks :: forall n f. DataflowLattice f 
-          -> ARF_Node n f -> FactBase f -> Graph n 
+          -> ARF_Node n f -> FactBase f -> BlockMap (Block n C C) 
           -> FuelMonad (FactBase f, GraphWithFacts n f)
 		-- Outgoing factbase is restricted to BlockIds *not* in
 		-- in the Graph; the facts for BlockIds
@@ -374,7 +376,7 @@ arfBlocks lattice arf_node init_fbase blocks
                               ; (fs, rg) <- arfBlock arf_node f blk
 			      ; return (fs, RL l f rg) }
 
-arfGraph :: forall n f. DataflowLattice f -> ARF_Node n f -> ARF_Graph n f
+arfGraph :: forall n f. Edges n => DataflowLattice f -> ARF_Node n f -> ARF_Graph n f
 -- Lift from blocks to graphs
 arfGraph _       _        f GNil        = return (f, RGNil)
 arfGraph _       arf_node f (GUnit blk) = arfBlock arf_node f blk
@@ -384,19 +386,20 @@ arfGraph lattice arf_node f (GMany entry blks exit)
        ; (f3, exit')  <- arf_exit f2 exit 
        ; return (f3, entry' `RGCatC` RLMany blks' `RGCatC` exit') }
   where
-    arf_entry :: f -> IfOpen e n
-             -> FuelMonad ([(BlockId,f)], RG n f e C)
-    arf_entry fh (NoOpenThing lh) = return ([(lh,fh)], RGNil)
-    arf_entry fh (OpenThing b)    = arfBlock arf_node fh b
+    arf_entry :: f -> IfOpen e (Block n O C)
+              -> FuelMonad ([(BlockId,f)], RG n f e C)
+    arf_entry fh IsNotOpen   = return ([], RGNil)
+    arf_entry fh (IsOpen b) = arfBlock arf_node fh b
 
-    arf_exit :: FactBase f -> IfOpen x n
-            -> FuelMonad (TailFactF x f, RL n f x)
-    arf_exit fb NoOpenThing        = return (factBaseList fb, RLMany noBWF)
-    arf_exit fb (OpenThing blk) = do { let ft = lookupFact lattice fb lt
+    arf_exit :: FactBase f -> IfOpen x (Block n C O)
+             -> FuelMonad (TailFactF x f, RL n f x)
+    arf_exit fb IsNotOpen        = return (factBaseList fb, RLMany noBWF)
+    arf_exit fb (IsOpen blk) = do { let ft = lookupFact lattice fb lt
                                      ; (f1, rg) <- arfBlock arf_node ft blk
                                      ; return (f1, RL lt ft rg) }
+      where lt = entryBlockId blk
 
-forwardBlockList :: [BlockId] -> Graph n -> [(BlockId,Block n C C)]
+forwardBlockList :: [BlockId] -> BlockMap (Block n C C) -> [(BlockId,Block n C C)]
 -- This produces a list of blocks in order suitable for forward analysis.
 -- ToDo: Do a topological sort to improve convergence rate of fixpoint
 --       This will require a (HavingSuccessors l) class constraint
@@ -406,18 +409,19 @@ forwardBlockList  _ blks = blocksToList blks
 --       The pièce de resistance: cunning transfer functions
 ----------------------------------------------------------------
 
-pureAnalysis :: DataflowLattice f -> ForwardTransfer n f -> ARF_Graph n f
+pureAnalysis :: Edges n => DataflowLattice f -> ForwardTransfer n f -> ARF_Graph n f
 pureAnalysis lattice f = arfGraph lattice (arfNodeNoRW f)
 
 analyseAndRewriteFwd
-   :: forall n f. 
-      DataflowLattice f
+   :: forall n f.
+      Edges n
+   => DataflowLattice f
    -> ForwardTransfer n f
    -> ForwardRewrite n f
    -> RewritingDepth
    -> FactBase f
-   -> Graph n
-   -> FuelMonad (Graph n, FactBase f)
+   -> BlockMap (Block n C C)
+   -> FuelMonad (BlockMap (Block n C C), FactBase f)
 
 data RewritingDepth = RewriteShallow | RewriteDeep
 -- When a transformation proposes to rewrite a node, 
@@ -462,7 +466,8 @@ arbNodeNoRW transfer_fn f node
   = return (transfer_fn f node, RGBlock (BUnit node))
 
 arbNode :: forall n f.
-           DataflowLattice f
+           Node n
+        => DataflowLattice f
         -> BackwardTransfer n f
         -> BackwardRewrite n f
         -> ARB_Node n f
@@ -475,7 +480,7 @@ arbNode lattice transfer_fn rewrite_fn arf_node f node
        ; case mb_g of
            Nothing -> arbNodeNoRW transfer_fn f node
       	   Just ag -> do { g <- graphOfAGraph ag
-      		         ; arbGraph lattice arf_node f g } }
+      		         ; arbGraph lattice arf_node f (closedId node) g } }
 
 arbBlock :: forall n f. ARB_Node n f -> ARB_Block n f
 -- Lift from nodes to blocks
@@ -487,7 +492,7 @@ arbBlock arb_node f (BCat b1 b2) = do { (f2,g2) <- arbBlock arb_node f  b2
 
 arbBlocks :: forall n f. DataflowLattice f 
           -> ARB_Node n f -> FactBase f
-          -> Graph n -> FuelMonad (FactBase f, GraphWithFacts n f)
+          -> BlockMap (Block n C C) -> FuelMonad (FactBase f, GraphWithFacts n f)
 arbBlocks lattice arb_node init_fbase blocks
   = fixpoint lattice do_block 
              (backwardBlockList (factBaseBlockIds init_fbase) blocks) 
@@ -499,40 +504,53 @@ arbBlocks lattice arb_node init_fbase blocks
 			    ; let f = lookupFact lattice fbase l
                             ; return ([(l,fb)], RL l f rg) }
 
-arbGraph :: forall n f. DataflowLattice f -> ARB_Node n f -> ARB_Graph n f
-arbGraph _       _        f GNil        = return (f, RGNil)
-arbGraph _       arb_node f (GUnit blk) = arbBlock arb_node f blk
-arbGraph lattice arb_node f (GMany entry blks exit)
+arbGraph :: forall n f e x. 
+            Edges n
+         => DataflowLattice f
+         -> ARB_Node n f
+         -> TailFactB x f
+         -> IfClosed e BlockId
+         -> Graph n e x
+         -> FuelMonad (f, RG n f e x)
+arbGraph _       _        f _    GNil        = return (f, RGNil)
+arbGraph _       arb_node f _   (GUnit blk) = arbBlock arb_node f blk
+arbGraph lattice arb_node f eid (GMany entry blks exit)
   = do { (f1, exit')  <- arb_exit f exit
        ; (f2, blks')  <- arbBlocks lattice arb_node f1 blks
-       ; (f3, entry') <- arb_entry f2 entry 
+       ; (f3, entry') <- arb_entry f2 eid entry 
        ; return (f3, entry' `RGCatC` RLMany blks' `RGCatC` exit') }
   where
-    arb_entry :: FactBase f -> IfOpen e n
+    arb_entry :: FactBase f -> IfClosed e BlockId -> IfOpen e (Block n O C) 
               -> FuelMonad (f, RG n f e C)
-    arb_entry fbase (NoOpenThing l) = return (lookupFact lattice fbase l, RGNil)
-    arb_entry fbase (OpenThing blk) = arbBlock arb_node fbase blk
+    arb_entry fbase (IsClosed eid) IsNotOpen = return (lookupFact lattice fbase eid,
+                                                       RGNil)
+    arb_entry fbase IsNotClosed (IsOpen blk) = arbBlock arb_node fbase blk
 
-    arb_exit :: TailFactB x f -> IfOpen x n
-            -> FuelMonad (FactBase f, RL n f x)
-    arb_exit ft NoOpenThing        = return (ft, RLMany noBWF)
-    arb_exit ft (OpenThing blk) = do { (f1, rg) <- arbBlock arb_node ft blk
+    arb_exit :: TailFactB x f -> IfOpen x (Block n C O)
+             -> FuelMonad (FactBase f, RL n f x)
+    arb_exit ft IsNotOpen        = return (ft, RLMany noBWF)
+    arb_exit ft (IsOpen blk) = do { (f1, rg) <- arbBlock arb_node ft blk
                                      ; return (mkFactBase [(lt,f1)], RL lt f1 rg) }
+      where lt = entryBlockId blk
 
-backwardBlockList :: [BlockId] -> Graph n -> [(BlockId,Block n C C)]
+backwardBlockList :: [BlockId] -> BlockMap (Block n C C) -> [(BlockId,Block n C C)]
 -- This produces a list of blocks in order suitable for backward analysis.
 backwardBlockList _ blks = blocksToList blks
 
 analyseAndRewriteBwd
-   :: forall n f. 
-      DataflowLattice f
+   :: forall n f.
+      Node n
+   => DataflowLattice f
    -> BackwardTransfer n f
    -> BackwardRewrite n f
    -> RewritingDepth
-   -> ARB_Graph n f
+   -> FactBase f
+   -> BlockMap (Block n C C)
+   -> FuelMonad (BlockMap (Block n C C), FactBase f)
 
-analyseAndRewriteBwd lattice transfers rewrites depth
-  = arbGraph lattice arb_node
+analyseAndRewriteBwd lattice transfers rewrites depth facts graph
+  = do { (_, gwf) <- arbBlocks lattice arb_node facts graph
+       ; return gwf }
   where 
     arb_node, rec_node :: ARB_Node n f
     arb_node = arbNode lattice transfers rewrites rec_node
@@ -580,19 +598,19 @@ mkBlockId uniq = uniq
 ----------------------
 type BlockMap a = M.IntMap a
 
-noBlocks :: Graph n
+noBlocks :: BlockMap (Block n C C)
 noBlocks = M.empty
 
-unitBlock :: BlockId -> Block n C C -> Graph n
+unitBlock :: BlockId -> Block n C C -> BlockMap (Block n C C)
 unitBlock = M.singleton
 
-addBlock :: BlockId -> Block n C C -> Graph n -> Graph n
+addBlock :: BlockId -> Block n C C -> BlockMap (Block n C C) -> BlockMap (Block n C C)
 addBlock = M.insert
 
-unionBlocks :: Graph n -> Graph n -> Graph n
+unionBlocks :: BlockMap (Block n C C) -> BlockMap (Block n C C) -> BlockMap (Block n C C)
 unionBlocks = M.union
 
-blocksToList :: Graph n -> [(BlockId,Block n C C)]
+blocksToList :: BlockMap (Block n C C) -> [(BlockId,Block n C C)]
 blocksToList = M.toList
 
 ----------------------
