@@ -793,7 +793,7 @@ data `PGraph n e x where
 
 data `Head n e where
  `NoHead :: BlockId -> Head n C
- `Head   :: Block n O C -> Head n O
+ Head   :: Block n O C -> Head n O
 
 data Tail n x where
  `NoTail :: Tail n C
