@@ -117,25 +117,25 @@ data IfOpen e thing where
 --   CC   GMany (NoHead l) [b] NoTail
 
 class Edges thing where
-  entryBlockId :: thing C x -> BlockId
+  closedId :: thing e x -> IfClosed e BlockId
   successors :: thing e C -> [BlockId]
 
 instance Edges n => Edges (Block n) where
-  entryBlockId (BUnit n) = entryBlockId n
-  entryBlockId (b `BCat` _) = entryBlockId b
+  closedId (BUnit n) = closedId n
+  closedId (b `BCat` _) = closedId b
   successors (BUnit n)   = successors n
   successors (BCat _ b)  = successors b
 
 data IfClosed e thing where
-  IsClosed    :: thing -> IfClosed O thing
-  IsNotClosed ::          IfClosed C thing
+  IsClosed    :: thing -> IfClosed C thing
+  IsNotClosed ::          IfClosed O thing
 
 -- nobody is too happy about the following, but 
 -- at least it concentrates the hair in one place
 
-class Edges thing => Node thing where
-  closedId :: thing e x -> IfClosed e BlockId
---  entryBlockId n = case closedId n of IsClosed id -> id
+
+entryBlockId :: Edges thing => thing C x -> BlockId
+entryBlockId thing = case closedId thing of IsClosed id -> id
 
 
 -----------------------------------------------------------------------------
@@ -466,7 +466,7 @@ arbNodeNoRW transfer_fn f node
   = return (transfer_fn f node, RGBlock (BUnit node))
 
 arbNode :: forall n f.
-           Node n
+           Edges n
         => DataflowLattice f
         -> BackwardTransfer n f
         -> BackwardRewrite n f
@@ -539,7 +539,7 @@ backwardBlockList _ blks = blocksToList blks
 
 analyseAndRewriteBwd
    :: forall n f.
-      Node n
+      Edges n
    => DataflowLattice f
    -> BackwardTransfer n f
    -> BackwardRewrite n f
