@@ -68,6 +68,14 @@ Specifically, in Hoopl5:
 * With that in mind I was happy to introduce the analogous invariant
   for the exit block in Tail; it is very very convenient to have that
   BlockId (cached though it may be) to hand.
+
+* Because graphs are made out of blocks, it's easy to have a
+  constructor for the empty ggraph, and we don't need any stinkikng
+  smart constructor to keep nil in its place.  But if we moved nil to
+  blocks, we'd need a smart constructor for graphs *and* one for
+  blocks.  (Because unlike graphs, blocks *are* made from other
+  blocks.
+
 -}
 
 module Hoopl5 where
