@@ -282,7 +282,7 @@ implementation.
 \maketitle
  
 \begin{abstract}
-\remark{Needs a complete rewrite}
+\remark{Needs a complete rewrite}\simon{It's not so bad, is it?}
 We present \ourlib, a Haskell library that makes it easy for compiler writers
 to implement program transformations based on dataflow analyses.
 The compiler writer must identify (a)~logical assertions
@@ -321,247 +321,107 @@ back end for the Glasgow Haskell Compiler (version~6.12, forthcoming).
 
 \section{Introduction}
 
-%%% \simon{``Control-flow graph'' (hyphenated) should be consistent
-%%% now.}
-%%%   Confirmed, and expunge a couple of unnecessary hyphens (NR).
-
 \remark{This is an intro the old paper.  We need an intro to the new paper.}
 
+An optimising compiler for an imperative language includes many
+analyses, and transformations driven by the results of those analyses.
+Although these analyses and transformations are known by many names 
+--- constant propagation, live variable analysis, inlining, sinking of loads,
+and so on --- many of them can be regarded as particular cases of
+a single general framework: \emph{dataflow analysis and rewriting 
+of control-flow graphs} \cite{this and that}.  Dataflow analysis
+is as old as the hills, but a relatively recent, seminal
+paper by Lerner, Grove and Chambers goes further, 
+describing a powerful but subtle way to
+\emph{interleave} analysis and transformation so that each 
+piggy-backs on the other.
 
-If you write a compiler for an imperative language, you can exploit
-many years' work on code improvement
-(``optimization'').
-The work is typically presented
-as a long list of analyses and
-transformations, each with a different name.
-This presentation makes optimization appear complex and difficult.
-Another source of complexity is the need for synergistic combinations
-of optimizations; you may have to write one ``super-analysis'' per
-combination. 
+Since they share a common intellectual framework, and that framework is
+subtle, it it tempting to
+try to build a single re-usable library that embodies the 
+crafty ideas, while
+making it easy for clients to instantiate the library for different
+situations.
+Attractive, but difficult.  Some such frameworks exist, as we discuss 
+in \secref{related}, but they have complex APIs and implementations,
+and none implements the Lerner/Grove/Chambers technique.
 
-But optimization doesn't have to be complicated.
-Most optimizations
-work by applying well-understood techniques for
-reasoning about programs:
-assertions about states, assertions about continuations, and
-substitution of equals for equals.  % (\secref{next-700}).
-What makes optimization different from classic reasoning techniques
-is that in dataflow optimization, assertions are approximated,
-and all assertions are computed automatically.
+In this paper we present \ourlib{} (short for ``higher-order
+optimisation library''), a new Haskell library for dataflow analysis and
+optimisation.  It has the following distinctive characteristics:
 
-This paper presents \ourlib\ (higher-order optimization library), 
-a~Haskell library that makes it easy to implement dataflow optimizations.
-Our contributions are as follows:
 \begin{itemize}
-\item
-\ourlib\ defines a simple interface for implementing analyses and transformations:
-you provide representations for assertions and for functions that
-transform assertions, 
-and \ourlib\ computes assertions
- by setting up and solving recursion
-equations.
-Additional functions you provide use computed
-assertions to justify program transformations.
-Analyses and transformations built on \ourlib\ 
+\item It is purely functional.  We argue at length in an earlier 
+paper \cite{norman and john} that, perhaps surprisingly, code that
+manipulates control flow graphs is easier to write, and far easier
+to get right, when written in a purely-functional style.  This 
+point comes out particularly clearly when analysis and rewriting
+are interleaved, so that rewriting must be done without knowing whether
+the result of the rewrite will be retained or discarded 
+(Sections \ref{sec:overview} and \ref{sec:fixpoints}).
+
+\item It is polymorphic. Just as a list library is
+polymorphic in the list elements, so \ourlib{} is polymorphic, both in
+the nodes that inhabit graphs, and in the dataflow facts that 
+analyses compute over these graphs (\secref{using-hoopl}).
+
+\item The Lerner/Grove/Chambers paper is persuasive but abstract.
+We articulate their ideas in a concrete but simple API that hides 
+a subtle implementation (Sections \ref{sec:graph-rep} and \ref{sec:using-hoopl}).  
+You provide a representation for assertions, 
+a transfer function that transform assertions across a node, 
+and a rewrite function that uses a computed asserion to 
+justify rewriting a node.
+\ourlib\ ``lifts'' these node-level functions to work over
+control-flow graphs, setting up and solving recursion equations,
+and interleaving rewriting and analyis.
+
+\item Analyses and transformations built on \ourlib\ 
 are small, simple, and easy to get right.
-\item
-% using LGC, simple implementations of complicated super-analyses using interleaving and speculative
-% rewriting
-Using the sophisticated algorithm of \citet{lerner-grove-chambers:2002},
-%which is \emph{not} easy to get right,
-\ourlib\ can perform super-analyses by \emph{interleaving}
-simple analyses and transformations.
-Interleaving is tricky to implement,
-but by using 
-generalized algebraic data types 
-and continuation-passing style\john{No longer true.},
-our new implementation expresses the algorithm with a clarity and a
-degree of 
-static checking that has not 
-previously been achieved.
-\item
-\ourlib\ helps you write correct optimizations:
-it
-statically rules out transformations that violate invariants
-of the control-flow graph,
+Moreover, \ourlib\ helps you write correct optimisations:
+it statically rules out transformations that violate invariants
+of the control-flow graph (Sections \ref{sec:graph-rep} and \ref{sec:rewrites}),
 and dynamically it can help find the first transformation that introduces a fault
-in a test program \cite{whalley:isolation}.
-\item
-\ourlib's polymorphic, higher-order design makes it reusable
-with many languages.
-\hoopl\ is designed to help optimize imperative code
-with arbitrary control flow,
-including low-level intermediate languages and machine languages.
-As \citet{benitez-davidson:portable-optimizer} have shown, all the
-classic scalar and loop optimizations can be performed over such
-codes.
+in a test program (\secref{fuel}). \simon{I wanted to write more about open/closed,
+but I like this sentence with its claim to both static and dynamic assistance,
+and maybe the open/closed story is hard to understand here.}
+
+% \item \ourlib{} makes use of GADTS and type functions to offer unusually
+% strong static guarantees. In particular, nodes, basic blocks, and
+% graphs are all statically typed by their open or closedness on entry, and
+% their open or closedness on exit (\secref{graph-rep}). For example, an add instruction is
+% open on entry and exit, while a branch is open on entry and closed on exit.
+% Using these types we can statically guarantee that, say, an add instruction
+% is rewritten to a graph that is also open on both entry and exit; and 
+% that the user cannot construct a block where an add instruction follows an
+% unconditional branch.  We know of no other system that offers 
+% static guarantees this strong.
+
+\item \ourlib{} implements a rather subtle algorithm.  Our (three) 
+previous attempts to implement this algorithm were complicated and
+hard to understand. In contrast, in \ourlib{} we have found a new way
+to structure the implementation so that various tricky pieces 
+(fixpoints, interleaved rewriting and transformation, recursive
+rewriting, optimisation fuel, and so on) are each located in just 
+one place.  Indeed, the result is sufficiently elegant that 
+this paper treats the implementation as an object of interest in its
+own right (\secref{engine}).
 \end{itemize}
+A working prototype of \ourlib{} is available for download 
+at \simon{add url}.  It is no toy: an ancestor of this library is
+embodied in the Glasgow Haskell Compiler, where it optimises the
+imperative @C--@ code in GHC's back end.  The new design is far
+nicer, and will be in GHC shortly.
 
-
-
-
-
-
-% %Many presentations obscure fundamental principles of
-% %code improvement.
-% %
-% But~most optimizations
-% work by applying reasoning techniques that have long been understood
-% and used 
-% to reason about programs:
-% assertions about states, assertions about continuations, and
-% substitution of equals for equals.  % (\secref{next-700}).
-% % What distinguishes dataflow optimization from classic formal reasoning
-% % about programs is that in dataflow optimization, all assertions are
-% % computed automatically, and they are
-% % \emph{approximated}. 
-% 
-% This paper presents \ourlib\ (higher-order optimization library), 
-% a Haskell library the implements dataflow optimizations using
-% simple representations of assertions and the functions that transform
-% them.
-% Its contributions are as follows:
-% %The contribution of this paper is to elucidate a large body of work on code
-% %improvement; the body of work known as ``dataflow optimization.''
-% %This paper makes two contributions:
-% \begin{itemize}
-% \item
-% \ourlib\ is engineered to make it \emph{easy} to implement
-% dataflow-based 
-% code-improvement techniques, even in a purely functional setting.
-% When built on \ourlib, analyses and transformations
-% are small, simple, and easy to get right.
-% \item 
-% Using the sophisticated algorithm of \citet{lerner-grove-chambers:2002},
-%  which is \emph{not} easy to get right,
-% \ourlib\ \emph{interleaves} analysis and transformation.
-% Our new implementation, which uses generalized
-% algebraic data 
-% types % \cite{xi:guarded-recursive} 
-% and continuation-passing style,
-% %By~exploiting Strachey's ideas about compositional semantics and
-% %the extra type checking possible with GADTs, we implement
-% expresses the algorithm with a clarity and a degree of
-% static checking that has not 
-% previously been achieved.
-% \item
-% \ourlib's polymorphic, higher-order design makes it easier to reuse
-% these techniques than ever before.
-% \end{itemize}
-% %
-% \hoopl\ is designed to help optimize imperative procedures (after
-% inlining). 
-% \ourlib\ supports local-level codes with arbitrary control flow,
-% including intermediate 
-% languages and machine 
-% languages.
-% As \citet{benitez-davidson:portable-optimizer} have shown, all the
-% classic scalar and loop optimizations can be performed over such
-% codes.
-
-
-
-We introduce dataflow optimization by analyzing and transforming
-example code (\secref{example:xforms}),
-thinking about and justifying classic optimizations using
-Hoare logic and substitution of equals for equals.
-To~support our claim that \ourlib\ makes dataflow optimization easy, 
-we explain how
-to create new dataflow analyses and transformations
-(\secref{making-simple}), and we show complete implementations of significant
-analyses (\secref{example-analyses}) and transformations
-(\secref{example-rewrites}) from the Glasgow Haskell Compiler.
-We also sketch a new implementation of interleaving (\secref{engine}).
-
-\subsection{The new story}
-
-Just notes!
-
-One story of this paper is that we can think similar thoughts about
-assembly code, IR nodes, basic blocks, and control-flow graphs.
-Morever these thoughts are reflected in the types.
-Observations:
-\begin{itemize}
-\item
-In compilation and optimization, things are always easiest to analyze
-when there is a single entry and single exit.  (Lesson of structured
-programming.)
-\item
-In assembly code, we introduce labels (not present in the hardware) to
-be able to code what we mean by branch targets.
-\item
-In a control-flow graph, unlike in assembly code, \emph{every} edge
-out of a control-transfer instruction is associated with a label.
-This invariant simplifies the representation and gives us freedom to
-lay out assembly code in an order that, e.g., is good for the I-cache,
-or that minimizes branch instructions on hot paths.  (Foreshadow that
-blocks in our @Graph@ body are unordered.
-\item
-We distinguish labels, computational instructions, control transfers.
-They are distinguished by the number of predecessors and successors.
-We~express this distinction in Haskell by attaching to each
-entry and exit point one of two types: \emph{open} means there is exactly
-one predecessor or successor, and control can ``fall through;''
-\emph{closed} means that control cannot fall through, but can be
-transferred only by an explicit branch---but the \emph{number} of
-successors or predecessors is not constrained \emph{a~priori}.
-\item
-The open/closed concepts lifts to sequences of straight-line code and
-to full control-flow graphs.
-As~a special case, a sequence of straight-line code that is closed at
-both ends---beginning with a label and ending with a control
-transfer---is the familiar \emph{basic block}.
-\item
-By making open/closed part of the types, we can ensure that a client
-of \ourlib{} builds only sequences and graphs that respect our
-invariants. 
-Moreover, the types provide guidance (really???)
-\end{itemize}
-
-
-A second story of this paper is that we can think of dataflow analysis
-as a specialization of program logic.
-\begin{itemize}
-\item
-A forward dataflow analysis is represented by a predicate transformer
-that is related to \emph{strongest postconditions} \cite{floyd}.
-\item
-A backward dataflow analysis is represented by a predicate transformer
-that is related to \emph{weakest preconditions} \cite{dijkstra:discipline}.
-\end{itemize}
-A~client of \ourlib{} defines a type of node, a type of predicate
-(aka dataflow fact), and a function which, given a node, returns a
-predicate transformer.
-The beauty of our approach is that we can \emph{lift} a client's
-predicate transformer from nodes into sequences and control-flow
-graphs.
-Moreover, with help from the client, we can iterate the transformer
-over an entire function body
-until it reaches a fixed point, the result of which is a dataflow
-analysis.
-
-In addition, we can do Lerner/Grove/Chambers.
-
-Finally, our implementation has some especially wonderful Haskell
-(Simon please flesh out these bits):
-\begin{itemize}
-\item
-Our open/closed tags aren't just phantom types.  By virtue of GADTs,
-they are real. 
-And we get exhaustiveness checking, etc --- the works.
-\item
-There's more!  By using higher-rank polymorphism, we can define a
-\emph{single} kind of widget, then instantiate it at nodes, blocks,
-graphs.
-SO WHAT?  This is wonderful because\ldots
-\item
-More wonderfulness?
-\end{itemize}
-
-
+The API for \ourlib{} seems quite natural, but requires
+relatively sophisticated aspects of Haskell's type system, such
+as higher-rank polymorphism, GADTs, and type functions.
+As such, \ourlib{} offers a compelling case study in the utility
+of these features.
 
 
 \section{Dataflow analysis {\&} transformation by \rlap{example}}
+\seclabel{overview}
 \seclabel{constant-propagation}
 \seclabel{example:transforms}
 \seclabel{example:xforms}
@@ -590,59 +450,51 @@ in the block; and at
 the right we have the result of transforming the block 
 based on the assertions:
 \begin{verbatim}
-  Before        Facts        After
-                  {}
-  x := 3+4                   x := 7
-                 {x=7}
-  z := x>5                   z := True
-              {x=7, z=True}
-  if z                       goto L1
-   then goto L1
-   else goto L2
+      Before        Facts        After
+                      {}
+      x := 3+4                   x := 7
+                     {x=7}
+      z := x>5                   z := True
+                  {x=7, z=True}
+      if z                       goto L1
+       then goto L1
+       else goto L2
 \end{verbatim}
 Constant-propagation works
 from top to bottom.  We start with the empty assertion.  
 Given the empty assertion and the node @x:=3+4@ can we make a (constant-folding)
 transformation?
 Yes!  We can replace it with @x:=7@.
-\simon{Is the distinction between constant-folding and constant-prop really
-helpful here, or is it just pedantry?  One would hardly want do to constant-prop
-without constant folding!  And probably vice versa.}
-\john{I think it's important for 3 reasons: (1) any compiler text will describe
-them separately, (2) the code is simpler when they're implemented separately
-(the payoff of this approach),
-(3) constant-folding can be useful without constant-prop (as in QC--)
-[I~agree ---NR]}
 Now, given this transformed node,
 and the original assertion, what assertion flows out of the bottom of
 the transformed node?  
 The assertion \{@x=7@\}.  
 Given the assertion \{@x=7@\} and the node @z:=x>5@, can we make a
-transformation?  Yes: replace the node with @z:=True@.
-And so the process continues to the end of the bloc, where we
-transform
-a conditional branch to an unconditional one, @goto L1@.
+transformation?  Yes: constant propagation can rewrite it to @z:=7>5@.
+Now, can we do another transformation?  Yes: constant folding can rewrite it
+to @z:=True@.
+And so the process continues to the end of the block, where we
+can transform the conditional branch to an unconditional one, @goto L1@.
 
 \seclabel{simple-tx}
 \paragraph{Interleaved transforamtion and analysis.}
-Notice that our example \emph{interleaves} transformation and analysis;
-interleaving makes it easier to write effective analyses.
+Notice that our example \emph{interleaves} transformation and analysis.
+Interleaving makes it far easier to write effective analyses.
 If, instead, we \emph{first} analysed the block
 and \emph{then} transformed it, the analysis would have to ``predict''
 the transformations.
 For example, given the incoming fact \{@x=7@\}
 and the instruction @z:=x>5@,
-a pure analysis would produce the outgoing fact
+a pure analysis could produce the outgoing fact
 \{@x=7@, @z=True@\} by simplifying @x>5@ to @True@.
 But the subsequent transformation must perform
 \emph{exactly the same simplification} when it transforms the instruction to @z:=True@!
 If instead we \emph{first} rewrite the node to @z:=True@, 
 and \emph{then} apply the transfer function to the rewritten node, 
 the transfer function becomes laughably simple: it merely has to see if the
-right hand side is a constant.
+right hand side is a constant (you can see actual code in \secref{const-prop-client}).
 The gain is even more compelling if there are a number of interacting 
-analyses and/or transformations;
-for more substantial
+analyses and/or transformations; for more substantial
 examples, consult \citet{lerner-grove-chambers:2002}.
 
 \paragraph{Forwards and backwards.}
@@ -673,6 +525,49 @@ bottom up:
 composed from basic blocks (\secref{graphs}).
 \end{itemize}
 
+\subsection{Open and closed}
+
+Nodes, blocks, and graphs share important properties in common.
+In particular, each can be \emph{open or closed at entry}
+and \emph{open or closed at exit}.  
+An \emph{open} point is one at which control may implicitly ``fall through;''
+to transfer control at a \emph{closed} point requires an explicit
+control-transfer instruction.
+For example,
+\begin{itemize}
+\item A multiply instruction is open on entry (because control can fall into it
+from the preceding instruction), and open on exit (because control falls through
+to the next instruction).
+\item An unconditional branch is open on entry, but closed on exit (because 
+control cannot fall through to the next instruction).
+\item A label is closed on entry (because in \ourlib{} we do not allow
+control to fall through into a branch target), but open on exit.
+\end{itemize}
+% This taxonomy enables \ourlib{} to enforce invariants:
+% only nodes closed at entry can be the targets of branches, and only nodes closed
+% at exits can transfer control (see also \secref{edges}).
+% As~a consequence, all control transfers originate at control-transfer
+% instructions and terminated at labels; this invariant dramatically
+% simplifies analysis and transformation. 
+These examples concern nodes, but the same classification applies
+to blocks and graphs.  For example the block
+\begin{code}
+   x:=7; y:=x+2; goto L
+\end{code}
+is open on entry and closed on exit.  
+To summarise, suppose E is a node, block, or graph:
+\begin{itemize}
+\item Regardless of whether E is open or closed, 
+it has a unique entry point where execution begins.
+\item If E is open at exit, control leaves E
+\emph{only} by ``falling through'' from a unique exit point.
+\item If E is closed at exit, control leaves \emph{only}
+by explicit branches from closed-on-exit nodes.
+\end{itemize}
+
+\remark{We've lost the client's ability to choose the representation
+of a full function/procedure/method} \simon{Don't understand this remark}
+
 \subsection{Nodes} \seclabel{nodes}
 
 The primitive constituents of a \ourlib{} control-flow graph are
@@ -686,37 +581,6 @@ graphs can include arbitrary client-specified data, including
 (say) C~statements, method calls in an object-oriented language, or
 whatever.
 
-Each node must be \emph{open or closed at entry}
-and \emph{open or closed at exit}.  
-An \emph{open} point is one at which control may implicitly ``fall through;''
-to  transfer control at a \emph{closed} point requires an explicit
-control-transfer instruction.
-For example,
-\begin{itemize}
-\item A multiply instruction is open on entry (because control can fall into it
-from the preceding instruction), and open on exit (because control falls through
-to the next instruction).
-\item An unconditional branch is open on entry, but closed on exit (because 
-control cannot fall through to the next instruction).
-\item A label is closed on entry (because in \ourlib{} we do not allow
-control to fall through into a branch target), but open on exit.
-\end{itemize}
-This taxonomy enables \ourlib{} to enforce invariants:
-only nodes
-closed at entry can be the targets of branches, and only nodes closed
-at exits can transfer control (see also \secref{edges}).
-As~a consequence, all control transfers originate at control-transfer
-instructions and terminated at labels; this invariant dramatically
-simplifies analysis and transformation. 
-\footnote{%
-To obey these invariants,
-a conditional-branch instruction, which typically may either transfer control
-\emph{or} fall through, must be represented as a two-target
-conditional branch, with the fall-through path in a separate block.  
-This representation is standard \cite{appel:modern},
-and it costs nothing in practice:
-a late-stage code-layout pass can readily reconstruct efficient code.
-}
 
 \begin{figure}
 \begin{code}
@@ -765,7 +629,15 @@ and closed at exit.
 
 Nodes closed on entry are the only targets of control transfers;
 nodes open on entry and exit never perform control transfers;
-and nodes closed on exit always perform control transfers.
+and nodes closed on exit always perform control transfers\footnote{%
+To obey these invariants,
+a conditional-branch instruction, which typically may either transfer control
+\emph{or} fall through, must be represented as a two-target
+conditional branch, with the fall-through path in a separate block.  
+This representation is standard \cite{appel:modern},
+and it costs nothing in practice:
+a late-stage code-layout pass can readily reconstruct efficient code.
+}.
 We~often call these nodes \emph{first}, \emph{middle}, and \emph{last} nodes
 respectively, because of the position each type of node occupies in a
 basic block.
@@ -821,28 +693,27 @@ It~makes sense to concatenate blocks only when control can fall
 through from the first to the second; therefore, 
 two blocks may be concatenated {only} if each block is open at
 the point of concatenation.
-We~enforce this restriction by using the open/closed flags we have
-introduced:\remark{I'm trying to signpost this as an innovation}
-@BCat@
-requires its first argument to be open on exit and its second to be
-open on entry.  
+This restriction is enforced by the type of @BCat@, whose first 
+argument must be open on exit, and whose second argument must be open on entry.
 It~is statically impossible, for example, to put a @Branch@
 immediately before an
-@Assign@.
-Also notice that the definition of @Block@ guarantees that every @Block@ 
-has at least one node.\remark{So what? Who cares?  Why is it important
-that no block is empty?  (And if we had an empty block, we could ditch
-@PNil@ from @PGraph@, which woudl be an improvement.)}
-
-
-A @Block@ closed at both entry and exit is what compiler writers normally 
-call a ``basic block.''
-In the case of @Node@, for example,
-the types elegantly ensure that a block of type \mbox{@Block@ @Node@ @C@ @C@}
-begins with a @Label@, 
-continues with a (possibly empty) sequence of @Assign@s and @Store@s,
-and finishes with a @Branch@ or @CondBranch@.  
-
+@Assign@.  
+Indeed, the @Block@ type statically guarantees that any
+closed/closed @Block@ -- which compiler writers normally 
+call a ``basic block'' --
+must consist of exactly one closed/open node (such as @Label@
+in \figref{cmm-node}), 
+followed by zero or more open/open nodes (@Assign@ or @Store@), 
+and terminated with exactly one 
+open/closed node (@Branch@ or @CondBranch@).  
+Using GADTs to enforce these invariants is one of 
+\ourlib{}'s innovations.
+% Also notice that the definition of @Block@ guarantees that every @Block@ 
+% has at least one node.
+% SPJ: I think we've agreed to stick with PNil.
+% \remark{So what? Who cares?  Why is it important
+% that no block is empty?  (And if we had an empty block, we could ditch
+% @PNil@ from @PGraph@, which woudl be an improvement.)}
 
 \subsection{Graphs} \seclabel{graphs}
 
@@ -898,8 +769,6 @@ It includes a @PNil@ constructor for the empty graph,
 and a @PUnit@ constructor to lift a single @Block@ to be a @PGraph@.
 But in general, a graph has many blocks, and is built by
 \finalremark{Tabling the question of the closed/closed empty graph}%
-%\simon{Norman thinks we need a closed-closed empty
-%graph but I don't see that, at least not yet.}
 the @PMany@ constructor:
 \begin{itemize}
 \item
@@ -993,22 +862,6 @@ From this table we can see why @PUnit@ is restricted to open/open
 blocks; if it was more accommodating then there would be 
 multiple representations for a single graph.
 
-\subsection{Summary}
-
-Nodes, blocks, and partial graphs share some 
-characteristics in common.  Suppose E is a node, block, or
-graph:\remark{This analogy should be developed early and often}
-\begin{itemize}
-\item Regardless of whether E is open or closed, 
-it has a unique entry point where execution begins.
-\item If E is open at exit, control leaves E
-\emph{only} by ``falling through'' from a unique exit point.
-\item If E is closed at exit, control leaves \emph{only}
-by explicit branches from closed-on-exit nodes.
-\end{itemize}
-
-\remark{We've lost the client's ability to choose the representation
-of a full function/procedure/method}
 
 % 
 % \subsection{Labels and successors} \seclabel{edges}
@@ -1247,15 +1100,15 @@ fixed point.
 \begin{figure}
 \begin{code}
 type `ForwardTransfer n f 
-  = forall e x. f -> n e x -> TailFactF x f 
+  = forall e x. n e x -> f -> TailFactF x f 
 type `BackwardTransfer n f 
-  = forall e x. TailFactB x f -> n e x -> f
+  = forall e x. n e x -> TailFactB x f -> f
 
 type `ForwardRewrite n f 
-  = forall e x. f -> n e x -> Maybe (AGraph n e x)
-             -> Maybe (AGraph n e x)
+  = forall e x. n e x -> f -> Maybe (AGraph n e x)
 type `BackwardRewrite n f 
-  = forall e x. TailFactB x f -> n e x 
+  = forall e x. n e x -> TailFactB x f
+             -> Maybe (AGraph n e x)
 
 type family   `TailFactF x f :: *
 type instance TailFactF O f = f
@@ -1400,7 +1253,7 @@ Notice that in either case, the nodes following the rewritten node see
 \emph{up-to-date} facts; that is, their input facts are computed from the result 
 of rewriting upstream nodes.
 
-\subsection{Example: Constant propagation and constant folding}
+\subsection{Example: Constant propagation and constant folding} \seclabel{const-prop-client}
 
 
 \begin{figure}
@@ -1419,20 +1272,20 @@ constLattice = DataflowLattice
 
 -- Analysis: register has constant value
 `regHasConst :: ForwardTransfer Node ConstFact
-regHasConst f (Label _)           = f
-regHasConst f (Store _ _)         = f
-regHasConst f (Assign x (Bool b)) = Map.insert x (B b) f
-regHasConst f (Assign x (Int  i)) = Map.insert x (I i) f
-regHasConst f (Assign x _)        = Map.insert x Top   f
-regHasConst f (Branch l)          = [(l, f)]
-regHasConst f (Cond (Reg x) tid fid) 
+regHasConst (Label _)           f = f
+regHasConst (Store _ _)         f = f
+regHasConst (Assign x (Bool b)) f = Map.insert x (B b) f
+regHasConst (Assign x (Int  i)) f = Map.insert x (I i) f
+regHasConst (Assign x _)        f = Map.insert x Top   f
+regHasConst (Branch l)          f = [(l, f)]
+regHasConst (Cond (Reg x) tid fid) f
   = [(tid, Map.insert x (B True)  f),
      (fid, Map.insert x (B False) f)]
-regHasConst f (Cond _ tid fid)    = [(tid, f), (fid, f)]
+regHasConst (Cond _ tid fid)    f = [(tid, f), (fid, f)]
 
 -- Constant propagation
 `constProp :: ForwardRewrite Node ConstFact
-constProp facts node
+constProp node facts
   = fmap toAGraph (mapE rewriteE node)
   where
     rewriteE e@(Reg r) =
@@ -1444,9 +1297,9 @@ constProp facts node
 
 -- Simplification ("constant folding")
 `simplify :: ForwardRewrite Node f
-simplify _ (Cond (Bool b) t f)
+simplify (Cond (Bool b) t f) _
   = Just $ toAGraph $ Branch (if b then t else f)
-simplify _ node = fmap toAGraph (mapE s_exp node)
+simplify node _ = fmap toAGraph (mapE s_exp node)
   where
     s_exp (Binop Add (Int i1) (Int i2))
        = Just $ Int $ i1 + i2
@@ -1463,7 +1316,7 @@ mapE f (Assign x e) = fmap (Assign x) $ f e
 `combineFRW :: ForwardRewrite n f
             -> ForwardRewrite n f
             -> ForwardRewrite n f
-combine r1 r2 
+combineFRW r1 r2 
    = \n f -> case r1 n f of Nothing -> r2 n f
                             Just g  -> Just g
 
@@ -1540,7 +1393,7 @@ and pass the combined rewrite to @analyseAndRewriteFwd@ (see \figref{const-prop}
 Note that @simplify@ does not need to check whether a register holds a constant
 value, because it can rely @constProp@ to have replaced the register by the constant;
 indeed @simplify@ does not consult the incoming fact at all, and hence is
-polymorphis in @f@.
+polymorphic in @f@.
 
 We can invoke the analysis by calling  @analyseAndRewriteFwd@.
 with the lattice, the transfer function, the combined rewrite functions,
@@ -1581,7 +1434,7 @@ for making new blocks; more precisely, the client-provided @ForwardRewrite@
 function produces an @AGraph@ (\figref{rewrites}) which Hoopl converts to
 a @Graph@ by supplying the @AGraph@ with a supply of @BlockIds@ from the @FuelMonad@.
 
-\subsection{Fixpoints and speculative rewrites}
+\subsection{Fixpoints and speculative rewrites} \seclabel{fixpoints}
 
 The alert reader will be wondering what happens to rewriting in the presence of
 loops.  Many analyses compute a fixpoint starting from unsound
@@ -1971,8 +1824,94 @@ Next we tackle .... \simon{not finished}
 
 
 
+\section{What we learned}
 
-\section {Related work}
+\simon{I think this section has interesting material, but it's
+incomprehensible at the beginning, because our readers won't have the 
+mental scaffolding to grok it.  Norman, have at it!}
+
+One story of this paper is that we can think similar thoughts about
+assembly code, IR nodes, basic blocks, and control-flow graphs.
+Morever these thoughts are reflected in the types.
+Observations:
+\begin{itemize}
+\item
+In compilation and optimization, things are always easiest to analyze
+when there is a single entry and single exit.  (Lesson of structured
+programming.)
+\item
+In assembly code, we introduce labels (not present in the hardware) to
+be able to code what we mean by branch targets.
+\item
+In a control-flow graph, unlike in assembly code, \emph{every} edge
+out of a control-transfer instruction is associated with a label.
+This invariant simplifies the representation and gives us freedom to
+lay out assembly code in an order that, e.g., is good for the I-cache,
+or that minimizes branch instructions on hot paths.  (Foreshadow that
+blocks in our @Graph@ body are unordered.
+\item
+We distinguish labels, computational instructions, control transfers.
+They are distinguished by the number of predecessors and successors.
+We~express this distinction in Haskell by attaching to each
+entry and exit point one of two types: \emph{open} means there is exactly
+one predecessor or successor, and control can ``fall through;''
+\emph{closed} means that control cannot fall through, but can be
+transferred only by an explicit branch---but the \emph{number} of
+successors or predecessors is not constrained \emph{a~priori}.
+\item
+The open/closed concepts lifts to sequences of straight-line code and
+to full control-flow graphs.
+As~a special case, a sequence of straight-line code that is closed at
+both ends---beginning with a label and ending with a control
+transfer---is the familiar \emph{basic block}.
+\item
+By making open/closed part of the types, we can ensure that a client
+of \ourlib{} builds only sequences and graphs that respect our
+invariants. 
+Moreover, the types provide guidance (really???)
+\end{itemize}
+
+
+A second story of this paper is that we can think of dataflow analysis
+as a specialization of program logic.
+\begin{itemize}
+\item
+A forward dataflow analysis is represented by a predicate transformer
+that is related to \emph{strongest postconditions} \cite{floyd}.
+\item
+A backward dataflow analysis is represented by a predicate transformer
+that is related to \emph{weakest preconditions} \cite{dijkstra:discipline}.
+\end{itemize}
+A~client of \ourlib{} defines a type of node, a type of predicate
+(aka dataflow fact), and a function which, given a node, returns a
+predicate transformer.
+The beauty of our approach is that we can \emph{lift} a client's
+predicate transformer from nodes into sequences and control-flow
+graphs.
+Moreover, with help from the client, we can iterate the transformer
+over an entire function body
+until it reaches a fixed point, the result of which is a dataflow
+analysis.
+
+In addition, we can do Lerner/Grove/Chambers.
+
+Finally, our implementation has some especially wonderful Haskell
+(Simon please flesh out these bits):
+\begin{itemize}
+\item
+Our open/closed tags aren't just phantom types.  By virtue of GADTs,
+they are real. 
+And we get exhaustiveness checking, etc --- the works.
+\item
+There's more!  By using higher-rank polymorphism, we can define a
+\emph{single} kind of widget, then instantiate it at nodes, blocks,
+graphs.
+SO WHAT?  This is wonderful because\ldots
+\item
+More wonderfulness?
+\end{itemize}
+
+\section {Related work} \seclabel{related}
 
 \simon{I've moved this section to near the end}
 
