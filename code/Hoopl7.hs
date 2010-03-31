@@ -1,81 +1,47 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies #-}
 
-{- Notes about the genesis of Hoopl5
+{- Notes about the genesis of Hoopl7
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-As well as addressing your concerns I had some of my own:
+Hoopl7 has the following major chages
 
-* In Hoopl4, a closed/closed graph starts with a distinguished
-  closed/closed block (the entry block).  But this block is
-  *un-labelled*.  That means that there is no way to branch back to
-  the entry point of a procedure, which seems a bit unclean.
+a) GMany has symmetric entry and exit
+b) GMany closed-entry does not record a BlockId
+c) GMany open-exit does not record a BlockId
+d) The body of a GMany is called Body
+e) A Body is just a list of blocks, not a map. I've argued
+   elsewhere that this is consistent with (c)
 
-* In general I have to admit that it does seem a bit unintuitive to
-  have block that is
-	a) closed on entry, but
-	b) does not have a label
+This was made possible by
 
-* If you look at MkZipCfgCmm you'll see stuff like this:
-     mkCmmIfThen e tbranch
-       = withFreshLabel "end of if"     $ \endif ->
-         withFreshLabel "start of then" $ \tid ->
-         mkCbranch e tid endif <*>
-         mkLabel tid   <*> tbranch <*> mkBranch endif <*>
-         mkLabel endif
+* ForwardTransfer looks like this:
+    type ForwardTransfer n f
+      = forall e x. n e x -> Fact e f -> Fact x f 
+    type family   Fact x f :: *
+    type instance Fact C f = FactBase f
+    type instance Fact O f = f
 
-   We are trying to present a user model *graphs* as
-	a sequence, connected by <*>,
-	of little graphs
-   Moreover, one of the little graphs is (mkLabel BlockId), and I
-   don't see how to make a graph for that in Hoopl4.
+  Note that the incoming fact is a Fact (not just 'f' as in Hoopl5,6).
+  It's up to the *transfer function* to look up the appropriate fact
+  in the FactBase for a closed-entry node.  Example:
+	constProp (Label l) fb = lookupFact fb l
+  That is how Hoopl can avoid having to know the block-id for the
+  first node: it defers to the client.
 
-   (Norman I know that this may be what you have been trying to say
-   about "graphs under construction" for some time, but looking at
-   MkZipCfgCmm made it far more concrete for me.)
+  [Side note: that means the client must know about 
+  bottom, in case the looupFact returns Nothing]
 
+* Note also that ForwardTransfer *returns* a Fact too;
+  that is, the types in both directions are symmetrical.
+  Previously we returned a [(BlockId,f)] but I could not see
+  how to make everything line up if we do this.
 
-Specifically, in Hoopl5:
+* I've realised that forwardBlockList and backwardBlockList
+  both need (Edges n), and that goes everywhere.
 
-* The ARF type is no longer overloaded over the LiftNode class.  
-  It has a simple and beautiful type.
+Other notes
 
-* I put the BlockId back in a first node, as John wanted.
-
-* To make it possible to branch to the label of the entry block of a
-  Body it does make sense to put that block in the Body that is
-  the main payload of the graph
-
-* That militates in favour of a Maybe-kind-of-thing on entry to a
-  Body, just as Norman wanted.  It's called Entry, dual to Exit.
-
-* However I am Very Very Keen to maintain the similar properties of
-  nodes, blocks, graphs; and in particular the single point of entry.
-  (For a multi-entry procedure, the procedure can be represented by a
-  Body plus a bunch of BlockIds, rather than a Body.)  So I
-  made the Entry contain the BlockId of the entry point.
-
-* The Body in a Body is a finite map, as you wanted.  Notice
-  that this embodies an invariant: a BlockId must map to a block whose
-  entry point is that BlockId.
-
-* I've added a layer, using arfBody/arbBlocks.  Admittedly the
-  type doesn't fit the same pattern, but it's useful structuring
-
-* You should think of a Body as a user-visible type; perhaps
-  this is the kind of graph that might form the body of a procedure.
-  Moreover, perhaps rewriteAndAnlyseForward should take a Body
-  rather than a Body, and call arbBlocks.
-
-* With that in mind I was happy to introduce the analogous invariant
-  for the exit block in Exit; it is very very convenient to have that
-  BlockId (cached though it may be) to hand.
-
-* Because graphs are made out of blocks, it's easy to have a
-  constructor for the empty ggraph, and we don't need any stinkikng
-  smart constructor to keep nil in its place.  But if we moved nil to
-  blocks, we'd need a smart constructor for graphs *and* one for
-  blocks.  (Because unlike graphs, blocks *are* made from other
-  blocks.
-
+* Look at the addBlock call in gCat.  It is caused directly by the
+  lack of a BlockId in the exit Link.  Fair enough.  But then the
 -}
 
 module Hoopl7 where
@@ -95,8 +61,10 @@ data Block n e x where
   BUnit :: n e x -> Block n e x
   BCat  :: Block n e O -> Block n O x -> Block n e x
 
-type Body n = BlockMap (Block n C C)
-  -- Invariant: BlockId bid maps to a block whose entryBlockId is bid
+data Body n where
+  BodyEmpty :: Body n
+  BodyUnit  :: Block n C C -> Body n
+  BodyCat   :: Body n -> Body n -> Body n
 
 data Graph n e x where
   GNil  :: Graph n O O
@@ -110,6 +78,28 @@ data Link ex t where
   OpenLink   :: t -> Link O t
   ClosedLink ::      Link C t
 
+-------------------------------
+class Edges thing where
+  entryBlockId :: thing C x -> BlockId
+  successors :: thing e C -> [BlockId]
+
+instance Edges n => Edges (Block n) where
+  entryBlockId (BUnit n) = entryBlockId n
+  entryBlockId (b `BCat` _) = entryBlockId b
+  successors (BUnit n)   = successors n
+  successors (BCat _ b)  = successors b
+
+------------------------------
+addBlock :: Block n C C -> Body n -> Body n
+addBlock b body = BodyUnit b `BodyCat` body
+
+bodyList :: Edges n => Body n -> [(BlockId,Block n C C)]
+bodyList body = go body []
+  where
+    go BodyEmpty       bs = bs
+    go (BodyUnit b)    bs = (entryBlockId b, b) : bs
+    go (BodyCat b1 b2) bs = go b1 (go b2 bs)
+
 -----------------------------------------------------------------------------
 --		Defined here but not used
 -----------------------------------------------------------------------------
@@ -119,6 +109,25 @@ data Link ex t where
 --   CO   GMany (ClosedLink l) [] (OpenLink b)
 --   OC   GMany (OpenLink b)   []  ClosedLink
 --   CC   GMany (ClosedLink l) [b] ClosedLink
+
+gCat :: Graph n e a -> Graph n a x -> Graph n e x
+gCat GNil g2 = g2
+gCat g1 GNil = g1
+
+gCat (GUnit b1) (GUnit b2)             
+  = GUnit (b1 `BCat` b2)
+
+gCat (GUnit b) (GMany (OpenLink e) bs x) 
+  = GMany (OpenLink (b `BCat` e)) bs x
+
+gCat (GMany e bs (OpenLink x)) (GUnit b2) 
+   = GMany e bs (OpenLink (x `BCat` b2))
+
+gCat (GMany e1 bs1 (OpenLink x1)) (GMany (OpenLink e2) bs2 x2)
+   = GMany e1 (addBlock (x1 `BCat` e2) bs1 `BodyCat` bs2) x2
+
+gCat (GMany e1 bs1 ClosedLink) (GMany ClosedLink bs2 x2)
+   = GMany e1 (bs1 `BodyCat` bs2) x2
 
 bFilter :: forall n. (n O O -> Bool) -> Block n C C -> Block n C C
 bFilter keep (BUnit n)  = BUnit n
@@ -137,34 +146,6 @@ bFilter keep (BCat h t) = bFilterH h (bFilterT t)
                             | otherwise = rest 
     bFilterM (b1 `BCat` b2) rest = bFilterM b1 (bFilterM b2 rest)
 
-gCat :: Edges n => Graph n e a -> Graph n a x -> Graph n e x
-gCat GNil g2 = g2
-gCat g1 GNil = g1
-
-gCat (GUnit b1) (GUnit b2)             
-  = GUnit (b1 `BCat` b2)
-
-gCat (GUnit b) (GMany (OpenLink e) bs x) 
-  = GMany (OpenLink (b `BCat` e)) bs x
-
-gCat (GMany e bs (OpenLink x)) (GUnit b2) 
-   = GMany e bs (OpenLink (x `BCat` b2))
-
-gCat (GMany e1 bs1 (OpenLink x1)) (GMany (OpenLink e2) bs2 x2)
-   = GMany e1 (addBlock (x1 `BCat` e2) bs1 `unionBlocks` bs2) x2
-
-gCat (GMany e1 bs1 ClosedLink) (GMany ClosedLink bs2 x2)
-   = GMany e1 (bs1 `unionBlocks` bs2) x2
-
-class Edges thing where
-  entryBlockId :: thing C x -> BlockId
-  successors :: thing e C -> [BlockId]
-
-instance Edges n => Edges (Block n) where
-  entryBlockId (BUnit n) = entryBlockId n
-  entryBlockId (b `BCat` _) = entryBlockId b
-  successors (BUnit n)   = successors n
-  successors (BCat _ b)  = successors b
 
 ------------------------------
 data OCFlag oc where
@@ -202,10 +183,10 @@ mkIfThenElse mk_cbranch mk_lbl mk_branch then_g else_g (tl:el:jl:_)
     mk_branch_g lbl = gUnitOC (mk_branch lbl)
 
 gUnitCO :: n C O -> Graph n C O
-gUnitCO n = GMany ClosedLink noBlocks (OpenLink (BUnit n))
+gUnitCO n = GMany ClosedLink BodyEmpty (OpenLink (BUnit n))
 
 gUnitOC :: n O C -> Graph n O C
-gUnitOC n = GMany (OpenLink (BUnit n)) noBlocks ClosedLink
+gUnitOC n = GMany (OpenLink (BUnit n)) BodyEmpty ClosedLink
 
 -----------------------------------------------------------------------------
 --	RG: an internal data type for graphs under construction
@@ -214,7 +195,7 @@ gUnitOC n = GMany (OpenLink (BUnit n)) noBlocks ClosedLink
 
 data RG n f e x where	-- Will have facts too in due course
   RGNil   :: RG n f O O
-  RGUnit  :: FactF e f -> Block n e x -> RG n f e x
+  RGUnit  :: Fact e f -> Block n e x -> RG n f e x
   RGMany  :: BodyWithFacts n f -> RG n f C C
   RGCatO  :: RG n f e O -> RG n f O x -> RG n f e x
   RGCatC  :: RG n f e C -> RG n f C x -> RG n f e x
@@ -236,19 +217,19 @@ normOO (RGCatO g1 g2) = normOO g1 `gwfCat` normOO g2
 normOO (RGCatC g1 g2) = normOC g1 `gwfCat` normCO g2
 
 normOC :: Edges n => RG n f O C -> GraphWithFacts n f O C
-normOC (RGUnit _ b)   = (GMany (OpenLink b) noBlocks ClosedLink, noFacts)
+normOC (RGUnit _ b)   = (GMany (OpenLink b) BodyEmpty ClosedLink, noFacts)
 normOC (RGCatO g1 g2) = normOO g1 `gwfCat` normOC g2
 normOC (RGCatC g1 g2) = normOC g1 `gwfCat` normCC g2
 
 normCO :: Edges n => RG n f C O -> GraphWithFacts n f C O
-normCO (RGUnit f b) = (GMany ClosedLink noBlocks (OpenLink b), unitFact l f)
+normCO (RGUnit f b) = (GMany ClosedLink BodyEmpty (OpenLink b), unitFact l f)
                     where
                       l = entryBlockId b
 normCO (RGCatO g1 g2) = normCO g1 `gwfCat` normOO g2
 normCO (RGCatC g1 g2) = normCC g1 `gwfCat` normCO g2
 
 normCC :: Edges n => RG n f C C -> GraphWithFacts n f C C
-normCC (RGUnit f b) = (GMany ClosedLink (unitBlock l b) ClosedLink, unitFact l f)
+normCC (RGUnit f b) = (GMany ClosedLink (BodyUnit b) ClosedLink, unitFact l f)
                     where
                       l = entryBlockId b
 normCC (RGMany (body,facts)) = (GMany ClosedLink body ClosedLink, facts)
@@ -256,7 +237,7 @@ normCC (RGCatO g1 g2) = normCO g1 `gwfCat` normOC g2
 normCC (RGCatC g1 g2) = normCC g1 `gwfCat` normCC g2
 
 noBWF :: BodyWithFacts n f
-noBWF = (noBlocks, noFacts)
+noBWF = (BodyEmpty, noFacts)
 
 gwfCat :: Edges n => GraphWithFacts n f e a
                   -> GraphWithFacts n f a x 
@@ -264,7 +245,7 @@ gwfCat :: Edges n => GraphWithFacts n f e a
 gwfCat (g1, fb1) (g2, fb2) = (g1 `gCat` g2, fb1 `unionFactBase` fb2)
 
 bwfUnion :: BodyWithFacts n f -> BodyWithFacts n f -> BodyWithFacts n f
-bwfUnion (bg1, fb1) (bg2, fb2) = (bg1 `unionBlocks` bg2, fb1 `unionFactBase` fb2)
+bwfUnion (bg1, fb1) (bg2, fb2) = (bg1 `BodyCat` bg2, fb1 `unionFactBase` fb2)
 
 -----------------------------------------------------------------------------
 --		DataflowLattice
@@ -284,14 +265,14 @@ data ChangeFlag = NoChange | SomeChange
 -----------------------------------------------------------------------------
 
 type ForwardTransfer n f 
-  = forall e x. n e x -> FactF e f -> FactF x f 
+  = forall e x. n e x -> Fact e f -> Fact x f 
 
 type ForwardRewrite n f 
-  = forall e x. n e x -> FactF e f -> Maybe (AGraph n e x)
+  = forall e x. n e x -> Fact e f -> Maybe (AGraph n e x)
 
-type family   FactF x f :: *
-type instance FactF C f = FactBase f
-type instance FactF O f = f
+type family   Fact x f :: *
+type instance Fact C f = FactBase f
+type instance Fact O f = f
 
 data AGraph n e x = AGraph 	-- Stub for now
 
@@ -335,10 +316,10 @@ fixpoint :: forall n f. Edges n
          =>  DataflowLattice f
          -> (FactBase f -> Block n C C
               -> FuelMonad (FactBase f, RG n f C C))
-         -> [(BlockId, Block n C C)]
          -> FactBase f 
+         -> [(BlockId, Block n C C)]
          -> FuelMonad (FactBase f, BodyWithFacts n f)
-fixpoint lat do_block blocks init_fbase
+fixpoint lat do_block init_fbase blocks
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_fbase tx_fb `deleteFromFactBase` blocks, tfb_blks tx_fb) }
@@ -361,8 +342,8 @@ fixpoint lat do_block blocks init_fbase
 		-- tfb_blks will be discarded unless we have 
 		-- reached a fixed point, so it doesn't matter
 		-- whether we get f from fbase or fbase'
-           ; return (TxFB { tfb_bids = extendBlockSet lbls lbl
-                          , tfb_blks = normaliseBody rg `bwfUnion` blks
+           ; return (TxFB { tfb_bids  = extendBlockSet lbls lbl
+                          , tfb_blks  = normaliseBody rg `bwfUnion` blks
                           , tfb_fbase = fbase', tfb_cha = cha' }) }
 
     loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
@@ -385,7 +366,7 @@ fixpoint lat do_block blocks init_fbase
 -- move to basic-block transfer functions (we have exactly four shapes),
 -- then finally to graph transfer functions (which requires iteration).
 
-type ARF thing n f = forall e x. FactF e f -> thing e x -> FuelMonad (FactF x f, RG n f e x)
+type ARF thing n f = forall e x. Fact e f -> thing e x -> FuelMonad (Fact x f, RG n f e x)
 
 type ARF_Node  n f = ARF n         n f
 type ARF_Block n f = ARF (Block n) n f
@@ -428,9 +409,8 @@ arfBody :: forall n f. Edges n
 		-- in the Body; the facts for BlockIds
 		-- *in* the Body are in the BodyWithFacts
 arfBody lattice arf_node init_fbase blocks
-  = fixpoint lattice (arfBlock arf_node)
-             (forwardBlockList (factBaseBlockIds init_fbase) blocks) 
-             init_fbase
+  = fixpoint lattice (arfBlock arf_node) init_fbase $
+    forwardBlockList (factBaseBlockIds init_fbase) blocks
 
 arfGraph :: forall n f. Edges n
          => DataflowLattice f -> ARF_Node n f -> ARF_Graph n f
@@ -458,7 +438,7 @@ forwardBlockList :: Edges n => [BlockId] -> Body n -> [(BlockId,Block n C C)]
 -- This produces a list of blocks in order suitable for forward analysis.
 -- ToDo: Do a topological sort to improve convergence rate of fixpoint
 --       This will require a (HavingSuccessors l) class constraint
-forwardBlockList  _ blks = blocksToList blks
+forwardBlockList  _ blks = bodyList blks
 
 ----------------------------------------------------------------
 --       The pièce de resistance: cunning transfer functions
@@ -499,12 +479,12 @@ analyseAndRewriteFwd lattice transfers rewrites depth facts graph
 -----------------------------------------------------------------------------
 
 type BackwardTransfer n f 
-  = forall e x. n e x -> FactF x f -> FactF e f 
+  = forall e x. n e x -> Fact x f -> Fact e f 
 type BackwardRewrite n f 
-  = forall e x. n e x -> FactF x f -> Maybe (AGraph n e x)
+  = forall e x. n e x -> Fact x f -> Maybe (AGraph n e x)
 
-type ARB thing n f = forall e x. FactF x f -> thing e x
-                              -> FuelMonad (FactF e f, RG n f e x)
+type ARB thing n f = forall e x. Fact x f -> thing e x
+                              -> FuelMonad (Fact e f, RG n f e x)
 
 type ARB_Node  n f = ARB n         n f
 type ARB_Block n f = ARB (Block n) n f
@@ -545,9 +525,8 @@ arbBody :: forall n f. Edges n
         -> ARB_Node n f -> FactBase f
         -> Body n -> FuelMonad (FactBase f, BodyWithFacts n f)
 arbBody lattice arb_node init_fbase blocks
-  = fixpoint lattice (arbBlock arb_node)
-             (backwardBlockList (factBaseBlockIds init_fbase) blocks) 
-             init_fbase
+  = fixpoint lattice (arbBlock arb_node) init_fbase $
+    backwardBlockList (factBaseBlockIds init_fbase) blocks 
 
 arbGraph :: forall n f. Edges n => DataflowLattice f -> ARB_Node n f -> ARB_Graph n f
 arbGraph _       _        f GNil        = return (f, RGNil)
@@ -571,7 +550,7 @@ arbGraph lat arb_node f (GMany (OpenLink entry) body (OpenLink exit))
 
 backwardBlockList :: Edges n => [BlockId] -> Body n -> [(BlockId,Block n C C)]
 -- This produces a list of blocks in order suitable for backward analysis.
-backwardBlockList _ blks = blocksToList blks
+backwardBlockList _ blks = bodyList blks
 
 analyseAndRewriteBwd
    :: forall n f. Edges n
@@ -629,21 +608,6 @@ mkBlockId uniq = uniq
 
 ----------------------
 type BlockMap a = M.IntMap a
-
-noBlocks :: Body n
-noBlocks = M.empty
-
-unitBlock :: BlockId -> Block n C C -> Body n
-unitBlock = M.singleton
-
-addBlock :: Edges n => Block n C C -> Body n -> Body n
-addBlock b body = M.insert (entryBlockId b) b body
-
-unionBlocks :: Body n -> Body n -> Body n
-unionBlocks = M.union
-
-blocksToList :: Body n -> [(BlockId,Block n C C)]
-blocksToList = M.toList
 
 ----------------------
 type FactBase a = M.IntMap a
