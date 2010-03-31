@@ -11,6 +11,10 @@ d) The body of a GMany is called Body
 e) A Body is just a list of blocks, not a map. I've argued
    elsewhere that this is consistent with (c)
 
+A consequence is that Graph is no longer an instance of Edges,
+but nevertheless I managed to keep the ARF and ARB signatures
+nice and uniform.
+
 This was made possible by
 
 * ForwardTransfer looks like this:
@@ -46,6 +50,8 @@ This was made possible by
 
 * I've realised that forwardBlockList and backwardBlockList
   both need (Edges n), and that goes everywhere.
+
+* I renamed BlockId to Label
 -}
 
 module Hoopl7 where
@@ -84,12 +90,12 @@ data Link ex t where
 
 -------------------------------
 class Edges thing where
-  entryBlockId :: thing C x -> BlockId
-  successors :: thing e C -> [BlockId]
+  entryLabel :: thing C x -> Label
+  successors :: thing e C -> [Label]
 
 instance Edges n => Edges (Block n) where
-  entryBlockId (BUnit n) = entryBlockId n
-  entryBlockId (b `BCat` _) = entryBlockId b
+  entryLabel (BUnit n) = entryLabel n
+  entryLabel (b `BCat` _) = entryLabel b
   successors (BUnit n)   = successors n
   successors (BCat _ b)  = successors b
 
@@ -97,11 +103,11 @@ instance Edges n => Edges (Block n) where
 addBlock :: Block n C C -> Body n -> Body n
 addBlock b body = BodyUnit b `BodyCat` body
 
-bodyList :: Edges n => Body n -> [(BlockId,Block n C C)]
+bodyList :: Edges n => Body n -> [(Label,Block n C C)]
 bodyList body = go body []
   where
     go BodyEmpty       bs = bs
-    go (BodyUnit b)    bs = (entryBlockId b, b) : bs
+    go (BodyUnit b)    bs = (entryLabel b, b) : bs
     go (BodyCat b1 b2) bs = go b1 (go b2 bs)
 
 -----------------------------------------------------------------------------
@@ -165,11 +171,11 @@ instance IsOC C where
   ocFlag = IsClosed
 
 mkIfThenElse :: forall n x. (Edges n, IsOC x)
-             => (BlockId -> BlockId -> n O C)	-- The conditional branch instruction
-             -> (BlockId -> n C O)		-- Make a head node 
-	     -> (BlockId -> n O C)		-- Make an unconditional branch
+             => (Label -> Label -> n O C)	-- The conditional branch instruction
+             -> (Label -> n C O)		-- Make a head node 
+	     -> (Label -> n O C)		-- Make an unconditional branch
 	     -> Graph n O x -> Graph n O x	-- Then and else branches
-	     -> [BlockId]			-- Block supply
+	     -> [Label]			-- Block supply
              -> Graph n O x			-- The complete thing
 mkIfThenElse mk_cbranch mk_lbl mk_branch then_g else_g (tl:el:jl:_)
   = case (ocFlag :: OCFlag x) of
@@ -181,9 +187,9 @@ mkIfThenElse mk_cbranch mk_lbl mk_branch then_g else_g (tl:el:jl:_)
                   `gCat` (mk_lbl_g tl `gCat` then_g)
                   `gCat` (mk_lbl_g el `gCat` else_g)
   where
-    mk_lbl_g :: BlockId -> Graph n C O
+    mk_lbl_g :: Label -> Graph n C O
     mk_lbl_g lbl = gUnitCO (mk_lbl lbl)
-    mk_branch_g :: BlockId -> Graph n O C
+    mk_branch_g :: Label -> Graph n O C
     mk_branch_g lbl = gUnitOC (mk_branch lbl)
 
 gUnitCO :: n C O -> Graph n C O
@@ -228,14 +234,14 @@ normOC (RGCatC g1 g2) = normOC g1 `gwfCat` normCC g2
 normCO :: Edges n => RG n f C O -> GraphWithFacts n f C O
 normCO (RGUnit f b) = (GMany ClosedLink BodyEmpty (OpenLink b), unitFact l f)
                     where
-                      l = entryBlockId b
+                      l = entryLabel b
 normCO (RGCatO g1 g2) = normCO g1 `gwfCat` normOO g2
 normCO (RGCatC g1 g2) = normCC g1 `gwfCat` normCO g2
 
 normCC :: Edges n => RG n f C C -> GraphWithFacts n f C C
 normCC (RGUnit f b) = (GMany ClosedLink (BodyUnit b) ClosedLink, unitFact l f)
                     where
-                      l = entryBlockId b
+                      l = entryLabel b
 normCC (RGMany (body,facts)) = (GMany ClosedLink body ClosedLink, facts)
 normCC (RGCatO g1 g2) = normCO g1 `gwfCat` normOC g2
 normCC (RGCatC g1 g2) = normCC g1 `gwfCat` normCC g2
@@ -287,21 +293,21 @@ data AGraph n e x = AGraph 	-- Stub for now
 
 -- The TxFactBase is an accumulating parameter, threaded through all
 -- the analysis/transformation of each block in the g_blocks of a grpah.
--- It carries a ChangeFlag with it, and a set of BlockIds
--- to monitor. Updates to other BlockIds don't affect the ChangeFlag
+-- It carries a ChangeFlag with it, and a set of Labels
+-- to monitor. Updates to other Labels don't affect the ChangeFlag
 data TxFactBase n f
   = TxFB { tfb_fbase :: FactBase f
 
          , tfb_cha   :: ChangeFlag
          , tfb_bids  :: BlockSet   -- Update change flag iff these blocks change
-                                   -- These are BlockIds of the *original* 
+                                   -- These are Labels of the *original* 
                                    -- (not transformed) blocks
 
          , tfb_blks  :: BodyWithFacts n f  -- Transformed blocks
     }
 
 updateFact :: DataflowLattice f -> BlockSet
-           -> (BlockId, f)
+           -> (Label, f)
            -> (ChangeFlag, FactBase f) 
            -> (ChangeFlag, FactBase f)
 -- Update a TxFactBase, setting the change flag iff
@@ -321,22 +327,22 @@ fixpoint :: forall n f. Edges n
          -> (FactBase f -> Block n C C
               -> FuelMonad (FactBase f, RG n f C C))
          -> FactBase f 
-         -> [(BlockId, Block n C C)]
+         -> [(Label, Block n C C)]
          -> FuelMonad (FactBase f, BodyWithFacts n f)
 fixpoint lat do_block init_fbase blocks
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_fbase tx_fb `deleteFromFactBase` blocks, tfb_blks tx_fb) }
-	     -- The successors of the Graph are the the BlockIds for which
+	     -- The successors of the Graph are the the Labels for which
 	     -- we have facts, that are *not* in the blocks of the graph
   where
-    tx_blocks :: [(BlockId, Block n C C)] 
+    tx_blocks :: [(Label, Block n C C)] 
               -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_blocks []             tx_fb = return tx_fb
     tx_blocks ((lbl,blk):bs) tx_fb = do { tx_fb1 <- tx_block lbl blk tx_fb
                                         ; tx_blocks bs tx_fb1 }
 
-    tx_block :: BlockId -> Block n C C 
+    tx_block :: Label -> Block n C C 
              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_block lbl blk (TxFB { tfb_fbase = fbase, tfb_bids = lbls
                            , tfb_blks = blks, tfb_cha = cha })
@@ -409,12 +415,12 @@ arfBody :: forall n f. Edges n
           => DataflowLattice f 
           -> ARF_Node n f -> FactBase f -> Body n 
           -> FuelMonad (FactBase f, BodyWithFacts n f)
-		-- Outgoing factbase is restricted to BlockIds *not* in
-		-- in the Body; the facts for BlockIds
+		-- Outgoing factbase is restricted to Labels *not* in
+		-- in the Body; the facts for Labels
 		-- *in* the Body are in the BodyWithFacts
 arfBody lattice arf_node init_fbase blocks
   = fixpoint lattice (arfBlock arf_node) init_fbase $
-    forwardBlockList (factBaseBlockIds init_fbase) blocks
+    forwardBlockList (factBaseLabels init_fbase) blocks
 
 arfGraph :: forall n f. Edges n
          => DataflowLattice f -> ARF_Node n f -> ARF_Graph n f
@@ -438,7 +444,7 @@ arfGraph lat arf_node f (GMany (OpenLink entry) body (OpenLink exit))
        ; (fx, exit') <- arfBlock arf_node fb exit
        ; return (fx, entry' `RGCatC` RGMany body' `RGCatC` exit') }
 
-forwardBlockList :: Edges n => [BlockId] -> Body n -> [(BlockId,Block n C C)]
+forwardBlockList :: Edges n => [Label] -> Body n -> [(Label,Block n C C)]
 -- This produces a list of blocks in order suitable for forward analysis.
 -- ToDo: Do a topological sort to improve convergence rate of fixpoint
 --       This will require a (HavingSuccessors l) class constraint
@@ -530,7 +536,7 @@ arbBody :: forall n f. Edges n
         -> Body n -> FuelMonad (FactBase f, BodyWithFacts n f)
 arbBody lattice arb_node init_fbase blocks
   = fixpoint lattice (arbBlock arb_node) init_fbase $
-    backwardBlockList (factBaseBlockIds init_fbase) blocks 
+    backwardBlockList (factBaseLabels init_fbase) blocks 
 
 arbGraph :: forall n f. Edges n => DataflowLattice f -> ARB_Node n f -> ARB_Graph n f
 arbGraph _       _        f GNil        = return (f, RGNil)
@@ -552,7 +558,7 @@ arbGraph lat arb_node f (GMany (OpenLink entry) body (OpenLink exit))
        ; (fe, entry') <- arbBlock arb_node fb entry
        ; return (fe, entry' `RGCatC` RGMany body' `RGCatC` exit') }
 
-backwardBlockList :: Edges n => [BlockId] -> Body n -> [(BlockId,Block n C C)]
+backwardBlockList :: Edges n => [Label] -> Body n -> [(Label,Block n C C)]
 -- This produces a list of blocks in order suitable for backward analysis.
 backwardBlockList _ blks = bodyList blks
 
@@ -602,16 +608,16 @@ graphOfAGraph :: AGraph node e x -> FuelMonad (Graph node e x)
 graphOfAGraph = error "urk" 	-- Stub
 
 -----------------------------------------------------------------------------
---		BlockId, FactBase, BlockSet
+--		Label, FactBase, BlockSet
 -----------------------------------------------------------------------------
 
-type BlockId = Int
+type Label = Int
 
-mkBlockId :: Int -> BlockId
-mkBlockId uniq = uniq
+mkLabel :: Int -> Label
+mkLabel uniq = uniq
 
 ----------------------
-type BlockMap a = M.IntMap a
+type LabelMap a = M.IntMap a
 
 ----------------------
 type FactBase a = M.IntMap a
@@ -619,34 +625,34 @@ type FactBase a = M.IntMap a
 noFacts :: FactBase f
 noFacts = M.empty
 
-mkFactBase :: [(BlockId, f)] -> FactBase f
+mkFactBase :: [(Label, f)] -> FactBase f
 mkFactBase prs = M.fromList prs
 
-unitFact :: BlockId -> FactBase f -> FactBase f
+unitFact :: Label -> FactBase f -> FactBase f
 -- Restrict a fact base to a single fact
 unitFact l fb = case M.lookup l fb of
                   Just f  -> M.singleton l f
                   Nothing -> M.empty
 
-lookupFact :: DataflowLattice f -> FactBase f -> BlockId -> f
+lookupFact :: DataflowLattice f -> FactBase f -> Label -> f
 lookupFact lattice env blk_id 
   = case M.lookup blk_id env of
       Just f  -> f
       Nothing -> fact_bot lattice
 
-extendFactBase :: FactBase f -> BlockId -> f -> FactBase f
+extendFactBase :: FactBase f -> Label -> f -> FactBase f
 extendFactBase env blk_id f = M.insert blk_id f env
 
 unionFactBase :: FactBase f -> FactBase f -> FactBase f
 unionFactBase = M.union
 
-factBaseBlockIds :: FactBase f -> [BlockId]
-factBaseBlockIds = M.keys
+factBaseLabels :: FactBase f -> [Label]
+factBaseLabels = M.keys
 
-factBaseList :: FactBase f -> [(BlockId, f)]
+factBaseList :: FactBase f -> [(Label, f)]
 factBaseList = M.toList 
 
-deleteFromFactBase :: FactBase f -> [(BlockId,a)] -> FactBase f
+deleteFromFactBase :: FactBase f -> [(Label,a)] -> FactBase f
 deleteFromFactBase fb blks = foldr (M.delete . fst) fb blks
 
 ----------------------
@@ -655,13 +661,13 @@ type BlockSet = S.IntSet
 emptyBlockSet :: BlockSet
 emptyBlockSet = S.empty
 
-extendBlockSet :: BlockSet -> BlockId -> BlockSet
+extendBlockSet :: BlockSet -> Label -> BlockSet
 extendBlockSet bids bid = S.insert bid bids
 
-elemBlockSet :: BlockId -> BlockSet -> Bool
+elemBlockSet :: Label -> BlockSet -> Bool
 elemBlockSet bid bids = S.member bid bids
 
-blockSetElems :: BlockSet -> [BlockId]
+blockSetElems :: BlockSet -> [Label]
 blockSetElems = S.toList
 
 minusBlockSet :: BlockSet -> BlockSet -> BlockSet
@@ -670,5 +676,5 @@ minusBlockSet = S.difference
 unionBlockSet :: BlockSet -> BlockSet -> BlockSet
 unionBlockSet = S.union
 
-mkBlockSet :: [BlockId] -> BlockSet
+mkBlockSet :: [Label] -> BlockSet
 mkBlockSet = S.fromList
