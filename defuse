@@ -3,7 +3,21 @@
 local stringf = string.format
 local function fprintf(f, ...) return f:write(string.format(...)) end
 
-require 'tabutil'
+----------------------------------------------------------------
+-- table utilities
+
+function table.set(t) -- set of list
+  local u = { }
+  for _, v in ipairs(t) do u[v] = true end
+  return u
+end
+
+function table.sorted_keys(t, lt)
+  local u = { }
+  for k in pairs(t) do table.insert(u, k) end
+  table.sort(u, lt)
+  return u
+end
 
 ----------------------------------------------------------------
 
