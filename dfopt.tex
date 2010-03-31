@@ -2017,9 +2017,10 @@ optimization-writer:
 \item Using static type guarantees, we~rule out a whole
   class of possible bugs: transformations that produced malformed
   control-flow graphs.
-\item Using Whalley's \cite{whalley:isolation} debugging technique,
+\item Using dynamic testing,
   we can isolate the rewrite that transforms a working program
-  into a faulty program.
+  into a faulty program,
+  using Whalley's fault-isolation technique \cite{whalley:isolation}.
 \end{itemize}
 
 In our previous work we described a zipper-based representation of control-flow
