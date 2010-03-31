@@ -1048,7 +1048,6 @@ Since control flows to @L3@ from two places,
 we must join the facts coming from those two places.  The fact at the
 end of block @L1@ is (@x=3@, @y=4@, @z=False@), while at the end of
 @L2@ the fact is (@x=7@, @y=4@, @z=True@).  
-\john{Note to self: implementation isn't propagating constant value from branch condition.}
 Both blocks branch to @L3@
 where they must be joined, giving
 the fact (@x=@$\top$, @y=4@, @z=@$\top$) at @L3@, where the $\top$'s indicate
@@ -1467,7 +1466,8 @@ for best results we should:
 \item Begin each new iteration with the orignal, virgin graph.
 \end{itemize}
 This sort of thing is hard to achieve in an imperative setting, where rewrites
-mutate a graph in-place.  But it is trivially easy in a functional program:
+mutate a graph in-place.
+But it is trivially easy with an immutable graph:
 all we need do is to revert to the original graph at the start
 of each fixpoint iteration.
 
@@ -1992,8 +1992,7 @@ Like Soot, CIL cannot interleave analyses and transformations.
   but I'll be darned if I can find anything that might be termed a dataflow framework.}
 
 The Whirlwind compiler contains the dataflow framework implemented
-by \citet{lerner-grove-chambers:2002},
-which of course executes interleaved analyses and transformations.
+by \citet{lerner-grove-chambers:2002}.
 Their implementation is much like our early efforts:
 it is a complicated mix of code that manages the interleaving,
 the deep rewriting, and the fixpoint computation.
@@ -2001,18 +2000,17 @@ Our implementation simplifies the problem dramatically
 by~separating each of these tasks.
 
 Because speculative transformation is difficult with an imperative implementation,
-the implementation in Whirlwind is splits into two separate phases.
+the implementation in Whirlwind is split into two separate phases.
 The first phase runs the interleaved analyses and transformations
 to compute the final dataflow facts and a representation of the transformations
 that should be applied to the input graph.
 Then, a subsequent phase executes the transformations.
 With our immutable representation, tentative transformations
 can be applied aggressively, and there is no need
-for a phase distinction; consequently, we do not even need
-to~represent potential transformations.
+for a phase distinction.
 
-Our implementation also provides additional support for the
-optimization-writer:
+\ourlib\ also improves upon Whirlwind's dataflow framework by providing
+new support for the optimization-writer:
 \begin{itemize}
 \item Using static type guarantees, we~rule out a whole
   class of possible bugs: transformations that produced malformed
@@ -2028,13 +2026,6 @@ graphs \cite{ramsey-dias:applicative-flow-graph}, stressing the advantages
 of immutability for writing dataflow optimisers.
 Our new representation, described in \secref{graph-rep}, is a major improvement:
 \begin{itemize}
-\item
-There is only one type of node in a control-flow graph,
-and we use GADTs to express the differences between
-first, middle, and last nodes.
-The main benefit is that higher-order functions for manipulating
-graphs (e.g. transfer and rewrite functions)
-now require only one function argument instead of three.
 \item
 We can concatenate nodes, blocks, and graphs, in constant time.
 Previously, we had to resort to Hughes's
@@ -2056,7 +2047,23 @@ the compensation code harbored subtle faults%
 \ifcutting\else, which were discovered while developing a new back end
 for~GHC\fi. 
 \hfuzz=1.6pt % don't want to reword ``errors in concatenation''
+\item
+There is only one type of node in a control-flow graph,
+and we use GADTs to express the differences between
+first, middle, and last nodes.
+The main benefit is that higher-order functions for manipulating
+graphs (e.g. transfer and rewrite functions)
+now require only one function argument instead of three.
 \end{itemize}
+
+The implementation of \ourlib\ is also a dramatic improvement
+over our earlier implementations.
+Not only is the code conceptually simpler,
+but it is also shorter:
+our new implementation is about half as long
+as the previous version currently available in the Glasgow Haskell Compiler.
+
+
 
 \section{Conclusions}
 
