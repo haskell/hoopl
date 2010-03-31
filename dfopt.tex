@@ -1919,7 +1919,10 @@ While dataflow analysis and optimization are covered
 by a vast literature, 
 \emph{design} of optimizers, the topic of this paper, is covered
 relatively sparsely.
-We therefore focus on foundations.
+We therefore focus on the foundations of dataflow analysis,
+and on the implementations of comparable dataflow frameworks.
+
+\paragraph{Foundations}
 
 When transfer functions are monotone and lattices are finite in height,
 iterative dataflow analysis converges to a fixed point
@@ -1961,17 +1964,76 @@ presents many examples of both particular analyses and related
 algorithms.
 \fi
 
+\paragraph{Frameworks}
+The Soot framework is designed for analysis and optimization of Java programs
+\cite{optimizing-soot-hendren-2000}.
+\john{This citation is probably the best for Soot in general, but there doesn't appear
+ to be any formal publication that actually details the dataflow framework part.}
+Soot provides a dataflow library that is abstracted over the representation of
+the control-flow graph and the representation of instructions.
+The interface for defining lattice and analysis functions is similar to our own,
+with additional functions required to copy lattice elements (Soot is implemented
+in an imperative style) and to invoke the analysis.
+But unlike \ourlib, Soot cannot interleave analyses and transformations.
+
+\john{Is it worth mentioning that frameworks without interleaving don't seem to need
+ any explicit support for rewriting?}
+
+The CIL toolkit \cite{cil-necula-2002}\john{Again, no good citation for same reason}
+provides a dataflow framework for optimizing C~programs.
+The framework is specialized to a specific control-flow graph
+and a specific definition of instructions.
+The interface for the client is fairly complicated,
+with the evident goal of allowing the client to affect which instructions
+the analysis will iterate over.
+Like Soot, CIL cannot interleave analyses and transformations.
+
+\john{FYI, LLVM has Pass Managers that try to control the order of passes,
+  but I'll be darned if I can find anything that might be termed a dataflow framework.}
+
+The Whirlwind compiler contains the dataflow framework implemented
+by \citet{lerner-grove-chambers:2002},
+which of course executes interleaved analyses and transformations.
+Their implementation is much like our early efforts:
+it is a complicated mix of code that manages the interleaving,
+the deep rewriting, and the fixpoint computation.
+Our implementation simplifies the problem dramatically
+by~separating each of these tasks.
+
+Because speculative transformation is difficult with an imperative implementation,
+the implementation in Whirlwind is splits into two separate phases.
+The first phase runs the interleaved analyses and transformations
+to compute the final dataflow facts and a representation of the transformations
+that should be applied to the input graph.
+Then, a subsequent phase executes the transformations.
+With our immutable representation, tentative transformations
+can be applied aggressively, and there is no need
+for a phase distinction; consequently, we do not even need
+to~represent potential transformations.
+
+Our implementation also provides additional support for the
+optimization-writer:
+\begin{itemize}
+\item Using static type guarantees, we~rule out a whole
+  class of possible bugs: transformations that produced malformed
+  control-flow graphs.
+\item Using Whalley's \cite{whalley:isolation} debugging technique,
+  we can isolate the rewrite that transforms a working program
+  into a faulty program.
+\end{itemize}
+
 In our previous work we described a zipper-based representation of control-flow
 graphs \cite{ramsey-dias:applicative-flow-graph}, stressing the advantages
 of immutability for writing dataflow optimisers.
 Our new representation, described in \secref{graph-rep}, is a major improvement:
 \begin{itemize}
 \item
-We can find the exit point of a graph in constant time.
-\simon{What does this mean?}
-\john{It means we don't need to do a linear search through a list of blocks;
-instead, we can look at the g\_exit. I think this used to be vaguely relevant for
-splicing graphs.}
+There is only one type of node in a control-flow graph,
+and we use GADTs to express the differences between
+first, middle, and last nodes.
+The main benefit is that higher-order functions for manipulating
+graphs (e.g. transfer and rewrite functions)
+now require only one function argument instead of three.
 \item
 We can concatenate nodes, blocks, and graphs, in constant time.
 Previously, we had to resort to Hughes's
