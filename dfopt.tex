@@ -329,7 +329,7 @@ Although these analyses and transformations are known by many names
 --- constant propagation, live variable analysis, inlining, sinking of loads,
 and so on --- many of them can be regarded as particular cases of
 a single general framework: \emph{dataflow analysis and rewriting 
-of control-flow graphs} \cite{this and that}.  Dataflow analysis
+of control-flow graphs} \cite{this-and-that}.  Dataflow analysis
 is as old as the hills, but a relatively recent, seminal
 paper by Lerner, Grove and Chambers goes further, 
 describing a powerful but subtle way to
@@ -352,7 +352,7 @@ optimisation.  It has the following distinctive characteristics:
 
 \begin{itemize}
 \item It is purely functional.  We argue at length in an earlier 
-paper \cite{norman and john} that, perhaps surprisingly, code that
+paper \cite{ramsey-dias:applicative-flow-graph} that, perhaps surprisingly, code that
 manipulates control flow graphs is easier to write, and far easier
 to get right, when written in a purely-functional style.  This 
 point comes out particularly clearly when analysis and rewriting
@@ -1814,7 +1814,7 @@ arfNode lattice transfer_fn rewrite_fn arf_node f node
 \end{code}}
 
 
-\subsection{From nodes to blocks} \seclabel{arf-node}
+\subsection{From nodes to blocks} \seclabel{arf-block}
 
 We start with the second task, of ''lifting'' a @ARF_Node@ to a @ARF_Block@:
 \begin{code}
@@ -1991,7 +1991,7 @@ algorithms.
 
 \paragraph{Frameworks}
 The Soot framework is designed for analysis and optimization of Java programs
-\cite{optimizing-soot-hendren-2000}.
+\cite{soot-hendren-2000}.
 \john{This citation is probably the best for Soot in general, but there doesn't appear
  to be any formal publication that actually details the dataflow framework part.}
 Soot provides a dataflow library that is abstracted over the representation of
