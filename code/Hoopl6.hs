@@ -386,10 +386,10 @@ arfGraph lattice arf_node f (GMany entry blks exit)
 
     arf_exit :: FactBase f -> IfOpen x (Block n C O)
              -> FuelMonad (TailFactF x f, RL n f x)
-    arf_exit fb IsNotOpen        = return (factBaseList fb, RLMany noBWF)
+    arf_exit fb IsNotOpen    = return (factBaseList fb, RLMany noBWF)
     arf_exit fb (IsOpen blk) = do { let ft = lookupFact lattice fb lt
-                                     ; (f1, rg) <- arfBlock arf_node ft blk
-                                     ; return (f1, RL lt ft rg) }
+                                  ; (f1, rg) <- arfBlock arf_node ft blk
+                                  ; return (f1, RL lt ft rg) }
       where IsClosed lt :: IfClosed C BlockId = closedId blk
 
 forwardBlockList :: [BlockId] -> BlockMap (Block n C C) -> [(BlockId,Block n C C)]
