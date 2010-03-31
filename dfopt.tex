@@ -555,10 +555,11 @@ to blocks and graphs.  For example the block
    x:=7; y:=x+2; goto L
 \end{code}
 is open on entry and closed on exit.  
-To summarise, suppose E is a node, block, or graph:
+To summarise, suppose E is a node, block, or graph: \simon{Removed the claim
+about a unique entry point.}
 \begin{itemize}
-\item Regardless of whether E is open or closed, 
-it has a unique entry point where execution begins.
+% \item Regardless of whether E is open or closed, 
+% it has a unique entry point where execution begins.
 \item If E is open at exit, control leaves E
 \emph{only} by ``falling through'' from a unique exit point.
 \item If E is closed at exit, control leaves \emph{only}
@@ -585,11 +586,11 @@ whatever.
 \begin{figure}
 \begin{code}
 data `Node e x where
-  `Label      :: BlockId -> Node C O
+  `LabelNode  :: Label -> Node C O
   `Assign     :: Reg     -> Expr -> Node O O
   `Store      :: Expr    -> Expr -> Node O O
-  `Branch     :: BlockId -> Node O C
-  `CondBranch :: Expr -> BlockId -> BlockId -> Node O C
+  `Branch     :: Label -> Node O C
+  `CondBranch :: Expr -> Label -> Label -> Node O C
     ...more constructors...
 \end{code}
 \caption{A typical node type, as it might be defined by a client} 
@@ -611,13 +612,13 @@ The type is a generalized algebraic data type, and
 it is defined in using syntax
 that gives the type of each constructor.  
 \cite{peyton-jones:unification-based-gadts}.
-For example, constructor @Label@
-takes a @BlockId@ and returns a node of type @Node C O@, where ``@C@''~says ``closed
+For example, constructor @LabelNode@
+takes a @Label@ and returns a node of type @Node C O@, where ``@C@''~says ``closed
 at entry'' and ``@O@''~says ``open at exit''.  
 (We often abbreviate ``a node of type @Node@~@C@~@O@''
 to ``a closed/open node'',  
 and similarly for blocks and graphs.)
-The types @BlockId@, @O@, and~@C@ are 
+The types @Label@, @O@, and~@C@ are 
 exported by \ourlib{} (\figref{graph}).  
 
 Similarly, an @Assign@ node takes a register and an expression, and
@@ -653,31 +654,31 @@ data `Block n e x where
  `BUnit :: n e x       -> Block n e x
  `BCat  :: Block n e O -> Block n O x -> Block n e x
 
-newtype `BlockId = BlockId Int
-type `Graph n = BlockMap (Block n C C)
--- (BlockMap a) is a finite map from BlockId to 'a'
+data `Graph n e x where
+  `GNil  :: Graph n O O
+  `GUnit :: Block n O O -> Graph n O O
+  `GMany :: Link e (Block n O C) 
+        -> Body n
+        -> Link x (Block n C O)
+        -> Graph n e x
 
-data `PGraph n e x where
- `PNil  :: PGraph n O O
- `PUnit :: Block n O O -> PGraph n O O
- `PMany :: Head n e -> Graph n
-       -> Tail n x -> PGraph n e x
+data `Body n where
+  `BodyEmpty :: Body n
+  `BodyUnit  :: Block n C C -> Body n
+  `BodyCat   :: Body n -> Body n -> Body n
 
-data `Head n e where
- `NoHead :: BlockId -> Head n C
- Head   :: Block n O C -> Head n O
+data `Link ex t where
+  `OpenLink   :: t -> Link O t
+  `ClosedLink ::      Link C t
 
-data Tail n x where
- `NoTail :: Tail n C
- `Tail   :: BlockId -> Block n C O -> Tail n O
+newtype `Label = Label Int
 
--- Building Graphs
-addBlock   :: BlockId -> Block n C C
-           -> Graph n -> Graph n
-unionGraph :: Graph n -> Graph n -> Graph n
+class Edges n where
+  entryLabel :: n C x -> Label
+  successors :: n e C -> [Label]
 \end{code}
 \caption{The block and graph types defined by \ourlib} 
-\figlabel{graph}
+\figlabel{graph} \figlabel{edges}
 \end{figure}
 
 \ourlib\ combines the client's nodes into
@@ -685,7 +686,7 @@ blocks and graphs, which, unlike the nodes, are defined by \ourlib{}
  (\figref{graph}).
 A~@Block@ is parameterised over the node type~@n@
 as well as over the same flag types that make it open or closed at
- entry and exit.
+entry and exit.
 
 The @BUnit@ constructor lifts a node to become a block; @BCat@
 concatenates blocks in sequence. 
@@ -717,206 +718,223 @@ Using GADTs to enforce these invariants is one of
 
 \subsection{Graphs} \seclabel{graphs}
 
-\ourlib{} composes blocks into graphs, which are also defined by
-\ourlib\ in  \figref{graph}.
-\ourlib{} defines two distinct types of control-flow
-graphs.\remark{Why?  Wouldn't it be simpler to have just one type?
-(Not only do I think a reader will have this question, but I myself am
-not liking this direction\ldots)
-}
-The first,
-@Graph@, is entirely straightforward (see \figref{graph}): it is a
-collection of basic blocks, each with its own label.
-To~ensure that each label refers to a unique basic block, we represent
-the graph as a finite map from @BlockId@ to \mbox{@Block@ @n@ @C@ @C@}.  
-A~procedure might be represented by a @Graph@ together with the @BlockId@
-at which execution starts.
+\ourlib{} composes blocks into graphs, which are also defined 
+in  \figref{graph}.
+Like, @Block@ the data type @Graph@ is parameterised over
+both nodes @n@ and its open/closed shape (@e@ and @x@).
+It has three constructors.  The first two
+deal with the base cases of open/open graphs:
+an empty graph is represented by @GNil@ while a single-block graph
+is represented by @GUnit@.
 
-As illustrated in \secref{constant-propagation}, a client of \ourlib{} 
-may rewrite a node.
-But what does it rewrite the node \emph{to}?  
-In~\secref{constant-propagation}, it is enough to rewrite a node into
-a new node.
-But in general, a node might be rewritten into a graph, possibly with
-internal control flow:
+More general graphs are represented by @GMany@, which has three
+fields:
 \begin{itemize}
-\item
-A redundant assignment might be eliminated by rewriting it into an
-empty graph.
-\item
-A~single node representing a ``safe'' divide instruction (that detects
-overflow) might be rewritten into a small graph of machine
-instructions that requires a test and conditional branch to detect
-overflow.
-\item
-A~single node that copies a large object might be rewritten into an
-internal loop that copies the words of the object individually.
+\item 
+The first is the entry link.  If the graph is open on entry,
+the entry link is of form $@(OpenLink@\;b@)@$, where $b$ is
+an open/closed block.  If the graph is closed on entry then 
+there is no distinguished entry block, and the link is of form @ClosedLink@.
+\item 
+The second field is the @Body@ of the graph, namely a simple 
+collection of closed/closed blocks.  We use a new data type 
+rather than a list so that we can concatenate in constant time.
+\item 
+The final field is the exit link, and is dual to the entry link.
 \end{itemize}
-None of these graphs can be represented as a @Graph@, because a
-@Graph@ is closed at both ends; 
-indeed a @Graph@ does not even have shape parameters @e@ and @x@.
-Rather, the rewrite function should return a ``partial graph'', 
-or @PGraph@, which can be open or closed at either
-end just like a node or block.  
-\remark{Not only don't I like this story, but I think it vitiates one
-of the beautiful parts of the paper: nodes are like blocks are like
-graphs.
-Instead of introducing @Graph@ as standard and treating @PGraph@ as
-special, I'd like to do it exactly the other way round.}
+% 
+% \ourlib{} defines two distinct types of control-flow
+% graphs.\remark{Why?  Wouldn't it be simpler to have just one type?
+% (Not only do I think a reader will have this question, but I myself am
+% not liking this direction\ldots)
+% }
+% The first,
+% @Graph@, is entirely straightforward (see \figref{graph}): it is a
+% collection of basic blocks, each with its own label.
+% To~ensure that each label refers to a unique basic block, we represent
+% the graph as a finite map from @Label@ to \mbox{@Block@ @n@ @C@ @C@}.  
+% A~procedure might be represented by a @Graph@ together with the @Label@
+% at which execution starts.
+% 
+% As illustrated in \secref{constant-propagation}, a client of \ourlib{} 
+% may rewrite a node.
+% But what does it rewrite the node \emph{to}?  
+% In~\secref{constant-propagation}, it is enough to rewrite a node into
+% a new node.
+% But in general, a node might be rewritten into a graph, possibly with
+% internal control flow:
+% \begin{itemize}
+% \item
+% A redundant assignment might be eliminated by rewriting it into an
+% empty graph.
+% \item
+% A~single node representing a ``safe'' divide instruction (that detects
+% overflow) might be rewritten into a small graph of machine
+% instructions that requires a test and conditional branch to detect
+% overflow.
+% \item
+% A~single node that copies a large object might be rewritten into an
+% internal loop that copies the words of the object individually.
+% \end{itemize}
+% None of these graphs can be represented as a @Graph@, because a
+% @Graph@ is closed at both ends; 
+% indeed a @Graph@ does not even have shape parameters @e@ and @x@.
+% Rather, the rewrite function should return a ``partial graph'', 
+% or @PGraph@, which can be open or closed at either
+% end just like a node or block.  
+% \remark{Not only don't I like this story, but I think it vitiates one
+% of the beautiful parts of the paper: nodes are like blocks are like
+% graphs.
+% Instead of introducing @Graph@ as standard and treating @PGraph@ as
+% special, I'd like to do it exactly the other way round.}
+% 
+% The definition of @PGraph@ is given in \figref{graph}.
+% It includes a @PNil@ constructor for the empty graph,
+% and a @PUnit@ constructor to lift a single @Block@ to be a @PGraph@.
+% But in general, a graph has many blocks, and is built by
+% \finalremark{Tabling the question of the closed/closed empty graph}%
+% the @PMany@ constructor:
+% \begin{itemize}
+% \item
+% A~graph that is open at the entry has a ``head'' block that is open at
+% the entry and closed at the exit.\remark{Why isn't this called the
+% ``entry sequence?''  Seems better than ``head''\ldots}
+% A~graph that is closed at the entry doesn't have a ``head'' block.
+% This choice is represented by a field of type @Head n O@ or @Head n e@:
+% If the field's type is @Head n O@, it is created with the @Head@ value
+% constructor, and it contains an entry sequence of type @Block n O C@.
+% If the field's type is @Head n C@, it is created with the @NoHead@ value
+% constructor, and it contains only a @Label@.\remark{Why a @Label@
+% instead of nothing?}
+% %\item The first field is called the ``head'' of the @PGraph@.
+% %If it is $@(Head@\;b@)@$, the @PGraph@ is open on entry, with initial block $b$.
+% %If it is $@(NoHead@\;l@)@$, the @PGraph@ is closed on entry, and execution begins
+% %at block $l$. 
+% We need the @Label@ $l$, because the @PGraph@ 
+% may replace a node, so just as a node closed at entry has a unique entry point,
+% so does a @PGraph@.\remark{This argument just seems like special
+% pleading to me.   If you want the node analogy, \emph{start} from the
+% node analogy.  And the actual reasoning goes like this: if the
+% @PGraph@ replaces a node closed at entry, the replacement graph must
+% begin with the \emph{same} label as the node it replaces.
+% Now this reader starts to wonder why one would store  that label twice.}
+% \item
+% A~general graph, no matter how it is shaped at the entry or exit,
+% contains a collection of labelled closed/closed (basic) blocks.
+% This collection is represented as a @Graph@ of blocks,
+% as discussed above.
+% \item
+% A~graph that is open at the exit has a ``tail'' block that is closed at
+% the entry and open at the exit.\remark{Why isn't this called the
+% ``exit sequence?''  Seems better than ``tail\ldots}
+% A~graph that is closed at the exit doesn't have a ``tail'' block.
+% The exit sequence (or lack thereof) is represented by a value of type
+% @Tail n x@, where @x@~describes the shape of the exit.
+% \remark{And if we could get rid of the beastly block IDs, we could
+% have the \emph{same} construct here as at the entry sequence, and
+%  enjoy a little parallel structure.}
+% If the @Graph@ is closed on exit the tail is just @NoTail@.
+% If it is open on exit, the tail is a (labelled) @Block@, open on
+%  exit.\remark{Why is it labelled?  None of the other blocks closed on
+%  entry is labelled?  What's special about this one?}
+% \end{itemize}
 
-The definition of @PGraph@ is given in \figref{graph}.
-It includes a @PNil@ constructor for the empty graph,
-and a @PUnit@ constructor to lift a single @Block@ to be a @PGraph@.
-But in general, a graph has many blocks, and is built by
-\finalremark{Tabling the question of the closed/closed empty graph}%
-the @PMany@ constructor:
-\begin{itemize}
-\item
-A~graph that is open at the entry has a ``head'' block that is open at
-the entry and closed at the exit.\remark{Why isn't this called the
-``entry sequence?''  Seems better than ``head''\ldots}
-A~graph that is closed at the entry doesn't have a ``head'' block.
-This choice is represented by a field of type @Head n O@ or @Head n e@:
-If the field's type is @Head n O@, it is created with the @Head@ value
-constructor, and it contains an entry sequence of type @Block n O C@.
-If the field's type is @Head n C@, it is created with the @NoHead@ value
-constructor, and it contains only a @BlockId@.\remark{Why a @BlockId@
-instead of nothing?}
-%\item The first field is called the ``head'' of the @PGraph@.
-%If it is $@(Head@\;b@)@$, the @PGraph@ is open on entry, with initial block $b$.
-%If it is $@(NoHead@\;l@)@$, the @PGraph@ is closed on entry, and execution begins
-%at block $l$. 
-We need the @BlockId@ $l$, because the @PGraph@ 
-may replace a node, so just as a node closed at entry has a unique entry point,
-so does a @PGraph@.\remark{This argument just seems like special
-pleading to me.   If you want the node analogy, \emph{start} from the
-node analogy.  And the actual reasoning goes like this: if the
-@PGraph@ replaces a node closed at entry, the replacement graph must
-begin with the \emph{same} label as the node it replaces.
-Now this reader starts to wonder why one would store  that label twice.}
-\item
-A~general graph, no matter how it is shaped at the entry or exit,
-contains a collection of labelled closed/closed (basic) blocks.
-This collection is represented as a @Graph@ of blocks,
-as discussed above.
-\item
-A~graph that is open at the exit has a ``tail'' block that is closed at
-the entry and open at the exit.\remark{Why isn't this called the
-``exit sequence?''  Seems better than ``tail\ldots}
-A~graph that is closed at the exit doesn't have a ``tail'' block.
-The exit sequence (or lack thereof) is represented by a value of type
-@Tail n x@, where @x@~describes the shape of the exit.
-\remark{And if we could get rid of the beastly block IDs, we could
-have the \emph{same} construct here as at the entry sequence, and
- enjoy a little parallel structure.}
-If the @Graph@ is closed on exit the tail is just @NoTail@.
-If it is open on exit, the tail is a (labelled) @Block@, open on
- exit.\remark{Why is it labelled?  None of the other blocks closed on
- entry is labelled?  What's special about this one?}
-\end{itemize}
-Partial graphs compose nicely.  
-For example, like blocks, two graphs may be concatenated exactly when
-they are both open at the point of concatenation:
+Graphs compose nicely, with constant-time complexity.
+Unlike blocks, two graphs may be concatenated 
+when they are both open at the point of concatenation, \emph{and}
+when they are both closed (but not in the other two cases):
 \par{\small
 \begin{code}
-`pCat :: Graph n e O -> Graph n O x -> Graph n e x
-pCat PNil g2 = g2
- pCat g1 PNil = g1
+'gCat :: Graph n e a -> Graph n a x -> Graph n e x
+gCat GNil g2 = g2
+gCat g1 GNil = g1
 
-pCat (PUnit b1) (PUnit b2)             
- = PUnit (b1 `BCat` b2)
+gCat (GUnit b1) (GUnit b2)             
+ = GUnit (b1 `BCat` b2)
 
-pCat (PUnit b) (PMany (Head e) bs x) 
- = PMany (Head (b `BCat` e)) bs x
+gCat (GUnit b) (GMany (OpenLink e) bs x) 
+ = GMany (OpenLink (b `BCat` e)) bs x
 
-pCat (PMany e bs (Tail l x)) (PUnit b2) 
- = PMany e bs (Tail l (x `BCat` b2))
+gCat (GMany e bs (OpenLink x)) (GUnit b2) 
+  = GMany e bs (OpenLink (x `BCat` b2))
 
-pCat (PMany e1 bs1 (Tail l x1)) (PMany (Head e2) bs2 x2)
- = PMany e1 (addBlock l (x1 `BCat` e2) bs1 
-   `unionBlocks` bs2) x2
+gCat (GMany e1 bs1 (OpenLink x1)) 
+            (GMany (OpenLink e2) bs2 x2)
+  = GMany e1 (bs1 `BodyCat` b `BodyCat` bs2) x2
+  where
+    b = BodyUnit (x1 `BCat` e2)
+
+gCat (GMany e1 bs1 ClosedLink) (GMany ClosedLink bs2 x2)
+  = GMany e1 (bs1 `BodyCat` bs2) x2
 \end{code}}
 This defintion is a nice example of the power of GADTs: the
 pattern-matching is exhaustive, and all the open/closed invariants are
-statically checked.  For example, in the last equation for @pCat@, the
-first argument has type (@Graph@ @n@ @e@ @O@), so the third field of
-@GMany@ must be of form (@Tail l bx1@).  Moreover @bx1@ must be
-closed/open, and @be2@ must be open/closed.  So we can compose them in
+statically checked.  For example, consider the second-last equation for @gCat@.
+Since the exit link of the first argument is @OpenLink x1@,
+we know that $@a@~@C@$, and hence the entry link of the second 
+argument must be @(OpenLink e2)@
+Moreover @x1@ must be
+closed/open, and @e2@ must be open/closed.  So we can compose them in
 sequence with @BCat@ to produce a closed/closed block, which can be
 added to the @BlockGraph@ of the result.
 
-Every graph has a unique representation.  An empty graph is represented
-by @GNil@.  The representation of a @PGraph@ consisting of a single block @b@ 
+Every graph has a unique representation.  An empty open/open graph is represented
+by @GNil@, while a closed/closed one is @gNilCC@:
+\begin{code}
+  gNilCC = GMany ClosedLink BodyEmpty ClosedLink
+\end{code}
+The representation of a @Graph@ consisting of a single block @b@ 
 depends on the shape of @b@, thus:
 \begin{center}
 \begin{tabular}{ll}
-O/O & @PUnit b@ \\
-O/C & @PMany (Head b) emptyG NoTail@ \\
-C/O & @PMany (NoHead l) emptyG (Tail l b)@ \\
-C/C & @PMany (NoHead l) (unitG l b) NoTail@
+O/O & @GUnit b@ \\
+O/C & @GMany (OpenLink b) BodyEmpty    ClosedLink@ \\
+C/O & @GMany ClosedLink   BodyEmpty    (OpenLink b)@ \\
+C/C & @GMany ClosedLink   (BodyUnit b) ClosedLink@
 \end{tabular}
 \end{center}
-where @l@ is the entry @BlockId@ of @b@.
 Multi-block graphs are similar.
-From this table we can see why @PUnit@ is restricted to open/open
+From this table we can see why @GUnit@ is restricted to open/open
 blocks; if it was more accommodating then there would be 
 multiple representations for a single graph.
 
 
-% 
-% \subsection{Labels and successors} \seclabel{edges}
-% 
-% \begin{figure}
-% \begin{code}
-% class Edges n where
-%   blockId    :: n C x -> BlockId
-%   successors :: n e C -> [BlockId]
-% \end{code}
-% \caption{The {\tt Edges} class} \figlabel{edges}
-% \end{figure}
-% If \ourlib{} knows nothing about nodes, how can it know to which block a
-% control transfer goes, or what is the @BlockId@ at the start of a block?
-% In this situation the standard Haskell idiom is to provide a type class whose methods
-% provide exactly the needed operations; it is given in \figref{edges}.
-% The @blockId@ method takes a first node (one closed on entry, \secref{nodes})
-% and returns its @BlockId@;
-% the @successors@ method takes a last node (closed on exit) and returns the @BlockId@s to
-% which it can transfer control.  In \ourlib{} a middle node (open-open) cannot refer to any @BlockId@s,
-% as the absence of an interrogation function implies. 
-% 
-% When defining a node type, a \ourlib{} client should also make it an
-% instance of @Edges@.  Thus for @Node@ we would write
-% \begin{code}
-% instance Edges Node where
-%   blockId (Label l) = l
-%   successors (Branch b) = [b]
-%   successors (CondBranch e b1 b2) = [b1,b2]
-% \end{code}
-% Again, the pattern-matching for both functions is exhaustive, and
-% the compiler statically checks this fact.  For example, @blockId@ simply
-% cannot be applied to a @Assign@ or @Branch@ node; the type checker would
-% reject any such attempt.
-% 
-% \ourlib{} provides instances for its types @Block@ and @Graph@ thus:
-% \begin{code}
-% instance Edges n => Edges (Block n) where
-%   blockId    (BUnit n)  = blockId n
-%   blockId    (BCat b _) = blockId b
-%   successors (BUnit n)  = successors n
-%   successors (BCat _ b) = successors b
-% 
-% instance Edges n => Edges (Graph n) where
-%   blockId    (GUnit b)      = blockId b
-%   blockId    (GMany ...)    = ???  -- eek!
-%   successors (GUnit b)      = successors b
-%   successors (GMany _ bs _) = concatMap successors bs 
-%                               `minusList` map blockId bs
-% \end{code}
-% \simon{I now realise that this is why I wanted to know the entry block of a graph!
-% Since an entry-closed node and block both have a unique block id, shouldn't an entry-closed
-% graph have one too?}
-% \simon{Also the successors thing is not pretty.}
-% 
+\subsection{Labels and successors} \seclabel{edges}
+
+If \ourlib{} knows nothing about nodes, how can it know to which block a
+control transfer goes, or what is the @Label@ at the start of a block?
+In this situation the standard Haskell idiom is to provide a type class whose methods
+provide exactly the needed operations; it is given in \figref{edges}.
+The @entryLabel@ method takes a first node (one closed on entry, \secref{nodes})
+and returns its @Label@;
+the @successors@ method takes a last node (closed on exit) and returns the @Label@s to
+which it can transfer control.  In \ourlib{} a middle node (open-open) cannot refer to any @Label@s,
+as the absence of an interrogation function implies. 
+
+When defining a node type, a \ourlib{} client should also make it an
+instance of @Edges@.  Thus for @Node@ we would write
+\begin{code}
+instance Edges Node where
+  entryLabel (LabelNode l) = l
+  successors (Branch b) = [b]
+  successors (CondBranch e b1 b2) = [b1,b2]
+\end{code}
+Again, the pattern-matching for both functions is exhaustive, and
+the compiler statically checks this fact.  For example, @blockId@ simply
+cannot be applied to a @Assign@ or @Branch@ node; the type checker would
+reject any such attempt.
+
+\ourlib{} provides instances for the @Block@ type thus:
+\begin{code}
+instance Edges n => Edges (Block n) where
+  blockId    (BUnit n)  = blockId n
+  blockId    (BCat b _) = blockId b
+  successors (BUnit n)  = successors n
+  successors (BCat _ b) = successors b
+\end{code}
+A slight infelicity is that we cannot make @Graph@ an instance of @Edges@,
+because a graph closed on entry has no unique label.  Fortunately, we never
+need @Graphs@ to be in @Edges@.
 
 \section {Using \ourlib{} to analyse and transform graphs} \seclabel{using-hoopl}
 \seclabel{making-simple}
@@ -956,32 +974,33 @@ analyseAndRewriteFwd
   -> ForwardRewrite n f     -- Rewrite function
   -> RewritingDepth         -- Rewrite recursively?
   -> FactBase f             -- Input fact(s)
-  -> Graph n                -- Input graph
-  -> FuelMonad (Graph n,    -- Result graph
+  -> Body n                 -- Input body
+  -> FuelMonad (Body n,     -- Result body
                 FactBase f) -- ...and its facts
 
-type FactBase f = BlockMap f
+type FactBase f = LabelMap f
+ -- A finte mapping from Labels to facts f
 \end{code}
 Roughly speaking, given a lattice, a transfer function, and a rewrite
-function, @analyseAndRewriteFwd@ can transform a @Graph@ into an
-optimised @Graph@.  One thing that is immediately obvious from this
+function, @analyseAndRewriteFwd@ can transform a @Body@ into an
+optimised @Body@.  One thing that is immediately obvious from this
 type is that it is polymorphic in the type of nodes @n@ and facts @f@;
 these are entirely under the control of the client.
 
-As well as taking and returning a @Graph@, the function also takes
+As well as taking and returning a @Body@, the function also takes
 some input facts (the @FactBase@) and produces output facts. A
-@FactBase@ is simply a finite mapping from @BlockId@ to facts.  The
-output @FactBase@ maps each @BlockId@ in the @Graph@ to its fact; if
-the @BlockId@ is not in the domain of the @FactBase@ its fact is the
+@FactBase@ is simply a finite mapping from @Label@ to facts.  The
+output @FactBase@ maps each @Label@ in the @Body@ to its fact; if
+the @Label@ is not in the domain of the @FactBase@ its fact is the
 bottom of the lattice.  Similarly the input @FactBase@ supplies any
-facts that hold on entry to the @Graph@.  For example, in our constant
-propagation example, if the @Graph@ represents the body of a procedure
-with parameters $x,y,z$ we would map the entry @BlockId@ to a fact
+facts that hold on entry to the @Body@.  For example, in our constant
+propagation example, if the @Body@ represents the body of a procedure
+with parameters $x,y,z$ we would map the entry @Label@ to a fact
 $@[@(x,@Top@), (y,@Top@), (z,@Top@)@]@$, to specify the the procedure
 parameters have unknown values.
 
 The user-level model of how @analyseAndRewriteFwd@ works is this.  The
-function walks forward over the graph.  At each node, it applies the
+function walks forward over each block in the graph.  At each node, it applies the
 rewrite function to incoming fact and the node.  If the rewrite
 function returns @Nothing@, the node is retained as part of the output
 graph, the transfer function is used to compute the downstream fact,
@@ -1099,23 +1118,20 @@ fixed point.
 \begin{figure}
 \begin{code}
 type `ForwardTransfer n f 
-  = forall e x. n e x -> f -> TailFactF x f 
+  = forall e x. n e x -> Fact e f -> Fact x f 
 type `BackwardTransfer n f 
-  = forall e x. n e x -> TailFactB x f -> f
+  = forall e x. n e x -> Fact x f -> Fact e f
 
 type `ForwardRewrite n f 
-  = forall e x. n e x -> f -> Maybe (AGraph n e x)
+  = forall e x. n e x -> Fact e f
+             -> Maybe (AGraph n e x)
 type `BackwardRewrite n f 
-  = forall e x. n e x -> TailFactB x f
+  = forall e x. n e x -> Fact x f
              -> Maybe (AGraph n e x)
 
-type family   `TailFactF x f :: *
-type instance TailFactF O f = f
-type instance TailFactF C f = [(BlockId,f)]
-
-type family   `TailFactB x f :: *
-type instance TailFactB C f = BlockMap f
-type instance TailFactB O f = f
+type family   'Fact x f :: *
+type instance Fact C f = FactBase f
+type instance Fact O f = f
 \end{code}
 \caption{Transfer functions for forward and backward analyses} 
   \figlabel{transfers}  \figlabel{rewrites}
@@ -1148,7 +1164,7 @@ But wait!  What is the \emph{type} of the transfer function?
 If the node is open at exit, it takes a fact and the node and produces a fact.
 But what if the node is \emph{closed} on exit?
 In that case the transfer function must
-produce a list of (@BlockId@,fact) pairs, one for each outgoing edge.  
+produce a list of (@Label@,fact) pairs, one for each outgoing edge.  
 
 \emph{So the type of the transfer function's result 
 depends on the open or closed-ness of the node's exit.}
@@ -1158,17 +1174,23 @@ The relevant \ourlib{} definitions are given in \figref{transfers}.
 A forward transfer function, of type (@ForwardTransfer@ @n@ @f@), 
 is a function polymorphic in @e@ and @x@.  It takes a fact and a 
 node of type (@n@ @e@ @x@), and produces an
-outgoing ``fact-like thing'' of type (@TailFactF@ @x@ @f@).  The 
-type constructor @TailFactF@
+outgoing ``fact-like thing'' of type (@Fact@ @x@ @f@).  The 
+type constructor @Fact@
 should be thought of as a type-level function; its signature is given in the
 @type family@ declaration, while its definition is given by two @type instance@
 declarations.  The first says that the fact-like thing coming out a node
 open at exit is just a fact @f@. The second says that if the node is closed
-on exit the outgoing thing is a list of @(BlockId,f)@ pairs.
+on exit the outgoing thing is a mapping from @Label@ to facts.
 
-All the \ourlib{} client needs to do is to write the transfer function, with
-this type.  \figref{const-prop} shows the transfer function for our
-constant-propagation example.
+We have chosen the argument order so that if
+\begin{code}
+  transfer_fn :: ForwardTransfer n f
+  node        :: n e x
+\end{code}
+then @(transfer_fn n)@ is literally a predicate transformer:
+\begin{code}
+  transfer_fn n :: Fact e f -> Fact x f
+\end{code}
 
 \ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
@@ -1179,12 +1201,12 @@ constant-propagation example.
 \hfuzz=5.7pt % cheating again!
 \begin{code}
 type AGraph n e x 
-  = BlockIdSupply -> (Graph n e x, BlockIdSupply)
+  = LabelSupply -> (Graph n e x, LabelSupply)
 
 `mkIfThenElse :: Expr -> AGraph Node O O
              -> AGraph Node O -> AGraph Node O O
 mkIfThenElse p t e
-  = withBlockIds 3 $ \[l1,l2,l3] ->
+  = withLabels 3 $ \[l1,l2,l3] ->
     let entry = BUnit (CondBranch p l1 l2)
         exit  = BUnit Head
         bg = flattenG l1 (t `catNode` Branch l3)
@@ -1206,7 +1228,6 @@ Similarly, a liveness analysis may allow us to
 rewrite an assignment to a dead register by a no-op; knowing that a register is
 live at a call site might provoke us to insert a spill before the call; and so on.
 
-
 The @analyseAndRewriteFwd@ takes a \emph{rewriting function}
 that takes a node and a fact, and optionally returns a graph. 
 The type is given in \figref{rewrites}.
@@ -1222,12 +1243,12 @@ You will have noticed that the rewriter actually
 returns an @AGraph@ rather than a @Graph@.
 The reason for this is that 
 if the rewriter makes graphs containing blocks,
-it will need to conjure up some fresh @BlockIds@.
+it will need to conjure up some fresh @Labels@.
 An @AGraph@ makes it possible for the rewriter to do so conveniently,
 using @withLabel@:
 \par{\small
 \begin{code}
-`withLabel :: (BlockId -> AGraph n e x) -> AGraph n e x
+`withLabel :: (Label -> AGraph n e x) -> AGraph n e x
 withLabel fn = \(b:bs) -> (fn b, bs)
 \end{code}}
 
@@ -1269,31 +1290,35 @@ constLattice = DataflowLattice
       where j = if new == old then new else Top
             c = if j == old then NoChange else SomeChange
 
+-------------------------------------------------------
 -- Analysis: register has constant value
 `regHasConst :: ForwardTransfer Node ConstFact
-regHasConst (Label _)           f = f
+regHasConst (LabelNode l)       f = lookupFact f l
 regHasConst (Store _ _)         f = f
 regHasConst (Assign x (Bool b)) f = Map.insert x (B b) f
 regHasConst (Assign x (Int  i)) f = Map.insert x (I i) f
 regHasConst (Assign x _)        f = Map.insert x Top   f
-regHasConst (Branch l)          f = [(l, f)]
+regHasConst (Branch l)          f = mkFactBase [(l, f)]
 regHasConst (Cond (Reg x) tid fid) f
-  = [(tid, Map.insert x (B True)  f),
-     (fid, Map.insert x (B False) f)]
-regHasConst (Cond _ tid fid)    f = [(tid, f), (fid, f)]
+  = mkFactBase [(tid, Map.insert x (B True)  f),
+                (fid, Map.insert x (B False) f)]
+regHasConst (Cond _ tid fid) f 
+  = mkFactBase [(tid, f), (fid, f)]
 
+-------------------------------------------------------
 -- Constant propagation
 `constProp :: ForwardRewrite Node ConstFact
 constProp node facts
   = fmap toAGraph (mapE rewriteE node)
   where
-    rewriteE e@(Reg r) =
+    rewriteE e@(Reg r)
       = case M.lookup r facts of
           Just (B b) -> Just $ Bool b
           Just (I i) -> Just $ Int  i
           _          -> Nothing
     rewriteE e = Nothing
 
+-------------------------------------------------------
 -- Simplification ("constant folding")
 `simplify :: ForwardRewrite Node f
 simplify (Cond (Bool b) t f) _
@@ -1307,10 +1332,11 @@ simplify node _ = fmap toAGraph (mapE s_exp node)
 -- Rewriting expressions
 `mapE :: (Expr    -> Maybe Expr) 
       -> Node e x -> Maybe (Node e x)
-mapE f (Label _)    = Nothing
-mapE f (Assign x e) = fmap (Assign x) $ f e
+mapE f (LabelNode _) = Nothing
+mapE f (Assign x e)  = fmap (Assign x) $ f e
  ... more cases for rewriting expressions
 
+-------------------------------------------------------
 -- Combining transformations
 `combineFRW :: ForwardRewrite n f
             -> ForwardRewrite n f
@@ -1319,6 +1345,7 @@ combineFRW r1 r2
    = \n f -> case r1 n f of Nothing -> r2 n f
                             Just g  -> Just g
 
+-------------------------------------------------------
 -- Running the analysis
 `rewriteFwd  = analyseAndRewriteFwd constLattice regHasConst
                   (constProp `combineFRW` simplify) 
@@ -1384,22 +1411,24 @@ boolean constant to an unconditional branch, and runs @s_exp@
 on every sub-expression to constant sub-expressions.
 
 We have written two @ForwardRewrites@ functions 
-because they are sometimes independely useful.  But in this case we
-want to apply them successively, first @constProp@ and then @simplify@.
-So we compose them together with a simple combinator, @combineFRW@, 
+because they are sometimes independently useful.  But in this case we
+want to apply \emph{both} of them,
+so we compose them together with a simple combinator, @combineFRW@, 
 and pass the combined rewrite to @analyseAndRewriteFwd@ (see \figref{const-prop}).
+The definition of @combineFRW@ (which is provided by Hoopl although we show
+it in \figref{const-prop}) is interesting: it says to try @r1@, and if that 
+fails try @r2@.  We cannot apply @r2@ directly to the result of a successful
+rewrite with @r1@, because @r1@ returns a @Graph@ while @r2@ expects a node.
+Instead we ask \ourlib{} to re-apply the transform by asking for @DeepRewriting@.
 
-Note that @simplify@ does not need to check whether a register holds a constant
-value, because it can rely @constProp@ to have replaced the register by the constant;
-indeed @simplify@ does not consult the incoming fact at all, and hence is
-polymorphic in @f@.
+Note that @simplify@ does not need to check whether a register holds a
+constant value, because it can rely @constProp@ to have replaced the
+register by the constant; indeed @simplify@ does not consult the
+incoming fact at all, and hence is polymorphic in @f@.
 
-We can invoke the analysis by calling  @analyseAndRewriteFwd@.
+Finally, we invoke the analysis by calling  @analyseAndRewriteFwd@.
 with the lattice, the transfer function, the combined rewrite functions,
 an empty @FactBase@, and the input graph.
-Because constant-propagation and constant-folding are mutually beneficial,
-we use deep rewriting to apply both transformations
-recursively.  \simon{I find it hard to see how deep rewriting could be beneficial here.}
 
 \subsection{Throttling the dataflow engine using ``optimization fuel''}
 \seclabel{vpoiso}
@@ -1431,7 +1460,7 @@ The @FuelMonad@ is a simple state monad maintaining the supply of unused
 fuel.  It also holds a supply of fresh labels, which are used by the rewriter
 for making new blocks; more precisely, the client-provided @ForwardRewrite@
 function produces an @AGraph@ (\figref{rewrites}) which Hoopl converts to
-a @Graph@ by supplying the @AGraph@ with a supply of @BlockIds@ from the @FuelMonad@.
+a @Graph@ by supplying the @AGraph@ with a supply of @Labels@ from the @FuelMonad@.
 
 \subsection{Fixpoints and speculative rewrites} \seclabel{fixpoints}
 
@@ -1471,16 +1500,7 @@ But it is trivially easy with an immutable graph:
 all we need do is to revert to the original graph at the start
 of each fixpoint iteration.
 
-\john{Is it just me, or have we lost all the text claiming that analyses should
-  just be strongest postconds/ weakest preconds? Is this by design?}
-\simon{I did remove some material of that sort.  I think I did so because it didn't
-seem (to me) to contribute much at the place it then appeared. But I am entirely open
-to resurrecting it if you think that would help.  Perhaps in the section on 
-correctness, which follows next?  Can you do that?}
-
 \subsection{Correctness} \seclabel{correctness}
-
-\simon{This section seems a bit laboured}
 
 Facts computed by @analyseAndRewriteFwd@ depend on graphs produced by the rewrite
 function, which in turn depend on facts computed by the transfer function.
@@ -1489,62 +1509,53 @@ A~proof requires its own POPL paper
 \cite{lerner-grove-chambers:2002}, but we can give some
 intuition.
 
+We require these pre-conditions on the functions supplied to 
+\ourlib{}:
+\begin{itemize}
+\item 
+The lattice must have no \emph{infinite ascending chains}; that is,
+a sequence of calls to @fact_extend@ must eventually return @NoChange@.
+\item 
 The transfer function must be 
 \emph{monotonic} in the following sense: given a more informative fact in,
 it should produce a more informative fact out.
-
-The rewrite function must, of course, be \emph{sound}:
+\item 
+The rewrite function must be \emph{sound}:
 if it replaces a node @n@ by a replacement graph
 @g@, then @g@ must be observationally equivalent to @n@ under the 
 assumptions expressed by the incoming dataflow fact @f@.%
 \footnote{We do not permit a transformation to change
-  the @BlockId@ of a node. We have not found any optimizations
+  the @Label@ of a node. We have not found any optimizations
   that are prevented (or even affected) by this restriction.}
-Moreover the rewrite function must be \emph{consistent} with the transfer function;
+\item 
+The rewrite function must be \emph{consistent} with the transfer function;
 that is, \mbox{@transfer n f@ $\sqsubseteq$ @transfer g f@}.
 For example, if the analysis says that @x@ is dead before the node~@n@,
 then it had better still be dead if @n@ is replaced by @g@.
-Also, to ensure termination, a transformation that uses deep rewriting
+\item 
+To ensure termination, a transformation that uses deep rewriting
 must not return replacement graphs which 
 contain nodes that could be rewritten indefinitely.
-
+\end{itemize}
 Without the conditions on montonicity and consistency,
-our algorithm will still terminate,
+our algorithm will terminate, 
 but there is no guarantee that it will compute
-a fixed point of the analysis.
-Given these conditions:
+a fixed point of the analysis.  And that in turn threatens the
+soundness of rewrites based on possibly-bogus ``facts''.
 
+However, under the above preconditions:
 \begin{itemize} 
 \item
-The algorithm is sound because if each rewrite is sound (in the sense given above), 
+The algorithm terminates.  The fixpoint loop must terminate because the 
+lattice has no infinite ascending chains. And the user is responsible
+for avoiding infinite rewriting in the @RewriteDeep@ case.
+\item 
+The algorithm is sound.  Why? Because if each rewrite is sound (in the sense given above), 
 then applying a succession of rewrites is also sound.
 Moreover, a~sound analysis of the rewritten graph
 may generate only dataflow facts that could have been
 generated by a more complicated analysis of the original graph.
-\item
-No matter what the transfer functions and rewrite functions do,
-the dataflow engine uses the dataflow lattice's join operation to ensure that
-facts at labels never decrease. 
-As~long as
-\ifcutting
- no fact may
-\else
- the lattice permits no fact to 
-\fi
-increase infinitely many
-times, analysis
-\ifcutting
- terminates.
-\else
- is guaranteed to terminate.
-\fi
 \end{itemize}
-Thus to guarantee soundness and termination, client code must supply 
-sound transfer functions,
-sound rewrite functions,
-and a
-lattice with no infinite ascending chains.
-
 % \john{If we haven't sold the audience by now, they're not going
 %   to be convinced by this quote.}
 %
@@ -1663,14 +1674,14 @@ strong static shape guarantees.
 \subsection{Overview}
 
 We will concentrate on implementing @analyseAndRewriteFwd@, whose
-tpye signature is in \secref{using-hoopl}.
+type signature is in \secref{using-hoopl}.
 The implementation is built on the hierarchy of nodes, blocks, and graphs
 that we described in \secref{graph-rep}.  For each such thing
 we will develop a function of this type:
 \begin{code}
 type `ARF thing n f 
-  = forall e x. f -> thing e x 
-             -> FuelMonad (TailFactF x f, RG n e x)
+  = forall e x. Fact e f -> thing e x 
+             -> FuelMonad (Fact x f, RG n e x)
 \end{code}
 An @ARF@ (short for ``analyse and rewrite forward'') is a combination of
 a rewrite and transfer function, and is also 
@@ -1679,78 +1690,83 @@ An @ARF@ takes an input fact and a @thing@,
 and returns a correspondingly-shaped output fact, and a rewritten graph of type @(RG n e x)@.
 Here we intend ``@thing@'' to range over nodes, blocks, and graphs, thus:
 \begin{code}
-  type `ARF_Node   n f = ARF n          n f
-  type `ARF_Block  n f = ARF (Block n)  n f
-  type `ARF_PGraph n f = ARF (PGraph n) n f
+  type `ARF_Node  n f = ARF n         n f
+  type `ARF_Block n f = ARF (Block n) n f
+  type `ARF_Graph n f = ARF (Graph n) n f
 \end{code}
 Note that the result is a rewritten graph, 
 regardless of whether @thing@ is a node, block, or graph.
 
-Why do we return @RG@ not @PGraph@?  
-We return a rewritten graph @RG@ rather than a @PGraph@ 
+We return a rewritten graph @RG@ rather than a @Graph@ 
 for two reasons:
 \begin{itemize}
 \item The client is often interested not only in the facts flowing
-out of the graph (which are returned as the @TailFactF@), 
+out of the graph (which are returned in the @Fact x f@), 
 but also in the facts on the \emph{internal} blocks
 of the graph. A rewritten graph, of type @(RG n e x)@ is decorated with
 these internal facts.
-\item A @PGraph@ has deliberately restrictive invariants; for example,
-a @PMany@ with a @Tail@ is always open at exit (\figref{graph}).  It turns
+\item A @Graph@ has deliberately restrictive invariants; for example,
+a @GMany@ with a @OpenLink@ is always open at exit (\figref{graph}).  It turns
 out to be awkward to maintain these invariants \emph{during} rewriting,
 but easy to restore them \emph{after} rewriting by ``normalising'' an @RG@.
 \end{itemize}
 The normalisation function expresses the above two points, by splitting 
 a rewritten graph into a @Graph@ and its corresponding @FactBase@:
 \begin{code}
-`normalise :: BlockId -> f
-          -> RG n f C C -> (Graph n, FactBase f)
+`normaliseBody :: Edges n => RG n f C C 
+               -> (Body n, FactBase f)
 \end{code}
 We can now build a modular implementation as follows:
 \begin{itemize} 
 \item From the supplied @ForwardTransfer@ and @ForwardRewrite@, produce a @ARF_Node@
 that transforms nodes (\secref{arf-node}):  
+\par{\small
 \begin{code}
-  `arfNode :: DataflowLattice f
-          -> ForwardTransfer n f
-          -> ForwardRewrite n f
-          -> ARF_Node n f
-          -> ARF_Node n f
-\end{code}
+ `arfNode :: Edges n 
+         => DataflowLattice f -> ForwardTransfer n f
+         -> ForwardRewrite n f
+         -> ARF_Node n f -> ARF_Node n f
+\end{code}}
 In addition to the transfer and rewrite functions, @arfNode@ takes the function
 to analyse and rewrite the rewritten graph.
 \item From this @ARF_Node@, produce a @ARF_Block@ that transforms blocks (\secref{arf-block}):
+\par{\small
 \begin{code}
-  `arfBlock :: ARF_Node n f -> ARF_Block n f
-\end{code}
+ `arfBlock :: ARF_Node n f -> ARF_Block n f
+\end{code}}
  
-\item From this @ARF_Block@, produce an @ARF_Blocks@ that 
-transforms a @Graph@:
+\item From  @arfBlock@, produce  @arfBody@ that transforms a @Body@:
+\par{\small
 \begin{code}
-'arfBlocks :: forall n f. DataflowLattice f 
-           -> ARF_Node n f 
-           -> FactBase f -> Graph n 
-           -> FuelMonad (FactBase f, (Graph n, FactBase f))
-\end{code}
+ 'arfBody :: forall n f. Edges n
+         => DataflowLattice f 
+         -> ARF_Node n f 
+         -> FactBase f -> Body n 
+         -> FuelMonad (FactBase f, (Body n, FactBase f))
+\end{code}}
+The type is less neat than the others because a @Body@ does not have
+the same shape as a node, block, or graph.
 
-\item From this @ARF_Blocks@, produce a @ARF_Graph@ that tranforms graphs (\secref{arf-graph}):
+\item From @arfBody@, produce @arfGraph@ that tranforms graphs (\secref{arf-graph}):
+\par{\small
 \begin{code}
   `arfGraph :: DataflowLattice f
            -> ARF_Node n f -> ARF_Graph n f
-\end{code}
-This is where the fixpoint computation takes place, so @arfGraph@ must
-take a @DataflowLattice@ as an additional argument.
+\end{code}}
 \end{itemize}
 Given these three functions, it is rather easy to write the main analyser:
 \par {\small
 \begin{code}
-`analyseAndRewriteFwd
-   :: forall n f. Edges n
-   => DataflowLattice f   -> ForwardTransfer n f
-   -> ForwardRewrite n f -> RewritingDepth
-   -> ARF_Graph n f
-analyseAndRewriteFwd lat tf rw depth
- = arfGraph lat arf_node
+analyseAndRewriteFwd
+  :: Edges n         
+  => DataflowLattice f -> ForwardTransfer n f
+  -> ForwardRewrite n f -> RewritingDepth
+  -> FactBase f -> Body n  
+  -> FuelMonad (Body n, FactBase f)
+
+analyseAndRewriteFwd lat tf rw depth fb body
+ = do { (_, rg) <- arfBody lat arf_node fb body
+      ; return rg }
  where 
   arf_node, rec_node :: ARF_Node n f
   arf_node = arfNode lat tf rw rec_node
@@ -1762,8 +1778,10 @@ analyseAndRewriteFwd lat tf rw depth
 }
 This beautifully compact code does the following:
 \begin{itemize}
-\item The result is built by applying @arfGraph@ to @arf_node@, the 
-function to use when @arfGraph@ reaches an individual node.
+\item The result is built by applying @arfBody@ to @arf_node@, the 
+function to use when @arfBody@ reaches an individual node.
+We discard the out-flowing facts, and return just the pair of ht e
+rewritten body and its internal facts.
 \item In turn @arf_node@ is built by applying @arfNode@ to the client-supplied
 transfer and rewrite functions and, crucially, @rec_node@.  
 \item @rec_node@ is used by @arfNode@ when analysing and transforming graphs
@@ -1775,26 +1793,26 @@ We define the latter in \secref{arf-node}.
 \end{itemize}
 And that is all.  Note the way that the shallow/deep distinction is made
 here, and here alone; none of the other functions are aware of the issue.
-\john{Are we showing the code that does the interleaving? I feel like that's
-a pretty essential part of the story.}
 
 \subsection{Analysing and rewriting nodes} \seclabel{arf-node}
 
 The core of the interleaved analyse-and-rewrite idea is expressed
 by the functions @arfNode@ and @arfNodeNoRW@:
-
+\par {\small
 \begin{code}
 arfNodeNoRW :: ForwardTranfsers n f
             -> ARF_Node n f
-arfNodeNoRW tf f n = return (f, nodeToGraph n)
+arfNodeNoRW tf f n
+  = return (transfer_fn node f, RGUnit f (BUnit node))
 
-arfNode transfer_fn rewrite_fn graph_trans f node
-  = do { mb_g <- withFuel (rewrite_fn f node)
+arfNode lattice transfer_fn rewrite_fn arf_node f node
+  = do { mb_g <- withFuel (rewrite_fn node f)
        ; case mb_g of
            Nothing -> arfNodeNoRW transfer_fn f node
       	   Just ag -> do { g <- graphOfAGraph ag
-      		         ; graph_trans f g } }
-\end{code}
+      		         ; arfGraph lattice arf_node f g } }
+\end{code}}
+
 
 \subsection{From nodes to blocks} \seclabel{arf-node}
 
@@ -1829,6 +1847,13 @@ Next we tackle .... \simon{not finished}
 \simon{I think this section has interesting material, but it's
 incomprehensible at the beginning, because our readers won't have the 
 mental scaffolding to grok it.  Norman, have at it!}
+
+\john{Is it just me, or have we lost all the text claiming that analyses should
+  just be strongest postconds/ weakest preconds? Is this by design?}
+\simon{I did remove some material of that sort.  I think I did so because it didn't
+seem (to me) to contribute much at the place it then appeared. But I am entirely open
+to resurrecting it if you think that would help.  Perhaps in the section on 
+correctness, which follows next?  Can you do that?}
 
 One story of this paper is that we can think similar thoughts about
 assembly code, IR nodes, basic blocks, and control-flow graphs.
