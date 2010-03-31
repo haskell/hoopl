@@ -35,13 +35,17 @@ This was made possible by
   Previously we returned a [(BlockId,f)] but I could not see
   how to make everything line up if we do this.
 
+  Indeed, the main shortcoming of Hoopl7 is that we are more
+  or less forced into this uniform representation of the facts
+  flowing into or out of a closed node/block/graph, whereas
+  previously we had more flexibility.
+
+  In exchange the code is neater, with fewer distinct types.
+  And morally a FactBase is equivalent to [(BlockId,f)] and
+  nearly equivalent to (BlockId -> f).
+
 * I've realised that forwardBlockList and backwardBlockList
   both need (Edges n), and that goes everywhere.
-
-Other notes
-
-* Look at the addBlock call in gCat.  It is caused directly by the
-  lack of a BlockId in the exit Link.  Fair enough.  But then the
 -}
 
 module Hoopl7 where
