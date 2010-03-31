@@ -1067,8 +1067,6 @@ Since control flows to @L3@ from two places,
 we must join the facts coming from those two places.  The fact at the
 end of block @L1@ is (@x=3@, @y=4@, @z=False@), while at the end of
 @L2@ the fact is (@x=7@, @y=4@, @z=True@).  
-\john{Note to self: implementation isn't propagating constant value from branch condition.}
-\simon{Fixed now?  Or still a problem?}
 Both blocks branch to @L3@
 where they must be joined, giving
 the fact (@x=@$\top$, @y=4@, @z=@$\top$) at @L3@, where the $\top$'s indicate
@@ -1810,10 +1808,11 @@ arfNode lattice transfer_fn rewrite_fn arf_node f node
   = do { mb_g <- withFuel (rewrite_fn node f)
        ; case mb_g of
            Nothing -> arfNodeNoRW transfer_fn f node
-      	   Just ag -> do { g <- graphOfAGraph ag
-      		         ; arfGraph lattice arf_node f g } }
+      	   Just ag -> 
+    do { g <- graphOfAGraph ag
+       ; arfGraph lattice arf_node f g } }
 \end{code}}
-
+Here
 
 \subsection{From nodes to blocks} \seclabel{arf-node}
 
