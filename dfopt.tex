@@ -451,11 +451,11 @@ the right we have the result of transforming the block
 based on the assertions:
 \begin{verbatim}
       Before        Facts        After
-                      {}
+          ------------{}-------------
       x := 3+4                   x := 7
-                     {x=7}
+          ----------{x=7}------------
       z := x>5                   z := True
-                  {x=7, z=True}
+          -------{x=7, z=True}-------
       if z                       goto L1
        then goto L1
        else goto L2
@@ -587,10 +587,10 @@ whatever.
 \begin{code}
 data `Node e x where
   `LabelNode  :: Label -> Node C O
-  `Assign     :: Reg     -> Expr -> Node O O
-  `Store      :: Expr    -> Expr -> Node O O
+  `Assign     :: Reg   -> Expr -> Node O O
+  `Store      :: Expr  -> Expr -> Node O O
   `Branch     :: Label -> Node O C
-  `CondBranch :: Expr -> Label -> Label -> Node O C
+  `CondBranch :: Expr  -> Label -> Label -> Node O C
     ...more constructors...
 \end{code}
 \caption{A typical node type, as it might be defined by a client} 
@@ -881,23 +881,25 @@ added to the @BlockGraph@ of the result.
 Every graph has a unique representation.  An empty open/open graph is represented
 by @GNil@, while a closed/closed one is @gNilCC@:
 \begin{code}
-  gNilCC = GMany ClosedLink BodyEmpty ClosedLink
+gNilCC :: Graph C C
+gNilCC = GMany ClosedLink BodyEmpty ClosedLink
 \end{code}
 The representation of a @Graph@ consisting of a single block @b@ 
 depends on the shape of @b@, thus:
-\begin{center}
-\begin{tabular}{ll}
-O/O & @GUnit b@ \\
-O/C & @GMany (OpenLink b) BodyEmpty    ClosedLink@ \\
-C/O & @GMany ClosedLink   BodyEmpty    (OpenLink b)@ \\
-C/C & @GMany ClosedLink   (BodyUnit b) ClosedLink@
-\end{tabular}
-\end{center}
+\begin{code}
+gUnitOO :: Block O O -> Graph O O
+gUnitOC :: Block O C -> Graph O C
+gUnitCO :: Block O C -> Graph C O
+gUnitCC :: Block O C -> Graph C C
+gUnitOO b = GUnit b
+gUnitOC b = GMany (OpenLink b) BodyEmpty ClosedLink
+gUnitCO b = GMany ClosedLink   BodyEmpty   (OpenLink b)
+gUnitCC b = GMany ClosedLink   (BodyUnit b) ClosedLink@
+\end{code}
 Multi-block graphs are similar.
 From this table we can see why @GUnit@ is restricted to open/open
 blocks; if it was more accommodating then there would be 
 multiple representations for a single graph.
-
 
 \subsection{Labels and successors} \seclabel{edges}
 
@@ -940,6 +942,43 @@ need @Graphs@ to be in @Edges@.
 \seclabel{making-simple}
 \seclabel{create-analysis}
 
+\begin{figure}
+\begin{code}
+data `ForwardPass n f
+  = `FwdPass { `fp_lattice  :: DataflowLattice f
+            , `fp_transfer :: FwdTransfer n f
+            , `fp_rewrite  :: FwdRewrite n f }
+
+------- Lattice ----------
+data `DataflowLattice a = DataflowLattice
+ {`fact_bot    :: a,
+  `fact_extend :: a -> a -> (ChangeFlag, a) }
+
+data `ChangeFlag = `NoChange | `SomeChange
+
+------- Transfers ----------
+type `FwdTransfer n f 
+  = forall e x. n e x -> Fact e f -> Fact x f 
+
+------- Rewrites ----------
+type `FwdRewrite n f 
+  = forall e x. n e x -> Fact e f
+             -> Maybe (FwdRes n f e x)
+
+data `FwdRes n f e x 
+  = FwdRes (AGraph n e x) (FwdRewrite n f)
+
+------- Facts ----------
+type family   'Fact x f :: *
+type instance Fact C f = FactBase f
+type instance Fact O f = f
+\end{code}
+\caption{\ourlib{} API data types}
+  \figlabel{api-types}
+  \figlabel{lattice-type} \figlabel{lattice}
+  \figlabel{transfers}  \figlabel{rewrites}
+\end{figure}
+
 Now that we have graphs in hand, we return to dataflow
 optimisation.
 \ourlib{} makes it  easy for a
@@ -960,29 +999,29 @@ the node (\secref{transfers}).
 \item \emph{A rewrite function} that takes an input fact and a node,
 and produces either @Nothing@,
 or @(Just g)@ where @g@ is an \emph{arbitrary graph} that should
-replace the node.  The ability to replace a node by an arbitrary graph is crucial;
+replace the node.  The ability to replace a node by an arbitrary graph is crucial.
 We discuss the rewrite function
 in \secref{rewrites}.
 \end{itemize}
+We combine the last three client-supplied arguments 
+into a single record of type @ForwardPass@; see \figref{api-types}.
 With these pieces in hand, a client can call \ourlib{}'s analysis-and-rewriting
 function:
 \begin{code}
 analyseAndRewriteFwd
   :: Edges n         
-  => DataflowLattice f      -- Lattice
-  -> ForwardTransfer n f    -- Transfer function
-  -> ForwardRewrite n f     -- Rewrite function
-  -> RewritingDepth         -- Rewrite recursively?
-  -> FactBase f             -- Input fact(s)
+  => ForwardPass n f   -- Lattice, transfer, 
+                       -- and rewrite functions
   -> Body n                 -- Input body
+  -> FactBase f             -- Input fact(s)
   -> FuelMonad (Body n,     -- Result body
                 FactBase f) -- ...and its facts
 
 type FactBase f = LabelMap f
  -- A finte mapping from Labels to facts f
 \end{code}
-Roughly speaking, given a lattice, a transfer function, and a rewrite
-function, @analyseAndRewriteFwd@ can transform a @Body@ into an
+Roughly speaking, given a @ForwardPass@, the 
+function @analyseAndRewriteFwd@ can transform a @Body@ into an
 optimised @Body@.  One thing that is immediately obvious from this
 type is that it is polymorphic in the type of nodes @n@ and facts @f@;
 these are entirely under the control of the client.
@@ -1011,25 +1050,6 @@ interface to @analyseAndRewriteFwd@, leaving the implementation for
 \secref{engine}.  
 
 \subsection{Dataflow lattices} \seclabel{lattices} \seclabel{facts}
-
-\begin{figure}
-\ifcutting
-\begin{code}
-data `ChangeFlag = `NoChange | `SomeChange
-data `DataflowLattice a = DataflowLattice
- {`fact_bot    :: a,
-  `fact_extend :: a -> a -> (ChangeFlag, a) }
-\end{code}
-\else
-\begin{code}
-data ChangeFlag = NoChange | SomeChange
-data DataflowLattice a = DataflowLattice
- { fact_bot    :: a,
-   fact_extend :: a -> a -> (ChangeFlag, a) }
-\end{code}
-\fi
-\caption{Representation of a dataflow lattice} \figlabel{lattice-type} \figlabel{lattice}
-\end{figure}
 
 For any one analysis or transformation the client must define a type
 of dataflow facts.  A dataflow fact typically represents an assertion
@@ -1115,29 +1135,6 @@ fixed point.
 
 \subsection{The transfer function} \seclabel{transfers}
 
-\begin{figure}
-\begin{code}
-type `ForwardTransfer n f 
-  = forall e x. n e x -> Fact e f -> Fact x f 
-type `BackwardTransfer n f 
-  = forall e x. n e x -> Fact x f -> Fact e f
-
-type `ForwardRewrite n f 
-  = forall e x. n e x -> Fact e f
-             -> Maybe (AGraph n e x)
-type `BackwardRewrite n f 
-  = forall e x. n e x -> Fact x f
-             -> Maybe (AGraph n e x)
-
-type family   'Fact x f :: *
-type instance Fact C f = FactBase f
-type instance Fact O f = f
-\end{code}
-\caption{Transfer functions for forward and backward analyses} 
-  \figlabel{transfers}  \figlabel{rewrites}
-\end{figure}
-\ifpagetuning\vspace*{-1ex}\fi
-
 A~transfer function is presented with the dataflow fact on the edge coming
 into a node, and it computes dataflow facts on the outgoing edge.
 In a forward analysis, the dataflow engine starts with the fact at the
@@ -1171,7 +1168,7 @@ depends on the open or closed-ness of the node's exit.}
 Fortunately, this dependency is precisely what Haskell's (recently added) 
 indexed type families can express.
 The relevant \ourlib{} definitions are given in \figref{transfers}.
-A forward transfer function, of type (@ForwardTransfer@ @n@ @f@), 
+A forward transfer function, of type (@FwdTransfer@ @n@ @f@), 
 is a function polymorphic in @e@ and @x@.  It takes a fact and a 
 node of type (@n@ @e@ @x@), and produces an
 outgoing ``fact-like thing'' of type (@Fact@ @x@ @f@).  The 
@@ -1184,7 +1181,7 @@ on exit the outgoing thing is a mapping from @Label@ to facts.
 
 We have chosen the argument order so that if
 \begin{code}
-  transfer_fn :: ForwardTransfer n f
+  transfer_fn :: FwdTransfer n f
   node        :: n e x
 \end{code}
 then @(transfer_fn n)@ is literally a predicate transformer:
@@ -1201,20 +1198,23 @@ then @(transfer_fn n)@ is literally a predicate transformer:
 \hfuzz=5.7pt % cheating again!
 \begin{code}
 type AGraph n e x 
-  = LabelSupply -> (Graph n e x, LabelSupply)
+  = [Label] -> (Graph n e x, [Label])
+
+`withLabels :: Int ([Label] -> AGraph n e x)
+            -> AGraph n e x
+withLabels n fn = \ls -> fn (take n ls, drop n ls)
 
 `mkIfThenElse :: Expr -> AGraph Node O O
              -> AGraph Node O -> AGraph Node O O
 mkIfThenElse p t e
   = withLabels 3 $ \[l1,l2,l3] ->
-    let entry = BUnit (CondBranch p l1 l2)
-        exit  = BUnit Head
-        bg = flattenG l1 (t `catNode` Branch l3)
-	       `unionBlocks`
-             flattenG l2 (e `catNode` Branch l3)
-        
-    GMany entry bg (Tail l3 exit)
-          
+    gUnitOC (BUnit (CondBranch p l1 l2))   `gCat` 
+    mkLabel l1 `gCat` t `gCat` mkBranch l3 `gCat`
+    mkLabel l2 `gCat` e `gCat` mkBranch l3 `gCat`
+    mkLabel l3
+
+mkLabel  l = gUnitCO (BUnit (LabelNode l))          
+mkBranch l = gUnitOC (BUnit (Branch l))
 \end{code}
 \caption{The \texttt{AGraph} type} \figlabel{agraph}
 \end{figure}
@@ -1228,53 +1228,100 @@ Similarly, a liveness analysis may allow us to
 rewrite an assignment to a dead register by a no-op; knowing that a register is
 live at a call site might provoke us to insert a spill before the call; and so on.
 
-The @analyseAndRewriteFwd@ takes a \emph{rewriting function}
-that takes a node and a fact, and optionally returns a graph. 
-The type is given in \figref{rewrites}.
-The @Maybe@ type expresses that the function can return
-@Nothing@, meaning no rewrite, or (@Just g@) where @g@ is the replacement graph.
-Notice that if the rewrite function returns a grpah, it is statically
-guaranteed to have
-\emph{the same open/closed shape as the node being rewritten}.
-So a branch instruction, for example, can only be rewritten to a graph 
-closed at the exit.
+A @ForwardPass@ therefor includes a \emph{rewriting function}
+that takes a node and a fact, and optionally returns \ldots what?
+At first one might
+expect that rewriting should return a new node, but that is not enough.
+For example, perhaps we want to replace a high-level operation
+with a tree of conditional branches or a loop, which entails introducing new blocks
+with arbitrary control flow.
+Another important special case is rewriting a node to a no-op.
+So in general the rewrite function must return an \emph{arbitrary graph}.
 
-You will have noticed that the rewriter actually 
-returns an @AGraph@ rather than a @Graph@.
-The reason for this is that 
-if the rewriter makes graphs containing blocks,
-it will need to conjure up some fresh @Labels@.
-An @AGraph@ makes it possible for the rewriter to do so conveniently,
-using @withLabel@:
-\par{\small
-\begin{code}
-`withLabel :: (Label -> AGraph n e x) -> AGraph n e x
-withLabel fn = \(b:bs) -> (fn b, bs)
-\end{code}}
-
-\subsection{The {\tt RewritingDepth} flag}
-
-If the rewrite function returns @Just g@ then the next step is controlled
-by the @RewritingDepth@ flag:
+Once the rewrite has been performed, what then?  
+Since the rewrite returns a graph, the 
+rewritten graph must itself be analysed and (perhaps) rewritten.
+So we must call @analyseAndRewriteFwd@ to process the rewritten
+graph -- but what @ForwardPass@ should call it with?
+There are two common situations:
 \begin{itemize}
-\item @RewriteDeep@: the entire @analyseAndRewriteFwd@ function is applied to 
-the rewritten graph, which in turn may be further rewritten.
-\item @RewriteShallow@: the rewritten graph is analysed \emph{but not further rewritten}.
+\item Sometimes we want to analyse and transform the rewritten graph
+with an unmodified @ForwardPass@.  So the 
+rewritten graph may itself be further rewritten ---  
+this is called \emph{deep rewriting}.
+When deep rewriting is used, the client's rewrite function must
+ensure that the graphs it produces are not rewritten indefinitely (\secref{correctness}).
+\item On other occasions we want to analyse \emph{but not further rewrite} the
+rewritten graph.  This is called \emph{shallow rewriting}, 
+and it is easy to achieve by passing a modified @ForwardPass@, 
+whose rewriting function always returns @Nothing@.
 \end{itemize}
 Deep rewriting is usually essential to achieve the results of
 \citet{lerner-grove-chambers:2002}.
 But shallow rewriting is also sometimes vital; for example, a rewrite that inserts
 a spill before a call might risk repeatedly inserting the same spill if the 
 rewrite was iterated. 
-When deep rewriting is used, the rewrite functions must
-ensure that the graphs they produce are not rewritten indefinitely (\secref{correctness}).
 
 Notice that in either case, the nodes following the rewritten node see 
-\emph{up-to-date} facts; that is, their input facts are computed from the result 
-of rewriting upstream nodes.
+\emph{up-to-date} facts; that is, their input facts are computed from analysing
+the \emph{rewritten} upstream nodes.
+
+The shallow-vs-deep choice is really a property of the rewrite function 
+itself.  This idea is elegantly expressed by the type of @FwdRewrite@
+in \figref{api-types}.  A @FwdRewrite@ takes a node and a suitably-shaped
+fact, and returns either @Nothing@, indicating no rewrite; 
+or $@(Just@\;@(FwdRes@\;ag\;rw@))@$, indicating that a rewrite 
+should be done.  We discuss the results $ag$ and $rw$ in turn.
+
+The graph $ag$ is the rewritten graph.  
+It has type @AGraph n e x@ when you 
+were probably expecting @Graph n e x@.
+The reason for this is that 
+if the rewriter makes graphs containing blocks,
+it will need to conjure up some fresh @Labels@.
+An @AGraph@ makes it possible for the rewriter to do so conveniently,
+using @withLabels@ as shown in \figref{agraph}.
+This Figure also shows a possible implementation of @AGraph@
+and an exmaple of how convenient-to-use @AGraph@ construction
+functions are easy to write.
+
+Notice also that 
+the rewritten graph $ag$ is statically guaranteed to have
+\emph{the same open/closed shape as the node being rewritten}.
+So a branch instruction, for example, can only be rewritten to a graph 
+closed at the exit.  
+
+The second result $rw$ of a successful rewrite is a 
+\emph{new rewriting function} to use when recursively processing
+the rewritten graph $ag$. For shallow rewriting this new function is
+the constant @Nothing@ function. For deep rewriting it is the original rewriting
+function.  But there are other possibilities too.  For example, here is a function
+that combines two rewriting funcitons.
+\par{\small
+\begin{code}
+combineFwdRewrite :: FwdRewrite n f 
+                  -> FwdRewrite n f 
+                  -> FwdRewrite n f
+combineFwdRewrite rw1 rw2 n f
+  = case rw1 n f of
+      Nothing               -> rw2 n f
+      Just (FwdRes g rw1') -> Just $ FwdRes g $
+                              combineFwdRewrite rw1' rw2
+\end{code}}
+What a beautiful type this function has! It tries @rw1@ and if that
+declines to rewrite it behaves like @rw2@.  But if
+@rw1@ succeeds, returning a new rewriter @rw1'@, the combine function
+succeds but returns a new rewrite function obtained by combining @rw1'@
+with @rw2@.  (We cannot apply @rw1'@ or @rw2@ 
+directly to the graph @g@, because @r1@ returns a graph while @r1'@ 
+expects a node.)
+Finally, notice that @combindFwdRewrite@ is capable of
+combining a deep-rewriting function and a shallow-rewriting function,
+to produce a rewriting function that is a combination of deep and shallow.
+This is something that the Lerner/Grove/Chambers framwork could not do,
+because there was a global shallow/deep flag.
 
 \subsection{Example: Constant propagation and constant folding} \seclabel{const-prop-client}
-
 
 \begin{figure}
 {\small
@@ -1292,7 +1339,7 @@ constLattice = DataflowLattice
 
 -------------------------------------------------------
 -- Analysis: register has constant value
-`regHasConst :: ForwardTransfer Node ConstFact
+`regHasConst :: FwdTransfer Node ConstFact
 regHasConst (LabelNode l)       f = lookupFact f l
 regHasConst (Store _ _)         f = f
 regHasConst (Assign x (Bool b)) f = Map.insert x (B b) f
@@ -1307,7 +1354,7 @@ regHasConst (Cond _ tid fid) f
 
 -------------------------------------------------------
 -- Constant propagation
-`constProp :: ForwardRewrite Node ConstFact
+`constProp :: FwdRewrite Node ConstFact
 constProp node facts
   = fmap toAGraph (mapE rewriteE node)
   where
@@ -1320,7 +1367,7 @@ constProp node facts
 
 -------------------------------------------------------
 -- Simplification ("constant folding")
-`simplify :: ForwardRewrite Node f
+`simplify :: FwdRewrite Node f
 simplify (Cond (Bool b) t f) _
   = Just $ toAGraph $ Branch (if b then t else f)
 simplify node _ = fmap toAGraph (mapE s_exp node)
@@ -1337,20 +1384,11 @@ mapE f (Assign x e)  = fmap (Assign x) $ f e
  ... more cases for rewriting expressions
 
 -------------------------------------------------------
--- Combining transformations
-`combineFRW :: ForwardRewrite n f
-            -> ForwardRewrite n f
-            -> ForwardRewrite n f
-combineFRW r1 r2 
-   = \n f -> case r1 n f of Nothing -> r2 n f
-                            Just g  -> Just g
-
--------------------------------------------------------
 -- Running the analysis
-`rewriteFwd  = analyseAndRewriteFwd constLattice regHasConst
-                  (constProp `combineFRW` simplify) 
-                  RewriteDeep 
-                  graph noFacts
+`consPropPass = ForwardPass
+   { fp_lattice = constLattice
+   , fp_transfer = regHasConst
+   , fp_rewrite = constProp `combineFwdRewrite` simplify } 
 \end{code}}
 \caption{The client for constant-propagation and constant-folding} \figlabel{const-prop}
 \end{figure}
@@ -1378,7 +1416,7 @@ there are two interesting kinds of nodes:
 assignment and conditional branch.
 In the first two cases for assignment, a register gets a constant value,
 so we produce a dataflow fact mapping the register to its value.
-In the thired case for assignment, the register gets a non-constant value,
+In the third case for assignment, the register gets a non-constant value,
 so we produce a dataflow fact mapping the register to @Top@.
 The last interesting case is a conditional branch where the condition
 is a register.
@@ -1410,25 +1448,20 @@ folding, called @simplify@.  It rewrites a conditional branch on a
 boolean constant to an unconditional branch, and runs @s_exp@
 on every sub-expression to constant sub-expressions.
 
-We have written two @ForwardRewrites@ functions 
+We have written two @FwdRewrites@ functions 
 because they are sometimes independently useful.  But in this case we
 want to apply \emph{both} of them,
-so we compose them together with a simple combinator, @combineFRW@, 
-and pass the combined rewrite to @analyseAndRewriteFwd@ (see \figref{const-prop}).
-The definition of @combineFRW@ (which is provided by Hoopl although we show
-it in \figref{const-prop}) is interesting: it says to try @r1@, and if that 
-fails try @r2@.  We cannot apply @r2@ directly to the result of a successful
-rewrite with @r1@, because @r1@ returns a @Graph@ while @r2@ expects a node.
-Instead we ask \ourlib{} to re-apply the transform by asking for @DeepRewriting@.
+so we compose them with @combineFwdRewrite@
+before putting them in the @constPropPass@ (see \figref{const-prop}).
 
 Note that @simplify@ does not need to check whether a register holds a
 constant value, because it can rely @constProp@ to have replaced the
 register by the constant; indeed @simplify@ does not consult the
 incoming fact at all, and hence is polymorphic in @f@.
 
-Finally, we invoke the analysis by calling  @analyseAndRewriteFwd@.
-with the lattice, the transfer function, the combined rewrite functions,
-an empty @FactBase@, and the input graph.
+Finally, we combine the lattice, the transfer function, the combined
+rewrite functions, into @constPropPass@.  This can be handed to
+@analyseAndRewriteFwd@ to process a particular graph.
 
 \subsection{Throttling the dataflow engine using ``optimization fuel''}
 \seclabel{vpoiso}
@@ -1458,7 +1491,7 @@ You will have noticed that the type of @analyseAndRewriteFwd@
 returns a value in the @FuelMonad@ (\secref{using-hoopl}).
 The @FuelMonad@ is a simple state monad maintaining the supply of unused
 fuel.  It also holds a supply of fresh labels, which are used by the rewriter
-for making new blocks; more precisely, the client-provided @ForwardRewrite@
+for making new blocks; more precisely, the client-provided @FwdRewrite@
 function produces an @AGraph@ (\figref{rewrites}) which Hoopl converts to
 a @Graph@ by supplying the @AGraph@ with a supply of @Labels@ from the @FuelMonad@.
 
@@ -1718,13 +1751,13 @@ a rewritten graph into a @Graph@ and its corresponding @FactBase@:
 \end{code}
 We can now build a modular implementation as follows:
 \begin{itemize} 
-\item From the supplied @ForwardTransfer@ and @ForwardRewrite@, produce a @ARF_Node@
+\item From the supplied @FwdTransfer@ and @FwdRewrite@, produce a @ARF_Node@
 that transforms nodes (\secref{arf-node}):  
 \par{\small
 \begin{code}
  `arfNode :: Edges n 
-         => DataflowLattice f -> ForwardTransfer n f
-         -> ForwardRewrite n f
+         => DataflowLattice f -> FwdTransfer n f
+         -> FwdRewrite n f
          -> ARF_Node n f -> ARF_Node n f
 \end{code}}
 In addition to the transfer and rewrite functions, @arfNode@ takes the function
@@ -1759,8 +1792,8 @@ Given these three functions, it is rather easy to write the main analyser:
 \begin{code}
 analyseAndRewriteFwd
   :: Edges n         
-  => DataflowLattice f -> ForwardTransfer n f
-  -> ForwardRewrite n f -> RewritingDepth
+  => DataflowLattice f -> FwdTransfer n f
+  -> FwdRewrite n f -> RewritingDepth
   -> FactBase f -> Body n  
   -> FuelMonad (Body n, FactBase f)
 
@@ -2370,8 +2403,6 @@ listed in Appendix~\ref{sec:prelude}.
       \texttt{#2}~(Fig~\ref{#3}, line~\lineref{#1}, p\pageref{#3})%
   \fi
 }
-
-
 
 \newif\ifundefinedsection\undefinedsectionfalse
 

@@ -274,11 +274,17 @@ data ChangeFlag = NoChange | SomeChange
 --		The main Hoopl API
 -----------------------------------------------------------------------------
 
-type ForwardTransfer n f 
+data ForwardPass n f
+  = FwdPass { fp_lattice  :: DataflowLattice f
+            , fp_transfer :: FwdTransfer n f
+            , fp_rewrite  :: FwdRewrite n f }
+
+type FwdTransfer n f 
   = forall e x. n e x -> Fact e f -> Fact x f 
 
-type ForwardRewrite n f 
-  = forall e x. n e x -> Fact e f -> Maybe (AGraph n e x)
+type FwdRewrite n f 
+  = forall e x. n e x -> Fact e f -> Maybe (FwdRes n f e x)
+data FwdRes n f e x = FwdRes (AGraph n e x) (FwdRewrite n f)
 
 type family   Fact x f :: *
 type instance Fact C f = FactBase f
@@ -286,6 +292,28 @@ type instance Fact O f = f
 
 data AGraph n e x = AGraph 	-- Stub for now
 
+type SimpleFwdRewrite n f 
+  = forall e x. n e x -> Fact e f
+             -> Maybe (AGraph n e x)
+
+noFwdRewrite :: FwdRewrite n f
+noFwdRewrite _ _ = Nothing
+
+shallowFwdRewrite :: SimpleFwdRewrite n f -> FwdRewrite n f
+shallowFwdRewrite rw n f = case (rw n f) of
+                             Nothing -> Nothing
+                             Just ag -> Just (FwdRes ag noFwdRewrite)
+
+deepFwdRewrite :: SimpleFwdRewrite n f -> FwdRewrite n f
+deepFwdRewrite rw n f = case (rw n f) of
+                          Nothing -> Nothing
+                          Just ag -> Just (FwdRes ag (deepFwdRewrite rw))
+
+combineFwdRewrite :: FwdRewrite n f -> FwdRewrite n f -> FwdRewrite n f
+combineFwdRewrite rw1 rw2 n f
+  = case rw1 n f of
+      Nothing               -> rw2 n f
+      Just (FwdRes ag rw1') -> Just (FwdRes ag (combineFwdRewrite rw1' rw2))
 
 -----------------------------------------------------------------------------
 --      TxFactBase: a FactBase with ChangeFlag information
@@ -383,65 +411,58 @@ type ARF_Block n f = ARF (Block n) n f
 type ARF_Graph n f = ARF (Graph n) n f
 -----------------------------------------------------------------------------
 
-arfNodeNoRW :: forall n f. ForwardTransfer n f -> ARF_Node n f
- -- Lifts ForwardTransfer to ARF_Node; simple transfer only
-arfNodeNoRW transfer_fn f node
-  = return (transfer_fn node f, RGUnit f (BUnit node))
-
 arfNode :: forall n f. Edges n
-        => DataflowLattice f
-        -> ForwardTransfer n f
-        -> ForwardRewrite n f
+        => ForwardPass n f
         -> ARF_Node n f
-        -> ARF_Node n f
--- Lifts (ForwardTransfer,ForwardRewrite) to ARF_Node; 
+-- Lifts (FwdTransfer,FwdRewrite) to ARF_Node; 
 -- this time we do rewriting as well. 
 -- The ARF_Graph parameters specifies what to do with the rewritten graph
-arfNode lattice transfer_fn rewrite_fn arf_node f node
-  = do { mb_g <- withFuel (rewrite_fn node f)
+arfNode pass f node
+  = do { mb_g <- withFuel (fp_rewrite pass node f)
        ; case mb_g of
-           Nothing -> arfNodeNoRW transfer_fn f node
-      	   Just ag -> do { g <- graphOfAGraph ag
-      		         ; arfGraph lattice arf_node f g } }
+           Nothing -> return (fp_transfer pass node f, 
+                                 RGUnit f (BUnit node))
+      	   Just (FwdRes ag rw) -> do { g <- graphOfAGraph ag
+                                     ; let pass' = pass { fp_rewrite = rw }
+                                     ; arfGraph pass' f g } }
 
-arfBlock :: forall n f. ARF_Node n f -> ARF_Block n f
+arfBlock :: forall n f. Edges n => ForwardPass n f -> ARF_Block n f
 -- Lift from nodes to blocks
-arfBlock arf_node f (BUnit node)   = arf_node f node
-arfBlock arf_node f (BCat hd mids) = do { (f1,g1) <- arfBlock arf_node f  hd
-                                        ; (f2,g2) <- arfBlock arf_node f1 mids
-	                                ; return (f2, g1 `RGCatO` g2) }
+arfBlock pass f (BUnit node)   = arfNode pass f node
+arfBlock pass f (BCat hd mids) = do { (f1,g1) <- arfBlock pass f  hd
+                                    ; (f2,g2) <- arfBlock pass f1 mids
+	                            ; return (f2, g1 `RGCatO` g2) }
 
 arfBody :: forall n f. Edges n
-          => DataflowLattice f 
-          -> ARF_Node n f -> FactBase f -> Body n 
-          -> FuelMonad (FactBase f, BodyWithFacts n f)
+        => ForwardPass n f -> FactBase f -> Body n 
+        -> FuelMonad (FactBase f, BodyWithFacts n f)
 		-- Outgoing factbase is restricted to Labels *not* in
 		-- in the Body; the facts for Labels
 		-- *in* the Body are in the BodyWithFacts
-arfBody lattice arf_node init_fbase blocks
-  = fixpoint lattice (arfBlock arf_node) init_fbase $
+arfBody pass init_fbase blocks
+  = fixpoint (fp_lattice pass) (arfBlock pass) init_fbase $
     forwardBlockList (factBaseLabels init_fbase) blocks
 
 arfGraph :: forall n f. Edges n
-         => DataflowLattice f -> ARF_Node n f -> ARF_Graph n f
+         => ForwardPass n f -> ARF_Graph n f
 -- Lift from blocks to graphs
-arfGraph _       _        f GNil        = return (f, RGNil)
-arfGraph _       arf_node f (GUnit blk) = arfBlock arf_node f blk
-arfGraph lat arf_node f (GMany ClosedLink body ClosedLink)
-  = do { (fb, body') <- arfBody lat arf_node f body
+arfGraph _    f GNil        = return (f, RGNil)
+arfGraph pass f (GUnit blk) = arfBlock pass f blk
+arfGraph pass f (GMany ClosedLink body ClosedLink)
+  = do { (fb, body') <- arfBody pass f body
        ; return (fb, RGMany body') }
-arfGraph lat arf_node f (GMany ClosedLink body (OpenLink exit))
-  = do { (fb, body') <- arfBody lat arf_node f body
-       ; (fx, exit') <- arfBlock arf_node fb exit
+arfGraph pass f (GMany ClosedLink body (OpenLink exit))
+  = do { (fb, body') <- arfBody pass f body
+       ; (fx, exit') <- arfBlock pass fb exit
        ; return (fx, RGMany body' `RGCatC` exit') }
-arfGraph lat arf_node f (GMany (OpenLink entry) body ClosedLink)
-  = do { (fe, entry') <- arfBlock arf_node f entry
-       ; (fb, body') <- arfBody lat arf_node fe body
+arfGraph pass f (GMany (OpenLink entry) body ClosedLink)
+  = do { (fe, entry') <- arfBlock pass f entry
+       ; (fb, body') <- arfBody pass fe body
        ; return (fb, entry' `RGCatC` RGMany body') }
-arfGraph lat arf_node f (GMany (OpenLink entry) body (OpenLink exit))
-  = do { (fe, entry') <- arfBlock arf_node f entry
-       ; (fb, body') <- arfBody lat arf_node fe body
-       ; (fx, exit') <- arfBlock arf_node fb exit
+arfGraph pass f (GMany (OpenLink entry) body (OpenLink exit))
+  = do { (fe, entry') <- arfBlock pass f entry
+       ; (fb, body') <- arfBody pass fe body
+       ; (fx, exit') <- arfBlock pass fb exit
        ; return (fx, entry' `RGCatC` RGMany body' `RGCatC` exit') }
 
 forwardBlockList :: Edges n => [Label] -> Body n -> [(Label,Block n C C)]
@@ -454,44 +475,37 @@ forwardBlockList  _ blks = bodyList blks
 --       The pièce de resistance: cunning transfer functions
 ----------------------------------------------------------------
 
-pureAnalysis :: Edges n => DataflowLattice f -> ForwardTransfer n f -> ARF_Graph n f
-pureAnalysis lattice f = arfGraph lattice (arfNodeNoRW f)
+pureAnalysis :: Edges n => DataflowLattice f -> FwdTransfer n f -> ARF_Graph n f
+pureAnalysis lat tf = arfGraph pass
+  where
+    pass = FwdPass { fp_lattice  = lat
+                   , fp_transfer = tf
+                   , fp_rewrite  = noFwdRewrite }
 
 analyseAndRewriteFwd
    :: forall n f. Edges n
-   => DataflowLattice f
-   -> ForwardTransfer n f
-   -> ForwardRewrite n f
-   -> RewritingDepth
-   -> FactBase f
-   -> Body n
+   => ForwardPass n f
+   -> Body n -> FactBase f
    -> FuelMonad (Body n, FactBase f)
 
-data RewritingDepth = RewriteShallow | RewriteDeep
--- When a transformation proposes to rewrite a node, 
--- you can either ask the system to
---  * "shallow": accept the new graph, analyse it without further rewriting
---  * "deep": recursively analyse-and-rewrite the new graph
-
-analyseAndRewriteFwd lattice transfers rewrites depth facts graph
-  = do { (_, gwf) <- arfBody lattice arf_node facts graph
+analyseAndRewriteFwd pass body facts
+  = do { (_, gwf) <- arfBody pass facts body
        ; return gwf }
-  where 
-    arf_node, rec_node :: ARF_Node n f
-    arf_node = arfNode lattice transfers rewrites rec_node
-
-    rec_node = case depth of
-                RewriteShallow -> arfNodeNoRW transfers
-                RewriteDeep    -> arf_node
 
 -----------------------------------------------------------------------------
 --		Backward rewriting
 -----------------------------------------------------------------------------
 
-type BackwardTransfer n f 
+data BackwardPass n f
+  = BwdPass { bp_lattice  :: DataflowLattice f
+            , bp_transfer :: BwdTransfer n f
+            , bp_rewrite  :: BwdRewrite n f }
+
+type BwdTransfer n f 
   = forall e x. n e x -> Fact x f -> Fact e f 
-type BackwardRewrite n f 
-  = forall e x. n e x -> Fact x f -> Maybe (AGraph n e x)
+type BwdRewrite n f 
+  = forall e x. n e x -> Fact x f -> Maybe (BwdRes n f e x)
+data BwdRes n f e x = BwdRes (AGraph n e x) (BwdRewrite n f)
 
 type ARB thing n f = forall e x. Fact x f -> thing e x
                               -> FuelMonad (Fact e f, RG n f e x)
@@ -500,62 +514,53 @@ type ARB_Node  n f = ARB n         n f
 type ARB_Block n f = ARB (Block n) n f
 type ARB_Graph n f = ARB (Graph n) n f
 
-arbNodeNoRW :: forall n f . BackwardTransfer n f -> ARB_Node n f
--- Lifts BackwardTransfer to ARB_Node; simple transfer only
-arbNodeNoRW transfer_fn f node
-  = return (entry_f, RGUnit entry_f (BUnit node))
-  where
-    entry_f = transfer_fn node f
-
 arbNode :: forall n f. Edges n
-        => DataflowLattice f
-        -> BackwardTransfer n f
-        -> BackwardRewrite n f
-        -> ARB_Node n f
-        -> ARB_Node n f
--- Lifts (BackwardTransfer,BackwardRewrite) to ARB_Node; 
+        => BackwardPass n f -> ARB_Node n f
+-- Lifts (BwdTransfer,BwdRewrite) to ARB_Node; 
 -- this time we do rewriting as well. 
 -- The ARB_Graph parameters specifies what to do with the rewritten graph
-arbNode lattice transfer_fn rewrite_fn arf_node f node
-  = do { mb_g <- withFuel (rewrite_fn node f)
+arbNode pass f node
+  = do { mb_g <- withFuel (bp_rewrite pass node f)
        ; case mb_g of
-           Nothing -> arbNodeNoRW transfer_fn f node
-      	   Just ag -> do { g <- graphOfAGraph ag
-      		         ; arbGraph lattice arf_node f g } }
+           Nothing -> return (entry_f, RGUnit entry_f (BUnit node))
+                    where
+                      entry_f = bp_transfer pass node f
+      	   Just (BwdRes ag rw) -> do { g <- graphOfAGraph ag
+                                     ; let pass' = pass { bp_rewrite = rw }
+                                     ; arbGraph pass' f g } }
 
-arbBlock :: forall n f. ARB_Node n f -> ARB_Block n f
+arbBlock :: forall n f. Edges n => BackwardPass n f -> ARB_Block n f
 -- Lift from nodes to blocks
-arbBlock arb_node f (BUnit node) = arb_node f node
-arbBlock arb_node f (BCat b1 b2) = do { (f2,g2) <- arbBlock arb_node f  b2
-                                      ; (f1,g1) <- arbBlock arb_node f2 b1
-	                              ; return (f1, g1 `RGCatO` g2) }
+arbBlock pass f (BUnit node) = arbNode pass f node
+arbBlock pass f (BCat b1 b2) = do { (f2,g2) <- arbBlock pass f  b2
+                                  ; (f1,g1) <- arbBlock pass f2 b1
+	                          ; return (f1, g1 `RGCatO` g2) }
 
 arbBody :: forall n f. Edges n
-        => DataflowLattice f 
-        -> ARB_Node n f -> FactBase f
+        => BackwardPass n f -> FactBase f
         -> Body n -> FuelMonad (FactBase f, BodyWithFacts n f)
-arbBody lattice arb_node init_fbase blocks
-  = fixpoint lattice (arbBlock arb_node) init_fbase $
+arbBody pass init_fbase blocks
+  = fixpoint (bp_lattice pass) (arbBlock pass) init_fbase $
     backwardBlockList (factBaseLabels init_fbase) blocks 
 
-arbGraph :: forall n f. Edges n => DataflowLattice f -> ARB_Node n f -> ARB_Graph n f
-arbGraph _       _        f GNil        = return (f, RGNil)
-arbGraph _       arb_node f (GUnit blk) = arbBlock arb_node f blk
-arbGraph lat arb_node f (GMany ClosedLink body ClosedLink)
-  = do { (fb, body') <- arbBody lat arb_node f body
+arbGraph :: forall n f. Edges n => BackwardPass n f -> ARB_Graph n f
+arbGraph _    f GNil        = return (f, RGNil)
+arbGraph pass f (GUnit blk) = arbBlock pass f blk
+arbGraph pass f (GMany ClosedLink body ClosedLink)
+  = do { (fb, body') <- arbBody pass f body
        ; return (fb, RGMany body') }
-arbGraph lat arb_node f (GMany ClosedLink body (OpenLink exit))
-  = do { (fx, exit') <- arbBlock arb_node f exit
-       ; (fb, body') <- arbBody lat arb_node fx body
+arbGraph pass f (GMany ClosedLink body (OpenLink exit))
+  = do { (fx, exit') <- arbBlock pass f exit
+       ; (fb, body') <- arbBody pass fx body
        ; return (fb, RGMany body' `RGCatC` exit') }
-arbGraph lat arb_node f (GMany (OpenLink entry) body ClosedLink)
-  = do { (fb, body') <- arbBody lat arb_node f body
-       ; (fe, entry') <- arbBlock arb_node fb entry
+arbGraph pass f (GMany (OpenLink entry) body ClosedLink)
+  = do { (fb, body') <- arbBody pass f body
+       ; (fe, entry') <- arbBlock pass fb entry
        ; return (fe, entry' `RGCatC` RGMany body') }
-arbGraph lat arb_node f (GMany (OpenLink entry) body (OpenLink exit))
-  = do { (fx, exit') <- arbBlock arb_node f exit
-       ; (fb, body') <- arbBody lat arb_node fx body
-       ; (fe, entry') <- arbBlock arb_node fb entry
+arbGraph pass f (GMany (OpenLink entry) body (OpenLink exit))
+  = do { (fx, exit') <- arbBlock pass f exit
+       ; (fb, body') <- arbBody pass fx body
+       ; (fe, entry') <- arbBlock pass fb entry
        ; return (fe, entry' `RGCatC` RGMany body' `RGCatC` exit') }
 
 backwardBlockList :: Edges n => [Label] -> Body n -> [(Label,Block n C C)]
@@ -564,21 +569,14 @@ backwardBlockList _ blks = bodyList blks
 
 analyseAndRewriteBwd
    :: forall n f. Edges n
-   => DataflowLattice f
-   -> BackwardTransfer n f
-   -> BackwardRewrite n f
-   -> RewritingDepth
-   -> ARB_Graph n f
+   => BackwardPass n f 
+   -> Body n -> FactBase f 
+   -> FuelMonad (Body n, FactBase f)
 
-analyseAndRewriteBwd lattice transfers rewrites depth
-  = arbGraph lattice arb_node
-  where 
-    arb_node, rec_node :: ARB_Node n f
-    arb_node = arbNode lattice transfers rewrites rec_node
+analyseAndRewriteBwd pass body facts
+  = do { (_, gwf) <- arbBody pass facts body
+       ; return gwf }
 
-    rec_node = case depth of
-                RewriteShallow -> arbNodeNoRW transfers
-                RewriteDeep    -> arb_node
 
 -----------------------------------------------------------------------------
 --		The fuel monad
