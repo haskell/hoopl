@@ -592,7 +592,7 @@ data `Node e x where
   `Store      :: Expr  -> Expr -> Node O O
   `Branch     :: Label -> Node O C
   `CondBranch :: Expr  -> Label -> Label -> Node O C
-    ...more constructors...
+    -- ... more constructors ...
 \end{code}
 \caption{A typical node type, as it might be defined by a client} 
 \figlabel{cmm-node}
@@ -846,11 +846,11 @@ when they are both open at the point of concatenation, \emph{and}
 when they are both closed (but not in the other two cases):
 \par{\small
 \begin{code}
-'gCat :: Graph n e a -> Graph n a x -> Graph n e x
+`gCat :: Graph n e a -> Graph n a x -> Graph n e x
 gCat GNil g2 = g2
 gCat g1 GNil = g1
 
-gCat (GUnit b1) (GUnit b2)             
+gCat (GUnit ^b1) (GUnit ^b2)             
  = GUnit (b1 `BCat` b2)
 
 gCat (GUnit b) (GMany (OpenLink e) bs x) 
@@ -877,7 +877,7 @@ argument must be @(OpenLink e2)@
 Moreover @x1@ must be
 closed/open, and @e2@ must be open/closed.  So we can compose them in
 sequence with @BCat@ to produce a closed/closed block, which can be
-added to the @BlockGraph@ of the result.
+added to the @Body@ of the result.
 
 Every graph has a unique representation.  An empty open/open graph is represented
 by @GNil@, while a closed/closed one is @gNilCC@:
@@ -923,21 +923,21 @@ instance Edges Node where
   successors (CondBranch e b1 b2) = [b1,b2]
 \end{code}
 Again, the pattern-matching for both functions is exhaustive, and
-the compiler statically checks this fact.  For example, @blockId@ simply
+the compiler statically checks this fact.  For example, @entryLabel@ simply
 cannot be applied to a @Assign@ or @Branch@ node; the type checker would
 reject any such attempt.
 
 \ourlib{} provides instances for the @Block@ type thus:
 \begin{code}
 instance Edges n => Edges (Block n) where
-  blockId    (BUnit n)  = blockId n
-  blockId    (BCat b _) = blockId b
+  entryLabel (BUnit n)  = entryLabel n
+  entryLabel (BCat b _) = entryLabel b
   successors (BUnit n)  = successors n
   successors (BCat _ b) = successors b
 \end{code}
 A slight infelicity is that we cannot make @Graph@ an instance of @Edges@,
 because a graph closed on entry has no unique label.  Fortunately, we never
-need @Graphs@ to be in @Edges@.
+need @Graph@s to be in @Edges@.
 
 \section {Using \ourlib{} to analyse and transform graphs} \seclabel{using-hoopl}
 \seclabel{making-simple}
@@ -970,7 +970,7 @@ data `FwdRes n f e x
   = FwdRes (AGraph n e x) (FwdRewrite n f)
 
 ------- Facts ----------
-type family   'Fact x f :: *
+type family   `Fact x f :: *
 type instance Fact C f = FactBase f
 type instance Fact O f = f
 \end{code}
@@ -979,6 +979,7 @@ type instance Fact O f = f
   \figlabel{lattice-type} \figlabel{lattice}
   \figlabel{transfers}  \figlabel{rewrites}
 \end{figure}
+% omit mkFactBase :: [(Label, f)] -> FactBase f
 
 Now that we have graphs in hand, we return to dataflow
 optimisation.
@@ -1018,8 +1019,8 @@ analyseAndRewriteFwd
   -> FuelMonad (Body n,     -- Result body
                 FactBase f) -- ...and its facts
 
-type FactBase f = LabelMap f
- -- A finte mapping from Labels to facts f
+type `FactBase f = LabelMap f
+ -- A finite mapping from Labels to facts f
 \end{code}
 Roughly speaking, given a @ForwardPass@, the 
 function @analyseAndRewriteFwd@ can transform a @Body@ into an
@@ -1082,7 +1083,7 @@ where we assume @L1@ is the entry point:
 \begin{verbatim}
   L1: x=3; y=4; if z then goto L2 else goto L3
   L2: x=7; goto L3
-  L3: ....
+  L3: ...
 \end{verbatim}
 Since control flows to @L3@ from two places,
 we must join the facts coming from those two places.  The fact at the
@@ -1198,7 +1199,7 @@ then @(transfer_fn n)@ is literally a predicate transformer:
 \begin{figure}
 \hfuzz=5.7pt % cheating again!
 \begin{code}
-type AGraph n e x 
+type `AGraph n e x 
   = [Label] -> (Graph n e x, [Label])
 
 `withLabels :: Int ([Label] -> AGraph n e x)
@@ -1303,7 +1304,7 @@ that combines two rewriting funcitons.
 combineFwdRewrite :: FwdRewrite n f 
                   -> FwdRewrite n f 
                   -> FwdRewrite n f
-combineFwdRewrite rw1 rw2 n f
+`combineFwdRewrite rw1 rw2 n f
   = case rw1 n f of
       Nothing               -> rw2 n f
       Just (FwdRes g rw1') -> Just $ FwdRes g $
@@ -1316,7 +1317,7 @@ succeds but returns a new rewrite function obtained by combining @rw1'@
 with @rw2@.  (We cannot apply @rw1'@ or @rw2@ 
 directly to the graph @g@, because @r1@ returns a graph while @r1'@ 
 expects a node.)
-Finally, notice that @combindFwdRewrite@ is capable of
+Finally, notice that @combineFwdRewrite@ is capable of
 combining a deep-rewriting function and a shallow-rewriting function,
 to produce a rewriting function that is a combination of deep and shallow.
 This is something that the Lerner/Grove/Chambers framwork could not do,
@@ -1330,11 +1331,11 @@ because there was a global shallow/deep flag.
 -- Types and definition of the lattice
 data `HasConst = `Top | `B Bool | `I Integer
 type `ConstFact = Map Reg HasConst
-constLattice = DataflowLattice
+`constLattice = DataflowLattice
   { fact_bot    = Map.empty
-  , fact_extend = stdMapJoin constFactAdd }
+  , fact_extend = stdMapJoin constFactAdd}
   where
-    constFactAdd new old = (c, j)
+    `constFactAdd new old = (c, j)
       where j = if new == old then new else Top
             c = if j == old then NoChange else SomeChange
 
@@ -1347,10 +1348,10 @@ regHasConst (Assign x (Bool b)) f = Map.insert x (B b) f
 regHasConst (Assign x (Int  i)) f = Map.insert x (I i) f
 regHasConst (Assign x _)        f = Map.insert x Top   f
 regHasConst (Branch l)          f = mkFactBase [(l, f)]
-regHasConst (Cond (Reg x) tid fid) f
+regHasConst (CondBranch (Reg x) tid fid) f
   = mkFactBase [(tid, Map.insert x (B True)  f),
                 (fid, Map.insert x (B False) f)]
-regHasConst (Cond _ tid fid) f 
+regHasConst (CondBranch _ tid fid) f 
   = mkFactBase [(tid, f), (fid, f)]
 
 -------------------------------------------------------
@@ -1369,13 +1370,13 @@ constProp node facts
 -------------------------------------------------------
 -- Simplification ("constant folding")
 `simplify :: FwdRewrite Node f
-simplify (Cond (Bool b) t f) _
+simplify (CondBranch (Bool b) t f) _
   = Just $ toAGraph $ Branch (if b then t else f)
 simplify node _ = fmap toAGraph (mapE s_exp node)
   where
     s_exp (Binop Add (Int i1) (Int i2))
        = Just $ Int $ i1 + i2
-    ....  -- more cases for constant folding
+    ...  -- more cases for constant folding
 
 -- Rewriting expressions
 `mapE :: (Expr    -> Maybe Expr) 
@@ -1454,6 +1455,7 @@ because they are sometimes independently useful.  But in this case we
 want to apply \emph{both} of them,
 so we compose them with @combineFwdRewrite@
 before putting them in the @constPropPass@ (see \figref{const-prop}).
+\remark{There is no @constPropPass@}
 
 Note that @simplify@ does not need to check whether a register holds a
 constant value, because it can rely @constProp@ to have replaced the
@@ -1583,6 +1585,7 @@ However, under the above preconditions:
 The algorithm terminates.  The fixpoint loop must terminate because the 
 lattice has no infinite ascending chains. And the user is responsible
 for avoiding infinite rewriting in the @RewriteDeep@ case.
+\remark{No definition for @RewriteDeep@!}
 \item 
 The algorithm is sound.  Why? Because if each rewrite is sound (in the sense given above), 
 then applying a succession of rewrites is also sound.
@@ -1756,7 +1759,7 @@ We can now build a modular implementation as follows:
 that transforms nodes (\secref{arf-node}):  
 \par{\small
 \begin{code}
- `arfNode :: Edges n 
+ arfNode :: Edges n 
          => DataflowLattice f -> FwdTransfer n f
          -> FwdRewrite n f
          -> ARF_Node n f -> ARF_Node n f
@@ -1766,13 +1769,13 @@ to analyse and rewrite the rewritten graph.
 \item From this @ARF_Node@, produce a @ARF_Block@ that transforms blocks (\secref{arf-block}):
 \par{\small
 \begin{code}
- `arfBlock :: ARF_Node n f -> ARF_Block n f
+ arfBlock :: ARF_Node n f -> ARF_Block n f
 \end{code}}
  
 \item From  @arfBlock@, produce  @arfBody@ that transforms a @Body@:
 \par{\small
 \begin{code}
- 'arfBody :: forall n f. Edges n
+ `arfBody :: forall n f. Edges n
          => DataflowLattice f 
          -> ARF_Node n f 
          -> FactBase f -> Body n 
@@ -1798,14 +1801,14 @@ analyseAndRewriteFwd
   -> FactBase f -> Body n  
   -> FuelMonad (Body n, FactBase f)
 
-analyseAndRewriteFwd lat tf rw depth fb body
+`analyseAndRewriteFwd lat tf rw ^depth fb body
  = do { (_, rg) <- arfBody lat arf_node fb body
       ; return rg }
  where 
   arf_node, rec_node :: ARF_Node n f
-  arf_node = arfNode lat tf rw rec_node
+  `arf_node = arfNode lat tf rw rec_node
 
-  rec_node = case depth of
+  `rec_node = case depth of
               RewriteShallow -> arfNodeNoRW tf
               RewriteDeep    -> arf_node
 \end{code}
@@ -1836,14 +1839,14 @@ by the functions @arfNode@ and @arfNodeNoRW@:
 \begin{code}
 arfNodeNoRW :: ForwardTranfsers n f
             -> ARF_Node n f
-arfNodeNoRW tf f n
+`arfNodeNoRW tf f n
   = return (transfer_fn node f, RGUnit f (BUnit node))
 
-arfNode lattice transfer_fn rewrite_fn arf_node f node
+`arfNode lattice transfer_fn rewrite_fn arf_node f node
   = do { mb_g <- withFuel (rewrite_fn node f)
        ; case mb_g of
            Nothing -> arfNodeNoRW transfer_fn f node
-      	   Just ag -> do { g <- graphOfAGraph ag
+      	   Just ^ag -> do { g <- graphOfAGraph ag
       		         ; arfGraph lattice arf_node f g } }
 \end{code}}
 
@@ -1851,11 +1854,12 @@ arfNode lattice transfer_fn rewrite_fn arf_node f node
 \subsection{From nodes to blocks} \seclabel{arf-block}
 
 We start with the second task, of ''lifting'' a @ARF_Node@ to a @ARF_Block@:
+\remark{This code is inconsistent with \path{Hoopl7.hs}.  What's up?}
 \begin{code}
 arfBlock :: forall n f. ARF_Node n f -> ARF_Block n f
-arfBlock (ARF node_trans) = ARF block_trans
+`arfBlock (ARF node_trans) = ARF block_trans
   where 
-    block_trans :: ARFR (Block n) n f
+    `block_trans :: ARFR (Block n) n f -- no such type as ARFR ?!
     block_trans (BUnit n)   f 
       = node_trans n f
     block_trans (BCat l r) f 
@@ -1872,7 +1876,7 @@ which we connect together in sequence with @pCat@.
 
 \subsection{Rewriting graphs} \seclabel{arf-graph}
 
-Next we tackle .... \simon{not finished}
+Next we tackle ... \simon{not finished}
 
 
 
