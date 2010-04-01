@@ -479,17 +479,17 @@ constant propagation works
 from top to bottom.  We start with the empty assertion.  
 Given the empty assertion and the node @x:=3+4@ can we make a (constant-folding)
 transformation?
-Yes!  We can replace it with @x:=7@.
+Yes!  We can replace the node with @x:=7@.
 Now, given this transformed node,
 and the original assertion, what assertion flows out of the bottom of
 the transformed node?  
 The assertion \{@x=7@\}.  
 Given the assertion \{@x=7@\} and the node @z:=x>5@, can we make a
-transformation?  Yes: constant propagation can rewrite it to @z:=7>5@.
-Now, can we do another transformation?  Yes: constant folding can rewrite it
-to @z:=True@.
+transformation?  Yes: constant propagation can replace the node with @z:=7>5@.
+Now, can we do another transformation?  Yes: constant folding can 
+replace the node with @z:=True@.
 And so the process continues to the end of the block, where we
-can transform the conditional branch to an unconditional one, @goto L1@.
+can replace the conditional branch with an unconditional one, @goto L1@.
 
 \seclabel{simple-tx}
 \paragraph{Interleaved transforamtion and analysis.}
