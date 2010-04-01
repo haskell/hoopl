@@ -423,19 +423,21 @@ and maybe the open/closed story is hard to understand here.}
 
 \item \ourlib{} implements a rather subtle algorithm.  
 Previous implementations of this algorithm---including three of our
-own---are complicated and hard to understand, because all the tricky pieces
+own---are complicated and hard to understand, because the tricky pieces
 (fixed points, interleaved rewriting and transformation, recursive
-rewriting, optimization fuel, and so on)
-implemented inseparably. \remark{Maybe the title should hearken to
+rewriting, optimization fuel, and so on) are implemented all together,
+inseparably. \remark{Maybe the title should hearken to
 separation of concerns rather than lifting?}
 In~this paper, we present a new way
 to structure the implementation so that each tricky piece
 is handled in just 
 one place, separate from all the other tricky
-pieces. \remark{Important if true}
+pieces  (\secref{engine}). \remark{This is a very important claim---is
+it substantiated in \secref{engine}? And shouldn't the word
+\textbf{contribution} appear in this~\P?}
 The result is sufficiently elegant that 
-this paper emphasizes the implementation as an object of interest in
-its own right (\secref{engine}).
+we emphasize the implementation as an object of interest in
+its own right.
 \end{itemize}
 A working prototype of \ourlib{} is available for download 
 at \unskip\break \url{http://ghc.cs.tufts.edu/hoopl}.\remark{This is why I wanted
