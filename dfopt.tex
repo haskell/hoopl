@@ -1476,7 +1476,7 @@ otherwise-unrelated entire dataflow passes.  The reader is invited to write a
 combinator that does so, with type
 \begin{code}
   thenFwd :: ForwardPass n f1 
-          -> ForwardPass n f1 
+          -> ForwardPass n f2
           -> ForwardPass n (f1,f2)
 \end{code}
 The two passes run interleaved, not sequentially, and each may help the other
