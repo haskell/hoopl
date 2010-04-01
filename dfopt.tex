@@ -11,8 +11,6 @@
 %%  
 %%  
 
-
-
 \iffalse % submission abstract
 
 We present Hoopl, a Haskell library that makes it easy for compiler
@@ -44,6 +42,7 @@ implementation.
 \newif\ifpagetuning \pagetuningtrue  % adjust page breaks
 
 \newif\ifnoauthornotes \noauthornotesfalse
+
 \newif\iftimestamp\timestamptrue  % show MD5 stamp of paper
 
 \timestamptrue % it's submission time
@@ -727,7 +726,7 @@ data `Body n where
   `BodyCat   :: Body n -> Body n -> Body n
 
 data `MaybeO ex t where
-  `JustO   :: t -> MaybeO O t
+  `JustO    :: t -> MaybeO O t
   `NothingO ::      MaybeO C t
 
 newtype `Label = Label Int
@@ -962,25 +961,29 @@ the client---I've added something to the end of the paragraph, but I'm
 not particularly thrilled.
 I'm not sure this paragraph carries a contribution
 commensurate with its length.
-}
+} \simon{Well, you were the one who was so keen on a unique representation!
+And since we have one, I think tis useful to say so. Lastly, the representation of
+singleton blocks is not entirely obvious.}
 An empty open/open graph is represented
 by @GNil@, while a closed/closed one is @gNilCC@:
+\par {\small
 \begin{code}
-gNilCC :: Graph C C
-gNilCC = GMany NothingO BodyEmpty NothingO
-\end{code}
+  gNilCC :: Graph C C
+  gNilCC = GMany NothingO BodyEmpty NothingO
+\end{code}}
 The representation of a @Graph@ consisting of a single block~@b@ 
 depends on the shape of~@b@:\remark{Does anyone care?}
+\par{\small
 \begin{code}
-gUnitOO :: Block O O -> Graph O O
-gUnitOC :: Block O C -> Graph O C
-gUnitCO :: Block O C -> Graph C O
-gUnitCC :: Block O C -> Graph C C
-gUnitOO b = GUnit b
-gUnitOC b = GMany (JustO b) BodyEmpty   NothingO
-gUnitCO b = GMany NothingO  BodyEmpty   (JustO b)
-gUnitCC b = GMany NothingO  (BodyUnit b) NothingO
-\end{code}
+  gUnitOO :: Block O O -> Graph O O
+  gUnitOC :: Block O C -> Graph O C
+  gUnitCO :: Block O C -> Graph C O
+  gUnitCC :: Block O C -> Graph C C
+  gUnitOO b = GUnit b
+  gUnitOC b = GMany (JustO b) BodyEmpty   NothingO
+  gUnitCO b = GMany NothingO  BodyEmpty   (JustO b)
+  gUnitCC b = GMany NothingO  (BodyUnit b) NothingO
+\end{code}}
 Multi-block graphs are similar.
 From these definitions
 we can see why @GUnit@ is restricted to open/open
@@ -1074,7 +1077,7 @@ type `FwdRewrite n f
 data `FwdRes n f e x 
   = FwdRes (AGraph n e x) (FwdRewrite n f)
 
-------- Facts ----------
+------- Fact-like things -------
 type family   `Fact x f :: *
 type instance Fact C f = FactBase f
 type instance Fact O f = f
@@ -1108,7 +1111,7 @@ and produces either @Nothing@,
 or @(Just g)@ where @g@ is an \emph{arbitrary graph} that should
 replace the node.  The ability to replace a node by an arbitrary graph is crucial.
 We discuss the rewrite function
-in \secref{rewrites}.
+in Sections \ref{sec:rewrites} and \ref{sec:shallow-vs-deep}.
 \end{itemize}
 We combine the last three client-supplied arguments 
 into a single record of type @ForwardPass@; see \figref{api-types}.
@@ -1150,7 +1153,12 @@ function walks forward over each block in the graph.  At each node, it applies t
 rewrite function to incoming fact and the node.  If the rewrite
 function returns @Nothing@, the node is retained as part of the output
 graph, the transfer function is used to compute the downstream fact,
-and we move on to the next node.
+and we move on to the next node.  If the rewrite function returns @(Just g)@,
+indicating that it wants to rewrite the node to the graph @g@, then
+we recursively analyse and rewrite @g@ before moving on the the next node.
+Notice that the nodes following the rewritten node see 
+\emph{up-to-date} facts; that is, their input facts are computed from analysing
+the \emph{rewritten} upstream nodes.
 
 In the rest of this section we flesh out other details of the
 interface to @analyseAndRewriteFwd@, leaving the implementation for
@@ -1299,7 +1307,10 @@ then @(transfer_fn n)@ is literally a predicate transformer:
 \ifpagetuning\enlargethispage{0.5\baselineskip}\fi
 
 
-\subsection{The rewrite function} \seclabel{rewrites} \seclabel{example-rewrites}
+\subsection{The rewrite function} 
+ \seclabel{rewrites} 
+ \seclabel{example-rewrites}
+ \seclabel{shallow-vs-deep}
 
 \begin{figure}
 \hfuzz=5.7pt % cheating again!
@@ -1345,11 +1356,13 @@ with arbitrary control flow.
 Another important special case is rewriting a node to a no-op.
 So in general the rewrite function must return an \emph{arbitrary graph}.
 
+% \subsection{Shallow vs deep rewriting}
+
 Once the rewrite has been performed, what then?  
 Since the rewrite returns a graph, the 
 rewritten graph must itself be analysed and (perhaps) rewritten.
 So we must call @analyseAndRewriteFwd@ to process the rewritten
-graph -- but what @ForwardPass@ should call it with?
+graph -- but what should we use for the @ForwardPass@ argument?
 There are two common situations:
 \begin{itemize}
 \item Sometimes we want to analyse and transform the rewritten graph
@@ -1369,12 +1382,9 @@ But shallow rewriting is also sometimes vital; for example, a rewrite that inser
 a spill before a call might risk repeatedly inserting the same spill if the 
 rewrite was iterated. 
 
-Notice that in either case, the nodes following the rewritten node see 
-\emph{up-to-date} facts; that is, their input facts are computed from analysing
-the \emph{rewritten} upstream nodes.
-
-The shallow-vs-deep choice is really a property of the rewrite function 
-itself.  This idea is elegantly expressed by the type of @FwdRewrite@
+The shallow-vs-deep choice is really a property of an individual 
+rewrite function; it is not a global flag.
+We express this idea elegantly in the type of @FwdRewrite@
 in \figref{api-types}.  A @FwdRewrite@ takes a node and a suitably-shaped
 fact, and returns either @Nothing@, indicating no rewrite; 
 or $@(Just@\;@(FwdRes@\;ag\;rw@))@$, indicating that a rewrite 
@@ -1398,37 +1408,71 @@ the rewritten graph $ag$ is statically guaranteed to have
 So a branch instruction, for example, can only be rewritten to a graph 
 closed at the exit.  
 
-The second result $rw$ of a successful rewrite is a 
+The second result, $rw$, of a successful rewrite is a 
 \emph{new rewriting function} to use when recursively processing
 the rewritten graph $ag$. For shallow rewriting this new function is
-the constant @Nothing@ function. For deep rewriting it is the original rewriting
-function.  But there are other possibilities too.  For example, here is a function
-that combines two rewriting funcitons.
+the constant @Nothing@ function. For deep rewriting it is the original
+rewriting function.
+
+\subsection{Combinators}
+
+The idea that each rewrite function returns a new rewrite function
+when it fires allows us to define a variety of combinators over
+rewrite functions. For example, here is a function
+that combines two rewriting functions in sequence.
 \par{\small
 \begin{code}
-combineFwdRewrite :: FwdRewrite n f 
-                  -> FwdRewrite n f 
-                  -> FwdRewrite n f
-`combineFwdRewrite rw1 rw2 n f
-  = case rw1 n f of
-      Nothing               -> rw2 n f
-      Just (FwdRes g rw1') -> Just $ FwdRes g $
-                              combineFwdRewrite rw1' rw2
+  thenFwdRw :: FwdRewrite n f 
+            -> FwdRewrite n f 
+            -> FwdRewrite n f
+  `thenFwdRw rw1 rw2 n f
+    = case rw1 n f of
+        Nothing              -> rw2 n f
+        Just (FwdRes g rw1a) -> Just $ FwdRes g $
+                                rw1a `thenFwdRw` rw2
+
+  noFwdRw :: FwdRewrite n f
+  noFwdRw n f = Nothing
 \end{code}}
-What a beautiful type this function has! It tries @rw1@ and if that
-declines to rewrite it behaves like @rw2@.  But if
-@rw1@ succeeds, returning a new rewriter @rw1'@, the combine function
-succeds but returns a new rewrite function obtained by combining @rw1'@
-with @rw2@.  (We cannot apply @rw1'@ or @rw2@ 
-directly to the graph @g@, because @r1@ returns a graph while @r1'@ 
-expects a node.)
-Finally, notice that @combineFwdRewrite@ is capable of
-combining a deep-rewriting function and a shallow-rewriting function,
+What a beautiful type @thenFwdRw@ has! It tries @rw1@ and, if that
+declines to rewrite, behaves like @rw2@.  But if
+@rw1@ succeeds, returning a new rewriter @rw1a@, the the overall call also
+succeeds returning a new rewrite function obtained by combining @rw1a@
+with @rw2@.  (We cannot apply @rw1a@ or @rw2@ 
+directly to the rewritten graph @g@, 
+because @r1@ returns a graph while @rw2@ expects a node.)
+The rewriter @noFwdRw@ is the identity of @thenFwdRw@.
+Finally, notice that @thenFwdRw@ can readily 
+combine a deep-rewriting function and a shallow-rewriting function,
 to produce a rewriting function that is a combination of deep and shallow.
-This is something that the Lerner/Grove/Chambers framwork could not do,
+This is something that the Lerner/Grove/Chambers framework could not do,
 because there was a global shallow/deep flag.
 
-\subsection{Example: Constant propagation and constant folding} \seclabel{const-prop-client}
+Given a shallow rewriting function we can easily make it a deep one:
+\begin{code}
+  deepFwdRw :: FwdRewrite n f -> FwdRewrite n f
+  deepFwdRw rw = rw `thenFwdRw` deepFwdRw rw
+\end{code}
+If we have shallow rewrites A and B then we can build @AB@, @A*B@, @(AB)*@ 
+and so on, where sequential composition is @thenFwdRw@ and the Kleene star
+is @deepFwdRw@. 
+
+These are all combinators for rewrite functions that share a common
+fact type and transfer function, but it is also useful to combine two
+otherwise-unrelated entire dataflow passes.  The reader is invited to write a
+combinator that does so, with type
+\begin{code}
+  thenFwd :: ForwardPass n f1 
+          -> ForwardPass n f1 
+          -> ForwardPass n (f1,f2)
+\end{code}
+The two passes run interleaved, not sequentially, and each may help the other
+so that the result is superior to running A and then B, or B and then A.
+\citet{lerner-grove-chambers:2002} calls these ``super-analyses'', but they
+take a particularly concrete form in \hoopl{}.
+
+\subsection{Example: Constant propagation and constant folding} 
+  \seclabel{const-prop-client}
 
 \begin{figure}
 {\small
@@ -1465,7 +1509,7 @@ regHasConst (CondBranch _ tid fid) f
 constProp node facts
   = fmap toAGraph (mapE rewriteE node)
   where
-    rewriteE e@(Reg r)
+    rewriteE e(Reg r)
       = case M.lookup r facts of
           Just (B b) -> Just $ Bool b
           Just (I i) -> Just $ Int  i
@@ -1495,7 +1539,7 @@ mapE f (Assign x e)  = fmap (Assign x) $ f e
 `constPropPass = ForwardPass
    { fp_lattice = constLattice
    , fp_transfer = regHasConst
-   , fp_rewrite = constProp `combineFwdRewrite` simplify } 
+   , fp_rewrite = constProp `thenFwdRw` simplify } 
 \end{code}}
 \caption{The client for constant propagation and constant folding} \figlabel{const-prop}
 \end{figure}
@@ -1558,7 +1602,7 @@ on every sub-expression to constant sub-expressions.
 We have written two @FwdRewrites@ functions 
 because they are sometimes independently useful.  But in this case we
 want to apply \emph{both} of them,
-so we compose them with @combineFwdRewrite@
+so we compose them with @thenFwdRw@
 before putting them in the @constPropPass@ (see \figref{const-prop}).
 
 Note that @simplify@ does not need to check whether a register holds a
@@ -1688,8 +1732,7 @@ However, under the above preconditions:
 \item
 The algorithm terminates.  The fixpoint loop must terminate because the 
 lattice has no infinite ascending chains. And the user is responsible
-for avoiding infinite rewriting in the @RewriteDeep@ case.
-\remark{No definition for @RewriteDeep@!}
+for avoiding infinite recursion when deep rewriting is used.
 \item 
 The algorithm is sound.  Why? Because if each rewrite is sound (in the sense given above), 
 then applying a succession of rewrites is also sound.
@@ -1810,7 +1853,9 @@ shape guarantees.  We are not confident that any of them are correct.
 
 In this section we describe our new implementation.  It is short
 (about a third of the size of our last attempt), elegant, and offers
-strong static shape guarantees.  
+strong static shape guarantees.  The whole thing is about 300 lines of
+code, excluding comments; this includes both forward and backward
+dataflow analysis and transformation.
 
 \subsection{Overview}
 
@@ -2007,9 +2052,9 @@ rewrite function.
 And that's it!  The recursion to @arfGraph@ implements the 
 possibly-deep recursive rewriting; if the client wanted
 shallow rewriting, the rewrite function should return @noFwdRewrite@
-in the @FwdRes@ (\secref{rewrites}).
+in the @FwdRes@ (\secref{shallow-vs-deep}).
 
-\subsection{Fixpoints}
+\subsection{Fixpoints} \seclabel{arf-body}
 
 Lastly, @arbBody@ deals with the fixpoint calculation.
 This is the only really tricky bit of the implementiaon, but it is
@@ -2050,110 +2095,54 @@ fixpoint :: forall n f. Edges n
 The type signature should be self explanatory.  The second argument is
 a function that analyses and rewrites a single block; the business of
 @fixpoint@ is to apply that function successively to all the blocks
-(the fourth argument), and keep doing so until a fixed point is
-reached.  The code for @fixpoint@ is a whole 70 lines long, and
-appears for completeness in Appendix~\ref{app:fixpoint}.  We highlight some interesting
-points here:
+(the fourth argument).  The algorithm maintains a
+monotonically-growing ``Current @FactBase@''; it is initialised by the
+caller-supplied @FactBase@, and augmented with new facts flowing out
+of each of the successively-analysed blocks.  The @fixpoint@ algorithm
+keeps iterating the analysis until the current @FactBase@ reaches a fixed
+point.  
+
+The code for @fixpoint@ is a massive 70 lines long, and
+appears for completeness in Appendix~\ref{app:fixpoint}.  We highlight
+some interesting points here:
 \begin{itemize}
-\item Incomplete
-\end{itemize}
+\item Suppose that @forwardBlockList@ has put block @L2@ first, and
+that @L2@ branches to @L1@.
+After processing @L2@ we will propagate a new fact to @L1@, which might change
+the fact currently recorded for @L1@.  However, since we have not yet processed @L1@ in
+this iteration, we do not need to record that the @FactBase@ has changed.
+We need only run a new iteration if the fact for an \emph{already-processed} block
+is changed.
+\item Consider this @Body@, where execution starts at @L1@:
+\begin{code}
+  L1: x:=3; goto L4
+  L2: x:=4; goto L4
+  L4: if x>3 goto L2 else goto L5
+\end{code}
+Here @L2@ is actually unreachable. But if we naively process all the blocks (say in 
+order @L1@, @L4@, @L2@), then we will start with the bottom fact for @L2@, propagate
+\{@x=4@\} to @L4@, where it will join with \{@x=3@\} to yield \{@x=@$\top$\}.  Now the
+conditional in @L4@ cannot be rewritten any more, and @L2@ seems reachable.  We have
+lost a good optimisation.
 
-\section{What we learned}
+It is easy for the fixpoint algorithm to take account of this.  Recall
+that the Current @FactBase@ is a finite mapping from @Label@s to
+facts.  It starts with the in-coming @FactBase@, and treats any label
+in the domain of the @FactBase@ as ``currently reachable'',
+even if the @FactBase@ maps that
+label to $\bot$. Whenever a fact is propagated to a label the Current
+@FactBase@ is augumented, perhaps extending the domain of the @FactBase@,
+and implicitly making the block ``reachable''.
+Now, when processing each block successively, @fixpoint@ can 
+simply \emph{refrain from processing any block that is not in the domain of 
+the Current @FactBase@}.  If a later block makes it reachable, we will note
+that the @FactBase@ has changed, and run a new iteration.
 
-\simon{I think this section has interesting material, but it's
-incomprehensible at the beginning, because our readers won't have the 
-mental scaffolding to grok it.  Norman, have at it!}
-
-\john{Is it just me, or have we lost all the text claiming that analyses should
-  just be strongest postconds/ weakest preconds? Is this by design?}
-\simon{I did remove some material of that sort.  I think I did so because it didn't
-seem (to me) to contribute much at the place it then appeared. But I am entirely open
-to resurrecting it if you think that would help.  Perhaps in the section on 
-correctness, which follows next?  Can you do that?}
-
-One story of this paper is that we can think similar thoughts about
-assembly code, IR nodes, basic blocks, and control-flow graphs.
-Morever these thoughts are reflected in the types.
-Observations:
-\begin{itemize}
-\item
-In compilation and optimization, things are always easiest to analyze
-when there is a single entry and single exit.  (Lesson of structured
-programming.)
-\item
-In assembly code, we introduce labels (not present in the hardware) to
-be able to code what we mean by branch targets.
-\item
-In a control-flow graph, unlike in assembly code, \emph{every} edge
-out of a control-transfer instruction is associated with a label.
-This invariant simplifies the representation and gives us freedom to
-lay out assembly code in an order that, e.g., is good for the I-cache,
-or that minimizes branch instructions on hot paths.  (Foreshadow that
-blocks in our @Graph@ body are unordered.
-\item
-We distinguish labels, computational instructions, control transfers.
-They are distinguished by the number of predecessors and successors.
-We~express this distinction in Haskell by attaching to each
-entry and exit point one of two types: \emph{open} means there is exactly
-one predecessor or successor, and control can ``fall through;''
-\emph{closed} means that control cannot fall through, but can be
-transferred only by an explicit branch---but the \emph{number} of
-successors or predecessors is not constrained \emph{a~priori}.
-\item
-The open/closed concepts lifts to sequences of straight-line code and
-to full control-flow graphs.
-As~a special case, a sequence of straight-line code that is closed at
-both ends---beginning with a label and ending with a control
-transfer---is the familiar \emph{basic block}.
-\item
-By making open/closed part of the types, we can ensure that a client
-of \ourlib{} builds only sequences and graphs that respect our
-invariants. 
-Moreover, the types provide guidance (really???)
-\end{itemize}
-
-
-A second story of this paper is that we can think of dataflow analysis
-as a specialization of program logic.
-\begin{itemize}
-\item
-A forward dataflow analysis is represented by a predicate transformer
-that is related to \emph{strongest postconditions}
-\cite{floyd:meaning}.\footnote
-{In Floyd's paper the output of the predicate transformer is called
-the \emph{strongest verifiable consequent}, not the ``strongest
-postcondition.''} 
-\item
-A backward dataflow analysis is represented by a predicate transformer
-that is related to \emph{weakest preconditions} \cite{dijkstra:discipline}.
-\end{itemize}
-A~client of \ourlib{} defines a type of node, a type of predicate
-(aka dataflow fact), and a function which, given a node, returns a
-predicate transformer.
-The beauty of our approach is that we can \emph{lift} a client's
-predicate transformer from nodes into sequences and control-flow
-graphs.
-Moreover, with help from the client, we can iterate the transformer
-over an entire function body
-until it reaches a fixed point, the result of which is a dataflow
-analysis.
-
-In addition, we can do Lerner/Grove/Chambers.
-
-Finally, our implementation has some especially wonderful Haskell
-(Simon please flesh out these bits):
-\begin{itemize}
-\item
-Our open/closed tags aren't just phantom types.  By virtue of GADTs,
-they are real. 
-And we get exhaustiveness checking, etc --- the works.
-\item
-There's more!  By using higher-rank polymorphism, we can define a
-\emph{single} kind of widget, then instantiate it at nodes, blocks,
-graphs.
-SO WHAT?  This is wonderful because\ldots
-\item
-More wonderfulness?
+This whole reachability point is a rather subtle one, so it is precisely
+the sort of thing that one might hope to implement once in a library and
+then forget -- and that is the case here.  Moreover it only takes a couple
+of lines of code to achieve; better still, unreachable blocks automatically do not
+appear in the rewritten graph.
 \end{itemize}
 
 \section {Related work} \seclabel{related}
@@ -2304,6 +2293,104 @@ Not only is the code conceptually simpler,
 but it is also shorter:
 our new implementation is about half as long
 as the previous version currently available in the Glasgow Haskell Compiler.
+
+\section{What we have learned}
+
+\simon{I think this section has interesting material, but it's
+incomprehensible at the beginning, because our readers won't have the 
+mental scaffolding to grok it.  Norman, have at it!}
+
+\john{Is it just me, or have we lost all the text claiming that analyses should
+  just be strongest postconds/ weakest preconds? Is this by design?}
+\simon{I did remove some material of that sort.  I think I did so because it didn't
+seem (to me) to contribute much at the place it then appeared. But I am entirely open
+to resurrecting it if you think that would help.  Perhaps in the section on 
+correctness, which follows next?  Can you do that?}
+
+One story of this paper is that we can think similar thoughts about
+assembly code, IR nodes, basic blocks, and control-flow graphs.
+Morever these thoughts are reflected in the types.
+Observations:
+\begin{itemize}
+\item
+In compilation and optimization, things are always easiest to analyze
+when there is a single entry and single exit.  (Lesson of structured
+programming.)
+\item
+In assembly code, we introduce labels (not present in the hardware) to
+be able to code what we mean by branch targets.
+\item
+In a control-flow graph, unlike in assembly code, \emph{every} edge
+out of a control-transfer instruction is associated with a label.
+This invariant simplifies the representation and gives us freedom to
+lay out assembly code in an order that, e.g., is good for the I-cache,
+or that minimizes branch instructions on hot paths.  (Foreshadow that
+blocks in our @Graph@ body are unordered.
+\item
+We distinguish labels, computational instructions, control transfers.
+They are distinguished by the number of predecessors and successors.
+We~express this distinction in Haskell by attaching to each
+entry and exit point one of two types: \emph{open} means there is exactly
+one predecessor or successor, and control can ``fall through;''
+\emph{closed} means that control cannot fall through, but can be
+transferred only by an explicit branch---but the \emph{number} of
+successors or predecessors is not constrained \emph{a~priori}.
+\item
+The open/closed concepts lifts to sequences of straight-line code and
+to full control-flow graphs.
+As~a special case, a sequence of straight-line code that is closed at
+both ends---beginning with a label and ending with a control
+transfer---is the familiar \emph{basic block}.
+\item
+By making open/closed part of the types, we can ensure that a client
+of \ourlib{} builds only sequences and graphs that respect our
+invariants. 
+Moreover, the types provide guidance (really???)
+\end{itemize}
+
+
+A second story of this paper is that we can think of dataflow analysis
+as a specialization of program logic.
+\begin{itemize}
+\item
+A forward dataflow analysis is represented by a predicate transformer
+that is related to \emph{strongest postconditions}
+\cite{floyd:meaning}.\footnote
+{In Floyd's paper the output of the predicate transformer is called
+the \emph{strongest verifiable consequent}, not the ``strongest
+postcondition.''} 
+\item
+A backward dataflow analysis is represented by a predicate transformer
+that is related to \emph{weakest preconditions} \cite{dijkstra:discipline}.
+\end{itemize}
+A~client of \ourlib{} defines a type of node, a type of predicate
+(aka dataflow fact), and a function which, given a node, returns a
+predicate transformer.
+The beauty of our approach is that we can \emph{lift} a client's
+predicate transformer from nodes into sequences and control-flow
+graphs.
+Moreover, with help from the client, we can iterate the transformer
+over an entire function body
+until it reaches a fixed point, the result of which is a dataflow
+analysis.
+
+In addition, we can do Lerner/Grove/Chambers.
+
+Finally, our implementation has some especially wonderful Haskell
+(Simon please flesh out these bits):
+\begin{itemize}
+\item
+Our open/closed tags aren't just phantom types.  By virtue of GADTs,
+they are real. 
+And we get exhaustiveness checking, etc --- the works.
+\item
+There's more!  By using higher-rank polymorphism, we can define a
+\emph{single} kind of widget, then instantiate it at nodes, blocks,
+graphs.
+SO WHAT?  This is wonderful because\ldots
+\item
+More wonderfulness?
+\end{itemize}
 
 
 
@@ -2520,17 +2607,19 @@ Microsoft, Intel, NSF
 
 \clearpage
 
-\appendix \label{app:fixpoint}
+\appendix
 
-\section{Code for \texttt{fixpoint}}
+\section{Code for \texttt{fixpoint}}  \label{app:fixpoint}
 
 {\small
 \begin{code}
 data TxFactBase n f
   = TxFB { tfb_fbase :: FactBase f
-         , tfb_blks  :: RG n f C C -- Transformed blocks
+         , tfb_rg  :: RG n f C C -- Transformed blocks
          , tfb_cha   :: ChangeFlag
          , tfb_lbls  :: LabelSet }
+ -- Note [TxFactBase change flag]
+ -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  -- Set the tfb_cha flag iff 
  --   (a) the fact in tfb_fbase for or a block L changes
  --   (b) L is in tfb_lbls.
@@ -2540,17 +2629,20 @@ data TxFactBase n f
 updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
            -> (ChangeFlag, FactBase f) 
            -> (ChangeFlag, FactBase f)
--- See commment about tfb_cha above
+-- See Note [TxFactBase change flag]
 updateFact lat lbls (lbl, new_fact) (cha, fbase)
   | NoChange <- cha2        = (cha,        fbase)
   | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
   | otherwise               = (cha,        new_fbase)
   where
-    old_fact = lookupFact lat fbase lbl
-    (cha2, res_fact) = fact_extend lat old_fact new_fact
+    (cha2, res_fact) 
+       = case lookupFact fbase lbl of
+           Nothing -> (SomeChange, new_fact)  -- Note [Unreachable blocks]
+           Just old_fact -> fact_extend lat old_fact new_fact
     new_fbase = extendFactBase fbase lbl res_fact
 
-fixpoint :: forall n f. Edges n =>  DataflowLattice f
+fixpoint :: forall n f. Edges n
+         =>  DataflowLattice f
          -> (Block n C C -> FactBase f
               -> FuelMonad (RG n f C C, FactBase f))
          -> FactBase f -> [(Label, Block n C C)]
@@ -2558,35 +2650,36 @@ fixpoint :: forall n f. Edges n =>  DataflowLattice f
 fixpoint lat do_block init_fbase blocks
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
-       ; return (tfb_blks tx_fb, 
-                 tfb_fbase tx_fb `deleteFromFactBase` blocks) }
-  -- The successors of the Graph are the the Labels for which
-  -- we have facts, that are *not* in the blocks of the graph
+       ; return (tfb_rg tx_fb, 
+                 tfb_fbase tx_fb `delFromFactBase` blocks) }
+	     -- The successors of the Graph are the the Labels for which
+	     -- we have facts, that are *not* in the blocks of the graph
   where
     tx_blocks :: [(Label, Block n C C)] 
               -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-    tx_blocks [] tx_fb = return tx_fb
-    tx_blocks ((lbl,blk):bs) tx_fb 
-        = do { tx_fb1 <- tx_block lbl blk tx_fb
-             ; tx_blocks bs tx_fb1 }
+    tx_blocks []             tx_fb = return tx_fb
+    tx_blocks ((lbl,blk):bs) tx_fb = do { tx_fb1 <- tx_block lbl blk tx_fb
+                                        ; tx_blocks bs tx_fb1 }
 
     tx_block :: Label -> Block n C C 
              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-    tx_block lbl blk (TxFB { tfb_fbase = fbase, tfb_lbls = lbls
-                           , tfb_blks = blks, tfb_cha = cha })
+    tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
+                                 , tfb_rg = blks, tfb_cha = cha })
+      | lbl `elemFactBase` fbase = return tx_fb	-- Note [Unreachable blocks]
+      | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
                    = foldr (updateFact lat lbls) (cha,fbase) 
                            (factBaseList out_facts)
            ; return (TxFB { tfb_lbls  = extendLabelSet lbls lbl
-                          , tfb_blks  = rg `RGCatC` blks
+                          , tfb_rg  = rg `RGCatC` blks
                           , tfb_fbase = fbase', tfb_cha = cha' }) }
 
     loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
     loop fuel fbase 
       = do { let init_tx_fb = TxFB { tfb_fbase = fbase
                                    , tfb_cha   = NoChange
-                                   , tfb_blks  = RGNil
+                                   , tfb_rg  = RGNil
                                    , tfb_lbls  = emptyLabelSet }
            ; tx_fb <- tx_blocks blocks init_tx_fb
            ; case tfb_cha tx_fb of

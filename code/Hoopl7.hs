@@ -211,7 +211,7 @@ data DataflowLattice a = DataflowLattice  {
 data ChangeFlag = NoChange | SomeChange
 
 -----------------------------------------------------------------------------
---		The main Hoopl API
+--		Analyse and rewrite forward
 -----------------------------------------------------------------------------
 
 data ForwardPass n f
@@ -230,6 +230,10 @@ type family   Fact x f :: *
 type instance Fact C f = FactBase f
 type instance Fact O f = f
 
+type ARF thing n 
+  = forall f e x. ForwardPass n f -> thing e x 
+               -> Fact e f -> FuelMonad (RG n f e x, Fact x f)
+
 data AGraph n e x = AGraph 	-- Stub for now
 
 type SimpleFwdRewrite n f 
@@ -239,109 +243,21 @@ type SimpleFwdRewrite n f
 noFwdRewrite :: FwdRewrite n f
 noFwdRewrite _ _ = Nothing
 
-shallowFwdRewrite :: SimpleFwdRewrite n f -> FwdRewrite n f
-shallowFwdRewrite rw n f = case (rw n f) of
-                             Nothing -> Nothing
-                             Just ag -> Just (FwdRes ag noFwdRewrite)
+shallowFwdRw :: SimpleFwdRewrite n f -> FwdRewrite n f
+shallowFwdRw rw n f = case (rw n f) of
+                         Nothing -> Nothing
+                         Just ag -> Just (FwdRes ag noFwdRewrite)
 
-deepFwdRewrite :: SimpleFwdRewrite n f -> FwdRewrite n f
-deepFwdRewrite rw n f = case (rw n f) of
-                          Nothing -> Nothing
-                          Just ag -> Just (FwdRes ag (deepFwdRewrite rw))
-
-combineFwdRewrite :: FwdRewrite n f -> FwdRewrite n f -> FwdRewrite n f
-combineFwdRewrite rw1 rw2 n f
+thenFwdRw :: FwdRewrite n f -> FwdRewrite n f -> FwdRewrite n f
+thenFwdRw rw1 rw2 n f
   = case rw1 n f of
       Nothing               -> rw2 n f
-      Just (FwdRes ag rw1') -> Just (FwdRes ag (combineFwdRewrite rw1' rw2))
+      Just (FwdRes ag rw1a) -> Just (FwdRes ag (rw1a `thenFwdRw` rw2))
 
------------------------------------------------------------------------------
---      fixpoint: finding fixed points
------------------------------------------------------------------------------
+deepFwdRw :: FwdRewrite n f -> FwdRewrite n f
+deepFwdRw rw = rw `thenFwdRw` deepFwdRw rw
 
-data TxFactBase n f
-  = TxFB { tfb_fbase :: FactBase f
-         , tfb_cha   :: ChangeFlag
-         , tfb_lbls  :: LabelSet
-         , tfb_blks  :: RG n f C C -- Transformed blocks
-    }
- -- Set the tfb_cha flag iff (a) the fact in tfb_fbase for
- -- for a block L changes, *and* (b) L is in tfb_lbls.
- -- The tfb_lbls are all Labels of the *original* 
- -- (not transformed) blocks
 
-updateFact :: DataflowLattice f -> LabelSet
-           -> (Label, f)
-           -> (ChangeFlag, FactBase f) 
-           -> (ChangeFlag, FactBase f)
--- Update a TxFactBase, setting the change flag iff
---   a) the new fact adds information...
---   b) for a block in the LabelSet in the TxFactBase
-updateFact lat lbls (lbl, new_fact) (cha, fbase)
-  | NoChange <- cha2        = (cha,        fbase)
-  | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
-  | otherwise               = (cha,        new_fbase)
-  where
-    old_fact = lookupFact lat fbase lbl
-    (cha2, res_fact) = fact_extend lat old_fact new_fact
-    new_fbase = extendFactBase fbase lbl res_fact
-
-fixpoint :: forall n f. Edges n
-         =>  DataflowLattice f
-         -> (Block n C C -> FactBase f
-              -> FuelMonad (RG n f C C, FactBase f))
-         -> FactBase f 
-         -> [(Label, Block n C C)]
-         -> FuelMonad (RG n f C C, FactBase f)
-fixpoint lat do_block init_fbase blocks
-  = do { fuel <- getFuel  
-       ; tx_fb <- loop fuel init_fbase
-       ; return (tfb_blks tx_fb, tfb_fbase tx_fb `deleteFromFactBase` blocks) }
-	     -- The successors of the Graph are the the Labels for which
-	     -- we have facts, that are *not* in the blocks of the graph
-  where
-    tx_blocks :: [(Label, Block n C C)] 
-              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-    tx_blocks []             tx_fb = return tx_fb
-    tx_blocks ((lbl,blk):bs) tx_fb = do { tx_fb1 <- tx_block lbl blk tx_fb
-                                        ; tx_blocks bs tx_fb1 }
-
-    tx_block :: Label -> Block n C C 
-             -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-    tx_block lbl blk (TxFB { tfb_fbase = fbase, tfb_lbls = lbls
-                           , tfb_blks = blks, tfb_cha = cha })
-      = do { (rg, out_facts) <- do_block blk fbase
-           ; let (cha',fbase') 
-                   = foldr (updateFact lat lbls) (cha,fbase) 
-                           (factBaseList out_facts)
-           ; return (TxFB { tfb_lbls  = extendLabelSet lbls lbl
-                          , tfb_blks  = rg `RGCatC` blks
-                          , tfb_fbase = fbase', tfb_cha = cha' }) }
-
-    loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
-    loop fuel fbase 
-      = do { let init_tx_fb = TxFB { tfb_fbase = fbase
-                                   , tfb_cha   = NoChange
-                                   , tfb_blks  = RGNil
-                                   , tfb_lbls  = emptyLabelSet }
-           ; tx_fb <- tx_blocks blocks init_tx_fb
-           ; case tfb_cha tx_fb of
-               NoChange   -> return tx_fb
-               SomeChange -> do { setFuel fuel
-                                ; loop fuel (tfb_fbase tx_fb) } }
-
------------------------------------------------------------------------------
---		Transfer functions
------------------------------------------------------------------------------
-
--- Keys to the castle: a generic transfer function for each shape
--- Here's the idea: we start with single-n transfer functions,
--- move to basic-block transfer functions (we have exactly four shapes),
--- then finally to graph transfer functions (which requires iteration).
-
-type ARF thing n 
-  = forall f e x. ForwardPass n f -> thing e x 
-               -> Fact e f -> FuelMonad (RG n f e x, Fact x f)
 
 -----------------------------------------------------------------------------
 
@@ -496,6 +412,115 @@ analyseAndRewriteBwd pass body facts
 
 
 -----------------------------------------------------------------------------
+--      fixpoint: finding fixed points
+-----------------------------------------------------------------------------
+
+data TxFactBase n f
+  = TxFB { tfb_fbase :: FactBase f
+         , tfb_rg  :: RG n f C C -- Transformed blocks
+         , tfb_cha   :: ChangeFlag
+         , tfb_lbls  :: LabelSet }
+ -- Note [TxFactBase change flag]
+ -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ -- Set the tfb_cha flag iff 
+ --   (a) the fact in tfb_fbase for or a block L changes
+ --   (b) L is in tfb_lbls.
+ -- The tfb_lbls are all Labels of the *original* 
+ -- (not transformed) blocks
+
+updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
+           -> (ChangeFlag, FactBase f) 
+           -> (ChangeFlag, FactBase f)
+-- See Note [TxFactBase change flag]
+updateFact lat lbls (lbl, new_fact) (cha, fbase)
+  | NoChange <- cha2        = (cha,        fbase)
+  | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
+  | otherwise               = (cha,        new_fbase)
+  where
+    (cha2, res_fact) 
+       = case lookupFact fbase lbl of
+           Nothing -> (SomeChange, new_fact)  -- Note [Unreachable blocks]
+           Just old_fact -> fact_extend lat old_fact new_fact
+    new_fbase = extendFactBase fbase lbl res_fact
+
+fixpoint :: forall n f. Edges n
+         =>  DataflowLattice f
+         -> (Block n C C -> FactBase f
+              -> FuelMonad (RG n f C C, FactBase f))
+         -> FactBase f -> [(Label, Block n C C)]
+         -> FuelMonad (RG n f C C, FactBase f)
+fixpoint lat do_block init_fbase blocks
+  = do { fuel <- getFuel  
+       ; tx_fb <- loop fuel init_fbase
+       ; return (tfb_rg tx_fb, 
+                 tfb_fbase tx_fb `delFromFactBase` blocks) }
+	     -- The successors of the Graph are the the Labels for which
+	     -- we have facts, that are *not* in the blocks of the graph
+  where
+    tx_blocks :: [(Label, Block n C C)] 
+              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+    tx_blocks []             tx_fb = return tx_fb
+    tx_blocks ((lbl,blk):bs) tx_fb = do { tx_fb1 <- tx_block lbl blk tx_fb
+                                        ; tx_blocks bs tx_fb1 }
+
+    tx_block :: Label -> Block n C C 
+             -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+    tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
+                                 , tfb_rg = blks, tfb_cha = cha })
+      | lbl `elemFactBase` fbase = return tx_fb	-- Note [Unreachable blocks]
+      | otherwise
+      = do { (rg, out_facts) <- do_block blk fbase
+           ; let (cha',fbase') 
+                   = foldr (updateFact lat lbls) (cha,fbase) 
+                           (factBaseList out_facts)
+           ; return (TxFB { tfb_lbls  = extendLabelSet lbls lbl
+                          , tfb_rg  = rg `RGCatC` blks
+                          , tfb_fbase = fbase', tfb_cha = cha' }) }
+
+    loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
+    loop fuel fbase 
+      = do { let init_tx_fb = TxFB { tfb_fbase = fbase
+                                   , tfb_cha   = NoChange
+                                   , tfb_rg  = RGNil
+                                   , tfb_lbls  = emptyLabelSet }
+           ; tx_fb <- tx_blocks blocks init_tx_fb
+           ; case tfb_cha tx_fb of
+               NoChange   -> return tx_fb
+               SomeChange -> do { setFuel fuel
+                                ; loop fuel (tfb_fbase tx_fb) } }
+
+{- Note [Unreachable blocks]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+A block that is not in the domain of tfb_fbase is "currently unreachable".
+A currently-unreachable block is not even analysed.  Reason: consider 
+constant prop and this graph, with entry point L1:
+  L1: x:=3; goto L4
+  L2: x:=4; goto L4
+  L4: if x>3 goto L2 else goto L5
+Here L2 is actually unreachable, but if we process it with bottom input fact,
+we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
+
+* If a currently-unreachable block is not analysed, then its rewritten
+  graph will not be accumulated in tfb_rg.  And that is good:
+  unreachable blocks simply do not appear in the output.
+
+* Note that clients must be careful to provide a fact (even if bottom)
+  for each entry point. Otherwise useful blocks may be garbage collected.
+
+* Note that updateFact must set the change-flag if a label goes from
+  not-in-fbase to in-fbase, even if its fact is bottom.  In effect the
+  real fact lattice is
+       UNR
+       bottom
+       the points above bottom
+
+* All of this only applies for *forward* fixpoints.  For the backward
+  case we must treat every block as reachable; it might finish with a
+  'return', and therefore have no successors, for example.
+-}
+
+
+-----------------------------------------------------------------------------
 --		The fuel monad
 -----------------------------------------------------------------------------
 
@@ -549,11 +574,8 @@ unitFact l fb = case M.lookup l fb of
                   Just f  -> M.singleton l f
                   Nothing -> M.empty
 
-lookupFact :: DataflowLattice f -> FactBase f -> Label -> f
-lookupFact lattice env blk_id 
-  = case M.lookup blk_id env of
-      Just f  -> f
-      Nothing -> fact_bot lattice
+lookupFact :: FactBase f -> Label -> Maybe f
+lookupFact env blk_id = M.lookup blk_id env
 
 extendFactBase :: FactBase f -> Label -> f -> FactBase f
 extendFactBase env blk_id f = M.insert blk_id f env
@@ -561,14 +583,17 @@ extendFactBase env blk_id f = M.insert blk_id f env
 unionFactBase :: FactBase f -> FactBase f -> FactBase f
 unionFactBase = M.union
 
+elemFactBase :: Label -> FactBase f -> Bool
+elemFactBase = M.member
+
 factBaseLabels :: FactBase f -> [Label]
 factBaseLabels = M.keys
 
 factBaseList :: FactBase f -> [(Label, f)]
 factBaseList = M.toList 
 
-deleteFromFactBase :: FactBase f -> [(Label,a)] -> FactBase f
-deleteFromFactBase fb blks = foldr (M.delete . fst) fb blks
+delFromFactBase :: FactBase f -> [(Label,a)] -> FactBase f
+delFromFactBase fb blks = foldr (M.delete . fst) fb blks
 
 ----------------------
 type LabelSet = S.IntSet
