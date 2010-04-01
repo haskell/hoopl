@@ -257,7 +257,8 @@ implementation.
 
 \begin{document}
 %\title{\ourlib: Dataflow Optimization Made Simple}
-\title{Implementing Dataflow Analysis and Optimization by Lifting Node Functions to Basic Blocks and Control-Flow Graphs}
+\title{\ourlib: a modular, re-usable library for \\ dataflow analysis and transformation}
+%\title{Implementing Dataflow Analysis and Optimization by Lifting Node Functions to Basic Blocks and Control-Flow Graphs}
 \subtitle{Programming pearl}
 
 %\titlebanner{\textsf{\mdseries\itshape Submitted to the 2010 ACM Symposium on Principles
@@ -401,7 +402,7 @@ polymorphic in the list elements, so is \ourlib{} polymorphic, both in
 the nodes that inhabit graphs, and in the dataflow facts that 
 analyses compute over these graphs (\secref{using-hoopl}).
 
-\item The Lerner/Grove/Chambers paper is persuasive but abstract.
+\item The Lerner/Grove/Chambers paper is inspiring but abstract.
 We articulate their ideas in a concrete but simple API that hides 
 a subtle implementation (Sections \ref{sec:graph-rep} and \ref{sec:using-hoopl}).  
 You provide a representation for assertions, 
@@ -412,11 +413,13 @@ justify rewriting a node.
 control-flow graphs, sets up and solves recursion equations,
 and interleaves rewriting with analysis.
 Designing good abstractions (data types, APIs) is surprisingly
-hard.  We have been through over a dozen significantly different
+hard; we have been through over a dozen significantly different
 iterations and we offer our API as a contribution in its own right.
 
 \item Analyses and transformations built on \ourlib\ 
-are small, simple, and easy to get right.
+are small, simple, and easy to get right because the client
+only has to perform local reasoning (``if @x@ is live after @x:=y+2@ 
+then @y@ is live before it'').
 Moreover, \ourlib\ helps you write correct optimizations:
 it statically rules out transformations that violate invariants
 of the control-flow graph (Sections \ref{sec:graph-rep} and \ref{sec:rewrites}),
@@ -436,12 +439,13 @@ and maybe the open/closed story is hard to understand here.}
 % unconditional branch.  We know of no other system that offers 
 % static guarantees this strong.
 
-\item \ourlib{} implements a rather subtle algorithm.  
+\item \ourlib{} implements a rather subtle algorithm, involving at least
+(a) interleaved analysis and rewriting, (b) speculative rewriting,
+(c) optimisation fuel, (c) fixpoint finding.
 Previous implementations of this algorithm---including three of our
 own---are complicated and hard to understand, because the tricky pieces
-(fixed points, interleaved rewriting and transformation, recursive
-rewriting, optimization fuel, and so on) are implemented all together,
-inseparably. \remark{Maybe the title should hearken to
+are implemented all together, inseparably. 
+\remark{Maybe the title should hearken to
 separation of concerns rather than lifting?}
 A signficant contribution of this paper is 
 a new way to structure the implementation so that each tricky piece
@@ -1856,6 +1860,11 @@ strong static shape guarantees.  The whole thing is about 300 lines of
 code, excluding comments; this includes both forward and backward
 dataflow analysis and transformation.
 
+Throughout we will describe the implementation of \emph{forward} 
+analysis and transformation.
+However, \ourlib{} provides an exactly analogous family 
+backward-analysis functions (\secref{overview}).
+
 \subsection{Overview}
 
 We will concentrate on implementing @analyseAndRewriteFwd@, whose
@@ -1951,10 +1960,6 @@ matter of matching the external API to the internal functions:
     = do { (rg, _) <- arfBody pass body facts
          ; return (normaliseBody rg) }
 \end{code}
-We have spoken only of \emph{forward} analyses and transformation, and we will
-continue to do so.  However, 
-\ourlib{} provides an exactly analogous family 
-backward-analysis functions (\secref{overview}).
  
 \subsection{From nodes to blocks} \seclabel{arf-block}
 \seclabel{arf-graph}
@@ -2098,7 +2103,7 @@ a function that analyses and rewrites a single block; the business of
 monotonically-growing ``Current @FactBase@''; it is initialised by the
 caller-supplied @FactBase@, and augmented with new facts flowing out
 of each of the successively-analysed blocks.  The @fixpoint@ algorithm
-keeps iterating the analysis until the current @FactBase@ reaches a fixed
+keeps iterating the analysis until the Current @FactBase@ reaches a fixed
 point.  
 
 The code for @fixpoint@ is a massive 70 lines long, and
@@ -2142,6 +2147,8 @@ the sort of thing that one might hope to implement once in a library and
 then forget -- and that is the case here.  Moreover it only takes a couple
 of lines of code to achieve; better still, unreachable blocks automatically do not
 appear in the rewritten graph.
+
+\emph{Note:} all this only applies to a \emph{forward} analysis. 
 \end{itemize}
 
 \section {Related work} \seclabel{related}

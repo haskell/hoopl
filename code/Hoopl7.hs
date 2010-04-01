@@ -371,7 +371,7 @@ arbBody :: Edges n
         => BackwardPass n f -> Body n -> FactBase f
         -> FuelMonad (RG n f C C, FactBase f)
 arbBody pass blocks init_fbase
-  = fixpoint (bp_lattice pass) (arbBlock pass) init_fbase $
+  = fixpoint False (bp_lattice pass) (arbBlock pass) init_fbase $
     backwardBlockList (factBaseLabels init_fbase) blocks 
 
 arbGraph :: Edges n => ARB (Graph n) n
@@ -442,12 +442,13 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
     new_fbase = extendFactBase fbase lbl res_fact
 
 fixpoint :: forall n f. Edges n
-         =>  DataflowLattice f
+         => Bool	-- Going forwards?
+         -> DataflowLattice f
          -> (Block n C C -> FactBase f
               -> FuelMonad (RG n f C C, FactBase f))
          -> FactBase f -> [(Label, Block n C C)]
          -> FuelMonad (RG n f C C, FactBase f)
-fixpoint lat do_block init_fbase blocks
+fixpoint is_fwd lat do_block init_fbase blocks
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
@@ -465,7 +466,8 @@ fixpoint lat do_block init_fbase blocks
              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                                  , tfb_rg = blks, tfb_cha = cha })
-      | lbl `elemFactBase` fbase = return tx_fb	-- Note [Unreachable blocks]
+      | is_fwd && lbl `elemFactBase` fbase 
+      = return tx_fb	-- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
