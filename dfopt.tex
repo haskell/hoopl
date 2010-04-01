@@ -493,7 +493,7 @@ can replace the conditional branch with an unconditional one, @goto L1@.
 
 \seclabel{simple-tx}
 \paragraph{Interleaved transforamtion and analysis.}
-Notice that our example \emph{interleaves} transformation and analysis.
+Our example \emph{interleaves} transformation and analysis.
 Interleaving makes it far easier to write effective analyses.
 If, instead, we \emph{first} analysed the block
 and \emph{then} transformed it, the analysis would have to ``predict''
@@ -514,16 +514,16 @@ examples, consult \citet{lerner-grove-chambers:2002}.
 
 \paragraph{Forwards and backwards.}
 Constant propagation works \emph{forwards}, and a fact is typically an
-assertion about the program state (such as ``variable @x@ holds value
-@7@'').  Many useful analyses work \emph{backwards}, from bottom to
-top.  An example is live-variable analysis, where the fact takes the form
-``variable @x@ is dead'' and constitutes an assertion about the
-\emph{continuation} of a program point.  For example, the fact ``@x@ is
+assertion about the program state (such as ``variable~@x@ holds value~@7@'').  
+Some useful analyses work \emph{backwards}.
+A~prime example is live-variable analysis, where a fact takes the form
+``variable @x@ is dead'' and is an assertion about the
+\emph{continuation} of a program point.  For example, the fact ``@x@~is
 dead'' at a program point P is an assertion that @x@ is unused on any program
-path starting at P.  
+path starting at \mbox{P}.  % TeXbook, exercise 12.6
 The accompanying transformation is called dead-code elimination;
-if @x@~is dead, this transformation rewrites
-the assignment @x=e@ into a no-op.
+if @x@~is dead, this transformation 
+replaces the node @x:=e@ with a no-op.
 
 % ----------------------------------------
 \section{Representing control-flow graphs} \seclabel{graph-rep}
@@ -533,7 +533,7 @@ and transformations driven by these analyses, on control-flow graphs.
 Graphs are composed from smaller units, which we discuss from the
 bottom up:
 \begin{itemize}
-\item A \emph{node} is defined by the library client;
+\item A \emph{node} is defined by \ourlib's client;
 \ourlib{} knows nothing about the representation of nodes (\secref{nodes}).
 \item A basic \emph{block} is a sequence of nodes (\secref{blocks}).
 \item A \emph{graph} is an arbitrarily complicated control-flow graph,
@@ -550,7 +550,7 @@ to transfer control at a \emph{closed} point requires an explicit
 control-transfer instruction.
 For example,
 \begin{itemize}
-\item A multiply instruction is open on entry (because control can fall into it
+\item A shift-left instruction is open on entry (because control can fall into it
 from the preceding instruction), and open on exit (because control falls through
 to the next instruction).
 \item An unconditional branch is open on entry, but closed on exit (because 
@@ -570,19 +570,20 @@ to blocks and graphs.  For example the block
    x:=7; y:=x+2; goto L
 \end{code}
 is open on entry and closed on exit.  
-To summarize, suppose E is a node, block, or graph: \simon{Removed the claim
-about a unique entry point.}
+To summarize, whenever E is a node, block, or graph,
+% : \simon{Removed the claim about a unique entry point.}
 \begin{itemize}
 % \item Regardless of whether E is open or closed, 
 % it has a unique entry point where execution begins.
-\item If E is open at exit, control leaves E
-\emph{only} by ``falling through'' from a unique exit point.
 \item If E is closed at exit, control leaves \emph{only}
 by explicit branches from closed-on-exit nodes.
+\item If E is open at exit, control \emph{may} leave E
+by ``falling through'' from a distinguished exit point.
+\remark{If E is a node or block, control \emph{only} leaves E by
+falling through, but this isn't so for a graph.  Example: a body of a
+loop contains a \texttt{break} statement}
 \end{itemize}
 
-\remark{We've lost the client's ability to choose the representation
-of a full function/procedure/method} \simon{Don't understand this remark}
 
 \subsection{Nodes} \seclabel{nodes}
 
@@ -620,7 +621,7 @@ Such a type parameter may be instantiated only with type @O@~(for
 open) or type~@C@ (for closed).
 As an example,
 \figref{cmm-node} shows a typical node type as it might be written by
-one of \ourlib's \emph{clients}.
+one of \ourlib's {clients}.
 The type parameters are written @e@ and @x@, for
 entry and exit respectively.  
 The type is a generalized algebraic data type, and
@@ -628,13 +629,13 @@ it is defined in using syntax
 that gives the type of each constructor.  
 \cite{peyton-jones:unification-based-gadts}.
 For example, constructor @LabelNode@
-takes a @Label@ and returns a node of type @Node C O@, where ``@C@''~says ``closed
-at entry'' and ``@O@''~says ``open at exit''.  
+takes a @Label@ and returns a node of type @Node C O@, where
+the~``@C@'' says ``closed at entry'' and the~``@O@'' says ``open at exit''.  
 (We often abbreviate ``a node of type @Node@~@C@~@O@''
 to ``a closed/open node'',  
 and similarly for blocks and graphs.)
 The types @Label@, @O@, and~@C@ are 
-exported by \ourlib{} (\figref{graph}).  
+defined by \ourlib{} (\figref{graph}).  
 
 Similarly, an @Assign@ node takes a register and an expression, and
 returns a @Node@ open at both entry and exit; the @Store@ node is
@@ -647,16 +648,19 @@ Nodes closed on entry are the only targets of control transfers;
 nodes open on entry and exit never perform control transfers;
 and nodes closed on exit always perform control transfers\footnote{%
 To obey these invariants,
-a conditional-branch instruction, which typically may either transfer control
-\emph{or} fall through, must be represented as a two-target
+a node for
+a conditional-branch instruction, which typically either transfers control
+\emph{or} falls through, must be represented as a two-target
 conditional branch, with the fall-through path in a separate block.  
 This representation is standard \cite{appel:modern},
 and it costs nothing in practice:
-a late-stage code-layout pass can readily reconstruct efficient code.
+such code is easily sequentialized without superfluous branches.
+%a late-stage code-layout pass can readily reconstruct efficient code.
 }.
-We~often call these nodes \emph{first}, \emph{middle}, and \emph{last} nodes
-respectively, because of the position each type of node occupies in a
-basic block.
+Because of the position each type of node occupies in a
+basic block,
+we~often call them \emph{first}, \emph{middle}, and \emph{last} nodes
+respectively.
 
 \subsection{Blocks} \seclabel{blocks}
 
@@ -672,9 +676,9 @@ data `Block n e x where
 data `Graph n e x where
   `GNil  :: Graph n O O
   `GUnit :: Block n O O -> Graph n O O
-  `GMany :: Link e (Block n O C) 
+  `GMany :: IfOpen e (Block n O C) 
         -> Body n
-        -> Link x (Block n C O)
+        -> IfOpen x (Block n C O)
         -> Graph n e x
 
 data `Body n where
@@ -682,9 +686,9 @@ data `Body n where
   `BodyUnit  :: Block n C C -> Body n
   `BodyCat   :: Body n -> Body n -> Body n
 
-data `Link ex t where
-  `OpenLink   :: t -> Link O t
-  `ClosedLink ::      Link C t
+data `IfOpen ex t where
+  `OpenLink   :: t -> IfOpen O t
+  `ClosedLink ::      IfOpen C t
 
 newtype `Label = Label Int
 
@@ -711,14 +715,13 @@ two blocks may be concatenated {only} if each block is open at
 the point of concatenation.
 This restriction is enforced by the type of @BCat@, whose first 
 argument must be open on exit, and whose second argument must be open on entry.
-It~is statically impossible, for example, to put a @Branch@
+It~is statically impossible, for example, to concatenate a @Branch@
 immediately before an
 @Assign@.  
 Indeed, the @Block@ type statically guarantees that any
-closed/closed @Block@ -- which compiler writers normally 
-call a ``basic block'' --
-must consist of exactly one closed/open node (such as @Label@
-in \figref{cmm-node}), 
+closed/closed @Block@---which compiler writers normally 
+call a ``basic block''---consists of exactly one closed/open node
+(such as @Label@ in \figref{cmm-node}), 
 followed by zero or more open/open nodes (@Assign@ or @Store@), 
 and terminated with exactly one 
 open/closed node (@Branch@ or @CondBranch@).  
@@ -743,19 +746,35 @@ an empty graph is represented by @GNil@ while a single-block graph
 is represented by @GUnit@.
 
 More general graphs are represented by @GMany@, which has three
-fields:
+fields: an optional entry sequence, a body, and an optional exit
+sequence.\remark{I've changed ``link'' to ``sequence'' here and here
+alone.  If J\&S agree, I~can make the rest of the paper consistent.}
 \begin{itemize}
 \item 
-The first is the entry link.  If the graph is open on entry,
-the entry link is of form $@(OpenLink@\;b@)@$, where $b$ is
-an open/closed block.  If the graph is closed on entry then 
-there is no distinguished entry block, and the link is of form @ClosedLink@.
+If the graph is open at the entry, it contains an entry sequence of type 
+@Block n O C@.
+We could represent this sequence as a value of type
+@Maybe (Block n O C)@, but we can do better: 
+a~value of @Maybe@ type requires a \emph{dynamic} test,
+but we know \emph{statically}, at compile time, that the sequence is present if and only
+if the graph is open at the entry.
+We~express our compile-time knowledge by using the type
+@IfOpen e (Block n O C)@, 
+\remark{Do people like the name @MaybeOpen@ or @MaybeO@ better than @IfOpen@?}
+which is also defined in \figref{graph}:
+the type @IfOpen O a@ is isomorphic to~@a@, while 
+the type @IfOpen C a@ is isomorphic to~@()@.
+\remark{Can we please consider changing the names of the value
+constructors?
+Possibilities include @IfOpen@/@IfNotOpen@ or @JustO@/@NothingC@.
+}
 \item 
-The second field is the @Body@ of the graph, namely a simple 
-collection of closed/closed blocks.  We use a new data type 
-rather than a list so that we can concatenate in constant time.
+The body of the graph is a collection of  closed/closed blocks.  
+To be able to concatenate bodies in constant time,
+we introduce the representation 
+@Body n@.
 \item 
-The final field is the exit link, and is dual to the entry link.
+The exit sequence is dual to the entry sequence.
 \end{itemize}
 % 
 % \ourlib{} defines two distinct types of control-flow
@@ -854,10 +873,13 @@ The final field is the exit link, and is dual to the entry link.
 %  entry is labelled?  What's special about this one?}
 % \end{itemize}
 
-Graphs compose nicely, with constant-time complexity.
+Graphs concatenate nicely, in constant time.
 Unlike blocks, two graphs may be concatenated 
-when they are both open at the point of concatenation, \emph{and}
-when they are both closed (but not in the other two cases):
+not only when they are both open at the point of concatenation but also
+when they are both closed---and not in the other two cases:
+\remark{We've lost John's point about concatenation, which
+I~found convincing.  If it's too late to do something by Friday, we
+should remember to revisit this question later.}
 \par{\small
 \begin{code}
 `gCat :: Graph n e a -> Graph n a x -> Graph n e x
@@ -882,25 +904,35 @@ gCat (GMany e1 bs1 (OpenLink x1))
 gCat (GMany e1 bs1 ClosedLink) (GMany ClosedLink bs2 x2)
   = GMany e1 (bs1 `BodyCat` bs2) x2
 \end{code}}
-This defintion is a nice example of the power of GADTs: the
-pattern-matching is exhaustive, and all the open/closed invariants are
+This definition is a nice example of the power of GADTs: the
+pattern matching is exhaustive, and all the open/closed invariants are
 statically checked.  For example, consider the second-last equation for @gCat@.
 Since the exit link of the first argument is @OpenLink x1@,
-we know that $@a@~@C@$, and hence the entry link of the second 
-argument must be @(OpenLink e2)@
-Moreover @x1@ must be
-closed/open, and @e2@ must be open/closed.  So we can compose them in
-sequence with @BCat@ to produce a closed/closed block, which can be
+we know that type parameter~@a@ is~@C@, and hence the entry link of the second 
+argument must be @OpenLink e2@.
+Moreover, block~@x1@ must be
+closed/open, and block~@e2@ must be open/closed.  
+We can therefore concatenate them
+with @BCat@ to produce a closed/closed block, which is
 added to the @Body@ of the result.
 
-Every graph has a unique representation.  An empty open/open graph is represented
+We~have carefully crafted the types so that if @BCat@ and @BodyCat@
+are considered as associative operators, 
+every graph has a unique representation.\remark{So what? (Doumont)
+Need some words about how this is part of making the API simple for
+the client---I've added something to the end of the paragraph, but I'm
+not particularly thrilled.
+I'm not sure this paragraph carries a contribution
+commensurate with its length.
+}
+An empty open/open graph is represented
 by @GNil@, while a closed/closed one is @gNilCC@:
 \begin{code}
 gNilCC :: Graph C C
 gNilCC = GMany ClosedLink BodyEmpty ClosedLink
 \end{code}
-The representation of a @Graph@ consisting of a single block @b@ 
-depends on the shape of @b@, thus:
+The representation of a @Graph@ consisting of a single block~@b@ 
+depends on the shape of~@b@:\remark{Does anyone care?}
 \begin{code}
 gUnitOO :: Block O O -> Graph O O
 gUnitOC :: Block O C -> Graph O C
@@ -909,39 +941,52 @@ gUnitCC :: Block O C -> Graph C C
 gUnitOO b = GUnit b
 gUnitOC b = GMany (OpenLink b) BodyEmpty ClosedLink
 gUnitCO b = GMany ClosedLink   BodyEmpty   (OpenLink b)
-gUnitCC b = GMany ClosedLink   (BodyUnit b) ClosedLink@
+gUnitCC b = GMany ClosedLink   (BodyUnit b) ClosedLink
 \end{code}
 Multi-block graphs are similar.
-From this table we can see why @GUnit@ is restricted to open/open
-blocks; if it was more accommodating then there would be 
-multiple representations for a single graph.
+From this table \remark{you see no table here}
+we can see why @GUnit@ is restricted to open/open
+blocks; if it were more accommodating, there would be 
+more than one way to represent some graphs, and it wouldn't be obvious
+to a client which representation to choose---or if the choice made a difference.
 
 \subsection{Labels and successors} \seclabel{edges}
 
-If \ourlib{} knows nothing about nodes, how can it know to which block a
-control transfer goes, or what is the @Label@ at the start of a block?
-In this situation the standard Haskell idiom is to provide a type class whose methods
-provide exactly the needed operations; it is given in \figref{edges}.
+If \ourlib{} knows nothing about nodes, how can it know where
+a control transfer goes, or what is the @Label@ at the start of a block?
+To~answer such questions,
+the standard Haskell idiom is to define a type class whose methods
+provide exactly the operations needed;
+\ourlib's type class, called @Edges@, is given in \figref{edges}.
 The @entryLabel@ method takes a first node (one closed on entry, \secref{nodes})
 and returns its @Label@;
-the @successors@ method takes a last node (closed on exit) and returns the @Label@s to
-which it can transfer control.  In \ourlib{} a middle node (open-open) cannot refer to any @Label@s,
-as the absence of an interrogation function implies. 
+the @successors@ method takes a last node (closed on exit) and returns
+the @Label@s to 
+which it can transfer control.  
+A~middle node, which is open at both entry and exit, cannot refer to
+any @Label@s, 
+so no corresponding interrogation function is needed.
 
-When defining a node type, a \ourlib{} client should also make it an
-instance of @Edges@.  Thus for @Node@ we would write
+A node type defined by a client must be an instance of @Edges@.
+In~\figref{cmm-node},
+the client's instance declaration for @Node@ would be
 \begin{code}
 instance Edges Node where
   entryLabel (LabelNode l) = l
   successors (Branch b) = [b]
   successors (CondBranch e b1 b2) = [b1,b2]
 \end{code}
-Again, the pattern-matching for both functions is exhaustive, and
-the compiler statically checks this fact.  For example, @entryLabel@ simply
-cannot be applied to a @Assign@ or @Branch@ node; the type checker would
-reject any such attempt.
+Again, the pattern matching for both functions is exhaustive, and
+the compiler statically checks this fact.  Here, @entryLabel@ 
+cannot be applied to an @Assign@ or @Branch@ node,
+and any attempt to define a case for @Assign@ or @Branch@ would result
+in a type error.
 
-\ourlib{} provides instances for the @Block@ type thus:
+While it is required for the client to provide this information about
+nodes, it is very convenient for \ourlib\ to get the same information
+about blocks.
+For its own internal use,
+\ourlib{} provides this instance declaration for the @Block@ type:
 \begin{code}
 instance Edges n => Edges (Block n) where
   entryLabel (BUnit n)  = entryLabel n
@@ -949,9 +994,17 @@ instance Edges n => Edges (Block n) where
   successors (BUnit n)  = successors n
   successors (BCat _ b) = successors b
 \end{code}
-A slight infelicity is that we cannot make @Graph@ an instance of @Edges@,
-because a graph closed on entry has no unique label.  Fortunately, we never
-need @Graph@s to be in @Edges@.
+Because the functions @entryLabel@ and @successors@ are used to track control
+flow \emph{within} a graph, \ourlib\ does not need to ask for the
+entry label or successors of a @Graph@ itself.
+Indeed, @Graph@ \emph{cannot} be an instance of @Edges@, because even
+if a @Graph@ is closed at the entry, it does not have a unique entry label.
+%
+% A slight infelicity is that we cannot make @Graph@ an instance of @Edges@,
+% because a graph closed on entry has no unique label.  Fortunately, we never
+% need @Graph@s to be in @Edges@.
+%
+% ``Never apologize.  Never confess to infelicity.'' ---SLPJ
 
 \section {Using \ourlib{} to analyse and transform graphs} \seclabel{using-hoopl}
 \seclabel{making-simple}
