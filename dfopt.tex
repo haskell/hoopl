@@ -1317,9 +1317,9 @@ then @(transfer_fn n)@ is literally a predicate transformer:
 type `AGraph n e x 
   = [Label] -> (Graph n e x, [Label])
 
-`withLabels :: Int ([Label] -> AGraph n e x)
-            -> AGraph n e x
-withLabels n fn = \ls -> fn (take n ls, drop n ls)
+`withLabels :: Int -> ([Label] -> AGraph n e x)
+           -> AGraph n e x
+withLabels n fn = \ls -> fn (take n ls) (drop n ls)
 
 `mkIfThenElse :: Expr -> AGraph Node O O
              -> AGraph Node O -> AGraph Node O O

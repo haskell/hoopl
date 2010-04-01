@@ -234,8 +234,6 @@ type ARF thing n
   = forall f e x. ForwardPass n f -> thing e x 
                -> Fact e f -> FuelMonad (RG n f e x, Fact x f)
 
-data AGraph n e x = AGraph 	-- Stub for now
-
 type SimpleFwdRewrite n f 
   = forall e x. n e x -> Fact e f
              -> Maybe (AGraph n e x)
@@ -527,7 +525,7 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 type Uniques = Int
 type Fuel    = Int
 
-newtype FuelMonad a = FM { unFM :: Fuel -> Uniques -> (a, Fuel, Uniques) }
+newtype FuelMonad a = FM { unFM :: Fuel -> [Label] -> (a, Fuel, [Label]) }
 
 instance Monad FuelMonad where
   return x = FM (\f u -> (x,f,u))
@@ -545,7 +543,8 @@ setFuel :: Fuel -> FuelMonad ()
 setFuel f = FM (\_ u -> ((), f, u))
 
 graphOfAGraph :: AGraph node e x -> FuelMonad (Graph node e x)
-graphOfAGraph = error "urk" 	-- Stub
+graphOfAGraph ag = FM (\f ls -> let (g,ls') = ag ls
+                                in (g, f, ls'))
 
 -----------------------------------------------------------------------------
 --		Label, FactBase, LabelSet
@@ -659,6 +658,13 @@ mkIfThenElse mk_cbranch mk_lbl mk_branch then_g else_g (tl:el:jl:_)
     mk_branch_g :: Label -> Graph n O C
     mk_branch_g lbl = gUnitOC (mk_branch lbl)
 -}
+
+type AGraph n e x = [Label] -> (Graph n e x, [Label])
+
+withLabels :: Int -> ([Label] -> AGraph n e x)
+           -> AGraph n e x
+withLabels n fn = \ls -> fn (take n ls) (drop n ls)
+
 
 gUnitCO :: n C O -> Graph n C O
 gUnitCO n = GMany NothingO BodyEmpty (JustO (BUnit n))
