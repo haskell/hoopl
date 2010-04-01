@@ -282,37 +282,54 @@ implementation.
 \maketitle
  
 \begin{abstract}
-\remark{Needs a complete rewrite}\simon{It's not so bad, is
-it?}\remark{It's a fine abstract, just for the wrong paper :-)}
-We present \ourlib, a Haskell library that makes it easy for compiler writers
+\remark{I have replaced a good abstract of the POPL submission with a
+bad abstract of \emph{this} submission.}
+We present \ourlib, a Haskell library that makes it easy for a
+compiler writer
 to implement program transformations based on dataflow analyses.
-The compiler writer must identify (a)~logical assertions
-on which the transformation will be based;
-(b)~a~representation of such assertions, which
-\ifcutting
-should form a lattice of finite height;
-\else
-must have a lattice structure
- such that every assertion can be increased at
-most finitely many times;
-\fi
-(c)~transfer functions that approximate weakest preconditions or
-strongest postconditions over the assertions; and
-(d)~rewrite functions whose soundness is justified by the assertions.
-%%  To~guide compiler writers,
-%%  we show how dataflow analyses are related to
-%%  seminal work on program 
-%%  correctness. \simon{The ``next 700'' section sort of does so, but I'm not 
-%%  sure it deserves mention in the abstract.}
-\ourlib\ uses the algorithm of 
-\citet{lerner-grove-chambers:2002}, which 
-% enables compiler writers to
-can
-compose very simple analyses and transformations in a way that achieves
+%%  The client defines
+%%   (a)~logical assertions
+%%  on which the transformation will be based;
+%%  (b)~a~representation of such assertions, which
+%%  \ifcutting
+%%  should form a lattice of finite height;
+%%  \else
+%%  must have a lattice structure
+%%   such that every assertion can be increased at
+%%  most finitely many times;
+%%  \fi
+%%  (c)~transfer functions that approximate weakest preconditions or
+%%  strongest postconditions over the assertions; and
+%%  (d)~rewrite functions whose soundness is justified by the assertions.
+%%  %%  To~guide compiler writers,
+%%  %%  we show how dataflow analyses are related to
+%%  %%  seminal work on program 
+%%  %%  correctness. \simon{The ``next 700'' section sort of does so, but I'm not 
+%%  %%  sure it deserves mention in the abstract.}
+A~client of \ourlib\ defines a representation of 
+logical assertions,
+a transfer function that computes outgoing assertions from incoming
+assertions, 
+and a rewrite function that improves code when improvements are
+justified by the assertions.
+\ourlib\ does the actual analysis and transformation.
+
+\ourlib\ implements state-of-the art algorithms:
+Lerner, Grove, and Chambers's 
+\citeyearpar{lerner-grove-chambers:2002}
+composition of simple analyses and transformations, which achieves
 the same precision as complex, handwritten
-``super-analyses.''
-\ourlib\ will be the workhorse of a new
-back end for the Glasgow Haskell Compiler (version~6.14, forthcoming).
+``super-analyses;''
+and Whalley's \citeyearpar{whalley:isolation} dynamic technique for
+isolating bugs in a client's code.
+\ourlib's implementation is unique in that unlike previous
+implementations,
+it carefully separates the tricky
+elements of each of these algorithms, so that they can be examined and
+understood independently.
+%
+%\ourlib\ will be the workhorse of a new
+%back end for the Glasgow Haskell Compiler (version~6.14, forthcoming).
 
 \emph{Reviewers:} code examples are indexed at {\small\url{http://bit.ly/jkr3K}}
 %%% Source: http://www.cs.tufts.edu/~nr/drop/popl-index.pdf
