@@ -40,3 +40,5 @@ foldr
 fst
 snd
 map
+take
+drop
