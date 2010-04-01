@@ -11,6 +11,7 @@ TEXINPUTS := .:../styles//:$(TEXINPUTS)
 BIBINPUTS := .:../bibs//:$(BIBINPUTS)
 
 default:
+	./defuse < $(MAIN).tex > $(MAIN)du.tex
 	latex $(MAIN).tex
 #	bibtex $(MAIN)
 	latex $(MAIN).tex

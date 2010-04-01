@@ -9,7 +9,7 @@ LASTPAGE=12  # use this for submission
 
 TGT=dfopt
 
-all:V: $TGT.pdf $TGT.ps supplement.pdf popl-index.bitly
+all:V: $TGT.pdf $TGT.ps popl-index.bitly
 bib:V: $TGT.bbl
 dvi:V: $TGT.dvi
 pdf:V: $TGT.pdf
