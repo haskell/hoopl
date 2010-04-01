@@ -324,7 +324,7 @@ back end for the Glasgow Haskell Compiler (version~6.14, forthcoming).
 
 \remark{This is an intro the old paper.  We need an intro to the new paper.}
 
-An optimising compiler for an imperative language includes many
+An optimizing compiler for an imperative language includes many
 analyses, and transformations driven by the results of those analyses.
 Although these analyses and transformations are known by many names 
 --- constant propagation, live variable analysis, inlining, sinking of loads,
@@ -348,8 +348,8 @@ in \secref{related}, but they have complex APIs and implementations,
 and none implements the Lerner/Grove/Chambers technique.
 
 In this paper we present \ourlib{} (short for ``higher-order
-optimisation library''), a new Haskell library for dataflow analysis and
-optimisation.  It has the following distinctive characteristics:
+optimization library''), a new Haskell library for dataflow analysis and
+optimization.  It has the following distinctive characteristics:
 
 \begin{itemize}
 \item It is purely functional.  We argue at length in an earlier 
@@ -379,7 +379,7 @@ and interleaving rewriting and analyis.
 
 \item Analyses and transformations built on \ourlib\ 
 are small, simple, and easy to get right.
-Moreover, \ourlib\ helps you write correct optimisations:
+Moreover, \ourlib\ helps you write correct optimizations:
 it statically rules out transformations that violate invariants
 of the control-flow graph (Sections \ref{sec:graph-rep} and \ref{sec:rewrites}),
 and dynamically it can help find the first transformation that introduces a fault
@@ -403,14 +403,14 @@ previous attempts to implement this algorithm were complicated and
 hard to understand. In contrast, in \ourlib{} we have found a new way
 to structure the implementation so that various tricky pieces 
 (fixpoints, interleaved rewriting and transformation, recursive
-rewriting, optimisation fuel, and so on) are each located in just 
+rewriting, optimization fuel, and so on) are each located in just 
 one place.  Indeed, the result is sufficiently elegant that 
 this paper treats the implementation as an object of interest in its
 own right (\secref{engine}).
 \end{itemize}
 A working prototype of \ourlib{} is available for download 
 at \simon{add url}.  It is no toy: an ancestor of this library is
-embodied in the Glasgow Haskell Compiler, where it optimises the
+embodied in the Glasgow Haskell Compiler, where it optimizes the
 imperative @C--@ code in GHC's back end.  The new design is far
 nicer, and will be in GHC shortly.
 
@@ -982,9 +982,9 @@ type instance Fact O f = f
 % omit mkFactBase :: [(Label, f)] -> FactBase f
 
 Now that we have graphs in hand, we return to dataflow
-optimisation.
+optimization.
 \ourlib{} makes it  easy for a
-client to build a new dataflow analysis and optimisation.  To do this
+client to build a new dataflow analysis and optimization.  To do this
 the client must supply the following pieces:
 \begin{itemize}
 \item \emph{A node type} (\secref{graph-rep}).  
@@ -1024,7 +1024,7 @@ type `FactBase f = LabelMap f
 \end{code}
 Roughly speaking, given a @ForwardPass@, the 
 function @analyseAndRewriteFwd@ can transform a @Body@ into an
-optimised @Body@.  One thing that is immediately obvious from this
+optimized @Body@.  One thing that is immediately obvious from this
 type is that it is polymorphic in the type of nodes @n@ and facts @f@;
 these are entirely under the control of the client.
 
@@ -1482,10 +1482,10 @@ The key idea is to~limit the number of rewrites that
 are performed while optimizing a procedure.
 Because each rewrite leaves the observable behavior of the
 program unchanged, it is safe to suppress rewrites at any point.
-Therefore, given a program that fails when compiled with optimisation,
+Therefore, given a program that fails when compiled with optimization,
 the client can use binary search to halt rewriting just before or just after the
 rewrite that introduces the failure, thereby identifying the buggy rewrite.
-We control the number of rewrites by giving the optimiser
+We control the number of rewrites by giving the optimizer
 a fixed quantity of ``optimization fuel'';
 each rewrite costs one unit of fuel,
 and when the fuel is exhausted, no more rewrites are performed.
@@ -1745,12 +1745,12 @@ these internal facts.
 \item A @Graph@ has deliberately restrictive invariants; for example,
 a @GMany@ with a @OpenLink@ is always open at exit (\figref{graph}).  It turns
 out to be awkward to maintain these invariants \emph{during} rewriting,
-but easy to restore them \emph{after} rewriting by ``normalising'' an @RG@.
+but easy to restore them \emph{after} rewriting by ``normalizing'' an @RG@.
 \end{itemize}
-The normalisation function expresses the above two points, by splitting 
+The normalization function expresses the above two points, by splitting 
 a rewritten graph into a @Graph@ and its corresponding @FactBase@:
 \begin{code}
-`normaliseBody :: Edges n => RG n f C C 
+`normalizeBody :: Edges n => RG n f C C 
                -> (Body n, FactBase f)
 \end{code}
 We can now build a modular implementation as follows:
@@ -2087,7 +2087,7 @@ new support for the optimization-writer:
 
 In our previous work we described a zipper-based representation of control-flow
 graphs \cite{ramsey-dias:applicative-flow-graph}, stressing the advantages
-of immutability for writing dataflow optimisers.
+of immutability for writing dataflow optimizers.
 Our new representation, described in \secref{graph-rep}, is a major improvement:
 \begin{itemize}
 \item
