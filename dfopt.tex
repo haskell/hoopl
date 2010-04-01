@@ -1084,6 +1084,10 @@ data `FwdRes n f e x
 type family   `Fact x f :: *
 type instance Fact C f = FactBase f
 type instance Fact O f = f
+
+------- FactBase -------
+type `FactBase f = LabelMap f
+ -- A finite mapping from Labels to facts f
 \end{code}
 \caption{\ourlib{} API data types}
   \figlabel{api-types}
@@ -1118,6 +1122,9 @@ in Sections \ref{sec:rewrites} and \ref{sec:shallow-vs-deep}.
 \end{itemize}
 We combine the last three client-supplied arguments 
 into a single record of type @ForwardPass@; see \figref{api-types}.
+It's worth noticing that the arguments of @ForwardPass@ are, and must be,
+polymorphic functions, so \ourlib{} makes essential use of higher-rank types.
+
 With these pieces in hand, a client can call \ourlib{}'s analysis-and-rewriting
 function:
 \begin{code}
@@ -1129,9 +1136,6 @@ analyseAndRewriteFwd
   -> FactBase f             -- Input fact(s)
   -> FuelMonad (Body n,     -- Result body
                 FactBase f) -- ...and its facts
-
-type `FactBase f = LabelMap f
- -- A finite mapping from Labels to facts f
 \end{code}
 Roughly speaking, given a @ForwardPass@, the 
 analyse-and-rewrite function can transform a @Body@ into an
@@ -1313,7 +1317,6 @@ then @(transfer_fn n)@ is literally a predicate transformer:
 \subsection{The rewrite function} 
  \seclabel{rewrites} 
  \seclabel{example-rewrites}
- \seclabel{shallow-vs-deep}
 
 \begin{figure}
 \hfuzz=5.7pt % cheating again!
@@ -1349,8 +1352,9 @@ Similarly, a liveness analysis may allow us to
 rewrite an assignment to a dead register by a no-op; knowing that a register is
 live at a call site might provoke us to insert a spill before the call; and so on.
 
-A @ForwardPass@ therefor includes a \emph{rewriting function}
-that takes a node and a fact, and optionally returns \ldots what?
+A @ForwardPass@ therefore includes a \emph{rewriting function}, whose
+type, @FwdRewrite@, is given in \figref{api-types}.
+A rewriting function takes a node and a fact, and optionally returns \ldots what?
 At first one might
 expect that rewriting should return a new node, but that is not enough.
 For example, perhaps we want to replace a high-level operation
@@ -1359,7 +1363,35 @@ with arbitrary control flow.
 Another important special case is rewriting a node to a no-op.
 So in general the rewrite function must return an \emph{arbitrary graph}.
 
-% \subsection{Shallow vs deep rewriting}
+Concretely, a @FwdRewrite@ takes a node and a suitably-shaped
+fact, and returns either @Nothing@, indicating no rewrite is desired; 
+or $@(Just@\;@(FwdRes@\;ag\;rw@))@$, indicating that a rewrite 
+should be done.
+
+The graph $ag$ is the rewritten graph.  
+It has type @AGraph n e x@ when you 
+were probably expecting @Graph n e x@.
+The reason for this is that 
+if the rewriter makes graphs containing blocks,
+it will need to conjure up some fresh @Labels@.
+An @AGraph@ makes it possible for the rewriter to do so conveniently,
+using @withLabels@ as shown in \figref{agraph}.
+This Figure also shows a possible implementation of @AGraph@
+and an exmaple of how convenient-to-use @AGraph@ construction
+functions are easy to write.
+
+Notice also that 
+the rewritten graph $ag$ is statically guaranteed to have
+\emph{the same open/closed shape as the node being rewritten}.
+So a branch instruction, for example, can only be rewritten to a graph 
+closed at the exit.  Moreover, only an open/open graph can be 
+empty -- look at the type of @GNil@ in \figref{graph} --
+which gives us a guarantee that a closed/open node (head of a block)
+or an open/closed node (tail of a block) cannot be deleted by being
+rewritten to an empty graph.
+
+\subsection{Shallow vs deep rewriting}
+ \seclabel{shallow-vs-deep}
 
 Once the rewrite has been performed, what then?  
 Since the rewrite returns a graph, the 
@@ -1386,38 +1418,16 @@ a spill before a call might risk repeatedly inserting the same spill if the
 rewrite was iterated. 
 
 The shallow-vs-deep choice is really a property of an individual 
-rewrite function; it is not a global flag.
-We express this idea elegantly in the type of @FwdRewrite@
-in \figref{api-types}.  A @FwdRewrite@ takes a node and a suitably-shaped
-fact, and returns either @Nothing@, indicating no rewrite; 
-or $@(Just@\;@(FwdRes@\;ag\;rw@))@$, indicating that a rewrite 
-should be done.  We discuss the results $ag$ and $rw$ in turn.
-
-The graph $ag$ is the rewritten graph.  
-It has type @AGraph n e x@ when you 
-were probably expecting @Graph n e x@.
-The reason for this is that 
-if the rewriter makes graphs containing blocks,
-it will need to conjure up some fresh @Labels@.
-An @AGraph@ makes it possible for the rewriter to do so conveniently,
-using @withLabels@ as shown in \figref{agraph}.
-This Figure also shows a possible implementation of @AGraph@
-and an exmaple of how convenient-to-use @AGraph@ construction
-functions are easy to write.
-
-Notice also that 
-the rewritten graph $ag$ is statically guaranteed to have
-\emph{the same open/closed shape as the node being rewritten}.
-So a branch instruction, for example, can only be rewritten to a graph 
-closed at the exit.  
-
-The second result, $rw$, of a successful rewrite is a 
+rewrite function, an idea that is elegantly captured by the
+@FwdRes@ type returned by a @FwdRewrite@ (\figref{api-types}).
+The first component of the @FwdRes@ is the rewritten graph, as discussed earlier.
+The second, $rw$, is a 
 \emph{new rewriting function} to use when recursively processing
 the rewritten graph $ag$. For shallow rewriting this new function is
 the constant @Nothing@ function. For deep rewriting it is the original
 rewriting function.
 
-\subsection{Combinators}
+\subsection{Combinators} \seclabel{combinators}
 
 The idea that each rewrite function returns a new rewrite function
 when it fires allows us to define a variety of combinators over
@@ -2055,7 +2065,7 @@ rewrite function.
 
 And that's it!  The recursion to @arfGraph@ implements the 
 possibly-deep recursive rewriting; if the client wanted
-shallow rewriting, the rewrite function should return @noFwdRewrite@
+shallow rewriting, the rewrite function should return @noFwdRw@
 in the @FwdRes@ (\secref{shallow-vs-deep}).
 
 \subsection{Fixpoints} \seclabel{arf-body}
@@ -2085,6 +2095,11 @@ forwardBlockList
   :: Edges n => [Label]
   -> Body n -> [(Label,Block n C C)]
 \end{code}
+Since a @Body@ is just a collection of blocks, @forwardBlockList@ uses
+the methods of the @Edges@ class, @entryLabel@ and @successors@ to establish
+the connectivity of the blocks.  Ultimately this is why @ARF@ has an @Edges@
+type-class constraint.
+
 The rest of the work is done by @fixpoint@, which is shared by
 both forward and backward analyses:
 \begin{code}
@@ -2152,8 +2167,6 @@ appear in the rewritten graph.
 \end{itemize}
 
 \section {Related work} \seclabel{related}
-
-\simon{I've moved this section to near the end}
 
 While dataflow analysis and optimization are covered
 by a vast literature, 
@@ -2302,61 +2315,12 @@ as the previous version currently available in the Glasgow Haskell Compiler.
 
 \section{What we have learned}
 
-\simon{I think this section has interesting material, but it's
-incomprehensible at the beginning, because our readers won't have the 
-mental scaffolding to grok it.  Norman, have at it!}
-
-\john{Is it just me, or have we lost all the text claiming that analyses should
-  just be strongest postconds/ weakest preconds? Is this by design?}
-\simon{I did remove some material of that sort.  I think I did so because it didn't
-seem (to me) to contribute much at the place it then appeared. But I am entirely open
-to resurrecting it if you think that would help.  Perhaps in the section on 
-correctness, which follows next?  Can you do that?}
-
-One story of this paper is that we can think similar thoughts about
-assembly code, IR nodes, basic blocks, and control-flow graphs.
-Morever these thoughts are reflected in the types.
-Observations:
+In conclusion we offer the following lessons from the experience of designing
+and implementing \ourlib{}.
 \begin{itemize}
-\item
-In compilation and optimization, things are always easiest to analyze
-when there is a single entry and single exit.  (Lesson of structured
-programming.)
-\item
-In assembly code, we introduce labels (not present in the hardware) to
-be able to code what we mean by branch targets.
-\item
-In a control-flow graph, unlike in assembly code, \emph{every} edge
-out of a control-transfer instruction is associated with a label.
-This invariant simplifies the representation and gives us freedom to
-lay out assembly code in an order that, e.g., is good for the I-cache,
-or that minimizes branch instructions on hot paths.  (Foreshadow that
-blocks in our @Graph@ body are unordered.
-\item
-We distinguish labels, computational instructions, control transfers.
-They are distinguished by the number of predecessors and successors.
-We~express this distinction in Haskell by attaching to each
-entry and exit point one of two types: \emph{open} means there is exactly
-one predecessor or successor, and control can ``fall through;''
-\emph{closed} means that control cannot fall through, but can be
-transferred only by an explicit branch---but the \emph{number} of
-successors or predecessors is not constrained \emph{a~priori}.
-\item
-The open/closed concepts lifts to sequences of straight-line code and
-to full control-flow graphs.
-As~a special case, a sequence of straight-line code that is closed at
-both ends---beginning with a label and ending with a control
-transfer---is the familiar \emph{basic block}.
-\item
-By making open/closed part of the types, we can ensure that a client
-of \ourlib{} builds only sequences and graphs that respect our
-invariants. 
-Moreover, the types provide guidance (really???)
-\end{itemize}
-
-
-A second story of this paper is that we can think of dataflow analysis
-as a specialization of program logic.
+\item 
+Although we have not stressed this point, there is a close connection
+between dataflow analyses and program logic:
 \begin{itemize}
 \item
 A forward dataflow analysis is represented by a predicate transformer
@@ -2369,240 +2333,359 @@ postcondition.''}
 A backward dataflow analysis is represented by a predicate transformer
 that is related to \emph{weakest preconditions} \cite{dijkstra:discipline}.
 \end{itemize}
-A~client of \ourlib{} defines a type of node, a type of predicate
-(aka dataflow fact), and a function which, given a node, returns a
-predicate transformer.
-The beauty of our approach is that we can \emph{lift} a client's
-predicate transformer from nodes into sequences and control-flow
-graphs.
-Moreover, with help from the client, we can iterate the transformer
-over an entire function body
-until it reaches a fixed point, the result of which is a dataflow
-analysis.
+Logicians write down the predicate transformers for the primitive
+program fragments, and then use compositional rules to ``lift'' them 
+to a logic for whole programs.  In the same way \ourlib{} lets the client
+write simple predicate transformers,
+and local rewrites based on those assertions, and ``lifts'' them to entire
+function bodies with arbitrary control flow.
 
-In addition, we can do Lerner/Grove/Chambers.
+\item Designing good abstractions (data type and functions over those data types,
+which is what \ourlib{} is) is very challenging. Even in our exposition we 
+have devoted nearly seven pages to the library API, and only a third of that
+to the implementation.  Moreover we have been through many, many variants
+of the API.  That said, Haskell's type system (polymorphism, GADTs, higher 
+order functions, type classes, and so on) is a remarkably effective design
+language.  It took us ages to get the types right, but once we did the
+code wrote itself.  
 
-Finally, our implementation has some especially wonderful Haskell
-(Simon please flesh out these bits):
+\item Here are some examples of how the types helped us:
 \begin{itemize}
-\item
-Our open/closed tags aren't just phantom types.  By virtue of GADTs,
-they are real. 
-And we get exhaustiveness checking, etc --- the works.
-\item
-There's more!  By using higher-rank polymorphism, we can define a
-\emph{single} kind of widget, then instantiate it at nodes, blocks,
-graphs.
-SO WHAT?  This is wonderful because\ldots
-\item
-More wonderfulness?
-\end{itemize}
-
-
-
-\section{Conclusions}
-
-\john{Lots of obsolete claims here: continuations, monad, separate node types,
-HavingSuccessors.}
-Compiler textbooks make dataflow optimization appear
-difficult and complicated.
-In~this paper, we show how to engineer a library, \ourlib, which makes
-it easy to build analyses and transformations based on dataflow.
-\ourlib\ makes dataflow simple not by using a single magic
-ingredient, but by applying ideas that are well understood by 
-the programming-language community.
-\begin{itemize}
-\item
-We acknowledge only one program-analysis technique: the solution of
-recursion equations over assertions.
-%Like our colleagues working in imperative languages, 
-We solve the equations by iterating to a fixed point.
-% Many equations relate
-% properties of program states; some relate properties of paths through
-% programs. 
-\item
-We consider only two
-ways of relating assertions: weakest liberal precondition and strongest 
-postcondition, which
- correspond 
-%\ifpagetuning\else
-%respectively
-%\fi
-to
-\ifcutting
-``backward'' and ``forward'' dataflow
-problems.
-\else
-``backward dataflow problems'' and ``forward dataflow
-problems.''
-\fi
-\finalremark
-{Can we give an example of a property of program states which is
-neither, just by way of contrast; ie this we cannot do.}
-%%  \item
-%%  In a language that admits loops, iterating weakest preconditions or
-%%  strongest postconditions typically does not reach a fixed point in
-%%  finitely many steps; hence the need for loop invariants
-%%  \cite{hoare:axiomatic-basis,dijkstra:discipline,gries:science-programming}.
-%%  In \secref{logic-reconciled}, we show that we can guarantee to reach a
-%%  fixed point by limiting what we can express in the logic.\remark{needs
-%%  a fix}
-%%  We~show that many classic analyses can be explained this way;
-%%  the great diversity of classic analyses corresponds to a great
-%%  diversity of inexpressive logics.
-%%  This view leads us to a unifying principle:
-%%  \emph{To implement a code-improving transformation, find the least
-%%    expressive logic that can justify the transformation, then use that
-%%    logic to compute strongest postconditions, which justify the
-%%    transformation locally.}
-\item
-Although our implementation allows graph nodes to be rewritten in any
-way that preserves semantics, we describe
-three program-transformation techniques:
-substitution of equals for equals, 
-insertion of assignments to unobserved variables, 
-and removal of assignments to unobserved variables
-(\secref{example:transforms}).
-Substitution of equals for equals is often justified by properties of program
-states; for example, if variable~$x$
-is always~7, we may substitute~7 for~$x$.\finalremark
-{We can also justify substitution of \emph{labels} in goto
-  statements by reasoning about continuations.  This is
-  probably not the place to mention this fact.}
-Insertion and removal of assignments are often justified by properties
-of paths through programs;
-for example, if an assignment's continuation does not use the variable
-assigned~to, that assignment may be removed.
-
-%%  Some compiler texts treat the removal of unreachable code as a
-%%  code-improving transformation in its own right.
-%%  In~our framework, unreachable code becomes unreachable in the
-%%  garbage-collection sense, so no special effort is required to remove
-%%  it.
-\item
-Complex program transformations should be composed from simple
-transformations. 
-For example, both ``code motion'' and ``induction-variable
-elimination'' can be implemented in three stages: insert new assignments;
-substitute equals for equals; remove unneeded assignments
-(\secref{induction-var-elim}). 
-
-\item 
-Because each rewrite leaves the semantics
-of the program unchanged, 
-we can use 
-``optimization fuel'' to limit the number of rewrites.
- When we isolate a fault 
-\ifcutting\else in the optimizer \fi
-(\secref{vpoiso}), we 
-\ifcutting have to debug just \else therefore have the luxury of debugging \fi
- a single
- rewrite, not a complex transformation.
-\end{itemize}
-
-We also build on proven implementation techniques
-in a way that
-makes it easy
-to implement classic code improvements.
-\begin{itemize}
-\item
-We use the algorithm of \citet{lerner-grove-chambers:2002} to 
-compose analyses and transformations.
-This~algorithm makes it easy to compose complex transformations
-from simple ones.
-
-Using continuation-passing style and generalized algebraic data types,
-we have created a new implementation%
-\ifcutting\else\ of the algorithm\fi, 
-which works by 
-composing three relatively simple functions
-(\secref{forward-iterator}). 
-The functions are simple
-because the static type of a node constrains the number of predecessors
-and successors it may have.
-And because we can
-compare our code with a standard continuation semantics, we have more
-confidence in this new implementation than in 
-any previous implementation. 
-\item
-Our code is pure.
-Inspired by Huet's~\citeyearpar{huet:zipper} zipper,
-we use an applicative representation of
-control-flow graphs
-\cite{ramsey-dias:applicative-flow-graph}. 
-We~improve on our prior work by storing changing dataflow facts
-in an explicit dataflow monad,
-which
-makes it especially easy to implement such
-operations as sub-analysis of a replacement graph
-(\secref{dataflow-monad});
-by using static types to guarantee that each replacement graph can be
-spliced in place of the node it replaces
-(\secreftwo{subgraphs}{rewrite-functions});
-and by simplifying our implementation using continuation-passing style
-(\secreftwo{forward-iterator}{forward-actualizer}). 
-%
-% important, but no longer mentioned in this paper:
-%
-%%  \item
-%%  To \emph{construct} programs, we use a different representation of
-%%  flow graphs, one which hides the complexity of the zipper and which
-%%  provides a constant-time operation for joining flow graphs in
-%%  sequence.
-%%  It is inspired in part by Hughes's \citeyearpar{hughes:novel-lists}
-%%  representation of lists, which supports a constant-time append operation.
-\item
-\ourlib\ is polymorphic in the
-representations of 
-assignments and control-flow operations.
-%%  Although our polymorphic representations have been instantiated only
-%%  with the low-level intermediate code used by the Glasgow Haskell
-%%  Compiler, they are intended eventually to be instantiated with
-%%  machine-dependent representations of target-machine instructions, as
-%%  part of a larger project of refactoring GHC's back ends.
-%
-%This design seems obvious in retrospect,
-%but we underestimated the degree to which polymorphism would force us to
-%separate concerns.
-%Introducing polymorphism has made the code simpler, easier
-%to understand, and easier to maintain.
-By forcing us to separate concerns, introducing polymorphism
+\item Making \ourlib{} polymorphic in the nodes 
 made the code simpler, easier to understand, and easier to maintain.
-\finalremark
-{SLPJ: Is it possible to substantiate this claim by [more] examples?}
 In particular, it forced us to make explicit \emph{exactly} what
-\ourlib\ 
- must know about flow-graph nodes:
-it must be able to find
-targets of control-flow operations (constraint
-@HavingSuccessors l@, \secref{zdfSolveFwd}).
-\end{itemize}
-%
-% gen and kill are history
-%
-%%\item
-%%Judicious use of Haskell type classes makes is possible to write
-%%weakest precondition or strongest postcondition using the ``transfer
-%%equations'' that are familiar from compiler textbooks.
-%%If you like, you can even write overloaded @gen@ and @kill@ functions.
-%%The benefit is that it is easy to compare the actual code with the
-%%abstract treatments found in textbooks\ifgenkill \ (\secref{gen-kill})\fi.
-Using \ourlib,
-you can create a new code improvement in three steps:
-create a lattice representation for the assertions you want to
-express;
-create transfer functions that approximate weakest preconditions or
-strongest postconditions;
-and 
-create rewrite functions that use your assertions to justify
-program transformations.  
-You can get quickly to the real 
-intellectual work of code improvement: identifying interesting
-transformations and the assertions that justify them.
+\ourlib\ must know about nodes, and embody that knowledge in the @Edges@ class (\seclabel{edges}).
 
-\finalremark{Don't forget acknowledgements!!!
-Microsoft, Intel, NSF
-}
+\item We are particularly proud of our use of GADTs to statically
+track the open/closed status of nodes, blocks, and graphs.  It may
+seem like a small thing, but it helped tremendously when building
+the Hoopl implementation, and we expect it to help clients. 
+Moreover, the implementation is faster than it would otherwise be,
+because, say, a @(Fact O f)e@ is known to be just an @f@ rather than
+being a sum type that must be tested (with a statically-known outcome!).
+
+\item The similar shapes of nodes, blocks, and graphs consistently helped our
+thinking, and helped to structure the implementation.
+\end{itemize}
+
+\item Writing a dataflow optimiser for an imperative language
+in a functional language is a huge win.  We absolutely could not
+have conceived \ourlib{} in C++.  Partly that is to do with 
+confidence that a data structure will not be unexpectedly mutated,
+but it's also that functional programming forces you to be 
+explicit about every input and output.  Indeed, we have invented
+several improvements to the already-tricky Lerner/Grove/Chambers idea,
+including:
+optimisation fuel in \secref{fuel}; 
+the per-function control of shallow vs deep rewriting 
+\secref{shallow-vs-deep};
+the combinators of \secref{combinators}; and the fixpoint improvements 
+in \secref{arf-body}). These improvements are implemented in separate
+parts of the code, and do not interact with each other.
+\end{itemize}
+In our earlier designs, graphs were parameterised over three node
+types, first, middle, and last nodes.  That had the knock-on effect of
+three transfer functions, three rewrite functions, and so on.  It was
+a major breakthrough when we found we could use just one node type,
+one transfer function, and one rewrite function.  This step in turn
+depended crucially on the availablity of the type-level function for
+@Fact@ (\figref{api-types}), so that we could express dependency
+of the facts on the open/closed-ness of the node.
+
+An ancestor of \ourlib{} is in the Glasgow Haskell comiler already.
+We are now engaged in pushing this vastly-improved version into GHC.
+
+% 
+% \simon{I think this section has interesting material, but it's
+% incomprehensible at the beginning, because our readers won't have the 
+% mental scaffolding to grok it.  Norman, have at it!}
+% 
+% \john{Is it just me, or have we lost all the text claiming that analyses should
+%   just be strongest postconds/ weakest preconds? Is this by design?}
+% \simon{I did remove some material of that sort.  I think I did so because it didn't
+% seem (to me) to contribute much at the place it then appeared. But I am entirely open
+% to resurrecting it if you think that would help.  Perhaps in the section on 
+% correctness, which follows next?  Can you do that?}
+% 
+% One story of this paper is that we can think similar thoughts about
+% assembly code, IR nodes, basic blocks, and control-flow graphs.
+% Morever these thoughts are reflected in the types.
+% Observations:
+% \begin{itemize}
+% \item
+% In compilation and optimization, things are always easiest to analyze
+% when there is a single entry and single exit.  (Lesson of structured
+% programming.)
+% \item
+% In assembly code, we introduce labels (not present in the hardware) to
+% be able to code what we mean by branch targets.
+% \item
+% In a control-flow graph, unlike in assembly code, \emph{every} edge
+% out of a control-transfer instruction is associated with a label.
+% This invariant simplifies the representation and gives us freedom to
+% lay out assembly code in an order that, e.g., is good for the I-cache,
+% or that minimizes branch instructions on hot paths.  (Foreshadow that
+% blocks in our @Graph@ body are unordered.
+% \item
+% We distinguish labels, computational instructions, control transfers.
+% They are distinguished by the number of predecessors and successors.
+% We~express this distinction in Haskell by attaching to each
+% entry and exit point one of two types: \emph{open} means there is exactly
+% one predecessor or successor, and control can ``fall through;''
+% \emph{closed} means that control cannot fall through, but can be
+% transferred only by an explicit branch---but the \emph{number} of
+% successors or predecessors is not constrained \emph{a~priori}.
+% \item
+% The open/closed concepts lifts to sequences of straight-line code and
+% to full control-flow graphs.
+% As~a special case, a sequence of straight-line code that is closed at
+% both ends---beginning with a label and ending with a control
+% transfer---is the familiar \emph{basic block}.
+% \item
+% By making open/closed part of the types, we can ensure that a client
+% of \ourlib{} builds only sequences and graphs that respect our
+% invariants. 
+% Moreover, the types provide guidance (really???)
+% \end{itemize}
+% 
+% 
+% A second story of this paper is that we can think of dataflow analysis
+% as a specialization of program logic.
+% \begin{itemize}
+% A~client of \ourlib{} defines a type of node, a type of predicate
+% (aka dataflow fact), and a function which, given a node, returns a
+% predicate transformer.
+% The beauty of our approach is that we can \emph{lift} a client's
+% predicate transformer from nodes into sequences and control-flow
+% graphs.
+% Moreover, with help from the client, we can iterate the transformer
+% over an entire function body
+% until it reaches a fixed point, the result of which is a dataflow
+% analysis.
+% 
+% In addition, we can do Lerner/Grove/Chambers.
+% 
+% Finally, our implementation has some especially wonderful Haskell
+% (Simon please flesh out these bits):
+% \begin{itemize}
+% \item
+% Our open/closed tags aren't just phantom types.  By virtue of GADTs,
+% they are real. 
+% And we get exhaustiveness checking, etc --- the works.
+% \item
+% There's more!  By using higher-rank polymorphism, we can define a
+% \emph{single} kind of widget, then instantiate it at nodes, blocks,
+% graphs.
+% SO WHAT?  This is wonderful because\ldots
+% \item
+% More wonderfulness?
+% \end{itemize}
+% 
+% 
+% 
+% \section{Conclusions}
+% 
+% \john{Lots of obsolete claims here: continuations, monad, separate node types,
+% HavingSuccessors.}
+% Compiler textbooks make dataflow optimization appear
+% difficult and complicated.
+% In~this paper, we show how to engineer a library, \ourlib, which makes
+% it easy to build analyses and transformations based on dataflow.
+% \ourlib\ makes dataflow simple not by using a single magic
+% ingredient, but by applying ideas that are well understood by 
+% the programming-language community.
+% \begin{itemize}
+% \item
+% We acknowledge only one program-analysis technique: the solution of
+% recursion equations over assertions.
+% %Like our colleagues working in imperative languages, 
+% We solve the equations by iterating to a fixed point.
+% % Many equations relate
+% % properties of program states; some relate properties of paths through
+% % programs. 
+% \item
+% We consider only two
+% ways of relating assertions: weakest liberal precondition and strongest 
+% postcondition, which
+%  correspond 
+% %\ifpagetuning\else
+% %respectively
+% %\fi
+% to
+% \ifcutting
+% ``backward'' and ``forward'' dataflow
+% problems.
+% \else
+% ``backward dataflow problems'' and ``forward dataflow
+% problems.''
+% \fi
+% \finalremark
+% {Can we give an example of a property of program states which is
+% neither, just by way of contrast; ie this we cannot do.}
+% %%  \item
+% %%  In a language that admits loops, iterating weakest preconditions or
+% %%  strongest postconditions typically does not reach a fixed point in
+% %%  finitely many steps; hence the need for loop invariants
+% %%  \cite{hoare:axiomatic-basis,dijkstra:discipline,gries:science-programming}.
+% %%  In \secref{logic-reconciled}, we show that we can guarantee to reach a
+% %%  fixed point by limiting what we can express in the logic.\remark{needs
+% %%  a fix}
+% %%  We~show that many classic analyses can be explained this way;
+% %%  the great diversity of classic analyses corresponds to a great
+% %%  diversity of inexpressive logics.
+% %%  This view leads us to a unifying principle:
+% %%  \emph{To implement a code-improving transformation, find the least
+% %%    expressive logic that can justify the transformation, then use that
+% %%    logic to compute strongest postconditions, which justify the
+% %%    transformation locally.}
+% \item
+% Although our implementation allows graph nodes to be rewritten in any
+% way that preserves semantics, we describe
+% three program-transformation techniques:
+% substitution of equals for equals, 
+% insertion of assignments to unobserved variables, 
+% and removal of assignments to unobserved variables
+% (\secref{example:transforms}).
+% Substitution of equals for equals is often justified by properties of program
+% states; for example, if variable~$x$
+% is always~7, we may substitute~7 for~$x$.\finalremark
+% {We can also justify substitution of \emph{labels} in goto
+%   statements by reasoning about continuations.  This is
+%   probably not the place to mention this fact.}
+% Insertion and removal of assignments are often justified by properties
+% of paths through programs;
+% for example, if an assignment's continuation does not use the variable
+% assigned~to, that assignment may be removed.
+% 
+% %%  Some compiler texts treat the removal of unreachable code as a
+% %%  code-improving transformation in its own right.
+% %%  In~our framework, unreachable code becomes unreachable in the
+% %%  garbage-collection sense, so no special effort is required to remove
+% %%  it.
+% \item
+% Complex program transformations should be composed from simple
+% transformations. 
+% For example, both ``code motion'' and ``induction-variable
+% elimination'' can be implemented in three stages: insert new assignments;
+% substitute equals for equals; remove unneeded assignments
+% (\secref{induction-var-elim}). 
+% 
+% \item 
+% Because each rewrite leaves the semantics
+% of the program unchanged, 
+% we can use 
+% ``optimization fuel'' to limit the number of rewrites.
+%  When we isolate a fault 
+% \ifcutting\else in the optimizer \fi
+% (\secref{vpoiso}), we 
+% \ifcutting have to debug just \else therefore have the luxury of debugging \fi
+%  a single
+%  rewrite, not a complex transformation.
+% \end{itemize}
+% 
+% We also build on proven implementation techniques
+% in a way that
+% makes it easy
+% to implement classic code improvements.
+% \begin{itemize}
+% \item
+% We use the algorithm of \citet{lerner-grove-chambers:2002} to 
+% compose analyses and transformations.
+% This~algorithm makes it easy to compose complex transformations
+% from simple ones.
+% 
+% Using continuation-passing style and generalized algebraic data types,
+% we have created a new implementation%
+% \ifcutting\else\ of the algorithm\fi, 
+% which works by 
+% composing three relatively simple functions
+% (\secref{forward-iterator}). 
+% The functions are simple
+% because the static type of a node constrains the number of predecessors
+% and successors it may have.
+% And because we can
+% compare our code with a standard continuation semantics, we have more
+% confidence in this new implementation than in 
+% any previous implementation. 
+% \item
+% Our code is pure.
+% Inspired by Huet's~\citeyearpar{huet:zipper} zipper,
+% we use an applicative representation of
+% control-flow graphs
+% \cite{ramsey-dias:applicative-flow-graph}. 
+% We~improve on our prior work by storing changing dataflow facts
+% in an explicit dataflow monad,
+% which
+% makes it especially easy to implement such
+% operations as sub-analysis of a replacement graph
+% (\secref{dataflow-monad});
+% by using static types to guarantee that each replacement graph can be
+% spliced in place of the node it replaces
+% (\secreftwo{subgraphs}{rewrite-functions});
+% and by simplifying our implementation using continuation-passing style
+% (\secreftwo{forward-iterator}{forward-actualizer}). 
+% %
+% % important, but no longer mentioned in this paper:
+% %
+% %%  \item
+% %%  To \emph{construct} programs, we use a different representation of
+% %%  flow graphs, one which hides the complexity of the zipper and which
+% %%  provides a constant-time operation for joining flow graphs in
+% %%  sequence.
+% %%  It is inspired in part by Hughes's \citeyearpar{hughes:novel-lists}
+% %%  representation of lists, which supports a constant-time append operation.
+% \item
+% \ourlib\ is polymorphic in the
+% representations of 
+% assignments and control-flow operations.
+% %%  Although our polymorphic representations have been instantiated only
+% %%  with the low-level intermediate code used by the Glasgow Haskell
+% %%  Compiler, they are intended eventually to be instantiated with
+% %%  machine-dependent representations of target-machine instructions, as
+% %%  part of a larger project of refactoring GHC's back ends.
+% %
+% %This design seems obvious in retrospect,
+% %but we underestimated the degree to which polymorphism would force us to
+% %separate concerns.
+% %Introducing polymorphism has made the code simpler, easier
+% %to understand, and easier to maintain.
+% By forcing us to separate concerns, introducing polymorphism
+% made the code simpler, easier to understand, and easier to maintain.
+% \finalremark
+% {SLPJ: Is it possible to substantiate this claim by [more] examples?}
+% In particular, it forced us to make explicit \emph{exactly} what
+% \ourlib\ 
+%  must know about flow-graph nodes:
+% it must be able to find
+% targets of control-flow operations (constraint
+% @HavingSuccessors l@, \secref{zdfSolveFwd}).
+% \end{itemize}
+% %
+% % gen and kill are history
+% %
+% %%\item
+% %%Judicious use of Haskell type classes makes is possible to write
+% %%weakest precondition or strongest postcondition using the ``transfer
+% %%equations'' that are familiar from compiler textbooks.
+% %%If you like, you can even write overloaded @gen@ and @kill@ functions.
+% %%The benefit is that it is easy to compare the actual code with the
+% %%abstract treatments found in textbooks\ifgenkill \ (\secref{gen-kill})\fi.
+% Using \ourlib,
+% you can create a new code improvement in three steps:
+% create a lattice representation for the assertions you want to
+% express;
+% create transfer functions that approximate weakest preconditions or
+% strongest postconditions;
+% and 
+% create rewrite functions that use your assertions to justify
+% program transformations.  
+% You can get quickly to the real 
+% intellectual work of code improvement: identifying interesting
+% transformations and the assertions that justify them.
+% 
+% \finalremark{Don't forget acknowledgements!!!
+% Microsoft, Intel, NSF
+
 
 \makeatother
 
