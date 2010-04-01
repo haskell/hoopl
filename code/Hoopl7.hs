@@ -79,14 +79,14 @@ data Body n where
 data Graph n e x where
   GNil  :: Graph n O O
   GUnit :: Block n O O -> Graph n O O
-  GMany :: Link e (Block n O C) 
+  GMany :: IfOpen e (Block n O C) 
         -> Body n
-        -> Link x (Block n C O)
+        -> IfOpen x (Block n C O)
         -> Graph n e x
 
-data Link ex t where
-  OpenLink   :: t -> Link O t
-  ClosedLink ::      Link C t
+data IfOpen ex t where
+  OpenLink   :: t -> IfOpen O t
+  ClosedLink ::      IfOpen C t
 
 -------------------------------
 class Edges thing where
