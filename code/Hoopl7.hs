@@ -139,65 +139,9 @@ gCat (GMany e1 bs1 (OpenLink x1)) (GMany (OpenLink e2) bs2 x2)
 gCat (GMany e1 bs1 ClosedLink) (GMany ClosedLink bs2 x2)
    = GMany e1 (bs1 `BodyCat` bs2) x2
 
-bFilter :: forall n. (n O O -> Bool) -> Block n C C -> Block n C C
-bFilter keep (BUnit n)  = BUnit n
-bFilter keep (BCat h t) = bFilterH h (bFilterT t)
-  where
-    bFilterH :: Block n C O -> Block n O C -> Block n C C
-    bFilterH (BUnit n)    rest = BUnit n `BCat` rest
-    bFilterH (h `BCat` m) rest = bFilterH h (bFilterM m rest)
-
-    bFilterT :: Block n O C -> Block n O C
-    bFilterT (BUnit n)    = BUnit n
-    bFilterT (m `BCat` t) = bFilterM m (bFilterT t)
-
-    bFilterM :: Block n O O -> Block n O C -> Block n O C
-    bFilterM (BUnit n) rest | keep n    = BUnit n `BCat` rest
-                            | otherwise = rest 
-    bFilterM (b1 `BCat` b2) rest = bFilterM b1 (bFilterM b2 rest)
 
 
 ------------------------------
-data OCFlag oc where
-  IsOpen   :: OCFlag O
-  IsClosed :: OCFlag C
-
-class IsOC oc where
-  ocFlag :: OCFlag oc
-
-instance IsOC O where
-  ocFlag = IsOpen
-instance IsOC C where
-  ocFlag = IsClosed
-
-mkIfThenElse :: forall n x. (Edges n, IsOC x)
-             => (Label -> Label -> n O C)	-- The conditional branch instruction
-             -> (Label -> n C O)		-- Make a head node 
-	     -> (Label -> n O C)		-- Make an unconditional branch
-	     -> Graph n O x -> Graph n O x	-- Then and else branches
-	     -> [Label]			-- Block supply
-             -> Graph n O x			-- The complete thing
-mkIfThenElse mk_cbranch mk_lbl mk_branch then_g else_g (tl:el:jl:_)
-  = case (ocFlag :: OCFlag x) of
-      IsOpen   -> gUnitOC (mk_cbranch tl el)
-                  `gCat` (mk_lbl_g tl `gCat` then_g `gCat` mk_branch_g jl)
-                  `gCat` (mk_lbl_g el `gCat` else_g `gCat` mk_branch_g jl)
-                  `gCat` (mk_lbl_g jl)
-      IsClosed -> gUnitOC (mk_cbranch tl el)
-                  `gCat` (mk_lbl_g tl `gCat` then_g)
-                  `gCat` (mk_lbl_g el `gCat` else_g)
-  where
-    mk_lbl_g :: Label -> Graph n C O
-    mk_lbl_g lbl = gUnitCO (mk_lbl lbl)
-    mk_branch_g :: Label -> Graph n O C
-    mk_branch_g lbl = gUnitOC (mk_branch lbl)
-
-gUnitCO :: n C O -> Graph n C O
-gUnitCO n = GMany ClosedLink BodyEmpty (OpenLink (BUnit n))
-
-gUnitOC :: n O C -> Graph n O C
-gUnitOC n = GMany (OpenLink (BUnit n)) BodyEmpty ClosedLink
-
 -----------------------------------------------------------------------------
 --	RG: an internal data type for graphs under construction
 --          TOTALLY internal to Hoopl
@@ -676,3 +620,68 @@ unionBlockSet = S.union
 
 mkBlockSet :: [Label] -> BlockSet
 mkBlockSet = S.fromList
+
+----------------------------------------------------------------
+--
+-- Irrelevant distractions follow
+
+{-
+
+data OCFlag oc where
+  IsOpen   :: OCFlag O
+  IsClosed :: OCFlag C
+
+class IsOC oc where
+  ocFlag :: OCFlag oc
+
+instance IsOC O where
+  ocFlag = IsOpen
+instance IsOC C where
+  ocFlag = IsClosed
+
+mkIfThenElse :: forall n x. (Edges n, IsOC x)
+             => (Label -> Label -> n O C)	-- The conditional branch instruction
+             -> (Label -> n C O)		-- Make a head node 
+	     -> (Label -> n O C)		-- Make an unconditional branch
+	     -> Graph n O x -> Graph n O x	-- Then and else branches
+	     -> [Label]			-- Block supply
+             -> Graph n O x			-- The complete thing
+mkIfThenElse mk_cbranch mk_lbl mk_branch then_g else_g (tl:el:jl:_)
+  = case (ocFlag :: OCFlag x) of
+      IsOpen   -> gUnitOC (mk_cbranch tl el)
+                  `gCat` (mk_lbl_g tl `gCat` then_g `gCat` mk_branch_g jl)
+                  `gCat` (mk_lbl_g el `gCat` else_g `gCat` mk_branch_g jl)
+                  `gCat` (mk_lbl_g jl)
+      IsClosed -> gUnitOC (mk_cbranch tl el)
+                  `gCat` (mk_lbl_g tl `gCat` then_g)
+                  `gCat` (mk_lbl_g el `gCat` else_g)
+  where
+    mk_lbl_g :: Label -> Graph n C O
+    mk_lbl_g lbl = gUnitCO (mk_lbl lbl)
+    mk_branch_g :: Label -> Graph n O C
+    mk_branch_g lbl = gUnitOC (mk_branch lbl)
+-}
+
+gUnitCO :: n C O -> Graph n C O
+gUnitCO n = GMany ClosedLink BodyEmpty (OpenLink (BUnit n))
+
+gUnitOC :: n O C -> Graph n O C
+gUnitOC n = GMany (OpenLink (BUnit n)) BodyEmpty ClosedLink
+
+
+bFilter :: forall n. (n O O -> Bool) -> Block n C C -> Block n C C
+bFilter keep (BUnit n)  = BUnit n
+bFilter keep (BCat h t) = bFilterH h (bFilterT t)
+  where
+    bFilterH :: Block n C O -> Block n O C -> Block n C C
+    bFilterH (BUnit n)    rest = BUnit n `BCat` rest
+    bFilterH (h `BCat` m) rest = bFilterH h (bFilterM m rest)
+
+    bFilterT :: Block n O C -> Block n O C
+    bFilterT (BUnit n)    = BUnit n
+    bFilterT (m `BCat` t) = bFilterM m (bFilterT t)
+
+    bFilterM :: Block n O O -> Block n O C -> Block n O C
+    bFilterM (BUnit n) rest | keep n    = BUnit n `BCat` rest
+                            | otherwise = rest 
+    bFilterM (b1 `BCat` b2) rest = bFilterM b1 (bFilterM b2 rest)
