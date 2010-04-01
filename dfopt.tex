@@ -475,7 +475,7 @@ based on the assertions:
        then goto L1
        else goto L2
 \end{verbatim}
-Constant-propagation works
+constant propagation works
 from top to bottom.  We start with the empty assertion.  
 Given the empty assertion and the node @x:=3+4@ can we make a (constant-folding)
 transformation?
@@ -570,7 +570,7 @@ to blocks and graphs.  For example the block
    x:=7; y:=x+2; goto L
 \end{code}
 is open on entry and closed on exit.  
-To summarise, suppose E is a node, block, or graph: \simon{Removed the claim
+To summarize, suppose E is a node, block, or graph: \simon{Removed the claim
 about a unique entry point.}
 \begin{itemize}
 % \item Regardless of whether E is open or closed, 
@@ -699,7 +699,7 @@ class Edges n where
 \ourlib\ combines the client's nodes into
 blocks and graphs, which, unlike the nodes, are defined by \ourlib{}
  (\figref{graph}).
-A~@Block@ is parameterised over the node type~@n@
+A~@Block@ is parameterized over the node type~@n@
 as well as over the same flag types that make it open or closed at
 entry and exit.
 
@@ -735,7 +735,7 @@ Using GADTs to enforce these invariants is one of
 
 \ourlib{} composes blocks into graphs, which are also defined 
 in  \figref{graph}.
-Like, @Block@ the data type @Graph@ is parameterised over
+Like, @Block@ the data type @Graph@ is parameterized over
 both nodes @n@ and its open/closed shape (@e@ and @x@).
 It has three constructors.  The first two
 deal with the base cases of open/open graphs:
@@ -1406,7 +1406,7 @@ mapE f (Assign x e)  = fmap (Assign x) $ f e
    , fp_transfer = regHasConst
    , fp_rewrite = constProp `combineFwdRewrite` simplify } 
 \end{code}}
-\caption{The client for constant-propagation and constant-folding} \figlabel{const-prop}
+\caption{The client for constant propagation and constant folding} \figlabel{const-prop}
 \end{figure}
 \figref{const-prop} shows how to use @analyseAndRewriteFwd@ to
 perform constant propagation and constant folding.
@@ -1736,7 +1736,7 @@ type `ARF thing n f
 \end{code}
 An @ARF@ (short for ``analyse and rewrite forward'') is a combination of
 a rewrite and transfer function, and is also 
-generalised over nodes, blocks, and partial graphs.
+generalized over nodes, blocks, and partial graphs.
 An @ARF@ takes an input fact and a @thing@,
 and returns a correspondingly-shaped output fact, and a rewritten graph of type @(RG n e x)@.
 Here we intend ``@thing@'' to range over nodes, blocks, and graphs, thus:
