@@ -11,6 +11,7 @@ TGT=dfopt
 
 all:V: $TGT.pdf $TGT.ps supplement.pdf popl-index.bitly
 bib:V: $TGT.bbl
+bibfile:V: $TGT.bib
 dvi:V: $TGT.dvi
 pdf:V: $TGT.pdf
 bbl:V: bib

@@ -39,6 +39,16 @@ then the generated transformations are applied;
 all of this is simpler in our story b/c we have immutable graphs.
 No optimization fuel.
 
+analyze-implementation.diesel - 284 non-comment, non-blank loc
+analysis.diesel - 30 non-comment, non-blank loc
+analysis-action.diesel - 45 non-comment, non-blank loc
+analysis-graph.diesel - 79 non-comment, non-blank loc
+analysis-info.diesel - 4 non-comment, non-blank loc
+analyze.diesel - 20 non-comment, non-blank loc
+
+core of implementation is about 500 non-comment, non-blank loc
+
+
 
 LLVM:
 

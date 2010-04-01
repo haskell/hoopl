@@ -3,7 +3,21 @@
 local stringf = string.format
 local function fprintf(f, ...) return f:write(string.format(...)) end
 
-require 'tabutil'
+----------------------------------------------------------------
+-- table utilities
+
+function table.set(t) -- set of list
+  local u = { }
+  for _, v in ipairs(t) do u[v] = true end
+  return u
+end
+
+function table.sorted_keys(t, lt)
+  local u = { }
+  for k in pairs(t) do table.insert(u, k) end
+  table.sort(u, lt)
+  return u
+end
 
 ----------------------------------------------------------------
 
@@ -32,6 +46,7 @@ local omitted = { } --
 local reserved =
   table.set { 'where', 'let', 'in', '_', '|', '->', '--', '=', '=>',
               'if', 'then', 'else', 'data', 'type', 'newtype', 'module',
+              'class', 'instance', 
               'import', 'case', 'of', ';', '{', '}', 'do', '<-', 'forall',
               '...', -- not really a reserved word, but treated as such
               '@', -- ditto
@@ -124,13 +139,25 @@ local word = wordclass .. '+'
 local symbacktick = sym:gsub('^%[', '[%`%^')
 local wordbacktick = word:gsub('^%[', '[%`%^')
 
+local function is_literal(id)
+  return id:find '^%d+$'
+end
+
+local function is_comment(id)
+  return id:find '^%-%-+$'
+end
+
+local function is_kind(id)
+  return id == '*' or id and is_kind(id:match('^%*%-%>(.*)$'))
+end
+
 local function find_uses(s)
   s = s:gsub([[\_]], '_') -- copes with \_ in at-sign land
   for id in s:gmatch(word) do
-    if not reserved[id] and not id:find '^%d+$' then add_use(id) end
+    if not (reserved[id] or is_literal(id)) then add_use(id) end
   end
   for id in s:gmatch(sym) do
-    if not reserved[id] then add_use(id) end
+    if not (reserved[id] or is_kind(id) or is_comment(id)) then add_use(id) end
   end
 end
 
@@ -211,6 +238,7 @@ function special.document(line)
 end
 
 local comment_pat = '%s+%-%-[%s%w]'
+local comment_line_pat = '^%-%-.*$'
 
 local function strip_stringlit(s)
   local q = s:find '"'
@@ -226,7 +254,7 @@ end
 
 local function strip_comment(c)
   c = strip_stringlit(c)
-  return (c:gsub(comment_pat .. '.*$', ''))
+  return (c:gsub(comment_line_pat, ''):gsub(comment_pat .. '.*$', ''))
 end
 
 function special.code(line, env)
@@ -377,8 +405,12 @@ for _, k in ipairs(table.sorted_keys(defnrefs, caselt)) do
   end
 end
 
+local function nontrivial(id)
+  return id:len() > 1 and not id:find('^%l%d$')
+end
+
 for _, k in ipairs(table.sorted_keys(uses, caselt)) do
-  if not defnrefs[k] and k:len() > 1 then
+  if not defnrefs[k] and nontrivial(k) then
     fprintf(f, [[\not%s{%s}{%s}%s]], defseq[usecontext[k]],
             escape_specials(k), uselabelstring(k), '% used but not defined\n')
   end
