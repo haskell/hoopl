@@ -5,12 +5,13 @@
 
 
 LASTPAGE=12  # use this for submission
-#LASTPAGE=   
+LASTPAGE=   
 
 TGT=dfopt
 
 all:V: $TGT.pdf $TGT.ps popl-index.bitly
 bib:V: $TGT.bbl
+bibfile:V: $TGT.bib
 dvi:V: $TGT.dvi
 pdf:V: $TGT.pdf
 bbl:V: bib

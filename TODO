@@ -1,0 +1,26 @@
+HOOPL:
+  - get Simon to review Lerner, Ullman & Kam, Kildall
+  - implementation section: why?
+       . really exists
+       . not insane
+       . dramatically simpler than original & other implementations
+       . can see some of the idea
+  - massive failure of parallel structure between sections 3 and 6
+    (three bullets)
+  - Hypothesis:
+
+      if {P} s --> s' by rewrite, and {P} s {Q} and {P} s' {Q'}, then
+      Q \sqsubseteq Q'
+
+      if s {Q} --> s' by rewrite, and {P} s {Q} and {P'} s' {Q}, then
+      P' \sqsubseteq P
+
+    Why do we care?  Is this a theorem?  A requirement?  Do we want
+    implication (in the logic) and not a lattic op?  How does
+    implication translate to lattice ops, anyway?  (disjunction ~ join)
+
+
+
+DFOPT: if any extra room, restore Davidson reference!
+       then: 'to reduce register pressure'
+       then: 2nd dataflow paper

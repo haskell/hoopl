@@ -1,0 +1,292 @@
+
+POPL 2010
+Paper #28
+nr@cs.tufts.edu  |  Help  |  Sign out  |  Thursday 17 Sep 2009 6:38:16pm PDT
+	Your submissions  #29-> 	
+ 
+[Main] Main
+[Edit] Edit
+#28
+ Comment notification
+If selected, the system will email you when updated comments are available.
+PC conflicts
+None
+	
+		
+	
+Hoopl: Dataflow Optimization Made Simple
+	
+	
+	
+	
+Submitted	[PDF] 201kB		Updated Wednesday 15 Jul 2009 3:35:28pm PDT  |  SHA-1 58af8027d3a1ff45917d786fde3ed90b2885d754
+You are an author of this paper.
++ Abstract\u2212 Abstract
+We present Hoopl, a Haskell library that makes it easy for compiler writers to implement program transformations based on dataflow analyses. The compiler writer must identify [more]We present Hoopl, a Haskell library that makes it easy for compiler writers to implement program transformations based on dataflow analyses. The compiler writer must identify (a) logical assertions on which the transformation will be based; (b) a representation of such assertions, which should form a lattice of finite height; (c) transfer functions that approximate weakest preconditions or strongest postconditions over the assertions; and (d) rewrite functions whose soundness is justified by the assertions. Hoopl uses the algorithm of Lerner, Grove, and Chambers (2002), which can compose very simple analyses and transformations in a way that achieves the same precision as complex, handwritten "superanalyses." Hoopl will be the workhorse of a new back end for the Glasgow Haskell Compiler (version 6.12, forthcoming). Because the major claim in the paper is that Hoopl makes it easy to implement program transformations, the paper is filled with examples, which are written in Haskell. The paper also sketches the implementation of Hoopl, including some excerpts from the implementation.
+		
++ Authors\u2212 Authors
+N. Ramsey, J. Dias, S. Jones [details]Norman Ramsey (Tufts University) <nr@cs.tufts.edu>
+João Dias (Tufts University) <dias@cs.tufts.edu>
+Simon Peyton Jones (Microsoft Research) <simonpj@microsoft.com>
++ Topics\u2212 Topics
+Compilers Static analysis
+	
+	
+	OveMer	RevExp
+Review #28A		B	Z	
+Review #28B		C	Y	
+Review #28C		C	Y	
+Review #28D		B	Y	
+Review #28E		C	X	
+[Edit paper] Edit paper  |  [Add response] Add response	
+		
+	[Text] Reviews and comments in plain text
+	
+		
+	
+[Text] Plain text
+Review #28A
+Modified Saturday 25 Jul 2009 8:03:25am PDT
+	
+	
+Overall merit (?)
+B. OK paper, but I will not champion it.
+		
+Reviewer expertise (?)
+Z. I am an informed outsider of the area.
+Paper summary
+The paper presents an approach to specifying and combining data flow analyses. The authors do program analysis by solving equations, they relate assertions via weakest liberal preconditions and strongest postconditions, and they combine analyses and transformations using the POPL 2002 paper by Lerner, Grove, and Chambers. The entire framework is written in a functional, nonimperative style that uses zippers and a dataflow monad, and is polymorphic in the underlying representations.
+
+Comments for author
+The paper reads more like a pearl than a research paper. The paper combines "everything we know" into an elegant system for program analysis and optimization.
+
+The examples of analyses and transformations are admirably short, and the paper gives several examples of how they apply to programs.
+
+The main difficulty that has been overcome by the authors is doing the design of the system in a way puts together many ideas in a neat and seamless way.
+
+Question: do you have experimental results that show that the quality of the produced code can compete with that of state-of-the-art compilers?
+
+	
+		
+	
+		
+	
+[Text] Plain text
+Review #28B
+Modified Saturday 1 Aug 2009 9:46:50am PDT
+	
+	
+Overall merit (?)
+C. Weak paper, though I will not fight strongly against it.
+		
+Reviewer expertise (?)
+Y. I am knowledgeable in the area, though not an expert.
+Paper summary
+The paper presents the interface of an Haskell generic library for dataflow analysis combined with code transformations, in the style of Lerner, Grove and Chambers (POPL 2002).
+
+The approach is illustrated by very compact implementations of two classic analyses (available variables and liveness) and a less common (and harder to follow) analysis+transformation for the insertion of spill and reload instructions.
+
+Comments for author
+All in all, this is a very solid piece of compiler engineering, and the paper is well written . But there are essentially no new principles in this paper. The only really novel aspect of this work ("analyze and transform" instead of "analyze then transform") is taken from Lerner et al. The use of an applicative "zipper" to represent the CFG scores some points for originality but was already published by the first two authors in a workshop paper (ENTCS 148(2)).
+
+The authors also claim as an achievement the simplicity of their API, but I'm not convinced: for dataflow analysis at least, simpler interfaces could be obtained by throwing away the distinction between "first", "middle" and "last" nodes and working on a CFG of individual instructions [1]. See for example the presentations of Kildall's dataflow equation solver by Klein and Nipkow [2] and by Coupet-Grimal and Delobel [3], both of which were also mechanically proved correct.
+
+I was excited, at first, by the extended example on insertion of reload and spill instructions, because this is an isse that is not well treated in compiler textbooks. In the end, I was a bit disappointed: I had the feeling that the proposed approach doesn't work significantly better than the trivial approach of inserting a spill after every definition and a reload before every use for each variable that couldn't be allocated to a register. Isn't the proposed approach overengineered?
+
+Minor remarks:
+
+Page 3, col 2, "the analysis shows nothing about x, which we notate x = bottom". This explanation of bottom sounds wrong. Thinking in terms of abstract interpretation, k denotes the singleton set of values {k}, top the set of all values, and bot the empty set of values. Knowing x = bottom at the end of the analysis really means something very strong about x, namely that all its definitions are unreachable.
+
+References:
+
+[1] Jens Knoop, Dirk Koschützki and Bernhard Steffen.
+    "Basic-Block Graphs: Living Dinosaurs?".
+    Proc. Compiler Construction '98, LNCS 1383, 1998.
+
+[2] Gerwin Klein and Tobias Nipkow.
+    "Verified bytecode verifiers".
+    Theor. Comp. Sci 298, 2003.
+
+[3] Solange Coupet-Grimal and William Delobel.
+    "A Uniform and Certified Approach for Two Static Analyses".
+    Types for Proofs and Programs, International Workshop, TYPES 2004.
+    LNCS 3839, 2006.
+
+	
+		
+	
+		
+	
+[Text] Plain text
+Review #28C
+Modified Friday 11 Sep 2009 6:15:44pm PDT
+	
+	
+Overall merit (?)
+C. Weak paper, though I will not fight strongly against it.
+		
+Reviewer expertise (?)
+Y. I am knowledgeable in the area, though not an expert.
+Paper summary
+The paper presents a data flow analysis and program transformation framework. The framework, Hoopl, is implemented as a Haskell library that compiler writers can use to implement optimizations. The paper presents examples of actual analyses and transformations in the context of the Glasgow Haskell compiler, and outlines the implementation of the dataflow engine, which is the main part of Hoopl.
+
+Comments for author
+It is hard to pinpoint exactly the technical contribution of this paper. On one hand, it appears to be a beautifully engineered implementation of a data flow analysis framework but there is little comparison with other similar frameworks and at this point little evidence that this is the "right" design with the right compromise between expressiveness and generality. The paper is also an improvement over Ramsey and Dias's work but the improvements are scattered here and there. Finally the paper, I feel, is hard to appreciate without some familiarity with the GHC backend. Some of the code has to be elided and some of the code presented uses the actual GHC datatypes (which is good in some sense but also adds some unneeded complexity to the examples).
+
+A couple of specific comments/questions:
+
+- can you explain in more detail the reasons for implementing the rewriting in two steps: first a speculative step and then a step that commits it. Is that because the intermediate results of the analysis are unsound and that soundness is only achieved when the analysis reaches a fixed point?
+
+- can you provide more detail on how the optimization fuel is used for debugging
+
+	
+		
+	
+		
+	
+[Text] Plain text
+Review #28D
+Modified Tuesday 15 Sep 2009 5:36:29am PDT
+	
+	
+Overall merit (?)
+B. OK paper, but I will not champion it.
+		
+Reviewer expertise (?)
+Y. I am knowledgeable in the area, though not an expert.
+Paper summary
+This paper describes Hoopl, a dataflow optimization tool. The paper
+first analyzes general properties and principles underlying various
+dataflow analysis for low-level code languages through examples, and
+identifies major components of a general dataflow optimizer: (1) a
+dataflow fact lattice, (2) a transfer function that computes a dataflow
+fact of a program point from the preceding (depending of the direction
+of the analysis) dataflow facts, (3) a rewrite function that replaces a
+node in a control flow graph based on dataflow facts. Based on this
+analysis, the paper introduces Hoopl as a generic dataflow optimizer
+through type signatures of Hoopl functions, and describes their
+functionality. Hoopl takes a dataflow fact lattice (i.e. types and
+associated operations), a transfer function, a rewriter, and performs
+the iterative process of analyzing the graph using the transfer
+function and transforming the graph using the rewrite function until
+it obtains the least fixed point. The paper then describes some
+aspects of its implementation, including its two phase architecture
+consisting of a speculative iterator and an actualizer, and describes
+the implemented forward iterator and forward actualizer in some details.
+
+Comments for author
+From the presentation, it seems that Hoopl is an easy to use and
+generic tool that automates dataflow optimization for low-level code
+languages. It is well engineered so that compiler writers can readily
+use it for implementing various optimizations in their optimizing
+compilers. The paper is also very well written. Hoopl's description
+through examples can serve as a nice tutorial on unified view of
+dataflow optimization.
+
+However, I am not completely sure that this paper makes significantly
+new contribution to POPL 2010. Although being a well engineered tool,
+Hoopl appears to be based on combinations of known results.
+The overall structure of representation and implementation is based
+on some of the authors earlier work on zipper-style control-flow graph
+representation and optimization. There are some improvements on
+representations and interfaces: graphs are classified into "open" and
+"closed" ones, and interfaces of graph splicing functions are
+improved. The overall structure of interleaved analysis and
+transformation is due to other existing work. Hoopl also combines
+debugging facility, which is based on excising work. The description
+of its implementation is too sketched to be useful in implementing new
+optimization engines.
+
+	
+		
+	
+		
+	
+[Text] Plain text
+Review #28E
+Modified Wednesday 16 Sep 2009 9:22:46am PDT
+	
+	
+Overall merit (?)
+C. Weak paper, though I will not fight strongly against it.
+		
+Reviewer expertise (?)
+X. I am an expert in the subject area of this paper.
+Paper summary
+This paper presents an analysis and transformation engine implemented
+in Haskell. To use the engine, the programmer provides a description
+of the lattice, transfer functions, and rewrite functions. The engine
+then takes care of computing the dataflow fixed point and applying the
+rewrites. The paper describes the interface to the engine, shows
+examples of several client analyses and optimizations and describes an
+implementation of the engine.
+
+Comments for author
+The interesting part of this paper is that it shows how to effectively
+combine several previously known techniques/ideas into a single
+engine. These techniques/ideas are: the fixed-point formulation of
+dataflow analyses; the rewrite-rule formulation of transformation
+rules; the composition technique of Lerner Grove and Chambers; and the
+fuel-based abstraction of Whalley for quickly narrowing down the
+source of compiler bugs.
+
+However, it's hard to tease out what exactly the contribution
+is. Datafow analysis engines based on lattices, transfer functions,
+and rewrite functions are very common (Weimer and Necula's CIL has
+one, Hendren et al's Soot has one, Lattner and Adve's LLVM has one,
+IBM's WALA engine has one). It would be interesting to better
+understand how the proposed framework distinguishes itself from these
+existing frameworks.
+
+Presumably, one difference is that the proposed framework incorporates
+additional techniques (eg: the composition framework and the
+fuel-based abstraction). However, these two techniques were previously
+published, and they also seem quite orthogonal to each other (which
+means the integration of the two techniques would not pose too many
+additional challenges -- if it does, the paper should focus on this).
+
+The paper does point out how Haskell helps with many of the
+implementation tasks, and the use of Haskell is indeed a difference
+from other frameworks. However, the paper doesn't really develop this
+point, and it's also not clear how much of this type checking also
+exists in other frameworks (eg: CIL uses OCaml so it may have some
+nice static type-checking guarantees) The paper would be stronger if
+it had a direct comparison (maybe a table?) of what kinds of
+properties are statically checked using types in the proposed
+framework, vs CIL, Soot, LLVM, and others frameworks too.
+
+The paper could also be improved by reporting on experience in using
+the framework. For example: what was it used for? what are some
+statistics about the framework (number of analyses implemented, how
+many lines of code, bugs found using types, etc.) how does experience
+with the proposed framework compare with other frameworks such as LLVM
+(eg: for conciseness, ease of use, etc)
+
+Finally, the paper doesn't seem to address interprocedural analyses
+and optimizations (although that's understandable to some extent --
+one has to nail down the intra-procedural case first, but it would be
+nice to get an idea of how the authors see this framework panning out
+in the interprocedural case)
+
+	
+		
+	
+		
+	
+Response
+The authors' response is intended to address reviewer concerns and correct misunderstandings. The response should be addressed to the program committee, who will consider it when making their decision. Don't try to augment the paper's content or form\u2014the conference deadline has passed. Please keep the response short and to the point.
+	
+	
+ This response should be sent to the reviewers.
+	
+		
+HotCRP Conference Management Software
+Overall merit choices are:
+A. Good paper. I will champion it at the PC meeting.
+B. OK paper, but I will not champion it.
+C. Weak paper, though I will not fight strongly against it.
+D. Serious problems. I will argue to reject this paper.
+Reviewer expertise choices are:
+X. I am an expert in the subject area of this paper.
+Y. I am knowledgeable in the area, though not an expert.
+Z. I am an informed outsider of the area.
