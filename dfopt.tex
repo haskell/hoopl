@@ -259,7 +259,7 @@ implementation.
 \begin{document}
 %\title{\ourlib: Dataflow Optimization Made Simple}
 \title{Implementing Dataflow Analysis and Optimization by Lifting Node Functions to Basic Blocks and Control-Flow Graphs}
-%\subtitle{\today}
+\subtitle{Programming pearl}
 
 %\titlebanner{\textsf{\mdseries\itshape Submitted to the 2010 ACM Symposium on Principles
 %    of Programming Languages (POPL)}}
@@ -327,6 +327,19 @@ implementations,
 it carefully separates the tricky
 elements of each of these algorithms, so that they can be examined and
 understood independently.
+
+\simon{Here is an alternative abstract based on the four-sentence model.}
+Dataflow analysis and transformation of control-flow graphs is
+pervasive in optimising compilers, but it is generally tightly
+interwoven with the details of a \emph{particular} compiler.  We
+describe \ourlib{}, a re-usable Haskell library that makes it
+unusally easy for compiler writers to define new analyses and
+transformations.  The API of our library is modular, polymorphic,
+and offers unusually strong static guarantees.  The implementation
+is also far from routine: it encapsulates 
+state-of-the-art algorithms (interleaved analysis and rewriting,
+dynamic error isolation), and cleanly separates their tricky elements
+so that they can be understood independently.
 %
 %\ourlib\ will be the workhorse of a new
 %back end for the Glasgow Haskell Compiler (version~6.14, forthcoming).
@@ -399,6 +412,9 @@ justify rewriting a node.
 \ourlib\ ``lifts'' these node-level functions to work over
 control-flow graphs, sets up and solves recursion equations,
 and interleaves rewriting with analysis.
+Designing good abstractions (data types, APIs) is surprisingly
+hard.  We have been through over a dozen significantly different
+iterations and we offer our API as a contribution in its own right.
 
 \item Analyses and transformations built on \ourlib\ 
 are small, simple, and easy to get right.
@@ -428,20 +444,22 @@ own---are complicated and hard to understand, because the tricky pieces
 rewriting, optimization fuel, and so on) are implemented all together,
 inseparably. \remark{Maybe the title should hearken to
 separation of concerns rather than lifting?}
-In~this paper, we present a new way
-to structure the implementation so that each tricky piece
+A signficant contribution of this paper is 
+a new way to structure the implementation so that each tricky piece
 is handled in just 
 one place, separate from all the other tricky
-pieces  (\secref{engine}). \remark{This is a very important claim---is
+pieces (\secref{engine}). \remark{This is a very important claim---is
 it substantiated in \secref{engine}? And shouldn't the word
-\textbf{contribution} appear in this~\P?}
+\textbf{contribution} appear in this~\P?} \simon{Better?}
 The result is sufficiently elegant that 
 we emphasize the implementation as an object of interest in
 its own right.
 \end{itemize}
 A working prototype of \ourlib{} is available for download 
 at \unskip\break \url{http://ghc.cs.tufts.edu/hoopl}.\remark{This is why I wanted
-the code in a separate git repo---but we'll get there.}
+the code in a separate git repo---but we'll get there.} \simon{I positively
+want the paper and the code to travel together so that we can update the paper
+(properly attributed of course) as we update the code.}
 It is no toy: an ancestor of this library is
 embodied in the Glasgow Haskell Compiler, where it optimizes the
 imperative {\PAL} code in GHC's back end.  The new design is far
@@ -600,7 +618,10 @@ by explicit branches from closed-on-exit nodes.
 by ``falling through'' from a distinguished exit point.
 \remark{If E is a node or block, control \emph{only} leaves E by
 falling through, but this isn't so for a graph.  Example: a body of a
-loop contains a \texttt{break} statement}
+loop contains a \texttt{break} statement} \simon{I don't understand.
+A break statement would have to be translated as a branch, no?
+Can you give a an example? I claim that control only leaves an 
+open graph by falling through.}
 \end{itemize}
 
 
@@ -695,9 +716,9 @@ data `Block n e x where
 data `Graph n e x where
   `GNil  :: Graph n O O
   `GUnit :: Block n O O -> Graph n O O
-  `GMany :: IfOpen e (Block n O C) 
+  `GMany :: MaybeO e (Block n O C) 
         -> Body n
-        -> IfOpen x (Block n C O)
+        -> MaybeO x (Block n C O)
         -> Graph n e x
 
 data `Body n where
@@ -705,9 +726,9 @@ data `Body n where
   `BodyUnit  :: Block n C C -> Body n
   `BodyCat   :: Body n -> Body n -> Body n
 
-data `IfOpen ex t where
-  `OpenLink   :: t -> IfOpen O t
-  `ClosedLink ::      IfOpen C t
+data `MaybeO ex t where
+  `JustO   :: t -> MaybeO O t
+  `NothingO ::      MaybeO C t
 
 newtype `Label = Label Int
 
@@ -778,15 +799,10 @@ a~value of @Maybe@ type requires a \emph{dynamic} test,
 but we know \emph{statically}, at compile time, that the sequence is present if and only
 if the graph is open at the entry.
 We~express our compile-time knowledge by using the type
-@IfOpen e (Block n O C)@, 
-\remark{Do people like the name @MaybeOpen@ or @MaybeO@ better than @IfOpen@?}
+@MaybeO e (Block n O C)@, a type-indexed version of @Maybe@
 which is also defined in \figref{graph}:
-the type @IfOpen O a@ is isomorphic to~@a@, while 
-the type @IfOpen C a@ is isomorphic to~@()@.
-\remark{Can we please consider changing the names of the value
-constructors?
-Possibilities include @IfOpen@/@IfNotOpen@ or @JustO@/@NothingC@.
-}
+the type @MaybeO O a@ is isomorphic to~@a@, while 
+the type @MaybeO C a@ is isomorphic to~@()@.
 \item 
 The body of the graph is a collection of  closed/closed blocks.  
 To be able to concatenate bodies in constant time,
@@ -899,7 +915,9 @@ not only when they are both open at the point of concatenation but also
 when they are both closed---and not in the other two cases:
 \remark{We've lost John's point about concatenation, which
 I~found convincing.  If it's too late to do something by Friday, we
-should remember to revisit this question later.}
+should remember to revisit this question later.} \simon{What is the point?
+That closed/closed graphs should not be concatenated?  We can just delete
+one equation if that's what we want.  I'd be happy to do that. RSVP}
 \par{\small
 \begin{code}
 `gCat :: Graph n e a -> Graph n a x -> Graph n e x
@@ -909,27 +927,27 @@ gCat g1 GNil = g1
 gCat (GUnit ^b1) (GUnit ^b2)             
  = GUnit (b1 `BCat` b2)
 
-gCat (GUnit b) (GMany (OpenLink e) bs x) 
- = GMany (OpenLink (b `BCat` e)) bs x
+gCat (GUnit b) (GMany (JustO e) bs x) 
+ = GMany (JustO (b `BCat` e)) bs x
 
-gCat (GMany e bs (OpenLink x)) (GUnit b2) 
-  = GMany e bs (OpenLink (x `BCat` b2))
+gCat (GMany e bs (JustO x)) (GUnit b2) 
+  = GMany e bs (JustO (x `BCat` b2))
 
-gCat (GMany e1 bs1 (OpenLink x1)) 
-            (GMany (OpenLink e2) bs2 x2)
+gCat (GMany e1 bs1 (JustO x1)) 
+            (GMany (JustO e2) bs2 x2)
   = GMany e1 (bs1 `BodyCat` b `BodyCat` bs2) x2
   where
     b = BodyUnit (x1 `BCat` e2)
 
-gCat (GMany e1 bs1 ClosedLink) (GMany ClosedLink bs2 x2)
+gCat (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
   = GMany e1 (bs1 `BodyCat` bs2) x2
 \end{code}}
 This definition is a nice example of the power of GADTs: the
 pattern matching is exhaustive, and all the open/closed invariants are
 statically checked.  For example, consider the second-last equation for @gCat@.
-Since the exit link of the first argument is @OpenLink x1@,
+Since the exit link of the first argument is @JustO x1@,
 we know that type parameter~@a@ is~@C@, and hence the entry link of the second 
-argument must be @OpenLink e2@.
+argument must be @JustO e2@.
 Moreover, block~@x1@ must be
 closed/open, and block~@e2@ must be open/closed.  
 We can therefore concatenate them
@@ -949,7 +967,7 @@ An empty open/open graph is represented
 by @GNil@, while a closed/closed one is @gNilCC@:
 \begin{code}
 gNilCC :: Graph C C
-gNilCC = GMany ClosedLink BodyEmpty ClosedLink
+gNilCC = GMany NothingO BodyEmpty NothingO
 \end{code}
 The representation of a @Graph@ consisting of a single block~@b@ 
 depends on the shape of~@b@:\remark{Does anyone care?}
@@ -959,12 +977,12 @@ gUnitOC :: Block O C -> Graph O C
 gUnitCO :: Block O C -> Graph C O
 gUnitCC :: Block O C -> Graph C C
 gUnitOO b = GUnit b
-gUnitOC b = GMany (OpenLink b) BodyEmpty ClosedLink
-gUnitCO b = GMany ClosedLink   BodyEmpty   (OpenLink b)
-gUnitCC b = GMany ClosedLink   (BodyUnit b) ClosedLink
+gUnitOC b = GMany (JustO b) BodyEmpty   NothingO
+gUnitCO b = GMany NothingO  BodyEmpty   (JustO b)
+gUnitCC b = GMany NothingO  (BodyUnit b) NothingO
 \end{code}
 Multi-block graphs are similar.
-From this table \remark{you see no table here}
+From these definitions
 we can see why @GUnit@ is restricted to open/open
 blocks; if it were more accommodating, there would be 
 more than one way to represent some graphs, and it wouldn't be obvious
@@ -1110,7 +1128,7 @@ type `FactBase f = LabelMap f
  -- A finite mapping from Labels to facts f
 \end{code}
 Roughly speaking, given a @ForwardPass@, the 
-function @analyseAndRewriteFwd@ can transform a @Body@ into an
+analyse-and-rewrite function can transform a @Body@ into an
 optimized @Body@.  One thing that is immediately obvious from this
 type is that it is polymorphic in the type of nodes @n@ and facts @f@;
 these are entirely under the control of the client.
@@ -1474,7 +1492,7 @@ mapE f (Assign x e)  = fmap (Assign x) $ f e
 
 -------------------------------------------------------
 -- Running the analysis
-`consPropPass = ForwardPass
+`constPropPass = ForwardPass
    { fp_lattice = constLattice
    , fp_transfer = regHasConst
    , fp_rewrite = constProp `combineFwdRewrite` simplify } 
@@ -1542,7 +1560,6 @@ because they are sometimes independently useful.  But in this case we
 want to apply \emph{both} of them,
 so we compose them with @combineFwdRewrite@
 before putting them in the @constPropPass@ (see \figref{const-prop}).
-\remark{There is no @constPropPass@}
 
 Note that @simplify@ does not need to check whether a register holds a
 constant value, because it can rely @constProp@ to have replaced the
@@ -1771,7 +1788,7 @@ precondition for some (as yet unarticulated) property of \ourlib{} to hold.}%
 
 
 
-\section{\ourlib's dataflow engine}
+\section{\ourlib's implementation}
 \seclabel{engine}
 \seclabel{dfengine}
 
@@ -1803,26 +1820,22 @@ The implementation is built on the hierarchy of nodes, blocks, and graphs
 that we described in \secref{graph-rep}.  For each such thing
 we will develop a function of this type:
 \begin{code}
-type `ARF thing n f 
-  = forall e x. Fact e f -> thing e x 
-             -> FuelMonad (Fact x f, RG n e x)
+type `ARF thing n
+ = forall f e x. ForwardPass n f
+              -> thing e x -> Fact e f 
+              -> FuelMonad (RG n e x, Fact x f)
 \end{code}
 An @ARF@ (short for ``analyse and rewrite forward'') is a combination of
-a rewrite and transfer function, and is also 
-generalized over nodes, blocks, and partial graphs.
-An @ARF@ takes an input fact and a @thing@,
-and returns a correspondingly-shaped output fact, and a rewritten graph of type @(RG n e x)@.
-Here we intend ``@thing@'' to range over nodes, blocks, and graphs, thus:
-\begin{code}
-  type `ARF_Node  n f = ARF n         n f
-  type `ARF_Block n f = ARF (Block n) n f
-  type `ARF_Graph n f = ARF (Graph n) n f
-\end{code}
+a rewrite and transfer function.
+An @ARF@ takes a @ForwardPass@, a @thing@ (a node, block, or graph),
+and an input fact,
+and returns a rewritten graph of type @(RG n e x)@ of the same shape
+as the @thing@, and a suitably-shaped output fact.
+
 Note that the result is a rewritten graph, 
 regardless of whether @thing@ is a node, block, or graph.
-
-We return a rewritten graph @RG@ rather than a @Graph@ 
-for two reasons:
+We return a rewritten graph with a new type @RG@ 
+rather than a @Graph@ for two reasons:
 \begin{itemize}
 \item The client is often interested not only in the facts flowing
 out of the graph (which are returned in the @Fact x f@), 
@@ -1830,7 +1843,7 @@ but also in the facts on the \emph{internal} blocks
 of the graph. A rewritten graph, of type @(RG n e x)@ is decorated with
 these internal facts.
 \item A @Graph@ has deliberately restrictive invariants; for example,
-a @GMany@ with a @OpenLink@ is always open at exit (\figref{graph}).  It turns
+a @GMany@ with a @JustO@ is always open at exit (\figref{graph}).  It turns
 out to be awkward to maintain these invariants \emph{during} rewriting,
 but easy to restore them \emph{after} rewriting by ``normalizing'' an @RG@.
 \end{itemize}
@@ -1840,133 +1853,210 @@ a rewritten graph into a @Graph@ and its corresponding @FactBase@:
 `normalizeBody :: Edges n => RG n f C C 
                -> (Body n, FactBase f)
 \end{code}
-We can now build a modular implementation as follows:
-\begin{itemize} 
-\item From the supplied @FwdTransfer@ and @FwdRewrite@, produce a @ARF_Node@
-that transforms nodes (\secref{arf-node}):  
-\par{\small
+\begin{figure}
 \begin{code}
- arfNode :: Edges n 
-         => DataflowLattice f -> FwdTransfer n f
-         -> FwdRewrite n f
-         -> ARF_Node n f -> ARF_Node n f
-\end{code}}
-In addition to the transfer and rewrite functions, @arfNode@ takes the function
-to analyse and rewrite the rewritten graph.
-\item From this @ARF_Node@, produce a @ARF_Block@ that transforms blocks (\secref{arf-block}):
-\par{\small
-\begin{code}
- arfBlock :: ARF_Node n f -> ARF_Block n f
-\end{code}}
- 
-\item From  @arfBlock@, produce  @arfBody@ that transforms a @Body@:
-\par{\small
-\begin{code}
- `arfBody :: forall n f. Edges n
-         => DataflowLattice f 
-         -> ARF_Node n f 
-         -> FactBase f -> Body n 
-         -> FuelMonad (FactBase f, (Body n, FactBase f))
-\end{code}}
-The type is less neat than the others because a @Body@ does not have
-the same shape as a node, block, or graph.
-
-\item From @arfBody@, produce @arfGraph@ that tranforms graphs (\secref{arf-graph}):
-\par{\small
-\begin{code}
-  `arfGraph :: DataflowLattice f
-           -> ARF_Node n f -> ARF_Graph n f
-\end{code}}
-\end{itemize}
-Given these three functions, it is rather easy to write the main analyser:
-\par {\small
-\begin{code}
-analyseAndRewriteFwd
-  :: Edges n         
-  => DataflowLattice f -> FwdTransfer n f
-  -> FwdRewrite n f -> RewritingDepth
-  -> FactBase f -> Body n  
-  -> FuelMonad (Body n, FactBase f)
-
-`analyseAndRewriteFwd lat tf rw ^depth fb body
- = do { (_, rg) <- arfBody lat arf_node fb body
-      ; return rg }
- where 
-  arf_node, rec_node :: ARF_Node n f
-  `arf_node = arfNode lat tf rw rec_node
-
-  `rec_node = case depth of
-              RewriteShallow -> arfNodeNoRW tf
-              RewriteDeep    -> arf_node
+data RG n f e x where
+  RGNil   :: RG n f a a
+  RGCatO  :: RG n f e O -> RG n f O x -> RG n f e x
+  RGCatC  :: RG n f e C -> RG n f C x -> RG n f e x
+  RGUnit  :: Fact e f  -> Block n e x -> RG n f e x
 \end{code}
-}
-This beautifully compact code does the following:
-\begin{itemize}
-\item The result is built by applying @arfBody@ to @arf_node@, the 
-function to use when @arfBody@ reaches an individual node.
-We discard the out-flowing facts, and return just the pair of ht e
-rewritten body and its internal facts.
-\item In turn @arf_node@ is built by applying @arfNode@ to the client-supplied
-transfer and rewrite functions and, crucially, @rec_node@.  
-\item @rec_node@ is used by @arfNode@ when analysing and transforming graphs
-produced by rewriting.
-When deep rewriting is used, the @rec_node@ engine is simply @arf_node@:
-straight recursion. However, if shallow rewriting is required, it instead
-uses a simpler analyse-only function on the node, built by @arfNodeNoRW@.
-We define the latter in \secref{arf-node}.
+\caption{The data type \texttt{RG} of rewritten graphs} \figlabel{rg}
+\end{figure}
+The constructors of @RG@ are given in \figref{rg}, although we lack the space
+to describe the type fully.
+
+The \ourlib{} implementation exploits the type distinctions of nodes, @Block@, @Body@,
+and @Graph@ to structure the code into several small pieces, each of which
+can be understood independently.  Specifically, we define a layered set of
+functions, each of which calls the previous one:
+\begin{code}
+ arfNode  :: Edges n => ARF n n
+ arfBlock :: Edges n => ARF (Block n) n
+ arfGraph :: Edges n => ARF (Graph n) n
+ arfBody  :: Edges n
+          => ForwardPass n f -> Body n -> FactBase f
+          -> FuelMonad (RG n f C C, FactBase f)
+\end{code} 
+\begin{itemize} 
+\item 
+The @arfNode@ function processes nodes (\secref{arf-node}).
+It embodies the subtleties of interleaved analysis and rewriting,
+and deals with fuel consumption.  It calls @arfGraph@ to analyse
+and transform rewritten graphs.
+\item 
+Based on @arfNode@ it is extremely easy to write @arfBlock@, which liftes
+the analysis and rewriting from nodes to blocks (\secref{arf-block}).
+\item Using @arfBlock@ we can define @arbBody@ which analyses and rewrites a
+@Body@; that is, a group of blocks forming an arbitrarily complicated graph.
+Here is where we must take care of fixpoints (\secref{arf-body}).
+The type of @arfBody@ is less neat than the others because a @Body@ does not have
+the same shape as a node, block, or graph.
+\item 
+From @arfBody@ it is straightforward to produce @arfGraph@ (\secref{arf-graph}).
 \end{itemize}
-And that is all.  Note the way that the shallow/deep distinction is made
-here, and here alone; none of the other functions are aware of the issue.
+Given these functions, writing the main analyser is a simple
+matter of matching the external API to the internal functions:
+\begin{code}
+  analyseAndRewriteFwd
+     :: forall n f. Edges n
+     => ForwardPass n f -> Body n -> FactBase f
+     -> FuelMonad (Body n, FactBase f)
+
+  analyseAndRewriteFwd pass body facts
+    = do { (rg, _) <- arfBody pass body facts
+         ; return (normaliseBody rg) }
+\end{code}
+We have spoken only of \emph{forward} analyses and transformation, and we will
+continue to do so.  However, 
+\ourlib{} provides an exactly analogous family 
+backward-analysis functions (\secref{overview}).
+ 
+\subsection{From nodes to blocks} \seclabel{arf-block}
+\seclabel{arf-graph}
+
+We start with the second task, namely analysing and transforming blocks.
+The code is delightfully simple:
+\begin{code}
+arfBlock :: Edges n => ARF (Block n) n
+arfBlock pass (BUnit node)   f 
+  = arfNode pass node f
+arfBlock pass (BCat b1 b2) f 
+  = do { (g1,f1) <- arfBlock pass b1 f  
+       ; (g2,f2) <- arfBlock pass b2 f1 
+       ; return (g1 `RGCatO` g2, f2) }
+\end{code}
+The code is childishly simple.  
+In the @BUnit@ case we hand off the problem to @arfNode@.
+For @BCat@ we recursively apply @arfBlock@ to the two
+sub-blocks, threading the output fact from the first as the 
+input to the second.  Each will produce a rewritten graph
+which we connect together in sequence with @RGCatO@. 
+Moreover, @arfGraph@ is equally straightforward:
+\begin{code}
+arfGraph :: Edges n => ARF (Graph n) n
+arfGraph _    GNil        f = return (RGNil, f)
+arfGraph pass (GUnit blk) f = arfBlock pass blk f
+arfGraph pass (GMany NothingO body NothingO) f
+  = do { (body', fb) <- arfBody pass body f
+       ; return (body', fb) }
+arfGraph pass (GMany NothingO body (JustO exit)) f
+  = do { (body', fb) <- arfBody  pass body f
+       ; (exit', fx) <- arfBlock pass exit fb
+       ; return (body' `RGCatC` exit', fx) }
+...two more equations for GMany...
+\end{code}
+The pattern is the same as for @arfBlock@; simply thread
+facts through the sequence, and concatenate the results.
+Here we can see that @RG@ is a simpler type than @Graph@: a
+a single @GMany@ is rewritten to a sequence of @RG@ objects 
+concatenated with @RGCatC@.
 
 \subsection{Analysing and rewriting nodes} \seclabel{arf-node}
 
 The core of the interleaved analyse-and-rewrite idea is expressed
-by the functions @arfNode@ and @arfNodeNoRW@:
-\par {\small
+by the function @arfNode@:
 \begin{code}
-arfNodeNoRW :: ForwardTranfsers n f
-            -> ARF_Node n f
-`arfNodeNoRW tf f n
-  = return (transfer_fn node f, RGUnit f (BUnit node))
-
-`arfNode lattice transfer_fn rewrite_fn arf_node f node
-  = do { mb_g <- withFuel (rewrite_fn node f)
+arfNode :: Edges n => ARF n n
+arfNode pass n f
+  = do { mb_g <- withFuel (fp_rewrite pass n f)
        ; case mb_g of
-           Nothing -> arfNodeNoRW transfer_fn f node
-      	   Just ag -> 
+           Nothing -> return (RGUnit f (BUnit n),
+                              fp_transfer pass n f)
+           Just (FwdRes ag rw) -> 
     do { g <- graphOfAGraph ag
-       ; arfGraph lattice arf_node f g } }
-\end{code}}
-Here
-
-\subsection{From nodes to blocks} \seclabel{arf-block}
-
-We start with the second task, of ''lifting'' a @ARF_Node@ to a @ARF_Block@:
-\remark{This code is inconsistent with \path{Hoopl7.hs}.  What's up?}
-\begin{code}
-arfBlock :: forall n f. ARF_Node n f -> ARF_Block n f
-`arfBlock (ARF node_trans) = ARF block_trans
-  where 
-    `block_trans :: ARFR (Block n) n f -- no such type as ARFR ?!
-    block_trans (BUnit n)   f 
-      = node_trans n f
-    block_trans (BCat l r) f 
-      = do { (g1,f1) <- block_trans l f
-           ; (g2,f2) <- block_trans r f1
-	   ; return (g1 `pCat` g2, f2) }
+       ; let pass' = pass { fp_rewrite = rw }
+       ; arfGraph pass' g f } }
 \end{code}
-The code is childishly simple.  In the @BUnit@ case 
-we appeal to the node-level @ARF_Node@ tranform.
-For @BCat@ we recursively apply @block_trans@ to the two
-sub-blocks, threading the output fact from the first as the 
-input to the second.  Each will produce a rewritten @Graph@, 
-which we connect together in sequence with @pCat@. 
+The code here is a little more complicated, 
+but still admirably brief.  First we extract the
+rewriting function from the @ForwardPass@ with the
+@fp_rewrite@ record selector (\figref{api-types}),
+and apply the rewriting function to the incoming node @n@ 
+and fact @f@.  
 
-\subsection{Rewriting graphs} \seclabel{arf-graph}
+The resulting @Maybe@ is passed to @withFuel@, which 
+deals with fuel accounting:
+\begin{code}
+  withFuel :: Maybe a -> FuelMonad (Maybe a)
+\end{code}
+If @withFuel@ argument is @Nothing@, \emph{or} we have run out of
+optimisation fuel (\secref{fuel}), @withFuel@ returns @Nothing@.
+Otherwise, @withFuel@ consumes one unit of fuel, and returns its
+argument (which will be a @Just@).  That is all we need say about fuel.
 
-Next we tackle ... \simon{not finished}
+If no rewrite should take place, either because the rewrite function
+didn't want one or because fuel is exhausted,
+the @Nothing@ branch returns a single-node
+graph @(RGUnit f (BUnit n))@, decorated with its input fact.
+It also applies the transfer function @(fp_transfer pass)@ 
+to the incoming fact to produce the outgoing fact.
+(Like @fp_rewrite@, @fp_transfer@ is record selector of @ForwardPass@.)
 
+In the @Just@ case, the rewrite function returns a rewritten
+graph (well, @AGraph@ actually) and a new rewrite function.
+So we convert the @AGraph@ to a @Graph@, using
+\par{\small
+\begin{code}
+graphOfAGraph :: AGraph n e x -> FuelMonad (Graph n e x)
+\end{code}}
+and analyse the resulting graph with @arfGraph@.  But before
+doing so, we modify the @ForwardPass@ by implanting the new
+rewrite function.
 
+And that's it!  The recursion to @arfGraph@ implements the 
+possibly-deep recursive rewriting; if the client wanted
+shallow rewriting, the rewrite function should return @noFwdRewrite@
+in the @FwdRes@ (\secref{rewrites}).
+
+\subsection{Fixpoints}
+
+Lastly, @arbBody@ deals with the fixpoint calculation.
+This is the only really tricky bit of the implementiaon, but it is
+cleanly separated from everything else:
+\par{\small
+\begin{code}
+ arfBody  :: Edges n
+          => ForwardPass n f -> Body n -> FactBase f
+          -> FuelMonad (RG n f C C, FactBase f)
+arfBody pass body fbase
+  = fixpoint (fp_lattice pass) (arfBlock pass) fbase $
+    forwardBlockList (factBaseLabels fbase) body
+\end{code}}
+Here, @forwardBlockList@ takes the @Body@ and returns a linear list of
+blocks, sorted into a plausible order for doing forward dataflow.  For
+example if the @Body@ starts at block @L2@, and @L2@ 
+branches to @L1@, but not vice versa, then
+convergence will be faster if we process @L2@ before @L1@.  This is 
+purely an efficiency issue: any order will do for correctness.
+How do we know what the entry points of the @Body@ are? We treat
+any block with an entry in the in-flowing @FactBase@ as an entry point.
+\begin{code}
+forwardBlockList 
+  :: Edges n => [Label]
+  -> Body n -> [(Label,Block n C C)]
+\end{code}
+The rest of the work is done by @fixpoint@, which is shared by
+both forward and backward analyses:
+\begin{code}
+fixpoint :: forall n f. Edges n
+         =>  DataflowLattice f
+         -> (Block n C C -> FactBase f
+             -> FuelMonad (RG n f C C, FactBase f))
+         -> FactBase f 
+         -> [(Label, Block n C C)]
+         -> FuelMonad (RG n f C C, FactBase f)
+\end{code}
+The type signature should be self explanatory.  The second argument is
+a function that analyses and rewrites a single block; the business of
+@fixpoint@ is to apply that function successively to all the blocks
+(the fourth argument), and keep doing so until a fixed point is
+reached.  The code for @fixpoint@ is a whole 70 lines long, and
+appears for completeness in Appendix~\ref{app:fixpoint}.  We highlight some interesting
+points here:
+\begin{itemize}
+\item Incomplete
+\end{itemize}
 
 \section{What we learned}
 
@@ -2430,8 +2520,80 @@ Microsoft, Intel, NSF
 
 \clearpage
 
-\appendix
+\appendix \label{app:fixpoint}
 
+\section{Code for \texttt{fixpoint}}
+
+{\small
+\begin{code}
+data TxFactBase n f
+  = TxFB { tfb_fbase :: FactBase f
+         , tfb_blks  :: RG n f C C -- Transformed blocks
+         , tfb_cha   :: ChangeFlag
+         , tfb_lbls  :: LabelSet }
+ -- Set the tfb_cha flag iff 
+ --   (a) the fact in tfb_fbase for or a block L changes
+ --   (b) L is in tfb_lbls.
+ -- The tfb_lbls are all Labels of the *original* 
+ -- (not transformed) blocks
+
+updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
+           -> (ChangeFlag, FactBase f) 
+           -> (ChangeFlag, FactBase f)
+-- See commment about tfb_cha above
+updateFact lat lbls (lbl, new_fact) (cha, fbase)
+  | NoChange <- cha2        = (cha,        fbase)
+  | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
+  | otherwise               = (cha,        new_fbase)
+  where
+    old_fact = lookupFact lat fbase lbl
+    (cha2, res_fact) = fact_extend lat old_fact new_fact
+    new_fbase = extendFactBase fbase lbl res_fact
+
+fixpoint :: forall n f. Edges n =>  DataflowLattice f
+         -> (Block n C C -> FactBase f
+              -> FuelMonad (RG n f C C, FactBase f))
+         -> FactBase f -> [(Label, Block n C C)]
+         -> FuelMonad (RG n f C C, FactBase f)
+fixpoint lat do_block init_fbase blocks
+  = do { fuel <- getFuel  
+       ; tx_fb <- loop fuel init_fbase
+       ; return (tfb_blks tx_fb, 
+                 tfb_fbase tx_fb `deleteFromFactBase` blocks) }
+  -- The successors of the Graph are the the Labels for which
+  -- we have facts, that are *not* in the blocks of the graph
+  where
+    tx_blocks :: [(Label, Block n C C)] 
+              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+    tx_blocks [] tx_fb = return tx_fb
+    tx_blocks ((lbl,blk):bs) tx_fb 
+        = do { tx_fb1 <- tx_block lbl blk tx_fb
+             ; tx_blocks bs tx_fb1 }
+
+    tx_block :: Label -> Block n C C 
+             -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+    tx_block lbl blk (TxFB { tfb_fbase = fbase, tfb_lbls = lbls
+                           , tfb_blks = blks, tfb_cha = cha })
+      = do { (rg, out_facts) <- do_block blk fbase
+           ; let (cha',fbase') 
+                   = foldr (updateFact lat lbls) (cha,fbase) 
+                           (factBaseList out_facts)
+           ; return (TxFB { tfb_lbls  = extendLabelSet lbls lbl
+                          , tfb_blks  = rg `RGCatC` blks
+                          , tfb_fbase = fbase', tfb_cha = cha' }) }
+
+    loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
+    loop fuel fbase 
+      = do { let init_tx_fb = TxFB { tfb_fbase = fbase
+                                   , tfb_cha   = NoChange
+                                   , tfb_blks  = RGNil
+                                   , tfb_lbls  = emptyLabelSet }
+           ; tx_fb <- tx_blocks blocks init_tx_fb
+           ; case tfb_cha tx_fb of
+               NoChange   -> return tx_fb
+               SomeChange -> do { setFuel fuel
+                                ; loop fuel (tfb_fbase tx_fb) } }
+\end{code}}
 
 \section{Index of defined identifiers}
 
