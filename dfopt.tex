@@ -322,29 +322,30 @@ back end for the Glasgow Haskell Compiler (version~6.14, forthcoming).
 
 \section{Introduction}
 
-\remark{This is an intro the old paper.  We need an intro to the new paper.}
-
-An optimizing compiler for an imperative language includes many
-analyses, and transformations driven by the results of those analyses.
-Although these analyses and transformations are known by many names 
---- constant propagation, live variable analysis, inlining, sinking of loads,
-and so on --- many of them can be regarded as particular cases of
-a single general framework: \emph{dataflow analysis and rewriting 
-of control-flow graphs} \cite{this-and-that}.  Dataflow analysis
-is as old as the hills, but a relatively recent, seminal
-paper by Lerner, Grove and Chambers goes further, 
+A mature optimizing compiler for an imperative language includes many
+analyses, the results of which are used to justify the optimizer's
+code-improving transformations.
+Many of the most important analyses and transformations---constant
+propagation, live-variable analysis, inlining, sinking of loads, 
+and so on---should be regarded as particular cases of
+a single general problem: \emph{dataflow analysis and optimization} 
+\cite{this-and-that}. \remark{Should we cite Muchnick here?}
+Dataflow analysis is over thirty years old,
+but a more recent, seminal paper by \citet{lerner-grove-chambers:2002} goes further, 
 describing a powerful but subtle way to
 \emph{interleave} analysis and transformation so that each 
 piggybacks on the other.
 
-Since they share a common intellectual framework, and that framework is
+Because optimizations based on dataflow analysis 
+share a common intellectual framework, and because that framework is
 subtle, it it tempting to
 try to build a single re-usable library that embodies the 
-crafty ideas, while
+subtle ideas, while
 making it easy for clients to instantiate the library for different
 situations.
-Attractive, but difficult.  Some such frameworks exist, as we discuss 
-in \secref{related}, but they have complex APIs and implementations,
+Tempting, but difficult.
+Although some such frameworks exist, as we discuss 
+in \secref{related}, they have complex APIs and implementations,
 and none implements the Lerner/Grove/Chambers technique.
 
 In this paper we present \ourlib{} (short for ``higher-order
@@ -352,17 +353,22 @@ optimization library''), a new Haskell library for dataflow analysis and
 optimization.  It has the following distinctive characteristics:
 
 \begin{itemize}
-\item It is purely functional.  We argue at length in an earlier 
-paper \cite{ramsey-dias:applicative-flow-graph} that, perhaps surprisingly, code that
-manipulates control flow graphs is easier to write, and far easier
-to get right, when written in a purely-functional style.  This 
-point comes out particularly clearly when analysis and rewriting
-are interleaved, so that rewriting must be done without knowing whether
-the result of the rewrite will be retained or discarded 
+\item
+\ourlib\ is purely functional.  
+Perhaps surprisingly, code that
+manipulates control-flow graphs is easier to write, and far easier
+to write correctly, when written in a purely functional style
+\cite{ramsey-dias:applicative-flow-graph}.
+When analysis and rewriting
+are interleaved, so that rewriting must be done \emph{speculatively},
+without knowing whether
+the result of the rewrite will be retained or discarded,
+the value of a purely functional style is intensified
 (Sections \ref{sec:overview} and \ref{sec:fixpoints}).
 
-\item It is polymorphic. Just as a list library is
-polymorphic in the list elements, so \ourlib{} is polymorphic, both in
+\item
+\ourlib\ is polymorphic. Just as a list library is
+polymorphic in the list elements, so is \ourlib{} polymorphic, both in
 the nodes that inhabit graphs, and in the dataflow facts that 
 analyses compute over these graphs (\secref{using-hoopl}).
 
@@ -370,12 +376,12 @@ analyses compute over these graphs (\secref{using-hoopl}).
 We articulate their ideas in a concrete but simple API that hides 
 a subtle implementation (Sections \ref{sec:graph-rep} and \ref{sec:using-hoopl}).  
 You provide a representation for assertions, 
-a transfer function that transform assertions across a node, 
-and a rewrite function that uses a computed asserion to 
+a transfer function that transforms assertions across a node, 
+and a rewrite function that uses a computed assertion to 
 justify rewriting a node.
 \ourlib\ ``lifts'' these node-level functions to work over
-control-flow graphs, setting up and solving recursion equations,
-and interleaving rewriting and analyis.
+control-flow graphs, sets up and solves recursion equations,
+and interleaves rewriting with analysis.
 
 \item Analyses and transformations built on \ourlib\ 
 are small, simple, and easy to get right.
@@ -398,23 +404,31 @@ and maybe the open/closed story is hard to understand here.}
 % unconditional branch.  We know of no other system that offers 
 % static guarantees this strong.
 
-\item \ourlib{} implements a rather subtle algorithm.  Our (three) 
-previous attempts to implement this algorithm were complicated and
-hard to understand. In contrast, in \ourlib{} we have found a new way
-to structure the implementation so that various tricky pieces 
-(fixpoints, interleaved rewriting and transformation, recursive
-rewriting, optimization fuel, and so on) are each located in just 
-one place.  Indeed, the result is sufficiently elegant that 
-this paper treats the implementation as an object of interest in its
-own right (\secref{engine}).
+\item \ourlib{} implements a rather subtle algorithm.  
+Previous implementations of this algorithm---including three of our
+own---are complicated and hard to understand, because all the tricky pieces
+(fixed points, interleaved rewriting and transformation, recursive
+rewriting, optimization fuel, and so on)
+implemented inseparably. \remark{Maybe the title should hearken to
+separation of concerns rather than lifting?}
+In~this paper, we present a new way
+to structure the implementation so that each tricky piece
+is handled in just 
+one place, separate from all the other tricky
+pieces. \remark{Important if true}
+The result is sufficiently elegant that 
+this paper emphasizes the implementation as an object of interest in
+its own right (\secref{engine}).
 \end{itemize}
 A working prototype of \ourlib{} is available for download 
-at \simon{add url}.  It is no toy: an ancestor of this library is
+at \unskip\break \url{http://ghc.cs.tufts.edu/hoopl}.\remark{This is why I wanted
+the code in a separate git repo---but we'll get there.}
+It is no toy: an ancestor of this library is
 embodied in the Glasgow Haskell Compiler, where it optimizes the
-imperative @C--@ code in GHC's back end.  The new design is far
+imperative {\PAL} code in GHC's back end.  The new design is far
 nicer, and will be in GHC shortly.
 
-The API for \ourlib{} seems quite natural, but requires
+The API for \ourlib{} seems quite natural, but it requires
 relatively sophisticated aspects of Haskell's type system, such
 as higher-rank polymorphism, GADTs, and type functions.
 As such, \ourlib{} offers a compelling case study in the utility
