@@ -2337,12 +2337,12 @@ appear in the rewritten graph.
 
 \section {Related work} \seclabel{related}
 
-While dataflow analysis and optimization are covered
-by a vast literature, 
-\emph{design} of optimizers, the topic of this paper, is covered
-relatively sparsely.
-We therefore focus on the foundations of dataflow analysis,
-and on the implementations of comparable dataflow frameworks.
+While there is a vast body of literature on
+dataflow analysis and optimization,
+relatively little can be found on
+the \emph{design} of optimizers, which is the topic of this paper.
+We therefore focus on the foundations of dataflow analysis
+and on the implementations of some comparable dataflow frameworks.
 
 \paragraph{Foundations}
 
@@ -2360,10 +2360,7 @@ We use Dana Scott's
 orientation, in which higher elements carry more information.}
 \citet{kam-ullman:monotone-flow-analysis} generalize to some
 monotone functions.
-Each~client of \hoopl\ must guarantee monotonicity,
-but for transfer functions that
-approximate weakest preconditions or strongest postconditions,
-monotonicity falls out naturally.
+Each~client of \hoopl\ must guarantee monotonicity.
 
 \ifcutting
 \citet{cousot:abstract-interpretation:1977}
@@ -2376,193 +2373,287 @@ lattices for program analysis.
 an all-paths dataflow problem can be viewed as model checking an
 abstract interpretation.
 
+\citet{muchnick:compiler-implementation} 
+presents many examples of both particular analyses and related
+algorithms.
+
+
 The soundness of interleaving analysis and transformation,
 even when some speculative transformations are not performed on later
 iterations, was shown by
 \citet{lerner-grove-chambers:2002}.
-\ifcutting\else
-Muchnick \citeyearpar{muchnick:compiler-implementation} 
-presents many examples of both particular analyses and related
-algorithms.
-\fi
+
 
 \paragraph{Frameworks}
-The Soot framework is designed for analysis and optimization of Java programs
-\cite{hendren:soot:2000}.
-\john{This citation is probably the best for Soot in general, but there doesn't appear
- to be any formal publication that actually details the dataflow framework part.}
-Soot provides a dataflow library that is abstracted over the representation of
+Most dataflow frameworks support only analysis, not transformation.
+Analysis computes a fixed point, and then it is up to the client of
+the framework to use that fixed point for transformation.
+Leaving transformation out of the framework greatly simplifies the
+problem, but there is still a spectrum of designs in use.
+We~aim not to be comprehensive but to mention two representatative
+designs.
+We~then move on to the two prior frameworks that support interleaved
+analysis and transformation.
+
+The CIL toolkit \cite{necula:cil:2002}\finalremark{No good citation
+for same reason as Soot below ---JD}
+provides an analysis-only framework for C~programs.
+The framework is limited to one representation of control-flow graphs
+and one representation of instructions, both of which are provided by
+the framework.
+The interface provided for the client is fairly complicated;
+the purpose of the complexity appears to be to enable the client to
+affect which instructions 
+the analysis iterates over.
+
+
+The Soot framework is designed for analysis of Java programs
+\cite{hendren:soot:2000}.\finalremark{This citation is probably the
+best for Soot in general, but there doesn't appear 
+ to be any formal publication that actually details the dataflow
+ framework part. ---JD}
+While Soot's dataflow library supports only analysis, not
+ transformation, we found much 
+ to admire in its design.
+Soot's library is abstracted over the representation of
 the control-flow graph and the representation of instructions.
-The interface for defining lattice and analysis functions is similar to our own,
-with additional functions required to copy lattice elements (Soot is implemented
-in an imperative style) and to invoke the analysis.
-But unlike \ourlib, Soot cannot interleave analyses and transformations.
+Soots interface for defining lattice and analysis functions is similar to our own,
+although because Soot is implemented in an imperative style, 
+additional functions are needed copy lattice elements.
+Like CIL, Soot provides only analysis, not transformation.
 
-The CIL toolkit \cite{necula:cil:2002}\john{Again, no good citation for same reason}
-provides a dataflow framework for optimizing C~programs.
-The framework is specialized to a specific control-flow graph
-and a specific definition of instructions.
-The interface for the client is fairly complicated,
-with the evident goal of allowing the client to affect which instructions
-the analysis will iterate over.
-Like Soot, CIL cannot interleave analyses and transformations.
 
-\john{FYI, LLVM has Pass Managers that try to control the order of passes,
+\finalremark{FYI, LLVM has Pass Managers that try to control the order of passes,
   but I'll be darned if I can find anything that might be termed a dataflow framework.}
 
 The Whirlwind compiler contains the dataflow framework implemented
-by \citet{lerner-grove-chambers:2002}.
+by \citet{lerner-grove-chambers:2002}, who were the first to implement
+interleaved analysis and transformation.
 Their implementation is much like our early efforts:
-it is a complicated mix of code that manages the interleaving,
-the deep rewriting, and the fixed-point computation.
-Our implementation simplifies the problem dramatically
-by~separating each of these tasks.
+it is a complicated mix of code that simultaneously manages the interleaving,
+deep rewriting, and the fixed-point computation.
+By~separating each of these tasks, 
+our implementation simplifies the problem dramatically.
+Whirlwind's implementation also suffers from the difficulty of
+maintaining pointer invariants in a mutable representation of
+control-flow graphs, a problem we have discussed elsewhere
+\cite{ramsey-dias:applicative-flow-graph}. 
 
-Because speculative transformation is difficult with an imperative implementation,
-the implementation in Whirlwind is split into two separate phases.
+Because speculative transformation is difficult in an imperative setting,
+Whirlwind's implementation is split into two phases.
 The first phase runs the interleaved analyses and transformations
 to compute the final dataflow facts and a representation of the transformations
 that should be applied to the input graph.
-Then, a subsequent phase executes the transformations.
-With our immutable representation, tentative transformations
-can be applied aggressively, and there is no need
+The second phase executes the transformations.
+In~\hoopl, because control-flow graphs are immutable, speculative transformations
+can be applied immediately, and there is no need
 for a phase distinction.
 
 \ourlib\ also improves upon Whirlwind's dataflow framework by providing
-new support for the optimization-writer:
+new support for the optimization writer:
 \begin{itemize}
-\item Using static type guarantees, we~rule out a whole
+\item Using static type guarantees, \hoopl\ rules out a whole
   class of possible bugs: transformations that produced malformed
   control-flow graphs.
 \item Using dynamic testing,
   we can isolate the rewrite that transforms a working program
   into a faulty program,
-  using Whalley's fault-isolation technique \cite{whalley:isolation}.
+  using Whalley's  \citeyearpar{whalley:isolation} fault-isolation technique.
 \end{itemize}
 
-In our previous work we described a zipper-based representation of control-flow
+In previous work, we described a zipper-based representation of control-flow
 graphs \cite{ramsey-dias:applicative-flow-graph}, stressing the advantages
-of immutability for writing dataflow optimizers.
-Our new representation, described in \secref{graph-rep}, is a major improvement:
+of immutability.
+Our new representation, described in \secref{graph-rep}, is a significant improvement:
 \begin{itemize}
 \item
-We can concatenate nodes, blocks, and graphs, in constant time.
-Previously, we had to resort to Hughes's
-\citeyearpar{hughes:lists-representation:article} technique, representing
-a graph as a function.
+We can concatenate nodes, blocks, and graphs in constant time.
+%Previously, we had to resort to Hughes's
+%\citeyearpar{hughes:lists-representation:article} technique, representing
+%a graph as a function.
 \item
-Most important, errors in concatenation are ruled out at
+We can do a backward analysis without having
+to ``unzip'' (and allocate a copy of) each block.
+\item
+By using the power of GADTs, we are able to represent a flow-graph
+node using a single type, instead of the triple of first, middle, and
+last types used in our earlier representation.
+This change in representation simplifies the interface significantly:
+instead of providing three transfer functions per analysis---one for
+each type of node---a client of \hoopl\ provides only one transfer
+function per analysis, and similarly for rewrite functions.
+\item
+Errors in concatenation are ruled out at
 compile-compile time by Haskell's static
 type system.
 In~earlier implementations, such errors were not detected until
-the compiler~ran, at which point \ourlib\ tried to compensate
-for the errors
-\ifcutting---but
-\else
-by inserting branch instructions and then issued a warning message.
-But
-\fi
-the compensation code harbored subtle faults%
-\ifcutting\else, which were discovered while developing a new back end
-for~GHC\fi. 
-\hfuzz=1.6pt % don't want to reword ``errors in concatenation''
-\item
-There is only one type of node in a control-flow graph,
-and we use GADTs to express the differences between
-first, middle, and last nodes.
-The main benefit is that higher-order functions for manipulating
-graphs (e.g. transfer and rewrite functions)
-now require only one function argument instead of three.
+the compiler~ran, at which point we tried to compensate
+for the errors---but
+the compensation code harbored subtle faults,
+which were discovered while developing a new back end
+for the Glasgow Haskell Compiler.
 \end{itemize}
 
-The implementation of \ourlib\ is also a dramatic improvement
-over our earlier implementations.
-Not only is the code conceptually simpler,
-but it is also shorter:
+The implementation of \ourlib\ is also much better than
+our earlier implementations.
+The code is not only conceptually simpler
+but also shorter:
 our new implementation is about half as long
-as the previous version currently available in the Glasgow Haskell Compiler.
+as the previous version, which is part of GHC, version 6.12.
 
-\section{What we have learned}
 
-In conclusion we offer the following lessons from the experience of designing
-and implementing \ourlib{}.
+
+
+\section{What we learned}
+
+We have spent six years implementing and reimplementing frameworks for
+dataflow analysis and transformation.
+While tackling this formidable challenge to our design skills,
+we learned two kinds of lessons:
+we learned some very specific things about representations and
+algorithms for optimizing compilers,
+and we were forcibly reminded of some very old lessons that are well
+known not just to functional programmers, but to programmers
+everywhere.
+
+
+
+%%  \remark{Orphaned: but for transfer functions that
+%%  approximate weakest preconditions or strongest postconditions,
+%%  monotonicity falls out naturally.}
+%%  
+%%  
+%%  In conclusion we offer the following lessons from the experience of designing
+%%  and implementing \ourlib{}.
+%%  \begin{itemize}
+%%  \item 
+%%  Although we have not stressed this point, there is a close connection
+%%  between dataflow analyses and program logic:
+%%  \begin{itemize}
+%%  \item
+%%  A forward dataflow analysis is represented by a predicate transformer
+%%  that is related to \emph{strongest postconditions}
+%%  \cite{floyd:meaning}.\footnote
+%%  {In Floyd's paper the output of the predicate transformer is called
+%%  the \emph{strongest verifiable consequent}, not the ``strongest
+%%  postcondition.''} 
+%%  \item
+%%  A backward dataflow analysis is represented by a predicate transformer
+%%  that is related to \emph{weakest preconditions} \cite{dijkstra:discipline}.
+%%  \end{itemize}
+%%  Logicians write down the predicate transformers for the primitive
+%%  program fragments, and then use compositional rules to ``lift'' them 
+%%  to a logic for whole programs.  In the same way \ourlib{} lets the client
+%%  write simple predicate transformers,
+%%  and local rewrites based on those assertions, and ``lifts'' them to entire
+%%  function bodies with arbitrary control flow.
+
+Our main goal for \hoopl\ was to combine three good ideas (interleaved
+analysis and transformation, optimization fuel, and an applicative
+control-flow graph) in a way that could easily be reused by many, many
+compiler writers.
+Reuse requires abstraction, and as is well known,
+designing good abstractions is very challenging. 
+\hoopl's data types and the functions over those types have been
+through \emph{dozens} of revisions.
+As~we were refining the design, we found it invaluable to operate in
+two modes:
+In the first mode, we designed, built, and used a framework as an
+important component of a real compiler (first Quick~{\PAL}, then GHC).
+In the second mode, we designed and built a standalone library, then
+redesigned and rebuilt it, sometimes going through several significant
+changes in a week.
+Operating in the first mode---inside a live compiler---forced us to
+make sure that no corners were cut, that we were solving a real
+problem, and that we did not make a design decision that inadvertently
+crippled an important part of the compiler outside \hoopl.
+Operating in the second mode---as a standalone library---enabled us to
+iterate furiously, trying out many more ideas than would ever have
+been possible in the first mode.
+We~have learned that alternating between these two modes leads to a
+better design than operating in either mode alone.
+
+We were forcibly reminded of what is already well known:
+that interfaces are more important than implementations, and that data
+is more important than code.
+(Representation is \emph{still} the essence of programming.)
+These priorities are reflected in this paper, where
+we
+have devoted nearly seven pages to \hoopl's API, and only a third of that
+to its implementation.
+We were also reminded that Haskell's type system (polymorphism, GADTs, higher 
+order functions, type classes, and so on) is a remarkably effective
+language for thinking about data and code---and that
+Haskell lacks a system of interfaces (in ML parlance, signatures) that
+would make it equally effective for thinking about APIs at a larger scale.
+Still, as always, the types were a remarkable aid to writing the code:
+when we finally agreed on the types presented above, the
+code almost wrote itself.  
+
+Types are widely appreciated at ICFP, but  here are three specific
+examples of how types really helped us create our design:
 \begin{itemize}
 \item 
-Although we have not stressed this point, there is a close connection
-between dataflow analyses and program logic:
-\begin{itemize}
-\item
-A forward dataflow analysis is represented by a predicate transformer
-that is related to \emph{strongest postconditions}
-\cite{floyd:meaning}.\footnote
-{In Floyd's paper the output of the predicate transformer is called
-the \emph{strongest verifiable consequent}, not the ``strongest
-postcondition.''} 
-\item
-A backward dataflow analysis is represented by a predicate transformer
-that is related to \emph{weakest preconditions} \cite{dijkstra:discipline}.
-\end{itemize}
-Logicians write down the predicate transformers for the primitive
-program fragments, and then use compositional rules to ``lift'' them 
-to a logic for whole programs.  In the same way \ourlib{} lets the client
-write simple predicate transformers,
-and local rewrites based on those assertions, and ``lifts'' them to entire
-function bodies with arbitrary control flow.
-
-\item Designing good abstractions (data type and functions over those data types,
-which is what \ourlib{} is) is very challenging. Even in our exposition we 
-have devoted nearly seven pages to the library API, and only a third of that
-to the implementation.  Moreover we have been through many, many variants
-of the API.  That said, Haskell's type system (polymorphism, GADTs, higher 
-order functions, type classes, and so on) is a remarkably effective design
-language.  It took us ages to get the types right, but once we did the
-code wrote itself.  
-
-\item Here are some examples of how the types helped us:
-\begin{itemize}
-\item Making \ourlib{} polymorphic in the nodes 
+Reuse is enabled by representation-independence, which in Haskell is
+expressed through parametric polymorphism.
+Making \ourlib{} polymorphic in the nodes 
 made the code simpler, easier to understand, and easier to maintain.
 In particular, it forced us to make explicit \emph{exactly} what
-\ourlib\ must know about nodes, and embody that knowledge in the @Edges@ class (\seclabel{edges}).
-
-\item We are particularly proud of our use of GADTs to statically
-track the open/closed status of nodes, blocks, and graphs.  It may
-seem like a small thing, but it helped tremendously when building
-the Hoopl implementation, and we expect it to help clients. 
+\ourlib\ must know about nodes, and to embody that knowledge in the
+@Edges@ type class (\secref{edges}). 
+\item
+We are particularly proud of our use of GADTs to statically
+track the open and closed shapes of nodes, blocks, and graphs.  
+Shapes may
+seem like a small refinement, but they helped tremendously when
+building \hoopl, and we expect them to help clients. 
 Moreover, the implementation is faster than it would otherwise be,
 because, say, a @(Fact O f)e@ is known to be just an @f@ rather than
 being a sum type that must be tested (with a statically known outcome!).
-
-\item The similar shapes of nodes, blocks, and graphs consistently helped our
-thinking, and helped to structure the implementation.
+Finally, giving the \emph{same} shapes
+to nodes, blocks, and graphs helped our
+thinking and helped to structure the implementation.
+\item
+In our earlier designs, graphs were parameterized over \emph{three} node
+types:, middle, and last nodes.
+Those designs therefore required
+three transfer functions, three rewrite functions, and so on.
+Moving to a single, ``shapely'' node type was a major breakthrough:
+we now have just one node type,
+one transfer function, and one rewrite function.
+But to make this implementation work, we \emph{must} have
+the type-level function for
+@Fact@ (\figref{api-types}), to express how incoming
+and outoing facts depend on the shape of a node.
 \end{itemize}
 
-\item Writing a dataflow optimizer for an imperative language
-in a functional language is a huge win.  We absolutely could not
-have conceived \ourlib{} in C++.  Partly that is to do with 
-confidence that a data structure will not be unexpectedly mutated,
-but it's also that functional programming forces you to be 
-explicit about every input and output.  Indeed, we have invented
-several improvements to the already-tricky Lerner/Grove/Chambers idea,
-including:
+Dataflow optimization is usually sold as a way to improve imperative
+programs by mutating control-flow graphs.
+Such transformations are pretty far from the tree rewriting that works
+so well at higher levels of compilers, 
+but we learned that even so,
+ writing a dataflow optimizer
+in a pure functional language is a huge win.  We could not possibly
+have conceived \ourlib{} in C++.
+In~a functional language, not only do we know that
+no data structure will be unexpectedly mutated,
+but we are forced to be
+explicit about every input and output, 
+and we are encouraged to implement things compositionally.
+This kind of thinking has helped us make
+significnat improvements to the already-tricky Lerner/Grove/Chambers idea,
+including
 optimization fuel in \secref{fuel}; 
 the per-function control of shallow vs deep rewriting 
 \secref{shallow-vs-deep};
 the combinators of \secref{combinators}; and the fixed-point improvements 
-in \secref{arf-body}). These improvements are implemented in separate
-parts of the code, and do not interact with each other.
-\end{itemize}
-In our earlier designs, graphs were parameterised over three node
-types, first, middle, and last nodes.  That had the knock-on effect of
-three transfer functions, three rewrite functions, and so on.  It was
-a major breakthrough when we found we could use just one node type,
-one transfer function, and one rewrite function.  This step in turn
-depended crucially on the availablity of the type-level function for
-@Fact@ (\figref{api-types}), so that we could express dependency
-of the facts on the open/closed-ness of the node.
+in \secref{arf-body}.
+We trust that these improvements are right only because they are
+implemented in separate 
+parts of the code that cannot possibly interact through shared mutable state.
 
-An ancestor of \ourlib{} is in the Glasgow Haskell comiler already.
-We are now engaged in pushing this vastly improved version into GHC.
+An ancestor of \ourlib{} is in the Glasgow Haskell Compiler today, in version~6.12.
+We are now engaged in pushing this vastly improved version into~GHC.
 
 % 
 % \simon{I think this section has interesting material, but it's
@@ -2916,14 +3007,13 @@ fixpoint is_fwd lat do_block init_fbase blocks
     tx_blocks :: [(Label, Block n C C)] 
               -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_blocks []             tx_fb = return tx_fb
-    tx_blocks ((lbl,blk):bs) tx_fb = do { tx_fb1 <- tx_block lbl blk tx_fb
-                                        ; tx_blocks bs tx_fb1 }
+    tx_blocks ((lbl,blk):bs) tx_fb = tx_block lbl blk tx_fb >>= tx_blocks bs
 
     tx_block :: Label -> Block n C C 
              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                                  , tfb_rg = blks, tfb_cha = cha })
-      | is_fwd && lbl `elemFactBase` fbase 
+      | is_fwd && not (lbl `elemFactBase` fbase)
       = return tx_fb	-- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
