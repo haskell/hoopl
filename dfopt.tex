@@ -372,7 +372,7 @@ Many of the most important analyses and transformations---constant
 propagation, live-variable analysis, inlining, sinking of loads, 
 and so on---should be regarded as particular cases of
 a single general problem: \emph{dataflow analysis and optimization}.
-\remark{I do not feel compelled to cite Muchnick (or anyone else) here}
+%% \remark{I do not feel compelled to cite Muchnick (or anyone else) here}
 Dataflow analysis is over thirty years old,
 but a recent, seminal paper by \citet{lerner-grove-chambers:2002} goes further, 
 describing a powerful but subtle way to
@@ -415,7 +415,7 @@ polymorphic in the list elements, so is \ourlib{} polymorphic, both in
 the nodes that inhabit graphs, and in the dataflow facts that 
 analyses compute over these graphs (\secref{using-hoopl}).
 
-\item The Lerner/Grove/Chambers paper is inspiring but abstract.
+\item The paper by Lerner, Grove, and Chambers is inspiring but abstract.
 We articulate their ideas in a concrete but simple API that hides 
 a subtle implementation (Sections \ref{sec:graph-rep} and \ref{sec:using-hoopl}).  
 You provide a representation for assertions, 
@@ -427,14 +427,20 @@ control-flow graphs, sets up and solves recursion equations,
 and interleaves rewriting with analysis.
 Designing good abstractions (data types, APIs) is surprisingly
 hard; we have been through over a dozen significantly different
-iterations and we offer our API as a contribution in its own right.
+iterations, and we offer our API as a contribution.
+% ``in its own right''  -- there's an echo in here...
 
 \item Analyses and transformations built on \ourlib\ 
 are small, simple, and easy to get right because the client
-only has to perform local reasoning (``if @x@ is live after @x:=y+2@ 
-then @y@ is live before it'').
+only has to perform local reasoning (``@y@ is live before
+@x:=y+2@'').%
+\footnote
+{Using \hoopl, it is not necessary to have the more complex rule
+``if @x@~is live after @x:=y+2@ then @y@ is live before~it,''
+because if @x@~is \emph{not} live after @x:=y+2@, the assignment
+@x:=y+2@ will be eliminated.}
 Moreover, \ourlib\ helps you write correct optimizations:
-it statically rules out transformations that violate invariants
+it~statically rules out transformations that violate invariants
 of the control-flow graph (Sections \ref{sec:graph-rep} and \ref{sec:rewrites}),
 and dynamically it can help find the first transformation that introduces a fault
 in a test program (\secref{fuel}). 
@@ -454,18 +460,19 @@ and maybe the open/closed story is hard to understand here.}
 % static guarantees this strong.
 
 \item \ourlib{} implements subtle algorithms, including at least
-(a) interleaved analysis and rewriting, (b) speculative rewriting,
-(c) optimization fuel, (d) computing fixed points.
-Previous implementations of this algorithm---including three of our
+(a)~interleaved analysis and rewriting, (b)~speculative rewriting,
+(c)~computing fixed points, and (d)~dynamic fault isolation.
+Previous implementations of these algorithms---including three of our
 own---are complicated and hard to understand, because the tricky pieces
 are implemented all together, inseparably. 
-A signficant contribution of this paper is 
+A~significant contribution of this paper is 
 a new way to structure the implementation so that each tricky piece
 is handled in just 
-one place, separate from all the other tricky
-pieces (\secref{engine}). \remark{This is a very important claim---is
-it substantiated in \secref{engine}? And shouldn't the word
-\textbf{contribution} appear in this~\P?} \simon{Better?}
+one place, separate from all the others (\secref{engine}). 
+%\remark{This is a very important claim---is
+%it substantiated in \secref{engine}? And shouldn't the word
+%\textbf{contribution} appear in this~\P?}
+% \simon{Better?} % yes thanks ---NR
 The result is sufficiently elegant that 
 we emphasize the implementation as an object of interest in
 its own right.
@@ -541,7 +548,7 @@ And so the process continues to the end of the block, where we
 can replace the conditional branch with an unconditional one, @goto L1@.
 
 \seclabel{simple-tx}
-\paragraph{Interleaved transforamtion and analysis.}
+\paragraph{Interleaved transformation and analysis.}
 Our example \emph{interleaves} transformation and analysis.
 Interleaving makes it far easier to write effective analyses.
 If, instead, we \emph{first} analyzed the block
@@ -580,7 +587,7 @@ replaces the node @x:=e@ with a no-op.
 \ourlib{} is a library that makes it easy to define dataflow analyses,
 and transformations driven by these analyses, on control-flow graphs.
 Graphs are composed from smaller units, which we discuss from the
-bottom up:
+bottom up:\finalremark{something about replacement graphs?}
 \begin{itemize}
 \item A \emph{node} is defined by \ourlib's client;
 \ourlib{} knows nothing about the representation of nodes (\secref{nodes}).
@@ -627,19 +634,28 @@ The shape of a thing determines that thing's control-flow properties.
 In particular, whenever E is a node, block, or graph,
 % : \simon{Removed the claim about a unique entry point.}
 \begin{itemize}
-% \item Regardless of whether E is open or closed, 
-% it has a unique entry point where execution begins.
-\item If E is closed at exit, control leaves \emph{only}
-by explicit branches from closed-on-exit nodes.
-\item If E is open at exit, control \emph{may} leave E
-by ``falling through'' from a distinguished exit point.
-\remark{If E is a node or block, control \emph{only} leaves E by
-falling through, but this isn't so for a graph.  Example: a body of a
-loop contains a \texttt{break} statement} \simon{I don't understand.
-A break statement would have to be translated as a branch, no?
-Can you give a an example? I claim that control only leaves an 
-open graph by falling through.}
+\item
+If E is open at the entry, it has a unique predecessor; 
+if it is closed, it may have arbitrarily many predecessors---or none.
+\item
+If E is open at the exit, it has a unique successor; 
+if it is closed, it may have arbitrarily many successors---or none.
 \end{itemize}
+%%%%    
+%%%%    
+%%%%    % \item Regardless of whether E is open or closed, 
+%%%%    % it has a unique entry point where execution begins.
+%%%%    \item If E is closed at exit, control leaves \emph{only}
+%%%%    by explicit branches from closed-on-exit nodes.
+%%%%    \item If E is open at exit, control \emph{may} leave E
+%%%%    by ``falling through'' from a distinguished exit point.
+%%%%    \remark{If E is a node or block, control \emph{only} leaves E by
+%%%%    falling through, but this isn't so for a graph.  Example: a body of a
+%%%%    loop contains a \texttt{break} statement} \simon{I don't understand.
+%%%%    A break statement would have to be translated as a branch, no?
+%%%%    Can you give a an example? I claim that control only leaves an 
+%%%%    open graph by falling through.}
+%%%%    \end{itemize}
 
 
 \subsection{Nodes} \seclabel{nodes}
@@ -926,11 +942,21 @@ Graphs concatenate nicely, in constant time.
 Unlike blocks, two graphs may be concatenated 
 not only when they are both open at the point of concatenation but also
 when they are both closed---and not in the other two cases:
-\remark{We've lost John's point about concatenation, which
+\finalremark{We've lost John's point about concatenation, which
 I~found convincing.  If it's too late to do something by Friday, we
-should remember to revisit this question later.} \simon{What is the point?
-That closed/closed graphs should not be concatenated?  We can just delete
-one equation if that's what we want.  I'd be happy to do that. RSVP}
+should remember to revisit this question later.
+John's point is that in order to force programmers to think carefully
+about what they are doing we should give concatenation different
+\emph{names} depending on the \emph{types} of the graphs being
+concatenated:
+\begin{tabular}{>{\ttfamily}l}
+O/O `cat` O/O\\
+O/C `addEntrySequence` C/x\\
+e/C `addExitSequence` C/O\\
+e/C `addBlocks` C/C\\
+\end{tabular}
+}
+
 \par{\small
 \begin{code}
 `gCat :: Graph n e a -> Graph n a x -> Graph n e x
@@ -969,36 +995,36 @@ are considered as associative operators,
 every graph has a unique representation.\remark{So what? (Doumont)
 Need some words about how this is part of making the API simple for
 the client---I've added something to the end of the paragraph, but I'm
-not particularly thrilled.
-I'm not sure this paragraph carries a contribution
-commensurate with its length.
-} \simon{Well, you were the one who was so keen on a unique representation!
-And since we have one, I think tis useful to say so. Lastly, the representation of
-singleton blocks is not entirely obvious.}
-An empty open/open graph is represented
-by @GNil@, while a closed/closed one is @gNilCC@:
-\par {\small
-\begin{code}
-  gNilCC :: Graph C C
-  gNilCC = GMany NothingO BodyEmpty NothingO
-\end{code}}
-The representation of a @Graph@ consisting of a single block~@b@ 
-depends on the shape of~@b@:\remark{Does anyone care?}
-\par{\small
-\begin{code}
-  gUnitOO :: Block O O -> Graph O O
-  gUnitOC :: Block O C -> Graph O C
-  gUnitCO :: Block O C -> Graph C O
-  gUnitCC :: Block O C -> Graph C C
-  gUnitOO b = GUnit b
-  gUnitOC b = GMany (JustO b) BodyEmpty   NothingO
-  gUnitCO b = GMany NothingO  BodyEmpty   (JustO b)
-  gUnitCC b = GMany NothingO  (BodyUnit b) NothingO
-\end{code}}
-Multi-block graphs are similar.
-From these definitions
-we can see why @GUnit@ is restricted to open/open
-blocks; if it were more accommodating, there would be 
+not particularly thrilled.}
+%%  \simon{Well, you were the one who was so keen on a unique representation!
+%%  And since we have one, I think tis useful to say so. Lastly, the representation of
+%%  singleton blocks is not entirely obvious.}
+%%%%    
+%%%%    An empty open/open graph is represented
+%%%%    by @GNil@, while a closed/closed one is @gNilCC@:
+%%%%    \par {\small
+%%%%    \begin{code}
+%%%%      gNilCC :: Graph C C
+%%%%      gNilCC = GMany NothingO BodyEmpty NothingO
+%%%%    \end{code}}
+%%%%    The representation of a @Graph@ consisting of a single block~@b@ 
+%%%%    depends on the shape of~@b@:\remark{Does anyone care?}
+%%%%    \par{\small
+%%%%    \begin{code}
+%%%%      gUnitOO :: Block O O -> Graph O O
+%%%%      gUnitOC :: Block O C -> Graph O C
+%%%%      gUnitCO :: Block O C -> Graph C O
+%%%%      gUnitCC :: Block O C -> Graph C C
+%%%%      gUnitOO b = GUnit b
+%%%%      gUnitOC b = GMany (JustO b) BodyEmpty   NothingO
+%%%%      gUnitCO b = GMany NothingO  BodyEmpty   (JustO b)
+%%%%      gUnitCC b = GMany NothingO  (BodyUnit b) NothingO
+%%%%    \end{code}}
+%%%%    Multi-block graphs are similar.
+%%%%    From these definitions
+To guarantee uniqueness, @GUnit@ is restricted to open/open
+blocks.
+If~@GUnit@ were more accommodating, there would be 
 more than one way to represent some graphs, and it wouldn't be obvious
 to a client which representation to choose---or if the choice made a difference.
 
@@ -1484,7 +1510,7 @@ rewriting function.
 
 By requiring each rewrite to return a new rewrite function,
 \hoopl\ enables a variety of combinators over
-rewrite functions.\vadjust{\penalty-10000}
+rewrite functions. %% \vadjust{\penalty-10000}
 For example, here is a function
 that combines two rewriting functions in sequence:
 \par{\small
@@ -1538,7 +1564,7 @@ We~invite you to write one such combinator, with type
 \end{code}
 The two passes run interleaved, not sequentially, and each may help
 the other,
-yielding better results than running $A$~and then~$B$ or $B$~and then~$A$.
+yielding better results than running $A$~and then~$B$ or $B$~and then~$A$
 \citep{lerner-grove-chambers:2002}.
 %%  call these passes. ``super-analyses;''
 %%  in \hoopl, construction of super-analyses is
