@@ -5,11 +5,10 @@
 
 
 LASTPAGE=12  # use this for submission
-LASTPAGE=   
 
 TGT=dfopt
 
-all:V: $TGT.pdf $TGT.ps popl-index.bitly
+all:V: $TGT.pdf supplement.pdf $TGT.ps popl-index.bitly
 bib:V: $TGT.bbl
 bibfile:V: $TGT.bib
 dvi:V: $TGT.dvi
@@ -25,6 +24,9 @@ dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex
 
 $TGT.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-$LASTPAGE $prereq
+
+supplement.pdf: $TGT.dvi
+	dvips -Ppdf -o"|ps2pdf - $target" -pp 13- $prereq
 
 $HOME/www/drop/popl-index.pdf: $TGT.dvi
 	dvips -Ppdf -o "|ps2pdf - $target" -pp 13- $prereq

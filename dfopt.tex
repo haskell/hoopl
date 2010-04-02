@@ -2008,8 +2008,6 @@ out of the graph (which are returned in the @Fact x f@),
 but also in the facts on the \emph{internal} blocks
 of the graph. A~replacement graph of type @(RG n e x)@ is decorated with
 these internal facts.
-\remark{SO IF THE TYPE IS INTERNAL, HOW DOES THE CLIENT GET ITS GRUBBY
-PAWS ON THESE FACTS???}
 \item A @Graph@ has deliberately restrictive invariants; for example,
 a @GMany@ with a @JustO@ is always open at exit (\figref{graph}).  It turns
 out to be awkward to maintain these invariants \emph{during} rewriting,
@@ -2273,23 +2271,11 @@ point.
 The code for @fixpoint@ is a massive 70 lines long;
 for completeness, it
 appears in Appendix~\ref{app:fixpoint}.  
-We highlight
-some interesting points here:
-\remark{Perhaps we should refrain from saying anything interesting and
-simply explain briefly how @fixpoint@ works?}
-\begin{itemize}
-\item
- Suppose that @forwardBlockList@ has put block @L2@ first, and
-that @L2@ branches to @L1@.
-After processing @L2@ we will propagate a new fact to @L1@, which might change
-the fact currently recorded for @L1@.  However, since we have not yet processed @L1@ in
-this iteration, we do not need to record that the @FactBase@ has changed.
-We need only run a new iteration if the fact for an \emph{already-processed} block
-is changed.
-\remark{I~fear a reader may find this point baffling rather than
-interesting.  Delete?}
-\item
-Consider a forward analysis of this @Body@, where execution starts at~@L1@:
+The~code is mostly straightforward, although we try to be a clever
+about deciding when a new fact means that another iteration over the
+blocks will be required.
+There is one more subtle point worth mentioning, which we highlight by 
+considering a forward analysis of this @Body@, where execution starts at~@L1@:
 \begin{code}
   L1: x:=3; goto L4
   L2: x:=4; goto L4
@@ -2298,38 +2284,25 @@ Consider a forward analysis of this @Body@, where execution starts at~@L1@:
 Block @L2@ is unreachable. 
 But if we \naively\ process all the blocks (say in 
 order @L1@, @L4@, @L2@), then we will start with the bottom fact for @L2@, propagate
-\{@x=4@\} to @L4@, where it will join with \{@x=3@\} to yield \{@x=@$\top$\}.  Now the
+\{@x=4@\} to @L4@, where it will join with \{@x=3@\} to yield
+\{@x=@$\top$\}.  
+Given @x=@$\top$, the
 conditional in @L4@ cannot be rewritten, and @L2@~seems reachable.  We have
 lost a good optimization.
 
-It is easy for the fixed-point algorithm to take account of unreachability.
-Recall
-that the Current @FactBase@ is a finite mapping from @Label@s to
-facts.  
-The @fixpoint@ function treats any label
-in the domain of the Current @FactBase@ as ``currently reachable'',
-even if the @FactBase@ maps that
-label to $\bot$. Whenever a fact is propagated to a label, the Current
-@FactBase@ is augumented, perhaps extending the domain of the @FactBase@,
-and implicitly making the block ``reachable''.
-To~avoid propagating facts forward from unreachable blocks,
-@fixpoint@ 
-simply \emph{refrains from analyzing any block~$B$ that is not in the domain of 
-the Current @FactBase@}.  If a later block makes $B$ reachable, @fixpoint@ notes
-that the Current @FactBase@ has changed, and it will run a new
-iteration that will analyze~$B$.
-This trick is safe only for a forward analysis, and that is why
+Our implementation solves this problem through a clever trick that is
+safe only for a forward analysis;
+@fixpoint@ analyzes a block only if the block is
+reachable from an entry point.
+This trick is not safe for a backward analysis, which
+ is why
 @fixpoint@ takes a @Bool@ as its first argument:
-if the analysis is \emph{not} forward, @fixpoint@ analyzes every
-block, whether it is in the domain of the Current @FactBase@ or not.
+it must know if the analysis goes forward.
 
-The interplay between analysis and reachability is quite subtle, so it is precisely
-the sort of thing that one might hope to implement once in a library and
-then forget---and that is the case in \hoopl.  Moreover,
-the implementation takes only a couple
-of lines of code, and better still, unreachable blocks do not
-appear in the rewritten graph.
-\end{itemize}
+Although the trick can be implemented in just a couple of lines of
+code, the reasoning behind it is quite subtle---exactly the sort of
+thing that should be implemented once in \hoopl, so clients don't have
+to worry about it.
 
 \section {Related work} \seclabel{related}
 
@@ -2375,20 +2348,20 @@ algorithms.
 
 
 The soundness of interleaving analysis and transformation,
-even when some speculative transformations are not performed on later
+even when not all speculative transformations are performed on later
 iterations, was shown by
 \citet{lerner-grove-chambers:2002}.
 
 
 \paragraph{Frameworks}
 Most dataflow frameworks support only analysis, not transformation.
-Analysis computes a fixed point, and then it is up to the client of
+The framework computes a fixed point of transfer functinos, and it is
+up to the client of 
 the framework to use that fixed point for transformation.
-Leaving transformation out of the framework greatly simplifies the
-problem, but there is still a spectrum of designs in use.
-We~aim not to be comprehensive but to mention two representatative
-designs.
-We~then move on to the two prior frameworks that support interleaved
+Omitting transformation makes it much easier to build frameworks,
+and one can find a spectrum of designs.
+We~describe  two representatative
+designs, then move on to the prior frameworks that support interleaved
 analysis and transformation.
 
 The CIL toolkit \cite{necula:cil:2002}\finalremark{No good citation
@@ -2397,8 +2370,8 @@ provides an analysis-only framework for C~programs.
 The framework is limited to one representation of control-flow graphs
 and one representation of instructions, both of which are provided by
 the framework.
-The interface provided for the client is fairly complicated;
-the purpose of the complexity appears to be to enable the client to
+The~API is complicated;
+much of the complexity is needed to enable the client to
 affect which instructions 
 the analysis iterates over.
 
@@ -2413,7 +2386,8 @@ While Soot's dataflow library supports only analysis, not
  to admire in its design.
 Soot's library is abstracted over the representation of
 the control-flow graph and the representation of instructions.
-Soots interface for defining lattice and analysis functions is similar to our own,
+Soot's interface for defining lattice and analysis functions is
+like our own, 
 although because Soot is implemented in an imperative style, 
 additional functions are needed copy lattice elements.
 Like CIL, Soot provides only analysis, not transformation.
@@ -2423,12 +2397,12 @@ Like CIL, Soot provides only analysis, not transformation.
   but I'll be darned if I can find anything that might be termed a dataflow framework.}
 
 The Whirlwind compiler contains the dataflow framework implemented
-by \citet{lerner-grove-chambers:2002}, who were the first to implement
-interleaved analysis and transformation.
+by \citet{lerner-grove-chambers:2002}, who were the first to 
+interleave analysis and transformation.
 Their implementation is much like our early efforts:
-it is a complicated mix of code that simultaneously manages the interleaving,
-deep rewriting, and the fixed-point computation.
-By~separating each of these tasks, 
+it is a complicated mix of code that simultaneously manages interleaving,
+deep rewriting, and fixed-point computation.
+By~separating these tasks, 
 our implementation simplifies the problem dramatically.
 Whirlwind's implementation also suffers from the difficulty of
 maintaining pointer invariants in a mutable representation of
@@ -2445,20 +2419,23 @@ In~\hoopl, because control-flow graphs are immutable, speculative transformation
 can be applied immediately, and there is no need
 for a phase distinction.
 
-\ourlib\ also improves upon Whirlwind's dataflow framework by providing
-new support for the optimization writer:
-\begin{itemize}
-\item Using static type guarantees, \hoopl\ rules out a whole
-  class of possible bugs: transformations that produced malformed
-  control-flow graphs.
-\item Using dynamic testing,
-  we can isolate the rewrite that transforms a working program
-  into a faulty program,
-  using Whalley's  \citeyearpar{whalley:isolation} fault-isolation technique.
-\end{itemize}
+%%% % repetitious...
+%%%
+%%%   \ourlib\ also improves upon Whirlwind's dataflow framework by providing
+%%%   new support for the optimization writer:
+%%%   \begin{itemize}
+%%%   \item Using static type guarantees, \hoopl\ rules out a whole
+%%%     class of possible bugs: transformations that produced malformed
+%%%     control-flow graphs.
+%%%   \item Using dynamic testing,
+%%%     we can isolate the rewrite that transforms a working program
+%%%     into a faulty program,
+%%%     using Whalley's  \citeyearpar{whalley:isolation} fault-isolation technique.
+%%%   \end{itemize}
 
-In previous work, we described a zipper-based representation of control-flow
-graphs \cite{ramsey-dias:applicative-flow-graph}, stressing the advantages
+In previous work \cite{ramsey-dias:applicative-flow-graph}, we
+described a zipper-based representation of control-flow 
+graphs, stressing the advantages
 of immutability.
 Our new representation, described in \secref{graph-rep}, is a significant improvement:
 \begin{itemize}
@@ -2471,13 +2448,14 @@ We can concatenate nodes, blocks, and graphs in constant time.
 We can do a backward analysis without having
 to ``unzip'' (and allocate a copy of) each block.
 \item
-By using the power of GADTs, we are able to represent a flow-graph
+Using GADTs, we can represent a flow-graph
 node using a single type, instead of the triple of first, middle, and
 last types used in our earlier representation.
-This change in representation simplifies the interface significantly:
-instead of providing three transfer functions per analysis---one for
+This change simplifies the interface significantly:
+instead of providing three transfer functions and three rewrite
+functions per pass---one for 
 each type of node---a client of \hoopl\ provides only one transfer
-function per analysis, and similarly for rewrite functions.
+function and one rewrite function per pass.
 \item
 Errors in concatenation are ruled out at
 compile-compile time by Haskell's static
@@ -2486,14 +2464,14 @@ In~earlier implementations, such errors were not detected until
 the compiler~ran, at which point we tried to compensate
 for the errors---but
 the compensation code harbored subtle faults,
-which were discovered while developing a new back end
+which we discovered while developing a new back end
 for the Glasgow Haskell Compiler.
 \end{itemize}
 
 The implementation of \ourlib\ is also much better than
 our earlier implementations.
-The code is not only conceptually simpler
-but also shorter:
+Not only is the code simpler conceptually,
+but it is also shorter:
 our new implementation is about half as long
 as the previous version, which is part of GHC, version 6.12.
 
@@ -2504,11 +2482,11 @@ as the previous version, which is part of GHC, version 6.12.
 
 We have spent six years implementing and reimplementing frameworks for
 dataflow analysis and transformation.
-While tackling this formidable challenge to our design skills,
-we learned two kinds of lessons:
-we learned some very specific things about representations and
+ This formidable design problem taught us
+two kinds of lessons:
+we learned some very specific lessons about representations and
 algorithms for optimizing compilers,
-and we were forcibly reminded of some very old lessons that are well
+and we were forcibly reminded of some very general, old lessons that are well
 known not just to functional programmers, but to programmers
 everywhere.
 
@@ -2549,10 +2527,10 @@ analysis and transformation, optimization fuel, and an applicative
 control-flow graph) in a way that could easily be reused by many, many
 compiler writers.
 Reuse requires abstraction, and as is well known,
-designing good abstractions is very challenging. 
+designing good abstractions is challenging. 
 \hoopl's data types and the functions over those types have been
 through \emph{dozens} of revisions.
-As~we were refining the design, we found it invaluable to operate in
+As~we were refining our design, we~found it invaluable to operate in
 two modes:
 In the first mode, we designed, built, and used a framework as an
 important component of a real compiler (first Quick~{\PAL}, then GHC).
@@ -2561,19 +2539,18 @@ redesigned and rebuilt it, sometimes going through several significant
 changes in a week.
 Operating in the first mode---inside a live compiler---forced us to
 make sure that no corners were cut, that we were solving a real
-problem, and that we did not make a design decision that inadvertently
-crippled an important part of the compiler outside \hoopl.
+problem, and that we did not inadvertently
+cripple some other part of the compiler.
 Operating in the second mode---as a standalone library---enabled us to
-iterate furiously, trying out many more ideas than would ever have
+iterate furiously, trying out many more ideas than would have
 been possible in the first mode.
 We~have learned that alternating between these two modes leads to a
 better design than operating in either mode alone.
 
-We were forcibly reminded of what is already well known:
+We were forcibly reminded of timeless truths:
 that interfaces are more important than implementations, and that data
 is more important than code.
-(Representation is \emph{still} the essence of programming.)
-These priorities are reflected in this paper, where
+These truths are reflected in this paper, in which
 we
 have devoted nearly seven pages to \hoopl's API, and only a third of that
 to its implementation.
@@ -2946,7 +2923,7 @@ We are now engaged in pushing this vastly improved version into~GHC.
 \makeatother
 
 \providecommand\includeftpref{\relax} %% total bafflement -- workaround
-\IfFileExists{nrbib.tex}{\bibliography{cs,ramsey}}{\bibliography{cs,ramsey,simon,jd}}
+\IfFileExists{nrbib.tex}{\bibliography{cs,ramsey}}{\bibliography{dfopt}}
 \bibliographystyle{plainnatx}
 
 
