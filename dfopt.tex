@@ -37,13 +37,13 @@ implementation.
 
 \input{dfoptdu.tex}
 
-\newif\ifpagetuning \pagetuningfalse  % adjust page breaks
+\newif\ifpagetuning \pagetuningtrue  % adjust page breaks
 
 \newif\ifnoauthornotes \noauthornotesfalse
 
 \newif\iftimestamp\timestamptrue  % show MD5 stamp of paper
 
-\timestamptrue % it's submission time
+\timestampfalse % it's submission time
 
 \IfFileExists{timestamp.tex}{}{\timestampfalse}
 
@@ -478,12 +478,12 @@ The result is sufficiently elegant that
 we emphasize the implementation as an object of interest in
 its own right.
 \end{itemize}
-A working prototype of \ourlib{} is available for download 
-at \unskip\break \url{http://ghc.cs.tufts.edu/hoopl}.
+A working prototype of \ourlib{} will soon be available for download 
+at \url{http://ghc.cs.tufts.edu/hoopl}.
 It is no toy: an ancestor of this library is
-embodied in the Glasgow Haskell Compiler, where it optimizes the
+part of the Glasgow Haskell Compiler, where it optimizes the
 imperative {\PAL} code in GHC's back end.  The new design is far
-nicer, and will be in GHC shortly.
+nicer, and it will be in GHC shortly.
 
 The API for \ourlib{} seems quite natural, but it requires
 relatively sophisticated aspects of Haskell's type system, such
@@ -548,10 +548,10 @@ replace the node with @z:=True@.
 And so the process continues to the end of the block, where we
 can replace the conditional branch with an unconditional one, @goto L1@.
 
-The previous example was simple because the program consisted of straightline code;
-dataflow analysis gets more complicated when programs have loops.
+The example above is simple because the program has only straightline code;
+when programs have loops, dataflow analysis gets more complicated.
 For example, 
-consider this graph,
+consider the following graph,
 where we assume @L1@ is the entry point:
 \begin{verbatim}
   L1: x=3; y=4; if z then goto L2 else goto L3
@@ -708,7 +708,7 @@ data `Node e x where
   `CondBranch :: Expr  -> Label -> Label -> Node O C
     -- ... more constructors ...
 \end{code}
-\caption{A typical node type, as it might be defined by a client} 
+\caption{A typical node type as it might be defined by a client} 
 \figlabel{cmm-node}
 \end{figure}
 
@@ -965,7 +965,9 @@ sequence, its presence or absence is deducible from the static type of the graph
 
 Graphs concatenate nicely, in constant time.
 Unlike blocks, two graphs may be concatenated 
-not only when they are both open at the point of concatenation but also
+not only when they are both open
+\ifpagetuning\vadjust{\penalty-10000 }\fi
+ at the point of concatenation but also
 when they are both closed---and not in the other two cases:
 \finalremark{We've lost John's point about concatenation, which
 I~found convincing.  If it's too late to do something by Friday, we
@@ -1003,7 +1005,7 @@ gCat (GMany e1 bs1 (JustO x1)) (GMany (JustO e2) bs2 x2)
 gCat (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
   = GMany e1 (bs1 `BodyCat` bs2) x2
 \end{code}}
-This definition is a nice example of the power of GADTs: the
+This definition illustrates the power of GADTs: the
 pattern matching is exhaustive, and all the open/closed invariants are
 statically checked.  For example, consider the second-last equation for @gCat@.
 Since the exit link of the first argument is @JustO x1@,
@@ -1015,9 +1017,51 @@ We can therefore concatenate them
 with @BCat@ to produce a closed/closed block, which is
 added to the @Body@ of the result.
 
+\begin{figure}
+\begin{code}
+data `ForwardPass n f
+  = `FwdPass { `fp_lattice  :: DataflowLattice f
+            , `fp_transfer :: FwdTransfer n f
+            , `fp_rewrite  :: FwdRewrite n f }
+
+------- Lattice ----------
+data `DataflowLattice a = DataflowLattice
+ { `fact_bot    :: a
+ , `fact_extend :: a -> a -> (ChangeFlag, a) }
+
+data `ChangeFlag = `NoChange | `SomeChange
+
+------- Transfers ----------
+type `FwdTransfer n f 
+  = forall e x. n e x -> Fact e f -> Fact x f 
+
+------- Rewrites ----------
+type `FwdRewrite n f 
+  = forall e x. n e x -> Fact e f
+             -> Maybe (FwdRes n f e x)
+
+data `FwdRes n f e x 
+  = FwdRes (AGraph n e x) (FwdRewrite n f)
+
+------- Fact-like things -------
+type family   `Fact x f :: *
+type instance Fact O f = f
+type instance Fact C f = FactBase f
+
+------- FactBase -------
+type `FactBase f = LabelMap f
+ -- A finite mapping from Labels to facts f
+\end{code}
+\caption{\ourlib{} API data types}
+  \figlabel{api-types}
+  \figlabel{lattice-type} \figlabel{lattice}
+  \figlabel{transfers}  \figlabel{rewrites}
+\end{figure}
+% omit mkFactBase :: [(Label, f)] -> FactBase f
+
 We~have carefully crafted the types so that if @BCat@ and @BodyCat@
 are considered as associative operators, 
-every graph has a unique representation.\remark{So what? (Doumont)
+every graph has a unique representation.\finalremark{So what? (Doumont)
 Need some words about how this is part of making the API simple for
 the client---I've added something to the end of the paragraph, but I'm
 not particularly thrilled.}
@@ -1052,6 +1096,7 @@ blocks.
 If~@GUnit@ were more accommodating, there would be 
 more than one way to represent some graphs, and it wouldn't be obvious
 to a client which representation to choose---or if the choice made a difference.
+
 
 \subsection{Labels and successors} \seclabel{edges}
 
@@ -1113,48 +1158,6 @@ if a @Graph@ is closed at the entry, it does not have a unique entry label.
 \seclabel{making-simple}
 \seclabel{create-analysis}
 
-\begin{figure}
-\begin{code}
-data `ForwardPass n f
-  = `FwdPass { `fp_lattice  :: DataflowLattice f
-            , `fp_transfer :: FwdTransfer n f
-            , `fp_rewrite  :: FwdRewrite n f }
-
-------- Lattice ----------
-data `DataflowLattice a = DataflowLattice
- { `fact_bot    :: a
- , `fact_extend :: a -> a -> (ChangeFlag, a) }
-
-data `ChangeFlag = `NoChange | `SomeChange
-
-------- Transfers ----------
-type `FwdTransfer n f 
-  = forall e x. n e x -> Fact e f -> Fact x f 
-
-------- Rewrites ----------
-type `FwdRewrite n f 
-  = forall e x. n e x -> Fact e f
-             -> Maybe (FwdRes n f e x)
-
-data `FwdRes n f e x 
-  = FwdRes (AGraph n e x) (FwdRewrite n f)
-
-------- Fact-like things -------
-type family   `Fact x f :: *
-type instance Fact O f = f
-type instance Fact C f = FactBase f
-
-------- FactBase -------
-type `FactBase f = LabelMap f
- -- A finite mapping from Labels to facts f
-\end{code}
-\caption{\ourlib{} API data types}
-  \figlabel{api-types}
-  \figlabel{lattice-type} \figlabel{lattice}
-  \figlabel{transfers}  \figlabel{rewrites}
-\end{figure}
-% omit mkFactBase :: [(Label, f)] -> FactBase f
-
 Now that we have graphs, how do we optimize them?
 \ourlib{} makes it  easy for a
 client to build a new dataflow analysis and optimization.  
@@ -1210,7 +1213,7 @@ these types are determined entirely by the client.
 
 
 As well as taking and returning a @Body@, the function also takes
-some input facts (the @FactBase@) and produces output facts. 
+input facts (the @FactBase@) and produces output facts. 
 A~@FactBase@ is simply a finite mapping from @Label@ to facts.
 The
 output @FactBase@ maps each @Label@ in the @Body@ to its fact; if
@@ -1338,7 +1341,7 @@ function successively to the nodes
 of @L1@, emerging with the fact \{@x=3@\} for @L2@.
 This new fact is joined with the existing (bottom) fact for @L2@.
 Now the analysis propagates @L2@'s fact forward, again using the transfer
-function, this time emerging with a new fact \{@x=2@, @y=7@\} for @L2@.
+function, this time emerging with a new fact \mbox{\{@x=2@, @y=7@\}} for @L2@.
 Again, the new fact is joined with the existing fact for @L2@, and the process
 is iterated until the facts for each label reach a fixed point.
 
@@ -1410,7 +1413,7 @@ mkIfThenElse p t e
 
 We compute dataflow facts in order to enable code-improving
 transformations.
-In our constant-propagation example,\remark{It's a myth!}
+In our constant-propagation example,
 the dataflow facts may enable us
 to simplify an expression by performing constant folding, or to 
 turn a conditional branch into an unconditional one.
@@ -1426,8 +1429,8 @@ We~might want to remove a node by rewriting it to the empty graph,
 or more ambitiously, we might want to replace a high-level operation
 with a tree of conditional branches or a loop, which would entail
 introducing new blocks with internal control flow.
-In general, a rewrite function must be able to return an
-\emph{arbitrary graph}. 
+In~general, a rewrite function must be able to return a
+\emph{graph}. 
 
 Concretely, a @FwdRewrite@ takes a node and a suitably shaped
 fact, and returns either @Nothing@, indicating that the node should
@@ -1536,6 +1539,8 @@ to produce a rewriting function that is a combination of deep and shallow.
 %%This is something that the Lerner/Grove/Chambers framework could not do,
 %%because there was a global shallow/deep flag.
 %% Our shortsightedness; Lerner/Grove/Chambers is deep only ---NR
+
+\ifpagetuning\penalty-10000 \fi
 
 A shallow rewriting function can easily be made deep:
 \begin{code}
@@ -1970,7 +1975,7 @@ dataflow analysis and transformation.
 We describe the implementation of \emph{forward} 
 analysis and transformation.
 The implementations of backward analysis and transformation are
-exactly \remark{``exactly''?} analogous and are part of \hoopl.
+exactly analogous and are included in \hoopl.
 
 
 
@@ -2032,7 +2037,7 @@ The constructors of @RG@ are given in \figref{rg}.
 The essential points are that constructor @RGUnit@ is polymorphic in
 the shape of a block, @RGUnit@ carries a fact as
 well as a block, and the concatenation constructors record the shapes
-of the graphs at the point of concatenation.\remark{Why record the shapes?}
+of the graphs at the point of concatenation.\finalremark{Why record the shapes?}
 
 
 We exploit the type distinctions of nodes, @Block@, @Body@,
@@ -2056,8 +2061,12 @@ and transform rewritten graphs.
 \item 
 Based on @arfNode@ it is extremely easy to write @arfBlock@, which lifts
 the analysis and rewriting from nodes to blocks (\secref{arf-block}).
+
+\ifpagetuning\penalty -10000 \fi
+
+
 \item
-Using @arfBlock@ we define @arfBody@, which analyses and rewrites a
+Using @arfBlock@ we define @arfBody@, which analyzes and rewrites a
 @Body@: that is, a group of closed/closed blocks linked by arbitrary
 control flow.
 Because a @Body@ is
@@ -2128,11 +2137,12 @@ graphs more simply than @Graph@; for example, each element of a
 @GMany@ becomes a single @RG@ object, and these @RG@ objects are then 
 concatenated to form a single result of type~@RG@.
 
+\ifpagetuning\penalty -10000 \fi
+
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
 
 Although interleaving analysis with transformation is tricky, we have
-succeeded in isolating the algorithm in just two functions,  \remark{Sure hope
-this is true!}
+succeeded in isolating the algorithm in just two functions,  
 @arfNode@ and its backward analog, @`arbNode@:
 \begin{code}
 `arfNode :: Edges n => ARF n n
@@ -2216,7 +2226,7 @@ blocks, sorted into an order that makes forward dataflow efficient:
 For
 example, if the @Body@ starts at block~@L2@, and @L2@ 
 branches to~@L1@, but not vice versa, then \hoopl\ will reach a fixed point
-more quickly faster if we process @L2@ before~@L1@.  
+more quickly if we process @L2@ before~@L1@.  
 To~find an efficient order, @forwardBlockList@ uses
 the methods of the @Edges@ class---@entryLabel@ and @successors@---to
 perform a reverse depth-first traversal of the control-flow graph.
@@ -2232,7 +2242,7 @@ reach the fixed point.
 How do we know what entry points to pass to @forwardBlockList@? 
 We treat
 any block with an entry in the in-flowing @FactBase@ as an entry point.
-\remark{Why does this work?}
+\finalremark{Why does this work?}
 
 The rest of the work is done by @fixpoint@, which is shared by
 both forward and backward analyses:
@@ -2550,8 +2560,7 @@ that interfaces are more important than implementations, and that data
 is more important than code.
 These truths are reflected in this paper, in which
 we
-have devoted nearly seven pages to \hoopl's API and only a third of that
-to \hoopl's implementation.
+have given \hoopl's API three times as much space as \hoopl's implementation.
 
 We were also reminded that Haskell's type system (polymorphism, GADTs,
 higher-order functions, type classes, and so on) is a remarkably
@@ -2564,7 +2573,7 @@ when we finally agreed on the types presented above, the
 code almost wrote itself.  
 
 Types are widely appreciated at ICFP, but  here are three specific
-examples of how types really helped us:
+examples of how types helped us:
 \begin{itemize}
 \item 
 Reuse is enabled by representation-independence, which in a functional
@@ -2950,6 +2959,7 @@ live-compiler mode,  pushing \hoopl\ into version
 
 \section{Code for \texttt{fixpoint}}  \label{app:fixpoint}
 
+{\def\baselinestretch{0.95}
 \begin{smallcode}
 data TxFactBase n f
   = TxFB { tfb_fbase :: FactBase f
@@ -3027,6 +3037,9 @@ fixpoint is_fwd lat do_block init_fbase blocks
              SomeChange -> setFuel fuel >>
                            loop fuel (tfb_fbase tx_fb) }
 \end{smallcode}
+\par
+} % end \baselinestretch
+
 
 \section{Index of defined identifiers}
 
