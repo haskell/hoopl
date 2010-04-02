@@ -1608,8 +1608,8 @@ varHasConst (CondBranch _ tid fid) f
 constProp node facts
   = fmap toAGraph (mapE rewriteE node)
   where
-    rewriteE e (Var r)
-      = case M.lookup r facts of
+    rewriteE e (Var x)
+      = case M.lookup x facts of
           Just (B b) -> Just $ Bool b
           Just (I i) -> Just $ Int  i
           _          -> Nothing
@@ -1690,7 +1690,7 @@ The rewrite function for constant propagation, @constProp@,
 simply rewrites each use of a variable to its constant value.
 We use the auxiliary function @mapE@
 to apply @rewriteE@ to each use of a variable in each kind of node;
-in turn, @rewriteE@ function checks if the variable has a constant
+in turn, the @rewriteE@ function checks if the variable has a constant
 value and makes the substitution.  We assume an auxiliary function
 \begin{code}
   toAGraph :: Node e x -> AGraph e x
@@ -1757,8 +1757,8 @@ The @FuelMonad@ is a simple state monad maintaining the supply of unused
 fuel.  It also holds a supply of fresh labels, which are used by the rewriter
 for making new blocks; more precisely, 
 \hoopl\ uses these labels to
-take the @AGraph@ (\figref{rewrites}) returned by a pass's rewrite
-function and converted it to a~@Graph@.
+take the @AGraph@ returned by a pass's rewrite
+function (\figref{rewrites}) and convert it to a~@Graph@.
 
 
 \subsection{Fixed points and speculative rewrites} \seclabel{fixpoints}
@@ -1789,7 +1789,7 @@ What if the predicate in the conditional branch were @x<10@ instead
 of @x==10@?
 Again the first iteration would begin with the tentative fact \{x=0\}.
 Using that fact, we would rewrite the conditional branch to an unconditional
-branch @goto L3@.  No new fact would propagated to @L2@, and we would
+branch @goto L3@.  No new fact would propagate to @L2@, and we would
 have successfully (and soundly) eliminated the loop.
 This example is contrived, but it illustrates that 
 for best results we should
@@ -2161,7 +2161,7 @@ but still admirably brief.
 Using the @fp_rewrite@ record selector (\figref{api-types}),
 we~begin by extracting the
 rewriting function from the @ForwardPass@,
-and we apply it function to the node~@n@ 
+and we apply it to the node~@n@ 
 and the  incoming fact~@f@.  
 
 The resulting @Maybe@ is passed to @withFuel@, which 
@@ -2271,19 +2271,19 @@ which grows monotonically:
 the initial value of the Current @FactBase@ is the fourth argument to
 @fixpoint@,
 and the Current @FactBase@ is augmented with the new facts that flow
-out of each @Block@ as it is analyze.
-The @fixpoint@ functions
+out of each @Block@ as it is analyzed.
+The @fixpoint@ function
 keeps analyzing blocks until the Current @FactBase@ reaches a fixed
 point.  
 
 The code for @fixpoint@ is a massive 70 lines long;
 for completeness, it
 appears in Appendix~\ref{app:fixpoint}.  
-The~code is mostly straightforward, although we try to be a clever
+The~code is mostly straightforward, although we try to be a bit clever
 about deciding when a new fact means that another iteration over the
 blocks will be required.
 There is one more subtle point worth mentioning, which we highlight by 
-considering a forward analysis of this @Body@, where execution starts at~@L1@:
+considering a forward analysis of this graph, where execution starts at~@L1@:
 \begin{code}
   L1: x:=3; goto L4
   L2: x:=4; goto L4
@@ -2397,7 +2397,7 @@ the control-flow graph and the representation of instructions.
 Soot's interface for defining lattice and analysis functions is
 like our own, 
 although because Soot is implemented in an imperative style, 
-additional functions are needed copy lattice elements.
+additional functions are needed to copy lattice elements.
 Like CIL, Soot provides only analysis, not transformation.
 
 
@@ -2480,7 +2480,7 @@ The implementation of \ourlib\ is also much better than
 our earlier implementations.
 Not only is the code simpler conceptually,
 but it is also shorter:
-our new implementation is about half as long
+our new implementation is about a third as long
 as the previous version, which is part of GHC, version 6.12.
 
 
