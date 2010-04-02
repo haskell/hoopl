@@ -1441,7 +1441,7 @@ but it actually has type @AGraph n e x@.
 The reason is that 
 if the rewriter makes graphs containing blocks,
 it may need fresh @Labels@.
-An~@AGraph@ provides easy access to fresh lables,
+An~@AGraph@ provides easy access to fresh labels,
 using @withLabels@ (\figref{agraph}).
 The figure also shows an implementation of @AGraph@
 and a few simple functions typically used to
@@ -1529,7 +1529,7 @@ declines to rewrite, it behaves like @rw2@.  But if
 @rw1@ rewrites, returning a new rewriter @rw1a@, the the overall call also
 succeeds, returning a new rewrite function obtained by combining @rw1a@
 with @rw2@.  (We cannot apply @rw1a@ or @rw2@ 
-directly to the replacment graph~@g@, 
+directly to the replacement graph~@g@, 
 because @r1@~returns a graph and @rw2@~expects a node.)
 The rewriter @noFwdRw@ is the identity of @thenFwdRw@.
 Finally, @thenFwdRw@ can 
@@ -1792,7 +1792,7 @@ This example is contrived, but it illustrates that
 for best results we should
 \begin{itemize}
 \item Perform the rewrites on every iteration.
-\item Begin each new iteration with the orignal, virgin graph.
+\item Begin each new iteration with the original, virgin graph.
 \end{itemize}
 This sort of algorithm is hard to implement in an imperative setting, where rewrites
 mutate a graph in place.
@@ -1837,7 +1837,7 @@ To ensure termination, a transformation that uses deep rewriting
 must not return replacement graphs which 
 contain nodes that could be rewritten indefinitely.
 \end{itemize}
-Without the conditions on montonicity and consistency,
+Without the conditions on monotonicity and consistency,
 our algorithm will terminate, 
 but there is no guarantee that it will compute
 a fixed point of the analysis.  And that in turn threatens the
@@ -2056,7 +2056,7 @@ It handles the subtleties of interleaved analysis and rewriting,
 and it deals with fuel consumption.  It calls @arfGraph@ to analyze
 and transform rewritten graphs.
 \item 
-Based on @arfNode@ it is extremely easy to write @arfBlock@, which liftes
+Based on @arfNode@ it is extremely easy to write @arfBlock@, which lifts
 the analysis and rewriting from nodes to blocks (\secref{arf-block}).
 \item
 Using @arfBlock@ we define @arfBody@, which analyses and rewrites a
@@ -2355,12 +2355,12 @@ iterations, was shown by
 
 \paragraph{Frameworks}
 Most dataflow frameworks support only analysis, not transformation.
-The framework computes a fixed point of transfer functinos, and it is
+The framework computes a fixed point of transfer functions, and it is
 up to the client of 
 the framework to use that fixed point for transformation.
 Omitting transformation makes it much easier to build frameworks,
 and one can find a spectrum of designs.
-We~describe  two representatative
+We~describe  two representative
 designs, then move on to the prior frameworks that support interleaved
 analysis and transformation.
 
