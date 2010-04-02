@@ -2112,9 +2112,9 @@ concatenated to form a single result of type~@RG@.
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
 
 Although interleaving analysis with transformation is tricky, we have
-succeeded in isolating it in a single function,  \remark{Sure hope
+succeeded in isolating it in a two functions,  \remark{Sure hope
 this is true!}
-@arfNode@:
+@arfNode@ and its backward analog, @arbNode@:
 \begin{code}
 arfNode :: Edges n => ARF n n
 arfNode pass n f
