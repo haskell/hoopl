@@ -1837,7 +1837,17 @@ The constructors of @RG@ are given in \figref{rg}.
 The essential points are that constructor @RGUnit@ is polymorphic in
 the shape of a block, @RGUnit@ carries a fact as
 well as a block, and the concatenation constructors record the shapes
-of the graphs at the point of concatenation.\finalremark{Why record the shapes?}
+of the graphs at the point of concatenation.
+(A~record of the shapes is needed so that when
+@normalizeBody@ is presented with a block carried by @RGUnit@, it is
+known whether the block is an entry sequence, an exit sequence, or a
+basic block.)
+\remark{
+Within \hoopl,
+the @RG@~type is a great convenience.  Mutter mutter:
+it carries facts as well as blocks, and it frees the client's
+rewrite functions from any obligation to respect the invariants of
+type @Graph@---I'm not convinced.}
 
 
 We exploit the type distinctions of nodes, @Block@, @Body@,
@@ -1862,7 +1872,7 @@ and transform rewritten graphs.
 Based on @arfNode@ it is extremely easy to write @arfBlock@, which lifts
 the analysis and rewriting from nodes to blocks (\secref{arf-block}).
 
-\ifpagetuning\penalty -10000 \fi
+%%% \ifpagetuning\penalty -10000 \fi
 
 
 \item
