@@ -548,6 +548,29 @@ replace the node with @z:=True@.
 And so the process continues to the end of the block, where we
 can replace the conditional branch with an unconditional one, @goto L1@.
 
+The previous example was simple because the program consisted of straightline code;
+dataflow analysis gets more complicated when programs have loops.
+For example, 
+consider this graph,
+where we assume @L1@ is the entry point:
+\begin{verbatim}
+  L1: x=3; y=4; if z then goto L2 else goto L3
+  L2: x=7; goto L3
+  L3: ...
+\end{verbatim}
+Because control flows to @L3@ from two places,
+we must \emph{join} the facts coming from those two places.
+All paths to @L3@ produce the fact @y=@$4$,
+so we can conclude that this fact holds at @L3@.
+But depending on the the path to @L3@, @x@ may have different
+values, so we conclude ``@x=@$\top$'',
+meaning that there is no single value held by @x@ at @L3@.%
+\footnote{
+In this example @x@ really does vary at @L3@, but in general
+the analysis might be conservative.}
+The final result of joining the dataflow facts that flow to @L3@
+is the new fact $@x=@\top \land @y=4@ \land @z=@\top$.
+
 \seclabel{const-prop-example}
 
 \seclabel{simple-tx}
@@ -1200,7 +1223,7 @@ if the @Body@
 represents the body of a procedure 
 with parameters $x,y,z$, we would map the entry @Label@ to a fact
 $@x=@\top \land @y=@\top \land @z=@\top$, to specify that the procedure's
-parameters have unknown values.
+parameters may not be constants.
 
 The client's model of how @analyzeAndRewriteFwd@ works is as follows:
 \ourlib\ walks forward over each block in the graph.
@@ -1247,31 +1270,6 @@ To ensure that analysis
 terminates, it is enough if every fact has a finite number of
 distinct facts above it, so that repeated joins
 eventually reach a fixed point.
-
-In our constant-propagation example,
-a fact is a finite conjunction of
-sub-facts, at most one for each variable.  Each sub-fact has the form ``@x=@$k$'',
-for some constant $k$, or ``@x=@$\top$'' (meaning that there is 
-no single value held by $x$ at this program point).  For example, 
-consider this graph,
-where we assume @L1@ is the entry point:
-\begin{verbatim}
-  L1: x=3; y=4; if z then goto L2 else goto L3
-  L2: x=7; goto L3
-  L3: ...
-\end{verbatim}
-Since control flows to @L3@ from two places,
-we must join the facts coming from those two places.  The fact flowing from
-block @L1@ to @L3@ is $@x=3@ \land @y=4@ \land @z=False@$, while the fact
-flowing from block @L2@ to @L3@ is
-$@x=7@ \land @y=4@ \land @z=True@$.  
-Both facts flow to @L3@
-where they must be joined, giving
-the fact $@x=@\top \land @y=4@ \land @z=@\top$ at @L3@, where the $\top$'s indicate
-that the analysis cannot
-nail down @x@ and @z@ to hold a single value at @L3@\footnote{
-In this example @x@ and @z@ really do vary at @L3@, but in general
-the analysis might be conservative.}.
 
 In practice, joins are computed at labels.
 If~$f_{\mathit{id}}$ is the fact currently associated with the
