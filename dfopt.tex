@@ -1255,6 +1255,8 @@ mkIfThenElse p t e
 
 `mkLabel  l = gUnitCO (BUnit (LabelNode l))          
 `mkBranch l = gUnitOC (BUnit (Branch l))
+`gUnitOC  b = GMany (JustO b) BodyEmpty   NothingO
+`gUnitCO  b = GMany NothingO  BodyEmpty   (JustO b)
 \end{code}
 \caption{The \texttt{AGraph} type and example constructions} \figlabel{agraph}
 \end{figure}
