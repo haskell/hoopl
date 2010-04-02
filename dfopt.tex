@@ -265,7 +265,7 @@ implementation.
 
 \begin{document}
 %\title{\ourlib: Dataflow Optimization Made Simple}
-\title{\ourlib: A Modular, Reusable Library\\ for Dataflow Analysis and Transformation}
+\title{\ourlib: A Modular, Reusable Library for\\ Dataflow Analysis and Transformation}
 %\title{Implementing Dataflow Analysis and Optimization by Lifting Node Functions to Basic Blocks and Control-Flow Graphs}
 \subtitle{Programming pearl}
 
@@ -2966,8 +2966,6 @@ data TxFactBase n f
          , tfb_rg  :: RG n f C C -- Transformed blocks
          , tfb_cha   :: ChangeFlag
          , tfb_lbls  :: LabelSet }
- -- Note [TxFactBase change flag]
- -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  -- Set the tfb_cha flag iff 
  --   (a) the fact in tfb_fbase for or a block L changes
  --   (b) L is in tfb_lbls.
@@ -2977,64 +2975,67 @@ data TxFactBase n f
 updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
            -> (ChangeFlag, FactBase f) 
            -> (ChangeFlag, FactBase f)
--- See Note [TxFactBase change flag]
 updateFact lat lbls (lbl, new_fact) (cha, fbase)
   | NoChange <- cha2        = (cha,        fbase)
   | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
   | otherwise               = (cha,        new_fbase)
   where
     (cha2, res_fact) 
-       = case lookupFact fbase lbl of
-           Nothing -> (SomeChange, new_fact)  -- Note [Unreachable blocks]
-           Just old_fact -> fact_extend lat old_fact new_fact
+      = case lookupFact fbase lbl of
+         Nothing -> (SomeChange, new_fact)
+         Just old_fact -> fact_extend lat old_fact new_fact
     new_fbase = extendFactBase fbase lbl res_fact
 
 fixpoint :: forall n f. Edges n
-         => Bool	-- Going forwards?
+         => Bool        -- Going forwards?
          -> DataflowLattice f
          -> (Block n C C -> FactBase f
               -> FuelMonad (RG n f C C, FactBase f))
          -> FactBase f -> [(Label, Block n C C)]
          -> FuelMonad (RG n f C C, FactBase f)
 fixpoint is_fwd lat do_block init_fbase blocks
-  = do { fuel <- getFuel  
-       ; tx_fb <- loop fuel init_fbase
-       ; return (tfb_rg tx_fb, 
-                 tfb_fbase tx_fb `delFromFactBase` blocks) }
-	     -- The successors of the Graph are the the Labels for which
-	     -- we have facts, that are *not* in the blocks of the graph
-  where
-    tx_blocks :: [(Label, Block n C C)] 
-              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-    tx_blocks []             tx_fb = return tx_fb
-    tx_blocks ((lbl,blk):bs) tx_fb = tx_block lbl blk tx_fb >>= tx_blocks bs
+ = do { fuel <- getFuel  
+      ; tx_fb <- loop fuel init_fbase
+      ; return (tfb_rg tx_fb, 
+                tfb_fbase tx_fb `delFromFactBase` blocks) }
+          -- The outgoing FactBase contains facts only for 
+          -- Labels *not* in the blocks of the graph
+ where
+  tx_blocks :: [(Label, Block n C C)] 
+            -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+  tx_blocks []             tx_fb = return tx_fb
+  tx_blocks ((lbl,blk):bs) tx_fb = tx_block lbl blk tx_fb
+                                   >>= tx_blocks bs
 
-    tx_block :: Label -> Block n C C 
-             -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-    tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
-                                 , tfb_rg = blks, tfb_cha = cha })
-      | is_fwd && not (lbl `elemFactBase` fbase)
-      = return tx_fb	-- Note [Unreachable blocks]
-      | otherwise
-      = do { (rg, out_facts) <- do_block blk fbase
-           ; let (cha',fbase') 
-                   = foldr (updateFact lat lbls) (cha,fbase) 
-                           (factBaseList out_facts)
-           ; return (TxFB { tfb_lbls  = extendLabelSet lbls lbl
-                          , tfb_rg  = rg `RGCatC` blks
-                          , tfb_fbase = fbase', tfb_cha = cha' }) }
+  tx_block :: Label -> Block n C C 
+           -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+  tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase
+                               , tfb_lbls  = lbls
+                               , tfb_rg    = blks
+                               , tfb_cha   = cha })
+    | is_fwd && not (lbl `elemFactBase` fbase)
+    = return tx_fb    -- Note [Unreachable blocks]
+    | otherwise
+    = do { (rg, out_facts) <- do_block blk fbase
+         ; let (cha',fbase') 
+                 = foldr (updateFact lat lbls) (cha,fbase) 
+                         (factBaseList out_facts)
+         ; return (TxFB { tfb_lbls = extendLabelSet lbls lbl
+                        , tfb_rg   = rg `RGCatC` blks
+                        , tfb_fbase = fbase'
+                        , tfb_cha = cha' }) }
 
-    loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
-    loop fuel fbase 
-      = do { let init_tx_fb = TxFB { tfb_fbase = fbase
-                                   , tfb_cha   = NoChange
-                                   , tfb_rg  = RGNil
-                                   , tfb_lbls  = emptyLabelSet }
-           ; tx_fb <- tx_blocks blocks init_tx_fb
-           ; case tfb_cha tx_fb of
-               NoChange   -> return tx_fb
-               SomeChange -> do { setFuel fuel
-                                ; loop fuel (tfb_fbase tx_fb) } }
+  loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
+  loop fuel fbase 
+    = do { let init_tx_fb = TxFB { tfb_fbase = fbase
+                                 , tfb_cha   = NoChange
+                                 , tfb_rg    = RGNil
+                                 , tfb_lbls  = emptyLabelSet}
+         ; tx_fb <- tx_blocks blocks init_tx_fb
+         ; case tfb_cha tx_fb of
+             NoChange   -> return tx_fb
+             SomeChange -> setFuel fuel >>
+                           loop fuel (tfb_fbase tx_fb) }
 \end{smallcode}
 
 \section{Index of defined identifiers}
