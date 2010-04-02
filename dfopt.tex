@@ -1283,13 +1283,11 @@ Furthermore, the dataflow engine wants to know if
   $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$,
 because if not, the analysis has not reached a fixed point.
 
-Concretely, @analyzeAndRewriteFwd@ is polymorphic in the fact
-type~@f@, and it requires an argument of type @ForwardPass n f@,
-which in turn contains a value of type @DataflowLattice f@.
-The lattice
-type is shown in \figref{lattice}; it gives \ourlib{} the lattice's
-bottom element and
-join operation.
+The bottom element and join operation of a lattice of facts of
+type~@f@ are stored in a value of type @DataflowLattice f@
+(\figref{lattice}). 
+%%Such a value is part of the  @ForwardPass n f@ that is passed to
+%%@analyzeAndRewriteFwd@ above.
 As noted in the previous paragraph, 
 \ourlib{} needs to know when the result of a join is equal
 to one of the arguments joined.  
