@@ -2552,22 +2552,25 @@ that interfaces are more important than implementations, and that data
 is more important than code.
 These truths are reflected in this paper, in which
 we
-have devoted nearly seven pages to \hoopl's API, and only a third of that
-to its implementation.
-We were also reminded that Haskell's type system (polymorphism, GADTs, higher 
-order functions, type classes, and so on) is a remarkably effective
+have devoted nearly seven pages to \hoopl's API and only a third of that
+to \hoopl's implementation.
+
+We were also reminded that Haskell's type system (polymorphism, GADTs,
+higher-order functions, type classes, and so on) is a remarkably
+effective 
 language for thinking about data and code---and that
-Haskell lacks a system of interfaces (in ML parlance, signatures) that
+Haskell lacks a language of interfaces (like ML's signatures) that
 would make it equally effective for thinking about APIs at a larger scale.
-Still, as always, the types were a remarkable aid to writing the code:
+Still, as usual, the types were a remarkable aid to writing the code:
 when we finally agreed on the types presented above, the
 code almost wrote itself.  
 
 Types are widely appreciated at ICFP, but  here are three specific
-examples of how types really helped us create our design:
+examples of how types really helped us:
 \begin{itemize}
 \item 
-Reuse is enabled by representation-independence, which in Haskell is
+Reuse is enabled by representation-independence, which in a functional
+language is
 expressed through parametric polymorphism.
 Making \ourlib{} polymorphic in the nodes 
 made the code simpler, easier to understand, and easier to maintain.
@@ -2575,58 +2578,69 @@ In particular, it forced us to make explicit \emph{exactly} what
 \ourlib\ must know about nodes, and to embody that knowledge in the
 @Edges@ type class (\secref{edges}). 
 \item
-We are particularly proud of our use of GADTs to statically
-track the open and closed shapes of nodes, blocks, and graphs.  
+We are proud of using GADTs to 
+track the open and closed shapes of nodes, blocks, and graphs at
+compile time. 
 Shapes may
 seem like a small refinement, but they helped tremendously when
 building \hoopl, and we expect them to help clients. 
-Moreover, the implementation is faster than it would otherwise be,
-because, say, a @(Fact O f)e@ is known to be just an @f@ rather than
-being a sum type that must be tested (with a statically known outcome!).
-Finally, giving the \emph{same} shapes
+%
+% this paper is just not about run-time performance ---NR
+%
+%%%%    Moreover, the implementation is faster than it would otherwise be,
+%%%%    because, say, a @(Fact O f)e@ is known to be just an @f@ rather than
+%%%%    being a sum type that must be tested (with a statically known outcome!).
+%
+Giving the \emph{same} shapes
 to nodes, blocks, and graphs helped our
 thinking and helped to structure the implementation.
 \item
 In our earlier designs, graphs were parameterized over \emph{three} node
-types:, middle, and last nodes.
+types: first, middle, and last nodes.
 Those designs therefore required
-three transfer functions, three rewrite functions, and so on.
+three transfer functions, three rewrite functions, and so~on.
 Moving to a single, ``shapely'' node type was a major breakthrough:
-we now have just one node type,
-one transfer function, and one rewrite function.
-But to make this implementation work, we \emph{must} have
+not only do we have just one node type, but our client need supply only
+one transfer function and one rewrite function.
+To~make this design work, however, we \emph{must} have
 the type-level function for
 @Fact@ (\figref{api-types}), to express how incoming
-and outoing facts depend on the shape of a node.
+and outgoing facts depend on the shape of a node.
 \end{itemize}
 
-Dataflow optimization is usually sold as a way to improve imperative
+Dataflow optimization is usually described as a way to improve imperative
 programs by mutating control-flow graphs.
-Such transformations are pretty far from the tree rewriting that works
-so well at higher levels of compilers, 
-but we learned that even so,
- writing a dataflow optimizer
-in a pure functional language is a huge win.  We could not possibly
-have conceived \ourlib{} in C++.
-In~a functional language, not only do we know that
+Such transformations appear very different from the tree rewriting
+that functional languages are so well known for, and that makes
+functional languages so attractive for writing other parts of compilers.
+But even though dataflow optimization looks very different from
+what we are used to,
+writing a dataflow optimizer
+in a pure functional language was a huge win.
+%  We could not possibly have conceived \ourlib{} in C++.
+In~a pure functional language, not only do we know that
 no data structure will be unexpectedly mutated,
 but we are forced to be
 explicit about every input and output, 
 and we are encouraged to implement things compositionally.
 This kind of thinking has helped us make
-significnat improvements to the already-tricky Lerner/Grove/Chambers idea,
-including
-optimization fuel in \secref{fuel}; 
-the per-function control of shallow vs deep rewriting 
-\secref{shallow-vs-deep};
-the combinators of \secref{combinators}; and the fixed-point improvements 
-in \secref{arf-body}.
+significant improvements to the already tricky work of Lerner, Grove,
+and Chambers:
+optimization fuel (\secref{fuel}),
+per-function control of shallow vs deep rewriting 
+(\secref{shallow-vs-deep}),
+combinators for dataflow passes (\secref{combinators}),
+and transparent management of unreachable blocks (\secref{arf-body}).
 We trust that these improvements are right only because they are
 implemented in separate 
-parts of the code that cannot possibly interact through shared mutable state.
-
-An ancestor of \ourlib{} is in the Glasgow Haskell Compiler today, in version~6.12.
-We are now engaged in pushing this vastly improved version into~GHC.
+parts of the code that cannot possibly interact except through
+explicit function calls.
+%%
+%%An ancestor of \ourlib{} is in the Glasgow Haskell Compiler today,
+%%in version~6.12.
+With our new, superior design in hand, we are now moving back to
+live-compiler mode,  pushing our vastly improved design into version
+6.13 of the Glasgow Haskell Compiler.
 
 % 
 % \simon{I think this section has interesting material, but it's
