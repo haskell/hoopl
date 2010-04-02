@@ -548,6 +548,8 @@ replace the node with @z:=True@.
 And so the process continues to the end of the block, where we
 can replace the conditional branch with an unconditional one, @goto L1@.
 
+\seclabel{const-prop-example}
+
 \seclabel{simple-tx}
 \paragraph{Interleaved transformation and analysis.}
 Our example \emph{interleaves} transformation and analysis.
@@ -808,7 +810,7 @@ Using GADTs to enforce these invariants is one of
 
 \ourlib{} composes blocks into graphs, which are also defined 
 in  \figref{graph}.
-Like, @Block@ the data type @Graph@ is parameterized over
+Like @Block@, the data type @Graph@ is parameterized over
 both nodes @n@ and its open/closed shape (@e@ and @x@).
 It has three constructors.  The first two
 deal with the base cases of open/open graphs:
@@ -982,7 +984,7 @@ This definition is a nice example of the power of GADTs: the
 pattern matching is exhaustive, and all the open/closed invariants are
 statically checked.  For example, consider the second-last equation for @gCat@.
 Since the exit link of the first argument is @JustO x1@,
-we know that type parameter~@a@ is~@C@, and hence the entry link of the second 
+we know that type parameter~@a@ is~@O@, and hence the entry link of the second 
 argument must be @JustO e2@.
 Moreover, block~@x1@ must be
 closed/open, and block~@e2@ must be open/closed.  
@@ -1097,8 +1099,8 @@ data `ForwardPass n f
 
 ------- Lattice ----------
 data `DataflowLattice a = DataflowLattice
- {`fact_bot    :: a,
-  `fact_extend :: a -> a -> (ChangeFlag, a) }
+ { `fact_bot    :: a
+ , `fact_extend :: a -> a -> (ChangeFlag, a) }
 
 data `ChangeFlag = `NoChange | `SomeChange
 
@@ -1135,7 +1137,7 @@ Now that we have graphs, how do we optimize them?
 client to build a new dataflow analysis and optimization.  
 The client must supply the following pieces:
 \begin{itemize}
-\item \emph{A node type} (\secref{graph-rep}).  
+\item \emph{A node type} (\secref{nodes}).  
 \ourlib{} supplies the @Block@ and @Graph@ types
 that let the client build control-flow graphs out of nodes.
 \item \emph{A data type of facts} and some operations over 
@@ -1190,15 +1192,14 @@ A~@FactBase@ is simply a finite mapping from @Label@ to facts.
 The
 output @FactBase@ maps each @Label@ in the @Body@ to its fact; if
 the @Label@ is not in the domain of the @FactBase@, its fact is the
-bottom of the lattice.
+bottom element of the lattice.
 Similarly the input @FactBase@ supplies any
 facts that hold on entry to the @Body@.
-For example, in our constant-propagation example,\remark{Where is this
-vaunted example?  Where is @Top@ defined??}
+For example, in our constant-propagation example from \secref{const-prop-example},
 if the @Body@
 represents the body of a procedure 
 with parameters $x,y,z$, we would map the entry @Label@ to a fact
-$@[@(x,@Top@), (y,@Top@), (z,@Top@)@]@$, to specify that the procedure's
+$@x=@\top \land @y=@\top \land @z=@\top$, to specify that the procedure's
 parameters have unknown values.
 
 The client's model of how @analyzeAndRewriteFwd@ works is as follows:
@@ -1210,7 +1211,7 @@ graph, the transfer function is used to compute the downstream fact,
 and \ourlib\ moves on to the next node.
 But if the rewrite function returns @(Just g)@,
 indicating that it wants to rewrite the node to the replacement graph~@g@, then
-\ourlib\ recursively analyzes and rewrites~@g@ before moving on the the next node.
+\ourlib\ recursively analyzes and rewrites~@g@ before moving on to the next node.
 A~node following a rewritten node sees 
 \emph{up-to-date} facts; that is, its input fact is computed by
 analyzing the replacement graph.
