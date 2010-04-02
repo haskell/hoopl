@@ -1118,8 +1118,8 @@ data `FwdRes n f e x
 
 ------- Fact-like things -------
 type family   `Fact x f :: *
-type instance Fact C f = FactBase f
 type instance Fact O f = f
+type instance Fact C f = FactBase f
 
 ------- FactBase -------
 type `FactBase f = LabelMap f
@@ -1242,14 +1242,13 @@ variable @x@.
 
 A~set of dataflow facts must form a lattice, and \ourlib{} must know
 (a)~the bottom element of the lattice and (b)~how to take 
-the least upper bound of (join) two elements.
+the least upper bound (join) of two elements.
 To ensure that analysis
-terminates, it is enough if no fact has more than finitely many
-distinct facts above it, so that every infinite sequence of joins
-eventually reaches a fixed point.
+terminates, it is enough if every fact has a finite number of
+distinct facts above it, so that repeated joins
+eventually reach a fixed point.
 
-In our constant-propagation example,\remark{I'm worried this example
-has been lost}
+In our constant-propagation example,
 a fact is a finite conjunction of
 sub-facts, at most one for each variable.  Each sub-fact has the form ``@x=@$k$'',
 for some constant $k$, or ``@x=@$\top$'' (meaning that there is 
@@ -1262,10 +1261,11 @@ where we assume @L1@ is the entry point:
   L3: ...
 \end{verbatim}
 Since control flows to @L3@ from two places,
-we must join the facts coming from those two places.  The fact at the
-end of block @L1@ is $@x=3@ \land @y=4@ \land @z=False@$, while at the end of
-@L2@ the fact is $@x=7@ \land @y=4@ \land @z=True@$.  
-Both blocks branch to @L3@
+we must join the facts coming from those two places.  The fact flowing from
+block @L1@ to @L3@ is $@x=3@ \land @y=4@ \land @z=False@$, while the fact
+flowing from block @L2@ to @L3@ is
+$@x=7@ \land @y=4@ \land @z=True@$.  
+Both facts flow to @L3@
 where they must be joined, giving
 the fact $@x=@\top \land @y=4@ \land @z=@\top$ at @L3@, where the $\top$'s indicate
 that the analysis cannot
@@ -1303,20 +1303,20 @@ the result is the same as the second argument, and @SomeChange@ if the
 result differs.  (Function @fact_extend@ is \emph{not} symmetric in
 its arguments.)
 
-A~possible representation of the facts needed to implement
-constant propagation is shown in \figref{const-prop}.
-A~fact
-is represented as a finite map from a variable to a value of type
-@Maybe HasConst@.%
-A~variable $x$ maps to @Nothing@ iff $x=\bot$;
-$x$~maps to @Just Top@ iff $x=\top$;
-and $x$~maps to $@Just@\, (@I@\, k)$ iff $x=k$ (and similarly for
-Boolean constants).\remark{Ugh}
-Any one procedure has only
-finitely many variables; only finitely many facts are computed at any
-program point; and in this lattice any one fact can increase at most
-twice.  These properties ensure that the dataflow engine will reach a
-fixed point.
+% A~possible representation of the facts needed to implement
+% constant propagation is shown in \figref{const-prop}.
+% A~fact
+% is represented as a finite map from a variable to a value of type
+% @Maybe HasConst@.%
+% A~variable $x$ maps to @Nothing@ iff $x=\bot$;
+% $x$~maps to @Just Top@ iff $x=\top$;
+% and $x$~maps to $@Just@\, (@I@\, k)$ iff $x=k$ (and similarly for
+% Boolean constants).\remark{Ugh}
+% Any one procedure has only
+% finitely many variables; only finitely many facts are computed at any
+% program point; and in this lattice any one fact can increase at most
+% twice.  These properties ensure that the dataflow engine will reach a
+% fixed point.
 
 
 \subsection{The transfer function} \seclabel{transfers}
@@ -1368,16 +1368,16 @@ coming out of a node
 \emph{open} at the exit is just a fact~@f@. The second declaration says that 
 the fact-like thing
 coming out of a node
-\emph{close} at the exit is a mapping from @Label@ to facts.
+\emph{closed} at the exit is a mapping from @Label@ to facts.
 
 We have ordered the arguments such that if
 \begin{code}
   transfer_fn :: FwdTransfer n f
   node        :: n e x
 \end{code}
-then @(transfer_fn n)@ is a predicate transformer:
+then @(transfer_fn node)@ is a predicate transformer:
 \begin{code}
-  transfer_fn n :: Fact e f -> Fact x f
+  transfer_fn node :: Fact e f -> Fact x f
 \end{code}
 
 
@@ -1433,7 +1433,7 @@ In general, a rewrite function must be able to return an
 
 Concretely, a @FwdRewrite@ takes a node and a suitably shaped
 fact, and returns either @Nothing@, indicating that the node should
-not be replaces,
+not be replaced,
 or $@(Just@\;@(FwdRes@\;\ag\;\rw@))@$, indicating that the node should
 be replaced with~\ag: the replacement graph.  
 You may have been expecting \ag\ to have type  @Graph n e x@, 
@@ -1526,7 +1526,7 @@ that combines two rewriting functions in sequence:
 \end{code}}
 What a beautiful type @thenFwdRw@ has! It tries @rw1@, and if @rw1@
 declines to rewrite, it behaves like @rw2@.  But if
-@rw1@ rewrites, returning a new rewriter @rw1a@, the the overall call also
+@rw1@ rewrites, returning a new rewriter @rw1a@, then the overall call also
 succeeds, returning a new rewrite function obtained by combining @rw1a@
 with @rw2@.  (We cannot apply @rw1a@ or @rw2@ 
 directly to the replacment graph~@g@, 
@@ -1644,10 +1644,10 @@ constant propagation and constant folding.
 For each variable at each point in a graph, the analysis concludes one of three facts:
 the variable holds a constant value (Boolean or integer),
 the variable might hold a non-constant value,
-or nothing is known about what the variable holds (bottom).
-We~represent these facts using a finite map from variables to dataflow facts
-(@HasConst@).
-A variable with a constant value maps to @Just v@, where @v@ is the constant value;
+or nothing is known about what the variable holds.
+We~represent these facts using a finite map from a variable to a
+fact of type (@Maybe HasConst@).
+A variable with a constant value maps to @Just k@, where @k@ is the constant value;
 a variable with a non-constant value maps to @Just Top@;
 and a variable with an unknown value maps to @Nothing@ (i.e., it is not
 in the domain of the finite map).
