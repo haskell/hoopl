@@ -64,6 +64,10 @@ implementation.
    % ('Hoople' was taken -- see hoople.org)
 \let\hoopl\ourlib
 
+\newcommand\ag{\ensuremath{\mathit{ag}}}
+\renewcommand\ag{\ensuremath{g}}  % not really seeing that 'ag' is helpful here ---NR
+\newcommand\rw{\ensuremath{\mathit{rw}}}
+
 % l2h substitution ourlib Hoopl
 % l2h substitution hoopl Hoopl
 
@@ -74,6 +78,7 @@ implementation.
 
 \usepackage{alltt}
 \usepackage{array}
+\usepackage{afterpage}
 \newcommand\lbr{\char`\{}
 \newcommand\rbr{\char`\}}
  
@@ -253,8 +258,9 @@ implementation.
 
 \hyphenation{there-by}
 
-\renewcommand{\floatpagefraction}{0.85}
-\renewcommand{\textfraction}{0.2}
+\renewcommand{\floatpagefraction}{0.9} % must be less than \topfraction
+\renewcommand{\topfraction}{0.95}
+\renewcommand{\textfraction}{0.05}
 
 \begin{document}
 %\title{\ourlib: Dataflow Optimization Made Simple}
@@ -449,7 +455,7 @@ and maybe the open/closed story is hard to understand here.}
 
 \item \ourlib{} implements subtle algorithms, including at least
 (a) interleaved analysis and rewriting, (b) speculative rewriting,
-(c) optimization fuel, (c) fixpoint finding.
+(c) optimization fuel, (d) computing fixed points.
 Previous implementations of this algorithm---including three of our
 own---are complicated and hard to understand, because the tricky pieces
 are implemented all together, inseparably. 
@@ -538,7 +544,7 @@ can replace the conditional branch with an unconditional one, @goto L1@.
 \paragraph{Interleaved transforamtion and analysis.}
 Our example \emph{interleaves} transformation and analysis.
 Interleaving makes it far easier to write effective analyses.
-If, instead, we \emph{first} analysed the block
+If, instead, we \emph{first} analyzed the block
 and \emph{then} transformed it, the analysis would have to ``predict''
 the transformations.
 For example, given the incoming fact \{@x=7@\}
@@ -548,7 +554,7 @@ a pure analysis could produce the outgoing fact
 But the subsequent transformation must perform
 \emph{exactly the same simplification} when it transforms the instruction to @z:=True@!
 If instead we \emph{first} rewrite the node to @z:=True@, 
-and \emph{then} apply the transfer function to the rewritten node, 
+and \emph{then} apply the transfer function to the new node, 
 the transfer function becomes laughably simple: it merely has to see if the
 right hand side is a constant (you can see actual code in \secref{const-prop-client}).
 The gain is even more compelling if there are a number of interacting 
@@ -1328,7 +1334,7 @@ time, by Haskell's (recently added)
 The relevant \ourlib{} definitions are given in \figref{transfers}.
 A~forward transfer function, of type (@FwdTransfer@ @n@ @f@), 
 is a function polymorphic in @e@ and @x@.  It takes a 
-node of type (@n@ @e@ @x@) and a fact of type~@f@, and it produces an
+node of type \mbox{(@n@ @e@ @x@)} and a fact of type~@f@, and it produces an
 outgoing ``fact-like thing'' of type (@Fact@ @x@ @f@).  The 
 type constructor @Fact@
 should be thought of as a type-level function; its signature is given in the
@@ -1368,7 +1374,7 @@ type `AGraph n e x
 withLabels n fn = \ls -> fn (take n ls) (drop n ls)
 
 `mkIfThenElse :: Expr -> AGraph Node O O
-             -> AGraph Node O -> AGraph Node O O
+             -> AGraph Node O O -> AGraph Node O O
 mkIfThenElse p t e
   = withLabels 3 $ \[l1,l2,l3] ->
     gUnitOC (BUnit (CondBranch p l1 l2))   `gCat` 
@@ -1379,54 +1385,58 @@ mkIfThenElse p t e
 mkLabel  l = gUnitCO (BUnit (LabelNode l))          
 mkBranch l = gUnitOC (BUnit (Branch l))
 \end{code}
-\caption{The \texttt{AGraph} type} \figlabel{agraph}
+\caption{The \texttt{AGraph} type and example constructions} \figlabel{agraph}
 \end{figure}
 
 We compute dataflow facts in order to enable code-improving
-transformations on control-flow graphs.
-In our constant-propagation example, the dataflow facts may enable us
+transformations.
+In our constant-propagation example,\remark{It's a myth!}
+the dataflow facts may enable us
 to simplify an expression by performing constant folding, or to 
 turn a conditional branch into an unconditional one.
 Similarly, a liveness analysis may allow us to 
-rewrite an assignment to a dead register by a no-op; knowing that a register is
+replace a dead assignment with a no-op; knowing that a register is
 live at a call site might provoke us to insert a spill before the call; and so on.
 
 A @ForwardPass@ therefore includes a \emph{rewriting function}, whose
 type, @FwdRewrite@, is given in \figref{api-types}.
-A rewriting function takes a node and a fact, and optionally returns \ldots what?
+A rewriting function takes a node and a fact, and optionally returns\ldots what?
 At first one might
-expect that rewriting should return a new node, but that is not enough.
-For example, perhaps we want to replace a high-level operation
-with a tree of conditional branches or a loop, which entails introducing new blocks
-with arbitrary control flow.
-Another important special case is rewriting a node to a no-op.
-So in general the rewrite function must return an \emph{arbitrary graph}.
+expect that rewriting should return a new node, but that is not enough:
+We~might want to remove a node by rewriting it to the empty graph,
+or more ambitiously, we might want to replace a high-level operation
+with a tree of conditional branches or a loop, which would entail
+introducing new blocks with internal control flow.
+In general, a rewrite function must be able to return an
+\emph{arbitrary graph}. 
 
-Concretely, a @FwdRewrite@ takes a node and a suitably-shaped
-fact, and returns either @Nothing@, indicating no rewrite is desired; 
-or $@(Just@\;@(FwdRes@\;ag\;rw@))@$, indicating that a rewrite 
-should be done.
-
-The graph $ag$ is the rewritten graph.  
-It has type @AGraph n e x@ when you 
-were probably expecting @Graph n e x@.
-The reason for this is that 
+Concretely, a @FwdRewrite@ takes a node and a suitably shaped
+fact, and returns either @Nothing@, indicating that the node should
+not be replaces,
+or $@(Just@\;@(FwdRes@\;\ag\;\rw@))@$, indicating that the node should
+be replaced with~\ag: the replacement graph.  
+You may have been expecting \ag\ to have type  @Graph n e x@, 
+but it actually has type @AGraph n e x@.
+The reason is that 
 if the rewriter makes graphs containing blocks,
-it will need to conjure up some fresh @Labels@.
-An @AGraph@ makes it possible for the rewriter to do so conveniently,
-using @withLabels@ as shown in \figref{agraph}.
-This Figure also shows a possible implementation of @AGraph@
-and an exmaple of how convenient-to-use @AGraph@ construction
-functions are easy to write.
+it may need fresh @Labels@.
+An~@AGraph@ provides easy access to fresh lables,
+using @withLabels@ (\figref{agraph}).
+The figure also shows an implementation of @AGraph@
+and a few simple functions typically used to
+build @AGraph@s.
 
-Notice also that 
-the rewritten graph $ag$ is statically guaranteed to have
-\emph{the same open/closed shape as the node being rewritten}.
-So a branch instruction, for example, can only be rewritten to a graph 
-closed at the exit.  Moreover, only an open/open graph can be 
-empty -- look at the type of @GNil@ in \figref{graph} --
-which gives us a guarantee that a closed/open node (head of a block)
-or an open/closed node (tail of a block) cannot be deleted by being
+
+The type of @FwdRewrite@ in \figref{api-types} guarantees
+\emph{at compile time} that
+the replacement graph $\ag$ has
+the \emph{same} open/closed shape as the node being rewritten.
+For example, a branch instruction can be replaced only by a graph 
+closed at the exit.  Moreover, because only an open/open graph can be 
+empty---look at the type of @GNil@ in \figref{graph}---the type 
+of @FwdRewrite@ 
+guarantees, at compile time, that no head of a block (closed/open)
+or tail of a block (open/closed) can ever be deleted by being
 rewritten to an empty graph.
 
 \subsection{Shallow vs deep rewriting}
@@ -1434,44 +1444,51 @@ rewritten to an empty graph.
 
 Once the rewrite has been performed, what then?  
 Since the rewrite returns a graph, the 
-rewritten graph must itself be analysed and (perhaps) rewritten.
-So we must call @analyzeAndRewriteFwd@ to process the rewritten
-graph -- but what should we use for the @ForwardPass@ argument?
+replacement graph must itself be analyzed, and its nodes may be rewritten.
+So we must call @analyzeAndRewriteFwd@ to process the replacement
+graph---but what @ForwardPass@ should we use?
 There are two common situations:
 \begin{itemize}
-\item Sometimes we want to analyze and transform the rewritten graph
-with an unmodified @ForwardPass@.  So the 
-rewritten graph may itself be further rewritten ---  
-this is called \emph{deep rewriting}.
+\item Sometimes we want to analyze and transform the replacement graph
+with an unmodified @ForwardPass@, further rewriting the replacement graph.
+This procedure is
+called \emph{deep rewriting}. 
 When deep rewriting is used, the client's rewrite function must
-ensure that the graphs it produces are not rewritten indefinitely (\secref{correctness}).
-\item On other occasions we want to analyze \emph{but not further rewrite} the
-rewritten graph.  This is called \emph{shallow rewriting}, 
-and it is easy to achieve by passing a modified @ForwardPass@, 
+ensure that the graphs it produces are not rewritten indefinitely
+(\secref{correctness}). 
+\item Sometimes we want to analyze \emph{but not further rewrite} the
+replacement graph.  This procedure is called \emph{shallow rewriting}.
+It~is easily implemented by using a modified @ForwardPass@
 whose rewriting function always returns @Nothing@.
 \end{itemize}
-Deep rewriting is usually essential to achieve the results of
-\citet{lerner-grove-chambers:2002}.
-But shallow rewriting is also sometimes vital; for example, a rewrite that inserts
-a spill before a call might risk repeatedly inserting the same spill if the 
-rewrite was iterated. 
+Deep rewriting is essential to achieve the full benefits of
+interleaved analysis and transformation
+\citep{lerner-grove-chambers:2002}.
+But shallow rewriting can be vital as well; 
+for example, a forward dataflow pass that inserts
+a spill before a call must not rewrite the call again, lest it attempt
+to insert infinitely many spills.
 
-The shallow-vs-deep choice is really a property of an individual 
-rewrite function, an idea that is elegantly captured by the
+An~innovation of \hoopl\ is to build the choice of shallow or deep
+rewriting into each rewrite function, 
+an idea that is elegantly captured by the
 @FwdRes@ type returned by a @FwdRewrite@ (\figref{api-types}).
-The first component of the @FwdRes@ is the rewritten graph, as discussed earlier.
-The second, $rw$, is a 
+The first component of the @FwdRes@ is the replacement graph, as discussed earlier.
+The second component, $\rw$, is a 
 \emph{new rewriting function} to use when recursively processing
-the rewritten graph $ag$. For shallow rewriting this new function is
-the constant @Nothing@ function. For deep rewriting it is the original
+the replacement graph. 
+For shallow rewriting this new function is
+the constant @Nothing@ function; for deep rewriting it is the original
 rewriting function.
 
-\subsection{Combinators} \seclabel{combinators}
 
-The idea that each rewrite function returns a new rewrite function
-when it fires allows us to define a variety of combinators over
-rewrite functions. For example, here is a function
-that combines two rewriting functions in sequence.
+\subsection{Composing rewrite functions and dataflow passes} \seclabel{combinators}
+
+By requiring each rewrite to return a new rewrite function,
+\hoopl\ enables a variety of combinators over
+rewrite functions.\vadjust{\penalty-10000}
+For example, here is a function
+that combines two rewriting functions in sequence:
 \par{\small
 \begin{code}
   thenFwdRw :: FwdRewrite n f 
@@ -1486,42 +1503,48 @@ that combines two rewriting functions in sequence.
   noFwdRw :: FwdRewrite n f
   noFwdRw n f = Nothing
 \end{code}}
-What a beautiful type @thenFwdRw@ has! It tries @rw1@ and, if that
-declines to rewrite, behaves like @rw2@.  But if
-@rw1@ succeeds, returning a new rewriter @rw1a@, the the overall call also
-succeeds returning a new rewrite function obtained by combining @rw1a@
+What a beautiful type @thenFwdRw@ has! It tries @rw1@, and if @rw1@
+declines to rewrite, it behaves like @rw2@.  But if
+@rw1@ rewrites, returning a new rewriter @rw1a@, the the overall call also
+succeeds, returning a new rewrite function obtained by combining @rw1a@
 with @rw2@.  (We cannot apply @rw1a@ or @rw2@ 
-directly to the rewritten graph @g@, 
-because @r1@ returns a graph while @rw2@ expects a node.)
+directly to the replacment graph~@g@, 
+because @r1@~returns a graph and @rw2@~expects a node.)
 The rewriter @noFwdRw@ is the identity of @thenFwdRw@.
-Finally, notice that @thenFwdRw@ can readily 
+Finally, @thenFwdRw@ can 
 combine a deep-rewriting function and a shallow-rewriting function,
 to produce a rewriting function that is a combination of deep and shallow.
-This is something that the Lerner/Grove/Chambers framework could not do,
-because there was a global shallow/deep flag.
+%%This is something that the Lerner/Grove/Chambers framework could not do,
+%%because there was a global shallow/deep flag.
+%% Our shortsightedness; Lerner/Grove/Chambers is deep only ---NR
 
-Given a shallow rewriting function we can easily make it a deep one:
+A shallow rewriting function can easily be made deep:
 \begin{code}
   deepFwdRw :: FwdRewrite n f -> FwdRewrite n f
   deepFwdRw rw = rw `thenFwdRw` deepFwdRw rw
 \end{code}
-If we have shallow rewrites A and B then we can build @AB@, @A*B@, @(AB)*@ 
-and so on, where sequential composition is @thenFwdRw@ and the Kleene star
+If we have shallow rewrites $A$~and~$B$ then we can build $AB$,
+$A^*B$, $(AB)^*$, 
+and so on: sequential composition is @thenFwdRw@ and the Kleene star
 is @deepFwdRw@. 
 
-These are all combinators for rewrite functions that share a common
-fact type and transfer function, but it is also useful to combine two
-otherwise-unrelated entire dataflow passes.  The reader is invited to write a
-combinator that does so, with type
+The combinators above operate on rewrite functions that share a common
+fact type and transfer function.
+It~can also be useful to combine entire dataflow passes that use
+different facts.
+We~invite you to write one such combinator, with type
 \begin{code}
   thenFwd :: ForwardPass n f1 
           -> ForwardPass n f2
           -> ForwardPass n (f1,f2)
 \end{code}
-The two passes run interleaved, not sequentially, and each may help the other
-so that the result is superior to running A and then B, or B and then A.
-\citet{lerner-grove-chambers:2002} calls these ``super-analyses'', but they
-take a particularly concrete form in \hoopl{}.
+The two passes run interleaved, not sequentially, and each may help
+the other,
+yielding better results than running $A$~and then~$B$ or $B$~and then~$A$.
+\citep{lerner-grove-chambers:2002}.
+%%  call these passes. ``super-analyses;''
+%%  in \hoopl, construction of super-analyses is
+%%  particularly concrete.
 
 \subsection{Example: Constant propagation and constant folding} 
   \seclabel{const-prop-client}
@@ -1531,10 +1554,10 @@ take a particularly concrete form in \hoopl{}.
 \begin{code}
 -- Types and definition of the lattice
 data `HasConst = `Top | `B Bool | `I Integer
-type `ConstFact = Map Reg HasConst
+type `ConstFact = Map.Map Reg HasConst
 `constLattice = DataflowLattice
   { fact_bot    = Map.empty
-  , fact_extend = stdMapJoin constFactAdd}
+  , fact_extend = stdMapJoin constFactAdd }
   where
     `constFactAdd new old = (c, j)
       where j = if new == old then new else Top
@@ -1584,10 +1607,10 @@ simplify node _ = fmap toAGraph (mapE s_exp node)
       -> Node e x -> Maybe (Node e x)
 mapE f (LabelNode _) = Nothing
 mapE f (Assign x e)  = fmap (Assign x) $ f e
- ... more cases for rewriting expressions
+ ...  -- more cases for rewriting expressions
 
 -------------------------------------------------------
--- Running the analysis
+-- Defining the forward dataflow pass
 `constPropPass = ForwardPass
    { fp_lattice = constLattice
    , fp_transfer = regHasConst
@@ -1595,18 +1618,20 @@ mapE f (Assign x e)  = fmap (Assign x) $ f e
 \end{code}}
 \caption{The client for constant propagation and constant folding} \figlabel{const-prop}
 \end{figure}
-\figref{const-prop} shows how to use @analyzeAndRewriteFwd@ to
-perform constant propagation and constant folding.
-For each register, the analysis may conclude one of three facts:
-the register must store a constant value (Boolean or integer),
-the register might store a non-constant value,
-or nothing is known about the contents of the register (bottom).
+\figref{const-prop} shows client code for
+constant propagation and constant folding.
+For each register at each point in a graph, the analysis concludes one of three facts:
+the register holds a constant value (Boolean or integer),
+the register might hold a non-constant value,
+or nothing is known about what the register holds (bottom).
 We~represent these facts using a finite map from registers to dataflow facts
 (@HasConst@).
 A register with a constant value maps to @Just v@, where @v@ is the constant value;
 a register with a non-constant value maps to @Just Top@;
-and a register with an unknown value maps to @Nothing@ (i.e. is not
+and a register with an unknown value maps to @Nothing@ (i.e., it is not
 in the domain of the finite map).
+
+% \afterpage{\clearpage}
 
 The definition of the lattice (@constLattice@) is straightforward.
 The bottom element is an empty map (nothing is known about the contents of any register).
@@ -1623,18 +1648,19 @@ In the third case for assignment, the register gets a non-constant value,
 so we produce a dataflow fact mapping the register to @Top@.
 The last interesting case is a conditional branch where the condition
 is a register.
-Based on whether the conditional-branch flows to the true or false successor,
-we can infer whether the value of the register is @True@ or @False@,
-so we update the fact flowing to each successor accordingly.
+If the conditional branch flows to the true successor,
+the register holds @True@, and similarly for the false successor.
+We update the fact flowing to each successor accordingly.
 
-Notice that we do not need to consider complicated cases such as
+We do not need to consider complicated cases such as
 an assignment @x:=y@ where @y@ holds a constant value @k@.
-Instead, we will rely on the interleaving of transformation
-and analyses to first transform the assignment to @x:=k@,
+Instead, we rely on the interleaving of transformation
+and analysis to first transform the assignment to @x:=k@,
 which is exactly what our simple transfer function expects.
-As we mentioned in \secref{simple-tx},
+As we mention in \secref{simple-tx},
 interleaving makes it possible to write
-the simplest imaginable transfer functions, with no loss of performance.
+the simplest imaginable transfer functions, without missing
+opportunities to improve the code.
 
 The rewrite function for constant propagation, @constProp@,
 simply rewrites each use of a register to its constant value.
@@ -1645,124 +1671,141 @@ value and makes the substitution.  We assume an auxiliary function
 \begin{code}
   toAGraph :: Node e x -> AGraph e x
 \end{code}
+
 \figref{const-prop} also gives a completely separate rewrite function 
 to perform constant
 folding, called @simplify@.  It rewrites a conditional branch on a
-boolean constant to an unconditional branch, and runs @s_exp@
-on every sub-expression to constant sub-expressions.
+boolean constant to an unconditional branch, and
+to find constant subexpressions, 
+it runs @s_exp@
+on every subexpression.
+Function @simplify@ does not need to check whether a register holds a
+constant value; it relies on @constProp@ to have replaced the
+register by the constant.
+Indeed, @simplify@ does not consult the
+incoming fact at all, and hence is polymorphic in~@f@.
 
-We have written two @FwdRewrites@ functions 
-because they are sometimes independently useful.  But in this case we
+
+
+We have written two @FwdRewrite@ functions 
+because they are independently useful.  But in this case we
 want to apply \emph{both} of them,
-so we compose them with @thenFwdRw@
-before putting them in the @constPropPass@ (see \figref{const-prop}).
+so we compose them with @thenFwdRw@.
+The composed rewrite functions, along with the lattice and the
+transfer function,
+go into @constPropPass@ (bottom of \figref{const-prop}).
+To improve a particular graph, we pass @constPropPass@ and the graph
+to
+@analyzeAndRewriteFwd@.
 
-Note that @simplify@ does not need to check whether a register holds a
-constant value, because it can rely @constProp@ to have replaced the
-register by the constant; indeed @simplify@ does not consult the
-incoming fact at all, and hence is polymorphic in @f@.
-
-Finally, we combine the lattice, the transfer function, the combined
-rewrite functions, into @constPropPass@.  This can be handed to
-@analyzeAndRewriteFwd@ to process a particular graph.
 
 \subsection{Throttling the dataflow engine using ``optimization fuel''}
 \seclabel{vpoiso}
 \seclabel{fuel}
 
-Writing and debugging an optimization can be tricky:
-an optimization may rewrite the instructions in a procedure hundreds
-of times, and any of those rewrites could be incorrect.
-To debug such an optimization, we use a powerful technique,
-first suggested by Whalley \cite{whalley:isolation},
+Debugging an optimization can be tricky:
+an optimization may rewrite hundreds of nodes,
+and any of those rewrites could be incorrect.
+To debug dataflow optimizations, we use Whalley's
+\citeyearpar{whalley:isolation} powerful technique
 to identify the first rewrite that 
-transforms the procedure from working code to faulty code.
+transforms a program from working code to faulty code.
 
 The key idea is to~limit the number of rewrites that
-are performed while optimizing a procedure.
-Because each rewrite leaves the observable behavior of the
-program unchanged, it is safe to suppress rewrites at any point.
-Therefore, given a program that fails when compiled with optimization,
-the client can use binary search to halt rewriting just before or just after the
-rewrite that introduces the failure, thereby identifying the buggy rewrite.
-We control the number of rewrites by giving the optimizer
-a fixed quantity of ``optimization fuel'';
+are performed while optimizing a graph.
+In \hoopl, the limit is called
+\emph{optimization fuel}:
 each rewrite costs one unit of fuel,
-and when the fuel is exhausted, no more rewrites are performed.
+and when the fuel is exhausted, no more rewrites are permitted.
+Because each rewrite leaves the observable behavior of the
+program unchanged, it is safe to stop rewriting at any point.
+Given a program that fails when compiled with optimization,
+a test infrastructure uses binary search on the amount of
+optimization fuel, until
+it finds that the program works correctly after $n-1$ rewrites but fails
+after $n$~rewrites.
+The $n$th rewrite is faulty.
 
-You will have noticed that the type of @analyzeAndRewriteFwd@
+
+You may have noticed that @analyzeAndRewriteFwd@
 returns a value in the @FuelMonad@ (\secref{using-hoopl}).
 The @FuelMonad@ is a simple state monad maintaining the supply of unused
 fuel.  It also holds a supply of fresh labels, which are used by the rewriter
-for making new blocks; more precisely, the client-provided @FwdRewrite@
-function produces an @AGraph@ (\figref{rewrites}) which Hoopl converts to
-a @Graph@ by supplying the @AGraph@ with a supply of @Labels@ from the @FuelMonad@.
+for making new blocks; more precisely, 
+\hoopl\ uses these labels to
+take the @AGraph@ (\figref{rewrites}) returned by a pass's rewrite
+function and converted it to a~@Graph@.
 
-\subsection{Fixpoints and speculative rewrites} \seclabel{fixpoints}
 
-The alert reader will be wondering what happens to rewriting in the presence of
-loops.  Many analyses compute a fixpoint starting from unsound
+\subsection{Fixed points and speculative rewrites} \seclabel{fixpoints}
+
+Are rewrites sound, especially when there are loops?
+Many analyses compute a fixed point starting from unsound
 ``facts''; for example, a live-variable analysis starts from the
 assumption that all variables are dead.  This means \emph{rewrites
-performed in any iteration other than the last may be unsound, and
-must be discarded}.  That is, each iteration of the fixpoint must
+performed before a fixed point is reached may be unsound, and their results
+must be discarded}.  Each iteration of the fixed-point computation must
 start afresh with the original graph.  
 
-\emph{Nevertheless, those rewrites
-should still be performed} (albeit tentatively, but possibly recursively)
-so that the correct downstream facts can be computed as accurately as possible.
-For example, consider this graph, with entry at @L1@:
+
+Although the rewrites may be unsound, \emph{they must be performed}
+(speculatively, and possibly recursively), 
+so that the facts downstream of the replacement graphs are as accurate
+as possible.
+For~example, consider this graph, with entry at @L1@:
 \par{\small
 \begin{code}
   L1: x=0; goto L2
   L2: x=x+1; if x==10 then goto L3 else goto L2
 \end{code}}
-The first traversal of block @L2@ will start with the ``fact'' \{x=0\};
-but it will propagate the new fact \{x=1\} to @L2@, which will join the
+The first traversal of block @L2@ starts with the unsound ``fact'' \{x=0\};
+but analysis of the block propagates the new fact \{x=1\} to @L2@, which joins the
 existing fact to get \{x=$\top$\}.
-But now suppose that the predicate in the conditional branch was @x<10@ instead
-of @x==10@.  Again the first iteration will begin with the tentative fact \{x=0\}.
-Using that fact we can rewrite the conditional branch to an unconditional
-branch @goto L3@.  Hence no new fact is propagated to @L2@, and we have successfully
-cut the loop.  This example is a little contrived, but it illustrates that 
-for best results we should:
+What if the predicate in the conditional branch were @x<10@ instead
+of @x==10@?
+Again the first iteration would begin with the tentative fact \{x=0\}.
+Using that fact, we would rewrite the conditional branch to an unconditional
+branch @goto L3@.  No new fact would propagated to @L2@, and we would
+have successfully (and soundly) eliminated the loop.
+This example is contrived, but it illustrates that 
+for best results we should
 \begin{itemize}
-\item Perform the rewrites on every iteration
+\item Perform the rewrites on every iteration.
 \item Begin each new iteration with the orignal, virgin graph.
 \end{itemize}
-This sort of thing is hard to achieve in an imperative setting, where rewrites
-mutate a graph in-place.
-But it is trivially easy with an immutable graph:
-all we need do is to revert to the original graph at the start
-of each fixpoint iteration.
+This sort of algorithm is hard to implement in an imperative setting, where rewrites
+mutate a graph in place.
+But  with an immutable graph, implementing the algorithm
+is trivially easy: we simply revert to the original graph at the start
+of each fixed-point iteration.
 
 \subsection{Correctness} \seclabel{correctness}
 
 Facts computed by @analyzeAndRewriteFwd@ depend on graphs produced by the rewrite
 function, which in turn depend on facts computed by the transfer function.
-How~do we know this algorithm is sound, or even if it terminates?
-A~proof requires its own POPL paper
+How~do we know this algorithm is sound, or if it terminates?
+A~proof requires a POPL paper
 \cite{lerner-grove-chambers:2002}, but we can give some
 intuition.
 
-We require these pre-conditions on the functions supplied to 
-\ourlib{}:
+\hoopl\ requires that a client's functions meet
+ these preconditions:
 \begin{itemize}
 \item 
 The lattice must have no \emph{infinite ascending chains}; that is,
-a sequence of calls to @fact_extend@ must eventually return @NoChange@.
+every sequence of calls to @fact_extend@ must eventually return @NoChange@.
 \item 
 The transfer function must be 
-\emph{monotonic} in the following sense: given a more informative fact in,
+\emph{monotonic}: given a more informative fact in,
 it should produce a more informative fact out.
 \item 
 The rewrite function must be \emph{sound}:
-if it replaces a node @n@ by a replacement graph
-@g@, then @g@ must be observationally equivalent to @n@ under the 
-assumptions expressed by the incoming dataflow fact @f@.%
-\footnote{We do not permit a transformation to change
-  the @Label@ of a node. We have not found any optimizations
-  that are prevented (or even affected) by this restriction.}
+if it replaces a node @n@ by a replacement graph~@g@, then @g@~must be
+observationally equivalent to~@n@ under the  
+assumptions expressed by the incoming dataflow fact~@f@.
+%%\footnote{We do not permit a transformation to change
+%%  the @Label@ of a node. We have not found any optimizations
+%%  that are prevented (or even affected) by this restriction.}
 \item 
 The rewrite function must be \emph{consistent} with the transfer function;
 that is, \mbox{@transfer n f@ $\sqsubseteq$ @transfer g f@}.
@@ -1777,18 +1820,18 @@ Without the conditions on montonicity and consistency,
 our algorithm will terminate, 
 but there is no guarantee that it will compute
 a fixed point of the analysis.  And that in turn threatens the
-soundness of rewrites based on possibly-bogus ``facts''.
+soundness of rewrites based on possibly bogus ``facts''.
 
-However, under the above preconditions:
+However, when the preconditions above are met,
 \begin{itemize} 
 \item
-The algorithm terminates.  The fixpoint loop must terminate because the 
-lattice has no infinite ascending chains. And the user is responsible
+The algorithm terminates.  The fixed-point loop must terminate because the 
+lattice has no infinite ascending chains. And the client is responsible
 for avoiding infinite recursion when deep rewriting is used.
 \item 
 The algorithm is sound.  Why? Because if each rewrite is sound (in the sense given above), 
 then applying a succession of rewrites is also sound.
-Moreover, a~sound analysis of the rewritten graph
+Moreover, a~sound analysis of the replacement graph
 may generate only dataflow facts that could have been
 generated by a more complicated analysis of the original graph.
 \end{itemize}
@@ -1816,7 +1859,7 @@ generated by a more complicated analysis of the original graph.
 %%  \simon{But do we apply rewrites even before the analysis reaches a fixed point?
 %%  If so, what property do the rewrites have to satisfy to ensure soundness?
 %%  If not, even a single rewrite might destroy the fixed-point property of the
-%%  current facts.  Or perhaps we iterate the analysis to a fixpoint, and only \emph{then}
+%%  current facts.  Or perhaps we iterate the analysis to a fixed point, and only \emph{then}
 %%  do rewriting? If so, do we need the transfer functions at that stage?
 %%  
 %%  Also the fixed-point of the analysis relies on upward chains. What if
@@ -1824,7 +1867,7 @@ generated by a more complicated analysis of the original graph.
 %%  change a node $n$ into a graph $g$ so 
 %%  that $\mathit{fwdtrans}(n) \leq \mathit{fwdtrans}(g)$?
 %%  
-%%  Also the fixpoint calculation requires multiple passses; do the 
+%%  Also the fixed point calculation requires multiple passses; do the 
 %%  rewrites then apply multiple times?
 %%  
 %%  I'm deliberately playing the role of the reader here, and not peeking at
@@ -1867,7 +1910,7 @@ precondition for some (as yet unarticulated) property of \ourlib{} to hold.}%
 %%%%    monotonic or indeed that it do anything useful.  It just has to
 %%%%    preserve semantics (and be a pure function of course).
 %%%%    \textbf{SLPJ} In that case I think I could cook up a program that
-%%%%    would never reach a fixpoint. Imagine a liveness analysis with a loop;
+%%%%    would never reach a fixed point. Imagine a liveness analysis with a loop;
 %%%%    x is initially unused anywhere.
 %%%%    At some assignment node inside the loop, the rewriter behaves as follows: 
 %%%%    if (and only if) x is dead downstream, 
@@ -1931,26 +1974,27 @@ An @ARF@ (short for ``analyze and rewrite forward'') is a combination of
 a rewrite and transfer function.
 An @ARF@ takes a @ForwardPass@, a @thing@ (a node, block, or graph),
 and an input fact,
-and returns a rewritten graph of type @(RG n e x)@ of the same shape
-as the @thing@, and a suitably-shaped output fact.
+and returns a replacement graph of type @(RG n e x)@ of the same shape
+as the @thing@, and a suitably shaped output fact.
 
-Note that the result is a rewritten graph, 
-regardless of whether @thing@ is a node, block, or graph.
-We return a rewritten graph with a new type @RG@ 
-rather than a @Graph@ for two reasons:
+Regardless of whether @thing@ is a node, block, or graph, the result
+is always a graph.
+We represent this graph using a new type~@RG@,
+rather than @Graph@, for two reasons:
 \begin{itemize}
 \item The client is often interested not only in the facts flowing
 out of the graph (which are returned in the @Fact x f@), 
 but also in the facts on the \emph{internal} blocks
-of the graph. A rewritten graph, of type @(RG n e x)@ is decorated with
+of the graph. A~replacement graph of type @(RG n e x)@ is decorated with
 these internal facts.
 \item A @Graph@ has deliberately restrictive invariants; for example,
 a @GMany@ with a @JustO@ is always open at exit (\figref{graph}).  It turns
 out to be awkward to maintain these invariants \emph{during} rewriting,
 but easy to restore them \emph{after} rewriting by ``normalizing'' an @RG@.
 \end{itemize}
-The normalization function expresses the above two points, by splitting 
-a rewritten graph into a @Graph@ and its corresponding @FactBase@:
+The normalization function expresses \remark{``expresses''?} 
+the two points above by splitting 
+a replacement graph into a @Graph@ and its corresponding @FactBase@:
 \begin{code}
 `normalizeBody :: Edges n => RG n f C C 
                -> (Body n, FactBase f)
@@ -1991,7 +2035,7 @@ Based on @arfNode@ it is extremely easy to write @arfBlock@, which liftes
 the analysis and rewriting from nodes to blocks (\secref{arf-block}).
 \item Using @arfBlock@ we can define @arbBody@ which analyses and rewrites a
 @Body@; that is, a group of blocks forming an arbitrarily complicated graph.
-Here is where we must take care of fixpoints (\secref{arf-body}).
+Here is where we must take care of fixed points (\secref{arf-body}).
 The type of @arfBody@ is less neat than the others because a @Body@ does not have
 the same shape as a node, block, or graph.
 \item 
@@ -2091,7 +2135,7 @@ It also applies the transfer function @(fp_transfer pass)@
 to the incoming fact to produce the outgoing fact.
 (Like @fp_rewrite@, @fp_transfer@ is record selector of @ForwardPass@.)
 
-In the @Just@ case, the rewrite function returns a rewritten
+In the @Just@ case, the rewrite function returns a replacement
 graph (well, @AGraph@ actually) and a new rewrite function.
 So we convert the @AGraph@ to a @Graph@, using
 \par{\small
@@ -2103,13 +2147,13 @@ doing so, we modify the @ForwardPass@ by implanting the new
 rewrite function.
 
 And that's it!  The recursion to @arfGraph@ implements the 
-possibly-deep recursive rewriting; if the client wanted
+possibly deep recursive rewriting; if the client wanted
 shallow rewriting, the rewrite function should return @noFwdRw@
 in the @FwdRes@ (\secref{shallow-vs-deep}).
 
-\subsection{Fixpoints} \seclabel{arf-body}
+\subsection{Fixed points} \seclabel{arf-body}
 
-Lastly, @arbBody@ deals with the fixpoint calculation.
+Lastly, @arbBody@ deals with the fixed-point calculation.
 This is the only really tricky bit of the implementiaon, but it is
 cleanly separated from everything else:
 \par{\small
@@ -2154,9 +2198,9 @@ The type signature should be self explanatory.  The second argument is
 a function that analyses and rewrites a single block; the business of
 @fixpoint@ is to apply that function successively to all the blocks
 (the fourth argument).  The algorithm maintains a
-monotonically-growing ``Current @FactBase@''; it is initialised by the
+monotonically growing ``Current @FactBase@''; it is initialised by the
 caller-supplied @FactBase@, and augmented with new facts flowing out
-of each of the successively-analysed blocks.  The @fixpoint@ algorithm
+of each of the successively analyzed blocks.  The @fixpoint@ algorithm
 keeps iterating the analysis until the Current @FactBase@ reaches a fixed
 point.  
 
@@ -2183,7 +2227,7 @@ order @L1@, @L4@, @L2@), then we will start with the bottom fact for @L2@, propa
 conditional in @L4@ cannot be rewritten any more, and @L2@ seems reachable.  We have
 lost a good optimization.
 
-It is easy for the fixpoint algorithm to take account of this.  Recall
+It is easy for the fixed-point algorithm to take account of this.  Recall
 that the Current @FactBase@ is a finite mapping from @Label@s to
 facts.  It starts with the in-coming @FactBase@, and treats any label
 in the domain of the @FactBase@ as ``currently reachable'',
@@ -2198,9 +2242,9 @@ that the @FactBase@ has changed, and run a new iteration.
 
 This whole reachability point is a rather subtle one, so it is precisely
 the sort of thing that one might hope to implement once in a library and
-then forget -- and that is the case here.  Moreover it only takes a couple
+then forget---and that is the case here.  Moreover it only takes a couple
 of lines of code to achieve; better still, unreachable blocks automatically do not
-appear in the rewritten graph.
+appear in the replacement graph.
 
 \emph{Note:} all this only applies to a \emph{forward} analysis. 
 \end{itemize}
@@ -2284,7 +2328,7 @@ The Whirlwind compiler contains the dataflow framework implemented
 by \citet{lerner-grove-chambers:2002}.
 Their implementation is much like our early efforts:
 it is a complicated mix of code that manages the interleaving,
-the deep rewriting, and the fixpoint computation.
+the deep rewriting, and the fixed-point computation.
 Our implementation simplifies the problem dramatically
 by~separating each of these tasks.
 
@@ -2401,7 +2445,7 @@ seem like a small thing, but it helped tremendously when building
 the Hoopl implementation, and we expect it to help clients. 
 Moreover, the implementation is faster than it would otherwise be,
 because, say, a @(Fact O f)e@ is known to be just an @f@ rather than
-being a sum type that must be tested (with a statically-known outcome!).
+being a sum type that must be tested (with a statically known outcome!).
 
 \item The similar shapes of nodes, blocks, and graphs consistently helped our
 thinking, and helped to structure the implementation.
@@ -2418,7 +2462,7 @@ including:
 optimization fuel in \secref{fuel}; 
 the per-function control of shallow vs deep rewriting 
 \secref{shallow-vs-deep};
-the combinators of \secref{combinators}; and the fixpoint improvements 
+the combinators of \secref{combinators}; and the fixed-point improvements 
 in \secref{arf-body}). These improvements are implemented in separate
 parts of the code, and do not interact with each other.
 \end{itemize}
@@ -2432,7 +2476,7 @@ depended crucially on the availablity of the type-level function for
 of the facts on the open/closed-ness of the node.
 
 An ancestor of \ourlib{} is in the Glasgow Haskell comiler already.
-We are now engaged in pushing this vastly-improved version into GHC.
+We are now engaged in pushing this vastly improved version into GHC.
 
 % 
 % \simon{I think this section has interesting material, but it's
