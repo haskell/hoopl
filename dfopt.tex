@@ -698,10 +698,9 @@ As an example,
 one of \ourlib's {clients}.
 The type parameters are written @e@ and @x@, for
 entry and exit respectively.  
-The type is a generalized algebraic data type, and
-it is defined in using syntax
-that gives the type of each constructor.  
-\cite{peyton-jones:unification-based-gadts}.
+The type is a generalized algebraic data type;
+the syntax gives the type of each constructor.  
+%%% \cite{peyton-jones:unification-based-gadts}.
 For example, constructor @LabelNode@
 takes a @Label@ and returns a node of type @Node C O@, where
 the~``@C@'' says ``closed at entry'' and the~``@O@'' says ``open at exit''.  
@@ -1407,8 +1406,8 @@ mkIfThenElse p t e
     mkLabel l2 `gCat` e `gCat` mkBranch l3 `gCat`
     mkLabel l3
 
-mkLabel  l = gUnitCO (BUnit (LabelNode l))          
-mkBranch l = gUnitOC (BUnit (Branch l))
+`mkLabel  l = gUnitCO (BUnit (LabelNode l))          
+`mkBranch l = gUnitOC (BUnit (Branch l))
 \end{code}
 \caption{The \texttt{AGraph} type and example constructions} \figlabel{agraph}
 \end{figure}
@@ -2082,7 +2081,7 @@ Based on @arfBody@ it is easy to write @arfGraph@ (\secref{arf-graph}).
 Given these functions, writing the main analyzer is a simple
 matter of matching the external API to the internal functions:
 \begin{code}
-  analyzeAndRewriteFwd
+  `analyzeAndRewriteFwd
      :: forall n f. Edges n
      => ForwardPass n f -> Body n -> FactBase f
      -> FuelMonad (Body n, FactBase f)
@@ -2141,7 +2140,7 @@ concatenated to form a single result of type~@RG@.
 Although interleaving analysis with transformation is tricky, we have
 succeeded in isolating the algorithm in just two functions,  \remark{Sure hope
 this is true!}
-@arfNode@ and its backward analog, @arbNode@:
+@arfNode@ and its backward analog, @`arbNode@:
 \begin{code}
 `arfNode :: Edges n => ARF n n
 arfNode pass n f
@@ -2957,6 +2956,11 @@ We are now engaged in pushing this vastly improved version into~GHC.
 \clearpage
 
 \appendix
+
+% omit delFromFactBase :: FactBase f -> [(Label,a)] -> FactBase f
+% omit elemFactBase :: Label -> FactBase f -> Bool
+% omit elemLabelSet :: Label -> LabelSet -> Bool
+
 
 \section{Code for \texttt{fixpoint}}  \label{app:fixpoint}
 
