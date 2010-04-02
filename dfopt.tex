@@ -175,6 +175,7 @@ implementation.
 \usepackage[ps2pdf,bookmarksopen,breaklinks,pdftitle=dataflow-made-simple]{hyperref}
 
 \newcommand\naive{na\"\i ve}
+\newcommand\naively{na\"\i vely}
 \newcommand\Naive{Na\"\i ve}
 
 \usepackage{amsfonts}
@@ -2027,11 +2028,11 @@ splits an @RG@ into a @Body@ and its corresponding @FactBase@:
 \end{code}
 \begin{figure}
 \begin{code}
-data RG n f e x where
-  RGNil   :: RG n f a a
-  RGCatO  :: RG n f e O -> RG n f O x -> RG n f e x
-  RGCatC  :: RG n f e C -> RG n f C x -> RG n f e x
-  RGUnit  :: Fact e f  -> Block n e x -> RG n f e x
+data `RG n f e x where
+  `RGNil   :: RG n f a a
+  `RGCatO  :: RG n f e O -> RG n f O x -> RG n f e x
+  `RGCatC  :: RG n f e C -> RG n f C x -> RG n f e x
+  `RGUnit  :: Fact e f  -> Block n e x -> RG n f e x
 \end{code}
 \caption{The data type \texttt{RG} of rewritten graphs} \figlabel{rg}
 \end{figure}
@@ -2097,7 +2098,7 @@ matter of matching the external API to the internal functions:
 We begin our explanation with the second task:
 writing @arfBlock@, which analyzes and transforms blocks.
 \begin{code}
-arfBlock :: Edges n => ARF (Block n) n
+`arfBlock :: Edges n => ARF (Block n) n
 arfBlock pass (BUnit node) f 
   = arfNode pass node f
 arfBlock pass (BCat b1 b2) f 
@@ -2115,7 +2116,7 @@ we concatenate them with @RGCatO@.
 
 Function @arfGraph@ is equally straightforward:
 \begin{code}
-arfGraph :: Edges n => ARF (Graph n) n
+`arfGraph :: Edges n => ARF (Graph n) n
 arfGraph _    GNil        f = return (RGNil, f)
 arfGraph pass (GUnit blk) f = arfBlock pass blk f
 arfGraph pass (GMany NothingO body NothingO) f
@@ -2138,11 +2139,11 @@ concatenated to form a single result of type~@RG@.
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
 
 Although interleaving analysis with transformation is tricky, we have
-succeeded in isolating it in a two functions,  \remark{Sure hope
+succeeded in isolating the algorithm in just two functions,  \remark{Sure hope
 this is true!}
 @arfNode@ and its backward analog, @arbNode@:
 \begin{code}
-arfNode :: Edges n => ARF n n
+`arfNode :: Edges n => ARF n n
 arfNode pass n f
  = do { mb_g <- withFuel (fp_rewrite pass n f)
       ; case mb_g of
@@ -2153,143 +2154,185 @@ arfNode pass n f
                ; let pass' = pass { fp_rewrite = rw }
                ; arfGraph pass' g f } }
 \end{code}
-The code here is a little more complicated, 
-but still admirably brief.  First we extract the
-rewriting function from the @ForwardPass@ with the
-@fp_rewrite@ record selector (\figref{api-types}),
-and apply the rewriting function to the incoming node @n@ 
-and fact @f@.  
+The code here is more complicated, 
+but still admirably brief.  
+Using the @fp_rewrite@ record selector (\figref{api-types}),
+we~begin by extracting the
+rewriting function from the @ForwardPass@,
+and we apply it function to the node~@n@ 
+and the  incoming fact~@f@.  
 
 The resulting @Maybe@ is passed to @withFuel@, which 
 deals with fuel accounting:
 \begin{code}
-  withFuel :: Maybe a -> FuelMonad (Maybe a)
+  `withFuel :: Maybe a -> FuelMonad (Maybe a)
 \end{code}
-If @withFuel@ argument is @Nothing@, \emph{or} we have run out of
+If @withFuel@'s argument is @Nothing@, \emph{or} if we have run out of
 optimization fuel (\secref{fuel}), @withFuel@ returns @Nothing@.
-Otherwise, @withFuel@ consumes one unit of fuel, and returns its
+Otherwise, @withFuel@ consumes one unit of fuel and returns its
 argument (which will be a @Just@).  That is all we need say about fuel.
 
-If no rewrite should take place, either because the rewrite function
-didn't want one or because fuel is exhausted,
-the @Nothing@ branch returns a single-node
-graph @(RGUnit f (BUnit n))@, decorated with its input fact.
-It also applies the transfer function @(fp_transfer pass)@ 
+In the @Nothing@ case, no rewrite takes place---either because the rewrite function
+didn't want one or because fuel is exhausted.
+We~return a single-node
+graph @(RGUnit f (BUnit n))@, decorated with its incoming fact.
+We~also apply the transfer function @(fp_transfer pass)@ 
 to the incoming fact to produce the outgoing fact.
-(Like @fp_rewrite@, @fp_transfer@ is record selector of @ForwardPass@.)
+(Like @fp_rewrite@, @fp_transfer@ is a record selector of @ForwardPass@.)
 
-In the @Just@ case, the rewrite function returns a replacement
-graph (well, @AGraph@ actually) and a new rewrite function.
-So we convert the @AGraph@ to a @Graph@, using
+In the @Just@ case, we receive a replacement
+@AGraph@ @ag@ and a new rewrite function~@rw@.
+We~convert @ag@ to a @Graph@, using
 \par{\small
 \begin{code}
-graphOfAGraph :: AGraph n e x -> FuelMonad (Graph n e x)
+`graphOfAGraph :: AGraph n e x -> FuelMonad (Graph n e x)
 \end{code}}
-and analyze the resulting graph with @arfGraph@.  But before
-doing so, we modify the @ForwardPass@ by implanting the new
-rewrite function.
+and we analyze the resulting @Graph@ with @arfGraph@.  
+This analysis uses @pass'@, which contains the original lattice and transfer
+function from @pass@, together with the new rewrite function~@rg@.
 
-And that's it!  The recursion to @arfGraph@ implements the 
-possibly deep recursive rewriting; if the client wanted
-shallow rewriting, the rewrite function should return @noFwdRw@
-in the @FwdRes@ (\secref{shallow-vs-deep}).
+And that's it!  If~the client wanted deep rewriting, it is
+implemented by the call to @arfGraph@;
+if the client wanted
+shallow rewriting, the rewrite function will have returned
+@noFwdRw@ as~@rw@, which is implanted in @pass'@
+(\secref{shallow-vs-deep}).
 
 \subsection{Fixed points} \seclabel{arf-body}
 
-Lastly, @arbBody@ deals with the fixed-point calculation.
-This is the only really tricky bit of the implementiaon, but it is
+Lastly, @arfBody@ deals with the fixed-point calculation.
+This part of the implementation is the only really tricky part, and it is
 cleanly separated from everything else:
 \par{\small
 \begin{code}
- arfBody  :: Edges n
-          => ForwardPass n f -> Body n -> FactBase f
-          -> FuelMonad (RG n f C C, FactBase f)
-arfBody pass body fbase
+arfBody  :: Edges n
+         => ForwardPass n f -> Body n -> FactBase f
+         -> FuelMonad (RG n f C C, FactBase f)
+`arfBody pass body fbase
   = fixpoint (fp_lattice pass) (arfBlock pass) fbase $
     forwardBlockList (factBaseLabels fbase) body
 \end{code}}
-Here, @forwardBlockList@ takes the @Body@ and returns a linear list of
-blocks, sorted into a plausible order for doing forward dataflow.  For
-example if the @Body@ starts at block @L2@, and @L2@ 
-branches to @L1@, but not vice versa, then
-convergence will be faster if we process @L2@ before @L1@.  This is 
-purely an efficiency issue: any order will do for correctness.
-How do we know what the entry points of the @Body@ are? We treat
-any block with an entry in the in-flowing @FactBase@ as an entry point.
+Function @forwardBlockList@ takes a list of possible entry points and @Body@,
+ and it
+ returns a linear list of
+blocks, sorted into an order that makes forward dataflow efficient:
 \begin{code}
-forwardBlockList 
+`forwardBlockList 
   :: Edges n => [Label]
   -> Body n -> [(Label,Block n C C)]
 \end{code}
-Since a @Body@ is just a collection of blocks, @forwardBlockList@ uses
-the methods of the @Edges@ class, @entryLabel@ and @successors@ to establish
-the connectivity of the blocks.  Ultimately this is why @ARF@ has an @Edges@
-type-class constraint.
+For
+example, if the @Body@ starts at block~@L2@, and @L2@ 
+branches to~@L1@, but not vice versa, then \hoopl\ will reach a fixed point
+more quickly faster if we process @L2@ before~@L1@.  
+To~find an efficient order, @forwardBlockList@ uses
+the methods of the @Edges@ class---@entryLabel@ and @successors@---to
+perform a reverse depth-first traversal of the control-flow graph.
+%%
+%%The @Edges@ type-class constraint on~@n@ propagates to all the
+%%@`arfThing@ functions.
+%%  paragraph carrying too much freight
+%%
+The order of the blocks does not affect the fixed point or any other
+part of the answer; it affects only the number of iterations needed to
+reach the fixed point.
+
+How do we know what entry points to pass to @forwardBlockList@? 
+We treat
+any block with an entry in the in-flowing @FactBase@ as an entry point.
+\remark{Why does this work?}
 
 The rest of the work is done by @fixpoint@, which is shared by
 both forward and backward analyses:
 \begin{code}
-fixpoint :: forall n f. Edges n
-         =>  DataflowLattice f
-         -> (Block n C C -> FactBase f
-             -> FuelMonad (RG n f C C, FactBase f))
-         -> FactBase f 
-         -> [(Label, Block n C C)]
-         -> FuelMonad (RG n f C C, FactBase f)
+`fixpoint :: forall n f.
+     Edges n
+  => Bool     -- going Forward?
+  -> DataflowLattice f
+  -> (Block n C C -> FactBase f -> 
+                FuelMonad (RG n f C C, FactBase f))
+  -> FactBase f 
+  -> [(Label, Block n C C)]
+  -> FuelMonad (RG n f C C, FactBase f)
 \end{code}
-The type signature should be self explanatory.  The second argument is
-a function that analyses and rewrites a single block; the business of
-@fixpoint@ is to apply that function successively to all the blocks
-(the fourth argument).  The algorithm maintains a
-monotonically growing ``Current @FactBase@''; it is initialised by the
-caller-supplied @FactBase@, and augmented with new facts flowing out
-of each of the successively analyzed blocks.  The @fixpoint@ algorithm
-keeps iterating the analysis until the Current @FactBase@ reaches a fixed
+Except for the mysterious @Bool@ passed as the first argument,
+the type signature tells the story.
+The third argument is
+a function that analyzes and rewrites a single block; 
+@fixpoint@ applies that function successively to all the blocks,
+which are passed as the fifth argument.\finalremark{For consistency with the transfer
+functions, blocks should come before @FactBase@, even though this change will
+ugly up the call site some.}
+The @fixpoint@ function maintains a
+ ``Current @FactBase@''
+which grows monotonically:
+the initial value of the Current @FactBase@ is the fourth argument to
+@fixpoint@,
+and the Current @FactBase@ is augmented with the new facts that flow
+out of each @Block@ as it is analyze.
+The @fixpoint@ functions
+keeps analyzing blocks until the Current @FactBase@ reaches a fixed
 point.  
 
-The code for @fixpoint@ is a massive 70 lines long, and
-appears for completeness in Appendix~\ref{app:fixpoint}.  We highlight
+The code for @fixpoint@ is a massive 70 lines long;
+for completeness, it
+appears in Appendix~\ref{app:fixpoint}.  
+We highlight
 some interesting points here:
+\remark{Perhaps we should refrain from saying anything interesting and
+simply explain briefly how @fixpoint@ works?}
 \begin{itemize}
-\item Suppose that @forwardBlockList@ has put block @L2@ first, and
+\item
+ Suppose that @forwardBlockList@ has put block @L2@ first, and
 that @L2@ branches to @L1@.
 After processing @L2@ we will propagate a new fact to @L1@, which might change
 the fact currently recorded for @L1@.  However, since we have not yet processed @L1@ in
 this iteration, we do not need to record that the @FactBase@ has changed.
 We need only run a new iteration if the fact for an \emph{already-processed} block
 is changed.
-\item Consider this @Body@, where execution starts at @L1@:
+\remark{I~fear a reader may find this point baffling rather than
+interesting.  Delete?}
+\item
+Consider a forward analysis of this @Body@, where execution starts at~@L1@:
 \begin{code}
   L1: x:=3; goto L4
   L2: x:=4; goto L4
   L4: if x>3 goto L2 else goto L5
 \end{code}
-Here @L2@ is actually unreachable. But if we naively process all the blocks (say in 
+Block @L2@ is unreachable. 
+But if we \naively\ process all the blocks (say in 
 order @L1@, @L4@, @L2@), then we will start with the bottom fact for @L2@, propagate
 \{@x=4@\} to @L4@, where it will join with \{@x=3@\} to yield \{@x=@$\top$\}.  Now the
-conditional in @L4@ cannot be rewritten any more, and @L2@ seems reachable.  We have
+conditional in @L4@ cannot be rewritten, and @L2@~seems reachable.  We have
 lost a good optimization.
 
-It is easy for the fixed-point algorithm to take account of this.  Recall
+It is easy for the fixed-point algorithm to take account of unreachability.
+Recall
 that the Current @FactBase@ is a finite mapping from @Label@s to
-facts.  It starts with the in-coming @FactBase@, and treats any label
-in the domain of the @FactBase@ as ``currently reachable'',
+facts.  
+The @fixpoint@ function treats any label
+in the domain of the Current @FactBase@ as ``currently reachable'',
 even if the @FactBase@ maps that
-label to $\bot$. Whenever a fact is propagated to a label the Current
+label to $\bot$. Whenever a fact is propagated to a label, the Current
 @FactBase@ is augumented, perhaps extending the domain of the @FactBase@,
 and implicitly making the block ``reachable''.
-Now, when processing each block successively, @fixpoint@ can 
-simply \emph{refrain from processing any block that is not in the domain of 
-the Current @FactBase@}.  If a later block makes it reachable, we will note
-that the @FactBase@ has changed, and run a new iteration.
+To~avoid propagating facts forward from unreachable blocks,
+@fixpoint@ 
+simply \emph{refrains from analyzing any block~$B$ that is not in the domain of 
+the Current @FactBase@}.  If a later block makes $B$ reachable, @fixpoint@ notes
+that the Current @FactBase@ has changed, and it will run a new
+iteration that will analyze~$B$.
+This trick is safe only for a forward analysis, and that is why
+@fixpoint@ takes a @Bool@ as its first argument:
+if the analysis is \emph{not} forward, @fixpoint@ analyzes every
+block, whether it is in the domain of the Current @FactBase@ or not.
 
-This whole reachability point is a rather subtle one, so it is precisely
+The interplay between analysis and reachability is quite subtle, so it is precisely
 the sort of thing that one might hope to implement once in a library and
-then forget---and that is the case here.  Moreover it only takes a couple
-of lines of code to achieve; better still, unreachable blocks automatically do not
-appear in the replacement graph.
-
-\emph{Note:} all this only applies to a \emph{forward} analysis. 
+then forget---and that is the case in \hoopl.  Moreover,
+the implementation takes only a couple
+of lines of code, and better still, unreachable blocks do not
+appear in the rewritten graph.
 \end{itemize}
 
 \section {Related work} \seclabel{related}
@@ -2826,8 +2869,7 @@ We are now engaged in pushing this vastly improved version into GHC.
 
 \section{Code for \texttt{fixpoint}}  \label{app:fixpoint}
 
-{\small
-\begin{code}
+\begin{smallcode}
 data TxFactBase n f
   = TxFB { tfb_fbase :: FactBase f
          , tfb_rg  :: RG n f C C -- Transformed blocks
@@ -2857,18 +2899,19 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
     new_fbase = extendFactBase fbase lbl res_fact
 
 fixpoint :: forall n f. Edges n
-         =>  DataflowLattice f
+         => Bool	-- Going forwards?
+         -> DataflowLattice f
          -> (Block n C C -> FactBase f
               -> FuelMonad (RG n f C C, FactBase f))
          -> FactBase f -> [(Label, Block n C C)]
          -> FuelMonad (RG n f C C, FactBase f)
-fixpoint lat do_block init_fbase blocks
+fixpoint is_fwd lat do_block init_fbase blocks
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
                  tfb_fbase tx_fb `delFromFactBase` blocks) }
-             -- The successors of the Graph are the the Labels for which
-             -- we have facts, that are *not* in the blocks of the graph
+	     -- The successors of the Graph are the the Labels for which
+	     -- we have facts, that are *not* in the blocks of the graph
   where
     tx_blocks :: [(Label, Block n C C)] 
               -> TxFactBase n f -> FuelMonad (TxFactBase n f)
@@ -2880,7 +2923,8 @@ fixpoint lat do_block init_fbase blocks
              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                                  , tfb_rg = blks, tfb_cha = cha })
-      | lbl `elemFactBase` fbase = return tx_fb -- Note [Unreachable blocks]
+      | is_fwd && lbl `elemFactBase` fbase 
+      = return tx_fb	-- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
@@ -2901,7 +2945,7 @@ fixpoint lat do_block init_fbase blocks
                NoChange   -> return tx_fb
                SomeChange -> do { setFuel fuel
                                 ; loop fuel (tfb_fbase tx_fb) } }
-\end{code}}
+\end{smallcode}
 
 \section{Index of defined identifiers}
 
