@@ -2463,14 +2463,14 @@ In~earlier implementations, such errors were not detected until
 the compiler~ran, at which point we tried to compensate
 for the errors---but
 the compensation code harbored subtle faults,
-which were discovered while developing a new back end
+which we discovered while developing a new back end
 for the Glasgow Haskell Compiler.
 \end{itemize}
 
 The implementation of \ourlib\ is also much better than
 our earlier implementations.
-The code is not only conceptually simpler
-but also shorter:
+Not only is the code simpler conceptually,
+but it is also shorter:
 our new implementation is about half as long
 as the previous version, which is part of GHC, version 6.12.
 
@@ -2481,11 +2481,11 @@ as the previous version, which is part of GHC, version 6.12.
 
 We have spent six years implementing and reimplementing frameworks for
 dataflow analysis and transformation.
-While tackling this formidable challenge to our design skills,
-we learned two kinds of lessons:
-we learned some very specific things about representations and
+ This formidable design problem taught us
+two kinds of lessons:
+we learned some very specific lessons about representations and
 algorithms for optimizing compilers,
-and we were forcibly reminded of some very old lessons that are well
+and we were forcibly reminded of some very general, old lessons that are well
 known not just to functional programmers, but to programmers
 everywhere.
 
@@ -2526,10 +2526,10 @@ analysis and transformation, optimization fuel, and an applicative
 control-flow graph) in a way that could easily be reused by many, many
 compiler writers.
 Reuse requires abstraction, and as is well known,
-designing good abstractions is very challenging. 
+designing good abstractions is challenging. 
 \hoopl's data types and the functions over those types have been
 through \emph{dozens} of revisions.
-As~we were refining the design, we found it invaluable to operate in
+As~we were refining our design, we~found it invaluable to operate in
 two modes:
 In the first mode, we designed, built, and used a framework as an
 important component of a real compiler (first Quick~{\PAL}, then GHC).
@@ -2538,19 +2538,18 @@ redesigned and rebuilt it, sometimes going through several significant
 changes in a week.
 Operating in the first mode---inside a live compiler---forced us to
 make sure that no corners were cut, that we were solving a real
-problem, and that we did not make a design decision that inadvertently
-crippled an important part of the compiler outside \hoopl.
+problem, and that we did not inadvertently
+cripple some other part of the compiler.
 Operating in the second mode---as a standalone library---enabled us to
-iterate furiously, trying out many more ideas than would ever have
+iterate furiously, trying out many more ideas than would have
 been possible in the first mode.
 We~have learned that alternating between these two modes leads to a
 better design than operating in either mode alone.
 
-We were forcibly reminded of what is already well known:
+We were forcibly reminded of timeless truths:
 that interfaces are more important than implementations, and that data
 is more important than code.
-(Representation is \emph{still} the essence of programming.)
-These priorities are reflected in this paper, where
+These truths are reflected in this paper, in which
 we
 have devoted nearly seven pages to \hoopl's API, and only a third of that
 to its implementation.
