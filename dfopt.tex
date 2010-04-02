@@ -1356,8 +1356,6 @@ then @(transfer_fn n)@ is a predicate transformer:
   transfer_fn n :: Fact e f -> Fact x f
 \end{code}
 
-\ifpagetuning\enlargethispage{0.5\baselineskip}\fi
-
 
 \subsection{The rewrite function} 
  \seclabel{rewrites} 
@@ -1930,40 +1928,38 @@ precondition for some (as yet unarticulated) property of \ourlib{} to hold.}%
 \seclabel{engine}
 \seclabel{dfengine}
 
-\delendum{The earlier sections promised that we'd reveal the lies.
-Do we?  I see no mention of @HavingSuccessors@ for example, which is rather important
-for polymorphism.  Indeed, a subsection on that point might be a good way
-to substantiate the claims of the last bullet of the conclusion.}
-
-In Section \ref{sec:making-simple}
-we gave a client's-eye view, showing how to use 
-\ourlib\ to create analyses and transformations.
-The interface is simple, but 
-\emph{implementation} of interleaved analysis and rewriting is 
+\secref{making-simple}
+gives a client's-eye view of \hoopl, showing how to use 
+it to create analyses and transformations.
+\hoopl's interface is simple, but 
+the \emph{implementation} of interleaved analysis and rewriting is 
 quite complicated.  \citet{lerner-grove-chambers:2002} 
-do not describe their implementation at all.  We have made 
-at least three attempts to implement the algorithm all of which
-were long, hard to understand, and lacked any static open/closed
-shape guarantees.  We are not confident that any of them are correct.
+do not describe their implementation.  We have written
+at least three previous implementations, all of which
+were long and hard to understand, and only one of which
+provided compile-time guarantees about open and closed shapes.
+We are not confident that any of these implementations are correct.
 
-In this section we describe our new implementation.  It is short
+In this paper we describe our new implementation.  It is short
 (about a third of the size of our last attempt), elegant, and offers
-strong static shape guarantees.  The whole thing is about 300 lines of
-code, excluding comments; this includes both forward and backward
+strong static shape guarantees.  The whole thing is about 300~lines of
+code, excluding comments; this count includes both forward and backward
 dataflow analysis and transformation.
 
-Throughout we will describe the implementation of \emph{forward} 
+We describe the implementation of \emph{forward} 
 analysis and transformation.
-However, \ourlib{} provides an exactly analogous family 
-backward-analysis functions (\secref{overview}).
+The implementations of backward analysis and transformation are
+exactly \remark{``exactly''?} analogous and are part of \hoopl.
+
+
 
 \subsection{Overview}
 
-We will concentrate on implementing @analyzeAndRewriteFwd@, whose
-type signature is in \secref{using-hoopl}.
-The implementation is built on the hierarchy of nodes, blocks, and graphs
-that we described in \secref{graph-rep}.  For each such thing
-we will develop a function of this type:
+We concentrate on implementing @analyzeAndRewriteFwd@, whose
+type is in \secref{using-hoopl}.
+Its implementation is built on the hierarchy of nodes, blocks, and graphs
+described in \secref{graph-rep}.  For each thing in the hierarchy,
+we develop a function of this type:
 \begin{code}
 type `ARF thing n
  = forall f e x. ForwardPass n f
@@ -1974,30 +1970,34 @@ An @ARF@ (short for ``analyze and rewrite forward'') is a combination of
 a rewrite and transfer function.
 An @ARF@ takes a @ForwardPass@, a @thing@ (a node, block, or graph),
 and an input fact,
-and returns a replacement graph of type @(RG n e x)@ of the same shape
-as the @thing@, and a suitably shaped output fact.
-
-Regardless of whether @thing@ is a node, block, or graph, the result
-is always a graph.
-We represent this graph using a new type~@RG@,
-rather than @Graph@, for two reasons:
+and it returns a rewritten graph of type @(RG n e x)@ of the same shape
+as the @thing@, plus a suitably shaped output fact.
+%
+%Regardless of whether @thing@ is a node, block, or graph, the result
+%is always a graph.
+% 
+% point is made adequately in the client section ---NR
+The type~@RG@ is internal to \hoopl; it is not seen by any client.
+We use it, not @Graph@, for two reasons:
 \begin{itemize}
 \item The client is often interested not only in the facts flowing
 out of the graph (which are returned in the @Fact x f@), 
 but also in the facts on the \emph{internal} blocks
 of the graph. A~replacement graph of type @(RG n e x)@ is decorated with
 these internal facts.
+\remark{SO IF THE TYPE IS INTERNAL, HOW DOES THE CLIENT GET ITS GRUBBY
+PAWS ON THESE FACTS???}
 \item A @Graph@ has deliberately restrictive invariants; for example,
 a @GMany@ with a @JustO@ is always open at exit (\figref{graph}).  It turns
 out to be awkward to maintain these invariants \emph{during} rewriting,
 but easy to restore them \emph{after} rewriting by ``normalizing'' an @RG@.
 \end{itemize}
-The normalization function expresses \remark{``expresses''?} 
-the two points above by splitting 
-a replacement graph into a @Graph@ and its corresponding @FactBase@:
+The information in an @RG@ is returned to the client by
+the normalization function @normalizeBody@, which
+splits an @RG@ into a @Body@ and its corresponding @FactBase@:
 \begin{code}
 `normalizeBody :: Edges n => RG n f C C 
-               -> (Body n, FactBase f)
+              -> (Body n, FactBase f)
 \end{code}
 \begin{figure}
 \begin{code}
@@ -2009,39 +2009,50 @@ data RG n f e x where
 \end{code}
 \caption{The data type \texttt{RG} of rewritten graphs} \figlabel{rg}
 \end{figure}
-The constructors of @RG@ are given in \figref{rg}, although we lack the space
-to describe the type fully.
+The constructors of @RG@ are given in \figref{rg}.
+The essential points are that constructor @RGUnit@ is polymorphic in
+the shape of a block, @RGUnit@ carries a fact as
+well as a block, and the concatenation constructors record the shapes
+of the graphs at the point of concatenation.\remark{Why record the shapes?}
 
-The \ourlib{} implementation exploits the type distinctions of nodes, @Block@, @Body@,
+
+We exploit the type distinctions of nodes, @Block@, @Body@,
 and @Graph@ to structure the code into several small pieces, each of which
 can be understood independently.  Specifically, we define a layered set of
 functions, each of which calls the previous one:
 \begin{code}
  arfNode  :: Edges n => ARF n n
  arfBlock :: Edges n => ARF (Block n) n
- arfGraph :: Edges n => ARF (Graph n) n
  arfBody  :: Edges n
           => ForwardPass n f -> Body n -> FactBase f
           -> FuelMonad (RG n f C C, FactBase f)
+ arfGraph :: Edges n => ARF (Graph n) n
 \end{code} 
 \begin{itemize} 
 \item 
 The @arfNode@ function processes nodes (\secref{arf-node}).
-It embodies the subtleties of interleaved analysis and rewriting,
-and deals with fuel consumption.  It calls @arfGraph@ to analyze
+It handles the subtleties of interleaved analysis and rewriting,
+and it deals with fuel consumption.  It calls @arfGraph@ to analyze
 and transform rewritten graphs.
 \item 
 Based on @arfNode@ it is extremely easy to write @arfBlock@, which liftes
 the analysis and rewriting from nodes to blocks (\secref{arf-block}).
-\item Using @arfBlock@ we can define @arbBody@ which analyses and rewrites a
-@Body@; that is, a group of blocks forming an arbitrarily complicated graph.
-Here is where we must take care of fixed points (\secref{arf-body}).
-The type of @arfBody@ is less neat than the others because a @Body@ does not have
-the same shape as a node, block, or graph.
+\item
+Using @arfBlock@ we define @arfBody@, which analyses and rewrites a
+@Body@: that is, a group of closed/closed blocks linked by arbitrary
+control flow.
+Because a @Body@ is
+always closed/closed and does not take shape parameters, function
+@arfBody@ is less polymorphic than the others, but its type is what
+would be obtained by expanding and specializing the definition of
+@ARF@ for a @thing@ which is always closed/closed and is equivalent to
+a @Body@.
+
+Function @arfBody@ takes care of fixed points (\secref{arf-body}).
 \item 
-From @arfBody@ it is straightforward to produce @arfGraph@ (\secref{arf-graph}).
+Based on @arfBody@ it is easy to write @arfGraph@ (\secref{arf-graph}).
 \end{itemize}
-Given these functions, writing the main analyser is a simple
+Given these functions, writing the main analyzer is a simple
 matter of matching the external API to the internal functions:
 \begin{code}
   analyzeAndRewriteFwd
@@ -2057,24 +2068,26 @@ matter of matching the external API to the internal functions:
 \subsection{From nodes to blocks} \seclabel{arf-block}
 \seclabel{arf-graph}
 
-We start with the second task, namely analyzing and transforming blocks.
-The code is delightfully simple:
+We begin our explanation with the second task:
+writing @arfBlock@, which analyzes and transforms blocks.
 \begin{code}
 arfBlock :: Edges n => ARF (Block n) n
-arfBlock pass (BUnit node)   f 
+arfBlock pass (BUnit node) f 
   = arfNode pass node f
 arfBlock pass (BCat b1 b2) f 
   = do { (g1,f1) <- arfBlock pass b1 f  
        ; (g2,f2) <- arfBlock pass b2 f1 
        ; return (g1 `RGCatO` g2, f2) }
 \end{code}
-The code is childishly simple.  
-In the @BUnit@ case we hand off the problem to @arfNode@.
-For @BCat@ we recursively apply @arfBlock@ to the two
+The code is delightfully simple.
+The @BUnit@ case is implemented by @arfNode@.
+The @BCat@ case is implemented by recursively applying @arfBlock@ to the two
 sub-blocks, threading the output fact from the first as the 
-input to the second.  Each will produce a rewritten graph
-which we connect together in sequence with @RGCatO@. 
-Moreover, @arfGraph@ is equally straightforward:
+input to the second.  
+Each recursive call produces a rewritten graph;
+we concatenate them with @RGCatO@. 
+
+Function @arfGraph@ is equally straightforward:
 \begin{code}
 arfGraph :: Edges n => ARF (Graph n) n
 arfGraph _    GNil        f = return (RGNil, f)
@@ -2086,29 +2099,33 @@ arfGraph pass (GMany NothingO body (JustO exit)) f
   = do { (body', fb) <- arfBody  pass body f
        ; (exit', fx) <- arfBlock pass exit fb
        ; return (body' `RGCatC` exit', fx) }
-...two more equations for GMany...
+ --  ... two more equations for GMany ...
 \end{code}
-The pattern is the same as for @arfBlock@; simply thread
+The pattern is the same as for @arfBlock@: thread
 facts through the sequence, and concatenate the results.
-Here we can see that @RG@ is a simpler type than @Graph@: a
-a single @GMany@ is rewritten to a sequence of @RG@ objects 
-concatenated with @RGCatC@.
+Because the constructors of type~@RG@ are more polymorphic than those
+of @Graph@, type @RG@ can represent
+graphs more simply than @Graph@; for example, each element of a
+@GMany@ becomes a single @RG@ object, and these @RG@ objects are then 
+concatenated to form a single result of type~@RG@.
 
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
 
-The core of the interleaved analyze-and-rewrite idea is expressed
-by the function @arfNode@:
+Although interleaving analysis with transformation is tricky, we have
+succeeded in isolating it in a single function,  \remark{Sure hope
+this is true!}
+@arfNode@:
 \begin{code}
 arfNode :: Edges n => ARF n n
 arfNode pass n f
-  = do { mb_g <- withFuel (fp_rewrite pass n f)
-       ; case mb_g of
-           Nothing -> return (RGUnit f (BUnit n),
-                              fp_transfer pass n f)
-           Just (FwdRes ag rw) -> 
-    do { g <- graphOfAGraph ag
-       ; let pass' = pass { fp_rewrite = rw }
-       ; arfGraph pass' g f } }
+ = do { mb_g <- withFuel (fp_rewrite pass n f)
+      ; case mb_g of
+          Nothing -> return (RGUnit f (BUnit n),
+                             fp_transfer pass n f)
+          Just (FwdRes ag rw) ->
+            do { g <- graphOfAGraph ag
+               ; let pass' = pass { fp_rewrite = rw }
+               ; arfGraph pass' g f } }
 \end{code}
 The code here is a little more complicated, 
 but still admirably brief.  First we extract the
@@ -2824,8 +2841,8 @@ fixpoint lat do_block init_fbase blocks
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
                  tfb_fbase tx_fb `delFromFactBase` blocks) }
-	     -- The successors of the Graph are the the Labels for which
-	     -- we have facts, that are *not* in the blocks of the graph
+             -- The successors of the Graph are the the Labels for which
+             -- we have facts, that are *not* in the blocks of the graph
   where
     tx_blocks :: [(Label, Block n C C)] 
               -> TxFactBase n f -> FuelMonad (TxFactBase n f)
@@ -2837,7 +2854,7 @@ fixpoint lat do_block init_fbase blocks
              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                                  , tfb_rg = blks, tfb_cha = cha })
-      | lbl `elemFactBase` fbase = return tx_fb	-- Note [Unreachable blocks]
+      | lbl `elemFactBase` fbase = return tx_fb -- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
