@@ -2626,20 +2626,20 @@ and we are encouraged to implement things compositionally.
 This kind of thinking has helped us make
 significant improvements to the already tricky work of Lerner, Grove,
 and Chambers:
-optimization fuel (\secref{fuel}),
 per-function control of shallow vs deep rewriting 
 (\secref{shallow-vs-deep}),
 combinators for dataflow passes (\secref{combinators}),
+optimization fuel (\secref{fuel}),
 and transparent management of unreachable blocks (\secref{arf-body}).
-We trust that these improvements are right only because they are
+We~trust that these improvements are right only because they are
 implemented in separate 
-parts of the code that cannot possibly interact except through
+parts of the code that cannot interact except through
 explicit function calls.
 %%
 %%An ancestor of \ourlib{} is in the Glasgow Haskell Compiler today,
 %%in version~6.12.
-With our new, superior design in hand, we are now moving back to
-live-compiler mode,  pushing our vastly improved design into version
+With this new, improved design in hand, we are now moving back to
+live-compiler mode,  pushing \hoopl\ into version
 6.13 of the Glasgow Haskell Compiler.
 
 % 
