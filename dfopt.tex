@@ -407,7 +407,7 @@ When analysis and rewriting
 are interleaved, so that rewriting must be done \emph{speculatively},
 without knowing whether
 the result of the rewrite will be retained or discarded,
-the value of a purely functional style is intensified
+the benefit of a purely functional style is intensified
 (Sections \ref{sec:overview} and \ref{sec:fixpoints}).
 
 \item
@@ -421,7 +421,7 @@ We articulate their ideas in a concrete but simple API that hides
 a subtle implementation (Sections \ref{sec:graph-rep} and \ref{sec:using-hoopl}).  
 You provide a representation for assertions, 
 a transfer function that transforms assertions across a node, 
-and a rewrite function that uses a computed assertion to 
+and a rewrite function that uses a assertion to 
 justify rewriting a node.
 \ourlib\ ``lifts'' these node-level functions to work over
 control-flow graphs, sets up and solves recursion equations,
@@ -517,7 +517,7 @@ transformations (or \emph{rewrites}) on a \emph{control-flow graph}.
 
 Consider a concrete example: constant propagation with constant folding.
 On the left we have a basic block; in the middle we have
-assertions that hold between statements (or \emph{nodes}) 
+facts that hold between statements (or \emph{nodes}) 
 in the block; and at
 the right we have the result of transforming the block 
 based on the assertions:
@@ -532,16 +532,16 @@ based on the assertions:
        then goto L1
        else goto L2
 \end{verbatim}
-constant propagation works
-from top to bottom.  We start with the empty assertion.  
-Given the empty assertion and the node @x:=3+4@ can we make a (constant-folding)
+Constant propagation works
+from top to bottom.  We start with the empty fact.  
+Given the empty fact and the node @x:=3+4@ can we make a (constant-folding)
 transformation?
 Yes!  We can replace the node with @x:=7@.
 Now, given this transformed node,
-and the original assertion, what assertion flows out of the bottom of
+and the original fact, what fact flows out of the bottom of
 the transformed node?  
-The assertion \{@x=7@\}.  
-Given the assertion \{@x=7@\} and the node @z:=x>5@, can we make a
+The~fact \{@x=7@\}.  
+Given the fact \{@x=7@\} and the node @z:=x>5@, can we make a
 transformation?  Yes: constant propagation can replace the node with @z:=7>5@.
 Now, can we do another transformation?  Yes: constant folding can 
 replace the node with @z:=True@.
@@ -573,13 +573,13 @@ examples, consult \citet{lerner-grove-chambers:2002}.
 Constant propagation works \emph{forwards}, and a fact is typically an
 assertion about the program state (such as ``variable~@x@ holds value~@7@'').  
 Some useful analyses work \emph{backwards}.
-A~prime example is live-variable analysis, where a fact takes the form
-``variable @x@ is dead'' and is an assertion about the
+A~prime example is live-variable analysis, where a fact takes the~form
+``variable @x@ is live'' and is an assertion about the
 \emph{continuation} of a program point.  For example, the fact ``@x@~is
-dead'' at a program point P is an assertion that @x@ is unused on any program
+live'' at a program point P is an assertion that @x@ is used on some program
 path starting at \mbox{P}.  % TeXbook, exercise 12.6
 The accompanying transformation is called dead-code elimination;
-if @x@~is dead, this transformation 
+if @x@~is not live, this transformation 
 replaces the node @x:=e@ with a no-op.
 
 % ----------------------------------------
@@ -677,7 +677,7 @@ whatever.
 \begin{code}
 data `Node e x where
   `LabelNode  :: Label -> Node C O
-  `Assign     :: Reg   -> Expr -> Node O O
+  `Assign     :: Var   -> Expr -> Node O O
   `Store      :: Expr  -> Expr -> Node O O
   `Branch     :: Label -> Node O C
   `CondBranch :: Expr  -> Label -> Label -> Node O C
@@ -707,9 +707,9 @@ the~``@C@'' says ``closed at entry'' and the~``@O@'' says ``open at exit''.
 The types @Label@, @O@, and~@C@ are 
 defined by \ourlib{} (\figref{graph}).  
 
-Similarly, an @Assign@ node takes a register and an expression, and
+Similarly, an @Assign@ node takes a variable and an expression, and
 returns a @Node@ open at both entry and exit; the @Store@ node is
-similar.  The types @Reg@ and @Expr@ are private to the client, and
+similar.  The types @Var@ and @Expr@ are private to the client, and
 \ourlib{} knows nothing of them.  
 Finally, the control-transfer nodes @Branch@ and @CondBranch@ are open at entry
 and closed at exit.  
@@ -1309,7 +1309,6 @@ constant propagation is shown in \figref{const-prop}.
 A~fact
 is represented as a finite map from a variable to a value of type
 @Maybe HasConst@.%
-\remark{Why does the figure have @Reg@ instead of @Var@?}
 A~variable $x$ maps to @Nothing@ iff $x=\bot$;
 $x$~maps to @Just Top@ iff $x=\top$;
 and $x$~maps to $@Just@\, (@I@\, k)$ iff $x=k$ (and similarly for
@@ -1419,8 +1418,7 @@ the dataflow facts may enable us
 to simplify an expression by performing constant folding, or to 
 turn a conditional branch into an unconditional one.
 Similarly, a liveness analysis may allow us to 
-replace a dead assignment with a no-op; knowing that a register is
-live at a call site might provoke us to insert a spill before the call; and so on.
+replace a dead assignment with a no-op.
 
 A @ForwardPass@ therefore includes a \emph{rewriting function}, whose
 type, @FwdRewrite@, is given in \figref{api-types}.
@@ -1578,7 +1576,7 @@ yielding better results than running $A$~and then~$B$ or $B$~and then~$A$
 \begin{code}
 -- Types and definition of the lattice
 data `HasConst = `Top | `B Bool | `I Integer
-type `ConstFact = Map.Map Reg HasConst
+type `ConstFact = Map.Map Var HasConst
 `constLattice = DataflowLattice
   { fact_bot    = Map.empty
   , fact_extend = stdMapJoin constFactAdd }
@@ -1588,18 +1586,18 @@ type `ConstFact = Map.Map Reg HasConst
             c = if j == old then NoChange else SomeChange
 
 -------------------------------------------------------
--- Analysis: register has constant value
-`regHasConst :: FwdTransfer Node ConstFact
-regHasConst (LabelNode l)       f = lookupFact f l
-regHasConst (Store _ _)         f = f
-regHasConst (Assign x (Bool b)) f = Map.insert x (B b) f
-regHasConst (Assign x (Int  i)) f = Map.insert x (I i) f
-regHasConst (Assign x _)        f = Map.insert x Top   f
-regHasConst (Branch l)          f = mkFactBase [(l, f)]
-regHasConst (CondBranch (Reg x) tid fid) f
+-- Analysis: variable has constant value
+`varHasConst :: FwdTransfer Node ConstFact
+varHasConst (LabelNode l)       f = lookupFact f l
+varHasConst (Store _ _)         f = f
+varHasConst (Assign x (Bool b)) f = Map.insert x (B b) f
+varHasConst (Assign x (Int  i)) f = Map.insert x (I i) f
+varHasConst (Assign x _)        f = Map.insert x Top   f
+varHasConst (Branch l)          f = mkFactBase [(l, f)]
+varHasConst (CondBranch (Var x) tid fid) f
   = mkFactBase [(tid, Map.insert x (B True)  f),
                 (fid, Map.insert x (B False) f)]
-regHasConst (CondBranch _ tid fid) f 
+varHasConst (CondBranch _ tid fid) f 
   = mkFactBase [(tid, f), (fid, f)]
 
 -------------------------------------------------------
@@ -1608,7 +1606,7 @@ regHasConst (CondBranch _ tid fid) f
 constProp node facts
   = fmap toAGraph (mapE rewriteE node)
   where
-    rewriteE e(Reg r)
+    rewriteE e (Var r)
       = case M.lookup r facts of
           Just (B b) -> Just $ Bool b
           Just (I i) -> Just $ Int  i
@@ -1636,44 +1634,44 @@ mapE f (Assign x e)  = fmap (Assign x) $ f e
 -------------------------------------------------------
 -- Defining the forward dataflow pass
 `constPropPass = ForwardPass
-   { fp_lattice = constLattice
-   , fp_transfer = regHasConst
-   , fp_rewrite = constProp `thenFwdRw` simplify } 
+   { fp_lattice  = constLattice
+   , fp_transfer = varHasConst
+   , fp_rewrite  = constProp `thenFwdRw` simplify } 
 \end{code}}
 \caption{The client for constant propagation and constant folding} \figlabel{const-prop}
 \end{figure}
 \figref{const-prop} shows client code for
 constant propagation and constant folding.
-For each register at each point in a graph, the analysis concludes one of three facts:
-the register holds a constant value (Boolean or integer),
-the register might hold a non-constant value,
-or nothing is known about what the register holds (bottom).
-We~represent these facts using a finite map from registers to dataflow facts
+For each variable at each point in a graph, the analysis concludes one of three facts:
+the variable holds a constant value (Boolean or integer),
+the variable might hold a non-constant value,
+or nothing is known about what the variable holds (bottom).
+We~represent these facts using a finite map from variables to dataflow facts
 (@HasConst@).
-A register with a constant value maps to @Just v@, where @v@ is the constant value;
-a register with a non-constant value maps to @Just Top@;
-and a register with an unknown value maps to @Nothing@ (i.e., it is not
+A variable with a constant value maps to @Just v@, where @v@ is the constant value;
+a variable with a non-constant value maps to @Just Top@;
+and a variable with an unknown value maps to @Nothing@ (i.e., it is not
 in the domain of the finite map).
 
 % \afterpage{\clearpage}
 
 The definition of the lattice (@constLattice@) is straightforward.
-The bottom element is an empty map (nothing is known about the contents of any register).
+The bottom element is an empty map (nothing is known about the contents of any variable).
 We use the @stdMapJoin@ function to lift the join operation
-for a single register (@constFactAdd@) up to the map containing facts
-for all registers.
+for a single variable (@constFactAdd@) up to the map containing facts
+for all variables.
 
-For the transfer function, @regHasConst@, 
+For the transfer function, @varHasConst@, 
 there are two interesting kinds of nodes:
 assignment and conditional branch.
-In the first two cases for assignment, a register gets a constant value,
-so we produce a dataflow fact mapping the register to its value.
-In the third case for assignment, the register gets a non-constant value,
-so we produce a dataflow fact mapping the register to @Top@.
+In the first two cases for assignment, a variable gets a constant value,
+so we produce a dataflow fact mapping the variable to its value.
+In the third case for assignment, the variable gets a non-constant value,
+so we produce a dataflow fact mapping the variable to @Top@.
 The last interesting case is a conditional branch where the condition
-is a register.
+is a variable.
 If the conditional branch flows to the true successor,
-the register holds @True@, and similarly for the false successor.
+the variable holds @True@, and similarly for the false successor.
 We update the fact flowing to each successor accordingly.
 
 We do not need to consider complicated cases such as
@@ -1687,10 +1685,10 @@ the simplest imaginable transfer functions, without missing
 opportunities to improve the code.
 
 The rewrite function for constant propagation, @constProp@,
-simply rewrites each use of a register to its constant value.
+simply rewrites each use of a variable to its constant value.
 We use the auxiliary function @mapE@
-to apply @rewriteE@ to each use of a register in each kind of node;
-in turn, @rewriteE@ function checks if the register has a constant
+to apply @rewriteE@ to each use of a variable in each kind of node;
+in turn, @rewriteE@ function checks if the variable has a constant
 value and makes the substitution.  We assume an auxiliary function
 \begin{code}
   toAGraph :: Node e x -> AGraph e x
@@ -1703,9 +1701,9 @@ boolean constant to an unconditional branch, and
 to find constant subexpressions, 
 it runs @s_exp@
 on every subexpression.
-Function @simplify@ does not need to check whether a register holds a
+Function @simplify@ does not need to check whether a variable holds a
 constant value; it relies on @constProp@ to have replaced the
-register by the constant.
+variable by the constant.
 Indeed, @simplify@ does not consult the
 incoming fact at all, and hence is polymorphic in~@f@.
 
@@ -3191,8 +3189,8 @@ listed in Appendix~\ref{sec:prelude}.
 
 % Old captions' text:
 % The dataflow fact for the available-reload analysis describes
-%   the set of registers for which a reload is available.
-%   We list the types of the functions that manipuate sets of available registers,
+%   the set of variables for which a reload is available.
+%   We list the types of the functions that manipuate sets of available variables,
 %   as well as the definition of the lattice.
 % The standard gen and kill functions for available expressions
 % The transfer functions for the available-reloads analysis.
