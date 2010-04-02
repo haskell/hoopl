@@ -283,7 +283,7 @@ arfBody :: Edges n
 		-- in the Body; the facts for Labels
 		-- *in* the Body are in the BodyWithFacts
 arfBody pass blocks init_fbase
-  = fixpoint (fp_lattice pass) (arfBlock pass) init_fbase $
+  = fixpoint True (fp_lattice pass) (arfBlock pass) init_fbase $
     forwardBlockList (factBaseLabels init_fbase) blocks
 
 arfGraph :: Edges n => ARF (Graph n) n
@@ -459,14 +459,13 @@ fixpoint is_fwd lat do_block init_fbase blocks
     tx_blocks :: [(Label, Block n C C)] 
               -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_blocks []             tx_fb = return tx_fb
-    tx_blocks ((lbl,blk):bs) tx_fb = do { tx_fb1 <- tx_block lbl blk tx_fb
-                                        ; tx_blocks bs tx_fb1 }
+    tx_blocks ((lbl,blk):bs) tx_fb = tx_block lbl blk tx_fb >>= tx_blocks bs
 
     tx_block :: Label -> Block n C C 
              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                                  , tfb_rg = blks, tfb_cha = cha })
-      | is_fwd && lbl `elemFactBase` fbase 
+      | is_fwd && not (lbl `elemFactBase` fbase)
       = return tx_fb	-- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
