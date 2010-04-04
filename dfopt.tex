@@ -1022,6 +1022,10 @@ if a @Graph@ is closed at the entry, it does not have a unique entry label.
 %
 % ``Never apologize.  Never confess to infelicity.'' ---SLPJ
 
+
+
+
+
 \section {Using \ourlib{} to analyze and transform graphs} \seclabel{using-hoopl}
 \seclabel{making-simple}
 \seclabel{create-analysis}
@@ -1052,11 +1056,12 @@ crucial for many code-improving transformations.
 We discuss the rewrite function
 in Sections \ref{sec:rewrites} and \ref{sec:shallow-vs-deep}.
 \end{itemize}
-Facts, transfer functions, and rewrite functions work closely together,
-so we represent their combination
+These requirements are summarized in \tabref{parts}.
+Because facts, transfer functions, and rewrite functions work closely together,
+we represent their combination
 as a single record of type @ForwardPass@ (\figref{api-types}).
 The elements of @ForwardPass@ are, and must be,
-polymorphic functions---\ourlib{} makes essential use of higher-rank types.
+polymorphic functions---\ourlib{} must use higher-rank types.
 
 
 Given a node type~@n@ and a @ForwardPass@,
@@ -1078,6 +1083,32 @@ optimized @Body@.
 As its type shows, this function
 is polymorphic in the types of nodes~@n@ and facts~@f@;
 these types are determined entirely by the client.
+
+\begin{table}
+\centerline{%
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.03in}>{\scshape}c>{\scshape
+}
+      c>{\raggedright\arraybackslash}p{1.29in}@{}}
+&\multicolumn1{r}{\llap{\emph{Specified}}\hspace*{-0.3em}}&
+\multicolumn1{l}{\hspace*{-0.4em}\rlap{\emph{Implemented}}}&\\
+\multicolumn1{c}{\emph{Part of optimizer}}
+&\multicolumn1{c}{\emph{by}}&
+\multicolumn1{c}{\emph{by}}&
+\multicolumn1{c}{\emph{How many}}%
+\\[5pt]
+Control-flow graphs& Us & Us & One \\
+Nodes in a control-flow graph & You & You & One type per intermediate language \\[3pt]
+Dataflow fact~$F$    & You & You & One type per logic \\
+Lattice operations & Us & You & One set per logic \\[3pt]
+Transfer functions & Us & You & One per analysis \\
+Rewrite functions & Us & You & One per \rlap{transformation} \\[3pt]
+Solve-and-rewrite functions & Us & Us & Two (forward, backward) \\
+\end{tabular}%
+}
+\caption{Parts of an optimizer built with \ourlib}
+\tablabel{parts}
+\end{table}
+
 
 
 As well as taking and returning a @Body@, the function also takes
@@ -1410,7 +1441,6 @@ to produce a rewriting function that is a combination of deep and shallow.
 %%because there was a global shallow/deep flag.
 %% Our shortsightedness; Lerner/Grove/Chambers is deep only ---NR
 
-\ifpagetuning\penalty-10000 \fi
 
 A shallow rewriting function can easily be made deep:
 \begin{code}
@@ -1967,7 +1997,7 @@ graphs more simply than @Graph@; for example, each element of a
 @GMany@ becomes a single @RG@ object, and these @RG@ objects are then 
 concatenated to form a single result of type~@RG@.
 
-\ifpagetuning\penalty -10000 \fi
+%% \ifpagetuning\penalty -10000 \fi
 
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
 
