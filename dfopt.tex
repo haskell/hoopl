@@ -1,3 +1,20 @@
+%
+% TODO
+%
+%
+% AGraph = graph under construction
+% Graph = replacement graph
+%
+%%%  Hoopl assumes that the replacement graph for a node open at the exit
+%%%  doesn't contain any additional exits
+%%%  
+%%%  introduce replacement graph in section 3, after graph.
+%%%  it has arbitrarily complicated internal control flow, but only
+%%%  one exit (if open at the exit)
+%%%  
+%%%  a rquirement on the client that is not checked statically.
+
+
 \input{dfoptdu.tex}
 
 \newif\ifpagetuning \pagetuningtrue  % adjust page breaks
@@ -6,7 +23,7 @@
 
 \newif\iftimestamp\timestamptrue  % show MD5 stamp of paper
 
-\timestampfalse % it's submission time
+% \timestampfalse % it's post-submission time
 
 \IfFileExists{timestamp.tex}{}{\timestampfalse}
 
@@ -232,8 +249,11 @@
 %\title{Implementing Dataflow Analysis and Optimization by Lifting Node Functions to Basic Blocks and Control-Flow Graphs}
 \subtitle{Programming pearl}
 
-%\titlebanner{\textsf{\mdseries\itshape Submitted to the 2010 ACM Symposium on Principles
-%    of Programming Languages (POPL)}}
+\titlebanner{\textsf{\mdseries\itshape
+This paper is a revised version of a submission to ICFP'10.
+Please refer to the~version by
+the four words in the footer after \textbf{MD5:}.\hspace*{-20pt}
+}}
 
 \ifnoauthornotes
 \makeatletter
