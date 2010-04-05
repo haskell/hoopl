@@ -751,9 +751,9 @@ data `MaybeO ex t where
 
 newtype `Label = Label Int
 
-class Edges n where
-  entryLabel :: n C x -> Label
-  successors :: n e C -> [Label]
+class `Edges n where
+  `entryLabel :: n C x -> Label
+  `successors :: n e C -> [Label]
 \end{code}
 \caption{The block and graph types defined by \ourlib} 
 \figlabel{graph} \figlabel{edges}
@@ -1444,7 +1444,7 @@ to produce a rewriting function that is a combination of deep and shallow.
 
 A shallow rewriting function can easily be made deep:
 \begin{code}
-  deepFwdRw :: FwdRewrite n f -> FwdRewrite n f
+  `deepFwdRw :: FwdRewrite n f -> FwdRewrite n f
   deepFwdRw rw = rw `thenFwdRw` deepFwdRw rw
 \end{code}
 If we have shallow rewrites $A$~and~$B$ then we can build $AB$,
@@ -1472,6 +1472,10 @@ yielding better results than running $A$~and then~$B$ or $B$~and then~$A$
 
 \subsection{Example: Constant propagation and constant folding} 
   \seclabel{const-prop-client}
+
+% omit Binop :: Operator -> Expr -> Expr -> Expr
+% omit Add :: Operator
+
 
 \begin{figure}
 {\small
@@ -1653,7 +1657,7 @@ The $n$th rewrite is faulty.
 
 You may have noticed that @analyzeAndRewriteFwd@
 returns a value in the @FuelMonad@ (\secref{using-hoopl}).
-The @FuelMonad@ is a simple state monad maintaining the supply of unused
+The @`FuelMonad@ is a simple state monad maintaining the supply of unused
 fuel.  It also holds a supply of fresh labels, which are used by the rewriter
 for making new blocks; more precisely, 
 \hoopl\ uses these labels to
@@ -1950,7 +1954,7 @@ matter of matching the external API to the internal functions:
 
   analyzeAndRewriteFwd pass body facts
     = do { (rg, _) <- arfBody pass body facts
-         ; return (normaliseBody rg) }
+         ; return (normalizeBody rg) }
 \end{code}
  
 \subsection{From nodes to blocks} \seclabel{arf-block}
@@ -2032,6 +2036,7 @@ deals with fuel accounting:
 If @withFuel@'s argument is @Nothing@, \emph{or} if we have run out of
 optimization fuel (\secref{fuel}), @withFuel@ returns @Nothing@.
 Otherwise, @withFuel@ consumes one unit of fuel and returns its
+% defn Fuel
 argument (which will be a @Just@).  That is all we need say about fuel.
 
 In the @Nothing@ case, no rewrite takes place---either because the rewrite function
@@ -2530,10 +2535,17 @@ extended visits to the third author.
 
 \appendix
 
+% omit LabelSet :: *
+% omit LabelMap :: *
 % omit delFromFactBase :: FactBase f -> [(Label,a)] -> FactBase f
 % omit elemFactBase :: Label -> FactBase f -> Bool
 % omit elemLabelSet :: Label -> LabelSet -> Bool
-
+% omit emptyLabelSet :: LabelSet
+% omit factBaseLabels :: FactBase f -> [Label]
+% omit extendFactBase :: FactBase f -> Label -> f -> FactBase f
+% omit extendLabelSet :: LabelSet -> Label -> LabelSet
+% omit getFuel :: FuelMonad Fuel
+% omit lookupFact :: FactBase f -> Label -> Maybe f
 
 \section{Code for \texttt{fixpoint}}  \label{app:fixpoint}
 
