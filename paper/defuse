@@ -410,7 +410,7 @@ for _, k in ipairs(table.sorted_keys(defnrefs, caselt)) do
 end
 
 local function nontrivial(id)
-  return id:len() > 1 and not id:find('^%l%d$')
+  return id:len() > 1 and not id:find('^[%lL]%d$')
 end
 
 for _, k in ipairs(table.sorted_keys(uses, caselt)) do
