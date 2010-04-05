@@ -1342,7 +1342,7 @@ You may have been expecting \ag\ to have type  @Graph n e x@,
 but it actually has type @AGraph n e x@.
 The reason is that 
 if the rewriter makes graphs containing blocks,
-it may need fresh @Labels@.
+it may need fresh @Label@s.
 An~@AGraph@ provides easy access to fresh labels,
 using @withLabels@ (\figref{agraph}).
 The figure also shows an implementation of @AGraph@
@@ -1423,7 +1423,7 @@ that combines two rewriting functions in sequence:
         Just (FwdRes g rw1a) -> Just $ FwdRes g $
                                 rw1a `thenFwdRw` rw2
 
-  noFwdRw :: FwdRewrite n f
+  `noFwdRw :: FwdRewrite n f
   noFwdRw n f = Nothing
 \end{code}}
 What a beautiful type @thenFwdRw@ has! It tries @rw1@, and if @rw1@
@@ -1458,7 +1458,7 @@ It~can also be useful to combine entire dataflow passes that use
 different facts.
 We~invite you to write one such combinator, with type
 \begin{code}
-  thenFwd :: ForwardPass n f1 
+  `thenFwd :: ForwardPass n f1 
           -> ForwardPass n f2
           -> ForwardPass n (f1,f2)
 \end{code}
@@ -1512,7 +1512,7 @@ varHasConst (CondBranch _ tid fid) f
 constProp node facts
   = fmap toAGraph (mapE rewriteE node)
   where
-    rewriteE e (Var x)
+    `rewriteE e (Var x)
       = case M.lookup x facts of
           Just (B b) -> Just $ Bool b
           Just (I i) -> Just $ Int  i
@@ -1563,7 +1563,7 @@ in the domain of the finite map).
 
 The definition of the lattice (@constLattice@) is straightforward.
 The bottom element is an empty map (nothing is known about the contents of any variable).
-We use the @stdMapJoin@ function to lift the join operation
+We~use the @stdMapJoin@ function to lift the join operation
 for a single variable (@constFactAdd@) up to the map containing facts
 for all variables.
 
@@ -2551,18 +2551,18 @@ extended visits to the third author.
 
 {\def\baselinestretch{0.95}
 \begin{smallcode}
-data TxFactBase n f
-  = TxFB { tfb_fbase :: FactBase f
-         , tfb_rg  :: RG n f C C -- Transformed blocks
-         , tfb_cha   :: ChangeFlag
-         , tfb_lbls  :: LabelSet }
+data `TxFactBase n f
+  = `TxFB { `tfb_fbase :: FactBase f
+         , `tfb_rg  :: RG n f C C -- Transformed blocks
+         , `tfb_cha   :: ChangeFlag
+         , `tfb_lbls  :: LabelSet }
  -- Set the tfb_cha flag iff 
  --   (a) the fact in tfb_fbase for or a block L changes
  --   (b) L is in tfb_lbls.
  -- The tfb_lbls are all Labels of the *original* 
  -- (not transformed) blocks
 
-updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
+`updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
            -> (ChangeFlag, FactBase f) 
            -> (ChangeFlag, FactBase f)
 updateFact lat lbls (lbl, new_fact) (cha, fbase)
@@ -2570,11 +2570,11 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
   | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
   | otherwise               = (cha,        new_fbase)
   where
-    (cha2, res_fact) 
+    (cha2, ^res_fact) 
       = case lookupFact fbase lbl of
          Nothing -> (SomeChange, new_fact)
          Just old_fact -> fact_extend lat old_fact new_fact
-    new_fbase = extendFactBase fbase lbl res_fact
+    ^new_fbase = extendFactBase fbase lbl res_fact
 
 fixpoint :: forall n f. Edges n
          => Bool        -- Going forwards?
@@ -2583,7 +2583,7 @@ fixpoint :: forall n f. Edges n
               -> FuelMonad (RG n f C C, FactBase f))
          -> FactBase f -> [(Label, Block n C C)]
          -> FuelMonad (RG n f C C, FactBase f)
-fixpoint is_fwd lat do_block init_fbase blocks
+fixpoint is_fwd lat do_block ^init_fbase blocks
  = do { fuel <- getFuel  
       ; tx_fb <- loop fuel init_fbase
       ; return (tfb_rg tx_fb, 
@@ -2591,13 +2591,13 @@ fixpoint is_fwd lat do_block init_fbase blocks
           -- The outgoing FactBase contains facts only for 
           -- Labels *not* in the blocks of the graph
  where
-  tx_blocks :: [(Label, Block n C C)] 
+  `tx_blocks :: [(Label, Block n C C)] 
             -> TxFactBase n f -> FuelMonad (TxFactBase n f)
   tx_blocks []             tx_fb = return tx_fb
   tx_blocks ((lbl,blk):bs) tx_fb = tx_block lbl blk tx_fb
                                    >>= tx_blocks bs
 
-  tx_block :: Label -> Block n C C 
+  `tx_block :: Label -> Block n C C 
            -> TxFactBase n f -> FuelMonad (TxFactBase n f)
   tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase
                                , tfb_lbls  = lbls
@@ -2616,7 +2616,7 @@ fixpoint is_fwd lat do_block init_fbase blocks
                         , tfb_cha = cha' }) }
 
   loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
-  loop fuel fbase 
+  `loop fuel fbase 
     = do { let init_tx_fb = TxFB { tfb_fbase = fbase
                                  , tfb_cha   = NoChange
                                  , tfb_rg    = RGNil
