@@ -74,61 +74,6 @@ import Compiler.Hoopl.MkGraph (AGraph)
 
 
 -----------------------------------------------------------------------------
---	RG: an internal data type for graphs under construction
---          TOTALLY internal to Hoopl
------------------------------------------------------------------------------
-
-data RG n f e x where
-  RGNil   :: RG n f a a
-  RGUnit  :: Fact e f -> Block n e x -> RG n f e x
-  RGCatO  :: RG n f e O -> RG n f O x -> RG n f e x
-  RGCatC  :: RG n f e C -> RG n f C x -> RG n f e x
-
-type BodyWithFacts  n f     = (Body n, FactBase f)
-type GraphWithFacts n f e x = (Graph n e x, FactBase f)
-  -- A Graph together with the facts for that graph
-  -- The domains of the two maps should be identical
-
-normaliseBody :: Edges n => RG n f C C -> BodyWithFacts n f
-normaliseBody rg = (body, fact_base)
-  where
-    (GMany _ body _, fact_base) = normCC rg
-
-normOO :: Edges n => RG n f O O -> GraphWithFacts n f O O
-normOO RGNil          = (GNil, noFacts)
-normOO (RGUnit _ b)   = (GUnit b, noFacts)
-normOO (RGCatO g1 g2) = normOO g1 `gwfCat` normOO g2
-normOO (RGCatC g1 g2) = normOC g1 `gwfCat` normCO g2
-
-normOC :: Edges n => RG n f O C -> GraphWithFacts n f O C
-normOC (RGUnit _ b)   = (GMany (JustO b) BodyEmpty NothingO, noFacts)
-normOC (RGCatO g1 g2) = normOO g1 `gwfCat` normOC g2
-normOC (RGCatC g1 g2) = normOC g1 `gwfCat` normCC g2
-
-normCO :: Edges n => RG n f C O -> GraphWithFacts n f C O
-normCO (RGUnit f b) = (GMany NothingO BodyEmpty (JustO b), unitFact l f)
-                    where
-                      l = entryLabel b
-normCO (RGCatO g1 g2) = normCO g1 `gwfCat` normOO g2
-normCO (RGCatC g1 g2) = normCC g1 `gwfCat` normCO g2
-
-normCC :: Edges n => RG n f C C -> GraphWithFacts n f C C
-normCC RGNil        = (GMany NothingO BodyEmpty NothingO, noFacts)
-normCC (RGUnit f b) = (GMany NothingO (BodyUnit b) NothingO, unitFact l f)
-                    where
-                      l = entryLabel b
-normCC (RGCatO g1 g2) = normCO g1 `gwfCat` normOC g2
-normCC (RGCatC g1 g2) = normCC g1 `gwfCat` normCC g2
-
-gwfCat :: Edges n => GraphWithFacts n f e a
-                  -> GraphWithFacts n f a x 
-                  -> GraphWithFacts n f e x
-gwfCat (g1, fb1) (g2, fb2) = (g1 `gCat` g2, fb1 `unionFactBase` fb2)
-
-bwfUnion :: BodyWithFacts n f -> BodyWithFacts n f -> BodyWithFacts n f
-bwfUnion (bg1, fb1) (bg2, fb2) = (bg1 `BodyCat` bg2, fb1 `unionFactBase` fb2)
-
------------------------------------------------------------------------------
 --		DataflowLattice
 -----------------------------------------------------------------------------
 
@@ -142,7 +87,7 @@ data DataflowLattice a = DataflowLattice  {
 data ChangeFlag = NoChange | SomeChange
 
 -----------------------------------------------------------------------------
---		Analyze and rewrite forward
+--		Analyze and rewrite forward: the interface
 -----------------------------------------------------------------------------
 
 data ForwardPass n f
@@ -156,14 +101,11 @@ type FwdTransfer n f
 type FwdRewrite n f 
   = forall e x. n e x -> Fact e f -> Maybe (FwdRes n f e x)
 data FwdRes n f e x = FwdRes (AGraph n e x) (FwdRewrite n f)
+  -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
 type family   Fact x f :: *
 type instance Fact C f = FactBase f
 type instance Fact O f = f
-
-type ARF thing n 
-  = forall f e x. ForwardPass n f -> thing e x 
-               -> Fact e f -> FuelMonad (RG n f e x, Fact x f)
 
 type SimpleFwdRewrite n f 
   = forall e x. n e x -> Fact e f
@@ -186,30 +128,24 @@ thenFwdRw rw1 rw2 n f
 deepFwdRw :: FwdRewrite n f -> FwdRewrite n f
 deepFwdRw rw = rw `thenFwdRw` deepFwdRw rw
 
-type SimpleBwdRewrite n f 
-  = forall e x. n e x -> Fact x f
-             -> Maybe (AGraph n e x)
+analyzeAndRewriteFwd
+   :: forall n f. Edges n
+   => ForwardPass n f
+   -> Body n -> FactBase f
+   -> FuelMonad (Body n, FactBase f)
 
-noBwdRewrite :: BwdRewrite n f
-noBwdRewrite _ _ = Nothing
+analyzeAndRewriteFwd pass body facts
+  = do { (rg, _) <- arfBody pass body facts
+       ; return (normaliseBody rg) }
 
-shallowBwdRw :: SimpleBwdRewrite n f -> BwdRewrite n f
-shallowBwdRw rw n f = case (rw n f) of
-                         Nothing -> Nothing
-                         Just ag -> Just (BwdRes ag noBwdRewrite)
-
-thenBwdRw :: BwdRewrite n f -> BwdRewrite n f -> BwdRewrite n f
-thenBwdRw rw1 rw2 n f
-  = case rw1 n f of
-      Nothing               -> rw2 n f
-      Just (BwdRes ag rw1a) -> Just (BwdRes ag (rw1a `thenBwdRw` rw2))
-
-deepBwdRw :: BwdRewrite n f -> BwdRewrite n f
-deepBwdRw rw = rw `thenBwdRw` deepBwdRw rw
+----------------------------------------------------------------
+--       Forward Implementation
+----------------------------------------------------------------
 
 
-
------------------------------------------------------------------------------
+type ARF thing n 
+  = forall f e x. ForwardPass n f -> thing e x 
+               -> Fact e f -> FuelMonad (RG n f e x, Fact x f)
 
 arfNode :: Edges n => ARF n n
 arfNode pass node f
@@ -265,22 +201,8 @@ forwardBlockList :: Edges n => [Label] -> Body n -> [(Label,Block n C C)]
 --       This will require a (HavingSuccessors l) class constraint
 forwardBlockList  _ blks = bodyList blks
 
-----------------------------------------------------------------
---       The pièce de resistance: cunning transfer functions
-----------------------------------------------------------------
-
-analyzeAndRewriteFwd
-   :: forall n f. Edges n
-   => ForwardPass n f
-   -> Body n -> FactBase f
-   -> FuelMonad (Body n, FactBase f)
-
-analyzeAndRewriteFwd pass body facts
-  = do { (rg, _) <- arfBody pass body facts
-       ; return (normaliseBody rg) }
-
 -----------------------------------------------------------------------------
---		Backward rewriting
+--		Backward analysis and rewriting: the interface
 -----------------------------------------------------------------------------
 
 data BackwardPass n f
@@ -293,6 +215,32 @@ type BwdTransfer n f
 type BwdRewrite n f 
   = forall e x. n e x -> Fact x f -> Maybe (BwdRes n f e x)
 data BwdRes n f e x = BwdRes (AGraph n e x) (BwdRewrite n f)
+
+type SimpleBwdRewrite n f 
+  = forall e x. n e x -> Fact x f
+             -> Maybe (AGraph n e x)
+
+noBwdRewrite :: BwdRewrite n f
+noBwdRewrite _ _ = Nothing
+
+shallowBwdRw :: SimpleBwdRewrite n f -> BwdRewrite n f
+shallowBwdRw rw n f = case (rw n f) of
+                         Nothing -> Nothing
+                         Just ag -> Just (BwdRes ag noBwdRewrite)
+
+thenBwdRw :: BwdRewrite n f -> BwdRewrite n f -> BwdRewrite n f
+thenBwdRw rw1 rw2 n f
+  = case rw1 n f of
+      Nothing               -> rw2 n f
+      Just (BwdRes ag rw1a) -> Just (BwdRes ag (rw1a `thenBwdRw` rw2))
+
+deepBwdRw :: BwdRewrite n f -> BwdRewrite n f
+deepBwdRw rw = rw `thenBwdRw` deepBwdRw rw
+
+
+-----------------------------------------------------------------------------
+--		Backward implementation
+-----------------------------------------------------------------------------
 
 type ARB thing n 
   = forall f e x. BackwardPass n f -> thing e x
@@ -470,6 +418,62 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
   'return', and therefore have no successors, for example.
 -}
 
+-----------------------------------------------------------------------------
+--	RG: an internal data type for graphs under construction
+--          TOTALLY internal to Hoopl
+-----------------------------------------------------------------------------
+
+data RG n f e x where
+  RGNil   :: RG n f a a
+  RGUnit  :: Fact e f -> Block n e x -> RG n f e x
+  RGCatO  :: RG n f e O -> RG n f O x -> RG n f e x
+  RGCatC  :: RG n f e C -> RG n f C x -> RG n f e x
+
+type BodyWithFacts  n f     = (Body n, FactBase f)
+type GraphWithFacts n f e x = (Graph n e x, FactBase f)
+  -- A Graph together with the facts for that graph
+  -- The domains of the two maps should be identical
+
+normaliseBody :: Edges n => RG n f C C -> BodyWithFacts n f
+normaliseBody rg = (body, fact_base)
+  where
+    (GMany _ body _, fact_base) = normCC rg
+
+normOO :: Edges n => RG n f O O -> GraphWithFacts n f O O
+normOO RGNil          = (GNil, noFacts)
+normOO (RGUnit _ b)   = (GUnit b, noFacts)
+normOO (RGCatO g1 g2) = normOO g1 `gwfCat` normOO g2
+normOO (RGCatC g1 g2) = normOC g1 `gwfCat` normCO g2
+
+normOC :: Edges n => RG n f O C -> GraphWithFacts n f O C
+normOC (RGUnit _ b)   = (GMany (JustO b) BodyEmpty NothingO, noFacts)
+normOC (RGCatO g1 g2) = normOO g1 `gwfCat` normOC g2
+normOC (RGCatC g1 g2) = normOC g1 `gwfCat` normCC g2
+
+normCO :: Edges n => RG n f C O -> GraphWithFacts n f C O
+normCO (RGUnit f b) = (GMany NothingO BodyEmpty (JustO b), unitFact l f)
+                    where
+                      l = entryLabel b
+normCO (RGCatO g1 g2) = normCO g1 `gwfCat` normOO g2
+normCO (RGCatC g1 g2) = normCC g1 `gwfCat` normCO g2
+
+normCC :: Edges n => RG n f C C -> GraphWithFacts n f C C
+normCC RGNil        = (GMany NothingO BodyEmpty NothingO, noFacts)
+normCC (RGUnit f b) = (GMany NothingO (BodyUnit b) NothingO, unitFact l f)
+                    where
+                      l = entryLabel b
+normCC (RGCatO g1 g2) = normCO g1 `gwfCat` normOC g2
+normCC (RGCatC g1 g2) = normCC g1 `gwfCat` normCC g2
+
+gwfCat :: Edges n => GraphWithFacts n f e a
+                  -> GraphWithFacts n f a x 
+                  -> GraphWithFacts n f e x
+gwfCat (g1, fb1) (g2, fb2) = (g1 `gCat` g2, fb1 `unionFactBase` fb2)
+
+bwfUnion :: BodyWithFacts n f -> BodyWithFacts n f -> BodyWithFacts n f
+bwfUnion (bg1, fb1) (bg2, fb2) = (bg1 `BodyCat` bg2, fb1 `unionFactBase` fb2)
+
+-----------------------------------------------------------------------------
 
 graphOfAGraph :: AGraph node e x -> FuelMonad (Graph node e x)
 graphOfAGraph ag = ag
