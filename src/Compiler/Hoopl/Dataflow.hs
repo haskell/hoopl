@@ -54,94 +54,25 @@ This was made possible by
 * I renamed BlockId to Label
 -}
 
-module Hoopl7 where
+module Compiler.Hoopl.Dataflow 
+  ( DataflowLattice(..)
+  , ChangeFlag(..)
+  , ForwardPass(..),  FwdTransfer, FwdRewrite, SimpleFwdRewrite
+  , noFwdRewrite, thenFwdRw, shallowFwdRw, deepFwdRw
+  , BackwardPass(..), BwdTransfer, BwdRewrite, SimpleBwdRewrite
+  , noBwdRewrite, thenBwdRw, shallowBwdRw, deepBwdRw
+  , Fact
+  , analyzeAndRewriteFwd, analyzeAndRewriteBwd
+  )
+where
 
-import qualified Data.IntMap as M
-import qualified Data.IntSet as S
-
------------------------------------------------------------------------------
---		Graphs
------------------------------------------------------------------------------
-
-data O
-data C
-
--- Blocks are always non-empty
-data Block n e x where
-  BUnit :: n e x -> Block n e x
-  BCat  :: Block n e O -> Block n O x -> Block n e x
-
-data Body n where
-  BodyEmpty :: Body n
-  BodyUnit  :: Block n C C -> Body n
-  BodyCat   :: Body n -> Body n -> Body n
-
-data Graph n e x where
-  GNil  :: Graph n O O
-  GUnit :: Block n O O -> Graph n O O
-  GMany :: MaybeO e (Block n O C) 
-        -> Body n
-        -> MaybeO x (Block n C O)
-        -> Graph n e x
-
-data MaybeO ex t where
-  JustO    :: t -> MaybeO O t
-  NothingO ::      MaybeO C t
-
--------------------------------
-class Edges thing where
-  entryLabel :: thing C x -> Label
-  successors :: thing e C -> [Label]
-
-instance Edges n => Edges (Block n) where
-  entryLabel (BUnit n) = entryLabel n
-  entryLabel (b `BCat` _) = entryLabel b
-  successors (BUnit n)   = successors n
-  successors (BCat _ b)  = successors b
-
-------------------------------
-addBlock :: Block n C C -> Body n -> Body n
-addBlock b body = BodyUnit b `BodyCat` body
-
-bodyList :: Edges n => Body n -> [(Label,Block n C C)]
-bodyList body = go body []
-  where
-    go BodyEmpty       bs = bs
-    go (BodyUnit b)    bs = (entryLabel b, b) : bs
-    go (BodyCat b1 b2) bs = go b1 (go b2 bs)
-
------------------------------------------------------------------------------
---		Defined here but not used
------------------------------------------------------------------------------
-
--- Singletons
---   OO   GUnit
---   CO   GMany (NothingO l) [] (JustO b)
---   OC   GMany (JustO b)   []  NothingO
---   CC   GMany (NothingO l) [b] NothingO
-
-gCat :: Graph n e a -> Graph n a x -> Graph n e x
-gCat GNil g2 = g2
-gCat g1 GNil = g1
-
-gCat (GUnit b1) (GUnit b2)             
-  = GUnit (b1 `BCat` b2)
-
-gCat (GUnit b) (GMany (JustO e) bs x) 
-  = GMany (JustO (b `BCat` e)) bs x
-
-gCat (GMany e bs (JustO x)) (GUnit b2) 
-   = GMany e bs (JustO (x `BCat` b2))
-
-gCat (GMany e1 bs1 (JustO x1)) (GMany (JustO e2) bs2 x2)
-   = GMany e1 (addBlock (x1 `BCat` e2) bs1 `BodyCat` bs2) x2
-
-gCat (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
-   = GMany e1 (bs1 `BodyCat` bs2) x2
+import Compiler.Hoopl.Fuel
+import Compiler.Hoopl.Graph
+import qualified Compiler.Hoopl.GraphUtil as U
+import Compiler.Hoopl.Label
+import Compiler.Hoopl.MkGraph (AGraph)
 
 
-
-------------------------------
 -----------------------------------------------------------------------------
 --	RG: an internal data type for graphs under construction
 --          TOTALLY internal to Hoopl
@@ -211,7 +142,7 @@ data DataflowLattice a = DataflowLattice  {
 data ChangeFlag = NoChange | SomeChange
 
 -----------------------------------------------------------------------------
---		Analyse and rewrite forward
+--		Analyze and rewrite forward
 -----------------------------------------------------------------------------
 
 data ForwardPass n f
@@ -254,6 +185,27 @@ thenFwdRw rw1 rw2 n f
 
 deepFwdRw :: FwdRewrite n f -> FwdRewrite n f
 deepFwdRw rw = rw `thenFwdRw` deepFwdRw rw
+
+type SimpleBwdRewrite n f 
+  = forall e x. n e x -> Fact x f
+             -> Maybe (AGraph n e x)
+
+noBwdRewrite :: BwdRewrite n f
+noBwdRewrite _ _ = Nothing
+
+shallowBwdRw :: SimpleBwdRewrite n f -> BwdRewrite n f
+shallowBwdRw rw n f = case (rw n f) of
+                         Nothing -> Nothing
+                         Just ag -> Just (BwdRes ag noBwdRewrite)
+
+thenBwdRw :: BwdRewrite n f -> BwdRewrite n f -> BwdRewrite n f
+thenBwdRw rw1 rw2 n f
+  = case rw1 n f of
+      Nothing               -> rw2 n f
+      Just (BwdRes ag rw1a) -> Just (BwdRes ag (rw1a `thenBwdRw` rw2))
+
+deepBwdRw :: BwdRewrite n f -> BwdRewrite n f
+deepBwdRw rw = rw `thenBwdRw` deepBwdRw rw
 
 
 
@@ -317,13 +269,13 @@ forwardBlockList  _ blks = bodyList blks
 --       The pièce de resistance: cunning transfer functions
 ----------------------------------------------------------------
 
-analyseAndRewriteFwd
+analyzeAndRewriteFwd
    :: forall n f. Edges n
    => ForwardPass n f
    -> Body n -> FactBase f
    -> FuelMonad (Body n, FactBase f)
 
-analyseAndRewriteFwd pass body facts
+analyzeAndRewriteFwd pass body facts
   = do { (rg, _) <- arfBody pass body facts
        ; return (normaliseBody rg) }
 
@@ -398,13 +350,13 @@ backwardBlockList :: Edges n => [Label] -> Body n -> [(Label,Block n C C)]
 -- This produces a list of blocks in order suitable for backward analysis.
 backwardBlockList _ blks = bodyList blks
 
-analyseAndRewriteBwd
+analyzeAndRewriteBwd
    :: forall n f. Edges n
    => BackwardPass n f 
    -> Body n -> FactBase f 
    -> FuelMonad (Body n, FactBase f)
 
-analyseAndRewriteBwd pass body facts
+analyzeAndRewriteBwd pass body facts
   = do { (rg, _) <- arbBody pass body facts
        ; return (normaliseBody rg) }
 
@@ -491,7 +443,7 @@ fixpoint is_fwd lat do_block init_fbase blocks
 {- Note [Unreachable blocks]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 A block that is not in the domain of tfb_fbase is "currently unreachable".
-A currently-unreachable block is not even analysed.  Reason: consider 
+A currently-unreachable block is not even analyzed.  Reason: consider 
 constant prop and this graph, with entry point L1:
   L1: x:=3; goto L4
   L2: x:=4; goto L4
@@ -499,7 +451,7 @@ constant prop and this graph, with entry point L1:
 Here L2 is actually unreachable, but if we process it with bottom input fact,
 we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 
-* If a currently-unreachable block is not analysed, then its rewritten
+* If a currently-unreachable block is not analyzed, then its rewritten
   graph will not be accumulated in tfb_rg.  And that is good:
   unreachable blocks simply do not appear in the output.
 
@@ -519,174 +471,16 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 -}
 
 
------------------------------------------------------------------------------
---		The fuel monad
------------------------------------------------------------------------------
-
-type Uniques = Int
-type Fuel    = Int
-
-newtype FuelMonad a = FM { unFM :: Fuel -> [Label] -> (a, Fuel, [Label]) }
-
-instance Monad FuelMonad where
-  return x = FM (\f u -> (x,f,u))
-  m >>= k  = FM (\f u -> case unFM m f u of (r,f',u') -> unFM (k r) f' u')
-
-withFuel :: Maybe a -> FuelMonad (Maybe a)
-withFuel Nothing  = return Nothing
-withFuel (Just r) = FM (\f u -> if f==0 then (Nothing, f, u)
-                                else (Just r, f-1, u))
-
-getFuel :: FuelMonad Fuel
-getFuel = FM (\f u -> (f,f,u))
-
-setFuel :: Fuel -> FuelMonad ()
-setFuel f = FM (\_ u -> ((), f, u))
-
 graphOfAGraph :: AGraph node e x -> FuelMonad (Graph node e x)
-graphOfAGraph ag = FM (\f ls -> let (g,ls') = ag ls
-                                in (g, f, ls'))
+graphOfAGraph ag = ag
 
------------------------------------------------------------------------------
---		Label, FactBase, LabelSet
------------------------------------------------------------------------------
 
-type Label = Int
+gCat :: Graph n e a -> Graph n a x -> Graph n e x
+gCat = U.gCatAny
 
-mkLabel :: Int -> Label
-mkLabel uniq = uniq
-
-----------------------
-type LabelMap a = M.IntMap a
-
-----------------------
-type FactBase a = M.IntMap a
-
-noFacts :: FactBase f
-noFacts = M.empty
-
-mkFactBase :: [(Label, f)] -> FactBase f
-mkFactBase prs = M.fromList prs
-
-unitFact :: Label -> FactBase f -> FactBase f
--- Restrict a fact base to a single fact
-unitFact l fb = case M.lookup l fb of
-                  Just f  -> M.singleton l f
-                  Nothing -> M.empty
-
-lookupFact :: FactBase f -> Label -> Maybe f
-lookupFact env blk_id = M.lookup blk_id env
-
-extendFactBase :: FactBase f -> Label -> f -> FactBase f
-extendFactBase env blk_id f = M.insert blk_id f env
-
-unionFactBase :: FactBase f -> FactBase f -> FactBase f
-unionFactBase = M.union
-
-elemFactBase :: Label -> FactBase f -> Bool
-elemFactBase = M.member
-
-factBaseLabels :: FactBase f -> [Label]
-factBaseLabels = M.keys
-
-factBaseList :: FactBase f -> [(Label, f)]
-factBaseList = M.toList 
-
-delFromFactBase :: FactBase f -> [(Label,a)] -> FactBase f
-delFromFactBase fb blks = foldr (M.delete . fst) fb blks
-
-----------------------
-type LabelSet = S.IntSet
-
-emptyLabelSet :: LabelSet
-emptyLabelSet = S.empty
-
-extendLabelSet :: LabelSet -> Label -> LabelSet
-extendLabelSet lbls bid = S.insert bid lbls
-
-elemLabelSet :: Label -> LabelSet -> Bool
-elemLabelSet bid lbls = S.member bid lbls
-
-blockSetElems :: LabelSet -> [Label]
-blockSetElems = S.toList
-
-minusLabelSet :: LabelSet -> LabelSet -> LabelSet
-minusLabelSet = S.difference
-
-unionLabelSet :: LabelSet -> LabelSet -> LabelSet
-unionLabelSet = S.union
-
-mkLabelSet :: [Label] -> LabelSet
-mkLabelSet = S.fromList
-
-----------------------------------------------------------------
---
--- Irrelevant distractions follow
-
-{-
-
-data OCFlag oc where
-  IsOpen   :: OCFlag O
-  IsClosed :: OCFlag C
-
-class IsOC oc where
-  ocFlag :: OCFlag oc
-
-instance IsOC O where
-  ocFlag = IsOpen
-instance IsOC C where
-  ocFlag = IsClosed
-
-mkIfThenElse :: forall n x. (Edges n, IsOC x)
-             => (Label -> Label -> n O C)	-- The conditional branch instruction
-             -> (Label -> n C O)		-- Make a head node 
-	     -> (Label -> n O C)		-- Make an unconditional branch
-	     -> Graph n O x -> Graph n O x	-- Then and else branches
-	     -> [Label]			-- Block supply
-             -> Graph n O x			-- The complete thing
-mkIfThenElse mk_cbranch mk_lbl mk_branch then_g else_g (tl:el:jl:_)
-  = case (ocFlag :: OCFlag x) of
-      IsOpen   -> gUnitOC (mk_cbranch tl el)
-                  `gCat` (mk_lbl_g tl `gCat` then_g `gCat` mk_branch_g jl)
-                  `gCat` (mk_lbl_g el `gCat` else_g `gCat` mk_branch_g jl)
-                  `gCat` (mk_lbl_g jl)
-      IsClosed -> gUnitOC (mk_cbranch tl el)
-                  `gCat` (mk_lbl_g tl `gCat` then_g)
-                  `gCat` (mk_lbl_g el `gCat` else_g)
-  where
-    mk_lbl_g :: Label -> Graph n C O
-    mk_lbl_g lbl = gUnitCO (mk_lbl lbl)
-    mk_branch_g :: Label -> Graph n O C
-    mk_branch_g lbl = gUnitOC (mk_branch lbl)
+{- Not sure why the following does not work!  ---NR
+gCat g@(GMany _ _ NothingO) g' = U.gCatClosed g g'
+gCat g g'@(GMany NothingO _ _) = U.gCatClosed g g'
+gCat g g' = U.gCat g g'
 -}
 
-type AGraph n e x = [Label] -> (Graph n e x, [Label])
-
-withLabels :: Int -> ([Label] -> AGraph n e x)
-           -> AGraph n e x
-withLabels n fn = \ls -> fn (take n ls) (drop n ls)
-
-
-gUnitCO :: n C O -> Graph n C O
-gUnitCO n = GMany NothingO BodyEmpty (JustO (BUnit n))
-
-gUnitOC :: n O C -> Graph n O C
-gUnitOC n = GMany (JustO (BUnit n)) BodyEmpty NothingO
-
-
-bFilter :: forall n. (n O O -> Bool) -> Block n C C -> Block n C C
-bFilter keep (BUnit n)  = BUnit n
-bFilter keep (BCat h t) = bFilterH h (bFilterT t)
-  where
-    bFilterH :: Block n C O -> Block n O C -> Block n C C
-    bFilterH (BUnit n)    rest = BUnit n `BCat` rest
-    bFilterH (h `BCat` m) rest = bFilterH h (bFilterM m rest)
-
-    bFilterT :: Block n O C -> Block n O C
-    bFilterT (BUnit n)    = BUnit n
-    bFilterT (m `BCat` t) = bFilterM m (bFilterT t)
-
-    bFilterM :: Block n O O -> Block n O C -> Block n O C
-    bFilterM (BUnit n) rest | keep n    = BUnit n `BCat` rest
-                            | otherwise = rest 
-    bFilterM (b1 `BCat` b2) rest = bFilterM b1 (bFilterM b2 rest)
