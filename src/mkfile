@@ -1,0 +1,9 @@
+SRC=Graph Label GraphUtil Fuel MkGraph Dataflow
+HS=${SRC:%=Compiler/Hoopl/%.hs}
+O=${SRC:%=Compiler/Hoopl/%.o}
+
+all:V: $O
+
+
+%.o: %.hs
+	ghc --make -c $prereq
