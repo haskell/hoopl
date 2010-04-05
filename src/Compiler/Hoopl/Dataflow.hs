@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-} -- bug in GHC
 
 {- Notes about the genesis of Hoopl7
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -470,8 +471,10 @@ gwfCat :: Edges n => GraphWithFacts n f e a
                   -> GraphWithFacts n f e x
 gwfCat (g1, fb1) (g2, fb2) = (g1 `gCat` g2, fb1 `unionFactBase` fb2)
 
+{-
 bwfUnion :: BodyWithFacts n f -> BodyWithFacts n f -> BodyWithFacts n f
 bwfUnion (bg1, fb1) (bg2, fb2) = (bg1 `BodyCat` bg2, fb1 `unionFactBase` fb2)
+-}
 
 -----------------------------------------------------------------------------
 

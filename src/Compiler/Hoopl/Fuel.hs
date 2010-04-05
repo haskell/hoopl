@@ -13,7 +13,6 @@ where
 
 import Compiler.Hoopl.Label
 
-type Uniques = Int
 type Fuel    = Int
 
 newtype FuelMonad a = FM { unFM :: Fuel -> [Label] -> (a, Fuel, [Label]) }

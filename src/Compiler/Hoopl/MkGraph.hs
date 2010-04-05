@@ -3,6 +3,7 @@ module Compiler.Hoopl.MkGraph
     ( AGraph, (<*>)
     , emptyAGraph, withFreshLabels
     , mkMiddle, mkMiddles, mkLast, mkEntry, mkBranch, mkLabel, mkIfThenElse, mkWhileDo
+    , addEntrySeq, addExitSeq, catAGraphs
     , IfThenElseable
     )
 where
@@ -72,6 +73,7 @@ mkWhileDo    :: (Node n)
 
 (<*>) = liftM2 U.gCat 
 
+catAGraphs :: [AGraph n O O] -> AGraph n O O
 catAGraphs = foldr (<*>) emptyAGraph
 
 -------------------------------------

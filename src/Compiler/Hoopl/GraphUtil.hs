@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-} -- bug in GHC
 
 -- N.B. addBasicBlocks won't work on OO without a Node (branch/label) constraint
 
