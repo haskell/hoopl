@@ -135,9 +135,13 @@ end
 local symclass = '[%!%#%$%%%&%*%+%.%/%<%=%>%?%@%\\%^%|%-%~]'
 local wordclass = "[%w_'%.]"
 local sym = symclass .. '+'
-local word = wordclass .. '+'
+local word = wordclass .. '*' .. wordclass:gsub('%%%.', '')
+--word = wordclass .. '+'
 local symbacktick = sym:gsub('^%[', '[%`%^')
-local wordbacktick = word:gsub('^%[', '[%`%^')
+local wordbacktick = word:gsub('%[', '[%`%^')
+
+io.stderr:write(word, '\n')
+io.stderr:write(wordbacktick, '\n')
 
 local function is_literal(id)
   return id:find '^%d+$'
