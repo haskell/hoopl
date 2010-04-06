@@ -169,8 +169,8 @@ arfBody :: Edges n
         => ForwardPass n f -> Body n -> FactBase f
         -> FuelMonad (RG n f C C, FactBase f)
 		-- Outgoing factbase is restricted to Labels *not* in
-		-- in the Body; the facts for Labels
-		-- *in* the Body are in the BodyWithFacts
+		-- in the Body; the facts for Labels *in*
+                -- the Body are in the BodyWithFacts
 arfBody pass blocks init_fbase
   = fixpoint True (fp_lattice pass) (arfBlock pass) init_fbase $
     forwardBlockList (factBaseLabels init_fbase) blocks
