@@ -18,5 +18,11 @@ To build the library, change to the src directory and run
 You'll need a Haskell Platform, which should include appropriate
 versions of Cabal and GHC.
 
+To upload to Hackage,
+
+  cabal sdist
+  cabal upload dist/something.tar.gz
+
+
 
   
