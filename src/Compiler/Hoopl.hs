@@ -8,7 +8,7 @@ module Compiler.Hoopl
 where
 
 import Compiler.Hoopl.Dataflow
-import Compiler.Hoopl.Fuel
+import Compiler.Hoopl.Fuel hiding (withFuel, getFuel, setFuel)
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.Label hiding (allLabels)
 import Compiler.Hoopl.MkGraph
