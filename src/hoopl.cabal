@@ -7,11 +7,13 @@ Author:              Norman Ramsey, João Dias, and Simon Peyton Jones
 Maintainer:          nr@cs.tufts.edu
 Build-Type:          Simple
 Cabal-Version:       >=1.2
+Synopsis:            A library to support dataflow analysis and optimization
+Category:            Compilers/Interpeters
 
 Library
   Build-Depends:     base >= 3 && < 5, containers
   Exposed-modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Dataflow, Compiler.Hoopl.Graph, 
-                     Compiler.Hoopl.GraphUtil, Compiler.Hoopl.MkGraph,
+                     Compiler.Hoopl.MkGraph,
                      Compiler.Hoopl.Fuel, Compiler.Hoopl.Label
   ghc-options:       -Wall -fno-warn-name-shadowing
