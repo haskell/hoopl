@@ -27,31 +27,31 @@ evalProc' (Proc {name=_, args, body, entry}) actuals =
   else throwError $ "Param/actual mismatch: " ++ show args ++ " = " ++ show actuals
 
 -- Responsible for allocating and deallocating its own stack frame.
-evalBody :: EvalTarget v => VarEnv v -> Body Node -> Label -> EvalM v [v]
+evalBody :: EvalTarget v => VarEnv v -> Body Insn -> Label -> EvalM v [v]
 evalBody vars bs entry =
   inNewFrame vars (map snd (bodyList bs)) $ get_block entry >>= evalB 
 
-evalB    :: EvalTarget v => Block Node C C -> EvalM v [v]
+evalB    :: EvalTarget v => Block Insn C C -> EvalM v [v]
 evalB    (BCat b1 b2) = evalB_CO b1 >> evalB_OC b2
-evalB    (BUnit _)    = gadtCheck "CC nodes"
+evalB    (BUnit _)    = gadtCheck "CC Insns"
 
-evalB_CO :: EvalTarget v => Block Node C O -> EvalM v ()
+evalB_CO :: EvalTarget v => Block Insn C O -> EvalM v ()
 evalB_CO (BCat b1 b2) = evalB_CO b1 >> evalB_OO b2
 evalB_CO (BUnit n)    = evalN_CO n
 
-evalB_OO :: EvalTarget v => Block Node O O -> EvalM v ()
+evalB_OO :: EvalTarget v => Block Insn O O -> EvalM v ()
 evalB_OO (BCat b1 b2) = evalB_OO b1 >> evalB_OO b2
 evalB_OO (BUnit n)    = evalN_OO n
 
-evalB_OC :: EvalTarget v => Block Node O C -> EvalM v [v]
+evalB_OC :: EvalTarget v => Block Insn O C -> EvalM v [v]
 evalB_OC (BCat b1 b2) = evalB_OO b1 >> evalB_OC b2
 evalB_OC (BUnit n)    = evalN_OC n
 
 
-evalN_CO :: EvalTarget v => Node C O -> EvalM v ()
+evalN_CO :: EvalTarget v => Insn C O -> EvalM v ()
 evalN_CO (Label _) = return ()
 
-evalN_OO :: EvalTarget v => Node O O -> EvalM v ()
+evalN_OO :: EvalTarget v => Insn O O -> EvalM v ()
 evalN_OO (Assign var e) =
   do v_e <- eval e
      set_var var v_e
@@ -61,7 +61,7 @@ evalN_OO (Store addr e) =
      -- StoreEvt recorded in set_heap
      set_heap v_addr v_e
 
-evalN_OC :: EvalTarget v => Node O C -> EvalM v [v]
+evalN_OC :: EvalTarget v => Insn O C -> EvalM v [v]
 evalN_OC (Branch bid) =
   do b <- get_block bid
      evalB b

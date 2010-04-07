@@ -1,5 +1,5 @@
 Name:                hoopl
-Version:             3.7.0.0
+Version:             3.7.3.2
 Description:         Higher-order optimization library
 License:             BSD3
 License-file:        LICENSE
@@ -7,11 +7,15 @@ Author:              Norman Ramsey, João Dias, and Simon Peyton Jones
 Maintainer:          nr@cs.tufts.edu
 Build-Type:          Simple
 Cabal-Version:       >=1.2
+Synopsis:            A library to support dataflow analysis and optimization
+Category:            Compilers/Interpeters
+Extra-source-files:  README, hoopl.pdf
 
 Library
   Build-Depends:     base >= 3 && < 5, containers
   Exposed-modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Dataflow, Compiler.Hoopl.Graph, 
-                     Compiler.Hoopl.GraphUtil, Compiler.Hoopl.MkGraph,
+                     Compiler.Hoopl.MkGraph,
                      Compiler.Hoopl.Fuel, Compiler.Hoopl.Label
+  Other-modules:     Compiler.Hoopl.GraphUtil
   ghc-options:       -Wall -fno-warn-name-shadowing

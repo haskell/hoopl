@@ -105,7 +105,7 @@ getLbl id lmap =
                      return (M.insert id l lmap, l)
      }
 
-labl :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Node C O))
+labl :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Insn C O))
 labl = lexeme (do { id <- identifier
                   ; char' ':'
                   ; return $ \lmap -> do { (m, l) <- getLbl id lmap
@@ -114,12 +114,12 @@ labl = lexeme (do { id <- identifier
                   })
   <?> "label"
 
-mid :: Parser (Node O O)
+mid :: Parser (Insn O O)
 mid =   asst
     <|> store
     <?> "assignment or store"
 
-asst :: Parser (Node O O)
+asst :: Parser (Insn O O)
 asst = do { v <- lexeme var
           ; lexeme (char' '=')
           ; e <- expr
@@ -127,7 +127,7 @@ asst = do { v <- lexeme var
           }
     <?> "asst"
 
-store :: Parser (Node O O)
+store :: Parser (Insn O O)
 store = do { addr <- lexeme mem
            ; lexeme (char' '=')
            ; e <- expr
@@ -135,7 +135,7 @@ store = do { addr <- lexeme mem
            }
      <?> "store"
 
-type LastParse = Parser (IdLabelMap -> FuelMonad (IdLabelMap, Node O C))
+type LastParse = Parser (IdLabelMap -> FuelMonad (IdLabelMap, Insn O C))
 last :: LastParse
 last =  branch
     <|> cond
@@ -193,7 +193,7 @@ ret =
      }
  <?> "ret"
 
-block :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Block Node C C))
+block :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Block Insn C C))
 block =
   do { f   <- lexeme labl
      ; ms  <- many $ try mid
@@ -208,7 +208,7 @@ block =
 tuple :: Parser a -> Parser [a]
 tuple = parens . commaSep
 
-procBody :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Body Node))
+procBody :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Body Insn))
 procBody = do { b  <- block
               ; bs <- many block
               ; return $ \lmap ->
@@ -219,8 +219,8 @@ procBody = do { b  <- block
               }
         <?> "proc body"
   where
-    threadMap :: (IdLabelMap, Body Node) -> (IdLabelMap -> FuelMonad (IdLabelMap, Label, Block Node C C))
-                                         -> FuelMonad (IdLabelMap, Body Node)
+    threadMap :: (IdLabelMap, Body Insn) -> (IdLabelMap -> FuelMonad (IdLabelMap, Label, Block Insn C C))
+                                         -> FuelMonad (IdLabelMap, Body Insn)
     threadMap (lmap, bdy) f = do (lmap', _, b) <- f lmap
                                  return (lmap', BodyUnit b `BodyCat` bdy)
 

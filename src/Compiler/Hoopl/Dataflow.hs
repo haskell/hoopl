@@ -18,8 +18,8 @@ nice and uniform.
 
 This was made possible by
 
-* ForwardTransfer looks like this:
-    type ForwardTransfer n f
+* FwdTransfer looks like this:
+    type FwdTransfer n f
       = forall e x. n e x -> Fact e f -> Fact x f 
     type family   Fact x f :: *
     type instance Fact C f = FactBase f
@@ -35,7 +35,7 @@ This was made possible by
   [Side note: that means the client must know about 
   bottom, in case the looupFact returns Nothing]
 
-* Note also that ForwardTransfer *returns* a Fact too;
+* Note also that FwdTransfer *returns* a Fact too;
   that is, the types in both directions are symmetrical.
   Previously we returned a [(BlockId,f)] but I could not see
   how to make everything line up if we do this.
@@ -57,10 +57,10 @@ This was made possible by
 
 module Compiler.Hoopl.Dataflow 
   ( DataflowLattice(..)
-  , ChangeFlag(..)
-  , ForwardPass(..),  FwdTransfer, FwdRewrite, SimpleFwdRewrite
+  , ChangeFlag(..), changeIf
+  , FwdPass(..),  FwdTransfer, FwdRewrite, SimpleFwdRewrite
   , noFwdRewrite, thenFwdRw, shallowFwdRw, deepFwdRw
-  , BackwardPass(..), BwdTransfer, BwdRewrite, SimpleBwdRewrite
+  , BwdPass(..), BwdTransfer, BwdRewrite, SimpleBwdRewrite
   , noBwdRewrite, thenBwdRw, shallowBwdRw, deepBwdRw
   , Fact
   , analyzeAndRewriteFwd, analyzeAndRewriteBwd
@@ -82,16 +82,19 @@ data DataflowLattice a = DataflowLattice  {
   fact_name       :: String,                   -- Documentation
   fact_bot        :: a,                        -- Lattice bottom element
   fact_extend     :: a -> a -> (ChangeFlag,a), -- Lattice join plus change flag
+                                               -- (changes iff result > first arg)
   fact_do_logging :: Bool                      -- log changes
 }
 
 data ChangeFlag = NoChange | SomeChange
+changeIf :: Bool -> ChangeFlag
+changeIf changed = if changed then SomeChange else NoChange
 
 -----------------------------------------------------------------------------
 --		Analyze and rewrite forward: the interface
 -----------------------------------------------------------------------------
 
-data ForwardPass n f
+data FwdPass n f
   = FwdPass { fp_lattice  :: DataflowLattice f
             , fp_transfer :: FwdTransfer n f
             , fp_rewrite  :: FwdRewrite n f }
@@ -134,7 +137,7 @@ deepFwdRw rw =
 
 analyzeAndRewriteFwd
    :: forall n f. Edges n
-   => ForwardPass n f
+   => FwdPass n f
    -> Body n -> FactBase f
    -> FuelMonad (Body n, FactBase f)
 
@@ -148,7 +151,7 @@ analyzeAndRewriteFwd pass body facts
 
 
 type ARF thing n 
-  = forall f e x. ForwardPass n f -> thing e x 
+  = forall f e x. FwdPass n f -> thing e x 
                -> Fact e f -> FuelMonad (RG n f e x, Fact x f)
 
 arfNode :: Edges n => ARF n n
@@ -169,11 +172,11 @@ arfBlock pass (BCat hd mids) f = do { (g1,f1) <- arfBlock pass hd   f
 	                            ; return (g1 `RGCatO` g2, f2) }
 
 arfBody :: Edges n
-        => ForwardPass n f -> Body n -> FactBase f
+        => FwdPass n f -> Body n -> FactBase f
         -> FuelMonad (RG n f C C, FactBase f)
 		-- Outgoing factbase is restricted to Labels *not* in
-		-- in the Body; the facts for Labels
-		-- *in* the Body are in the BodyWithFacts
+		-- in the Body; the facts for Labels *in*
+                -- the Body are in the BodyWithFacts
 arfBody pass blocks init_fbase
   = fixpoint True (fp_lattice pass) (arfBlock pass) init_fbase $
     forwardBlockList (factBaseLabels init_fbase) blocks
@@ -211,7 +214,7 @@ forwardBlockList  _ blks = map withLbl $ bodyList blks
 --		Backward analysis and rewriting: the interface
 -----------------------------------------------------------------------------
 
-data BackwardPass n f
+data BwdPass n f
   = BwdPass { bp_lattice  :: DataflowLattice f
             , bp_transfer :: BwdTransfer n f
             , bp_rewrite  :: BwdRewrite n f }
@@ -249,7 +252,7 @@ deepBwdRw rw = rw `thenBwdRw` deepBwdRw rw
 -----------------------------------------------------------------------------
 
 type ARB thing n 
-  = forall f e x. BackwardPass n f -> thing e x
+  = forall f e x. BwdPass n f -> thing e x
                -> Fact x f -> FuelMonad (RG n f e x, Fact e f)
 
 arbNode :: Edges n => ARB n n
@@ -274,7 +277,7 @@ arbBlock pass (BCat b1 b2) f = do { (g2,f2) <- arbBlock pass b2 f
 	                          ; return (g1 `RGCatO` g2, f1) }
 
 arbBody :: Edges n
-        => BackwardPass n f -> Body n -> FactBase f
+        => BwdPass n f -> Body n -> FactBase f
         -> FuelMonad (RG n f C C, FactBase f)
 arbBody pass blocks init_fbase
   = fixpoint False (bp_lattice pass) (arbBlock pass) init_fbase $
@@ -308,7 +311,7 @@ backwardBlockList _ blks = map withSuccs $ bodyList blks
 
 analyzeAndRewriteBwd
    :: forall n f. Edges n
-   => BackwardPass n f 
+   => BwdPass n f 
    -> Body n -> FactBase f 
    -> FuelMonad (Body n, FactBase f)
 

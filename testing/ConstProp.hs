@@ -36,7 +36,7 @@ initFact vars = M.fromList $ [(v, Top) | v <- vars]
 -- at a call site.
 -- Note that we don't need a case for x := y, where y holds a constant.
 -- We can write the simplest solution and rely on the interleaved optimization.
-varHasLit :: FwdTransfer Node ConstFact
+varHasLit :: FwdTransfer Insn ConstFact
 varHasLit (Label l)          f = fromMaybe M.empty $ lookupFact f l
 varHasLit (Assign x (Lit l)) f = M.insert x (Elt l) f
 varHasLit (Assign x _)       f = M.insert x Top f
@@ -51,10 +51,10 @@ varHasLit (Call _ _ _ bid) _ = mkFactBase [(bid, fact_bot constLattice)]
 varHasLit (Return _)       _ = mkFactBase []
 
 -- Constant propagation: rewriting
-constProp :: FwdRewrite Node ConstFact
+constProp :: FwdRewrite Insn ConstFact
 constProp = shallowFwdRw cp 
   where
-    cp n facts = map_EN (map_EE $ rewriteE (getFwdFact n facts M.empty)) n >>= Just . nodeToA
+    cp n facts = map_EN (map_EE $ rewriteE (getFwdFact n facts M.empty)) n >>= Just . insnToA
     rewriteE facts (Var v) = case M.lookup v facts of
                                Just (Elt l) -> Just $ Lit l
                                _            -> Nothing

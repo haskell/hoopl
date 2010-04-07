@@ -7,11 +7,11 @@ import IR
 import OptSupport
 
 -- Simplification ("constant folding")
-simplify :: FwdRewrite Node a
+simplify :: FwdRewrite Insn a
 simplify = deepFwdRw $ shallowFwdRw simp
   where
-    simp node _ = s node >>= return . nodeToA
-    s :: Node e x -> Maybe (Node e x)
+    simp insn _ = s insn >>= return . insnToA
+    s :: Insn e x -> Maybe (Insn e x)
     s (Cond (Lit (Bool True))  t _) = Just $ Branch t
     s (Cond (Lit (Bool False)) f _) = Just $ Branch f
     s n = map_EN (map_EE s_e) n

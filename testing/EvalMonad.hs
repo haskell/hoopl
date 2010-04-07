@@ -38,7 +38,7 @@ type VarEnv  v = M.Map Var  v
 type HeapEnv v = M.Map Addr v -- word addressed heap
 type Addr      = Integer
 type BEnv      = FactBase B
-type B         = Block Node C C
+type B         = Block Insn C C
 type PEnv      = M.Map String Proc
 
 runProg :: [Proc] -> [v] -> EvalM v x -> ErrorM (State v, x)

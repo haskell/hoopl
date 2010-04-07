@@ -135,9 +135,13 @@ end
 local symclass = '[%!%#%$%%%&%*%+%.%/%<%=%>%?%@%\\%^%|%-%~]'
 local wordclass = "[%w_'%.]"
 local sym = symclass .. '+'
-local word = wordclass .. '+'
+local word = wordclass .. '*' .. wordclass:gsub('%%%.', '')
+--word = wordclass .. '+'
 local symbacktick = sym:gsub('^%[', '[%`%^')
-local wordbacktick = word:gsub('^%[', '[%`%^')
+local wordbacktick = word:gsub('%[', '[%`%^')
+
+io.stderr:write(word, '\n')
+io.stderr:write(wordbacktick, '\n')
 
 local function is_literal(id)
   return id:find '^%d+$'
@@ -406,7 +410,7 @@ for _, k in ipairs(table.sorted_keys(defnrefs, caselt)) do
 end
 
 local function nontrivial(id)
-  return id:len() > 1 and not id:find('^%l%d$')
+  return id:len() > 1 and not id:find('^[%lL]%d$')
 end
 
 for _, k in ipairs(table.sorted_keys(uses, caselt)) do

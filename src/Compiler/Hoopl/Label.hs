@@ -5,8 +5,9 @@ module Compiler.Hoopl.Label
   , FactBase, noFacts, mkFactBase, unitFact, lookupFact, extendFactBase
             , delFromFactBase, unionFactBase
             , elemFactBase, factBaseLabels, factBaseList
-  , LabelSet, emptyLabelSet, extendLabelSet, mkLabelSet, elemLabelSet, labelSetElems
-            , minusLabelSet, unionLabelSet
+  , LabelSet, emptyLabelSet, extendLabelSet, reduceLabelSet
+            , mkLabelSet, elemLabelSet, labelSetElems
+            , minusLabelSet, unionLabelSet, interLabelSet, sizeLabelSet, 
   )
 
 where
@@ -73,13 +74,16 @@ delFromFactBase :: FactBase f -> [(Label,a)] -> FactBase f
 delFromFactBase fb blks = foldr (M.delete . unLabel . fst) fb blks
 
 ----------------------
-type LabelSet = S.IntSet
+type LabelSet = S.IntSet -- ought to be a newtype or we expose the rep...
 
 emptyLabelSet :: LabelSet
 emptyLabelSet = S.empty
 
 extendLabelSet :: LabelSet -> Label -> LabelSet
 extendLabelSet lbls (Label bid) = S.insert bid lbls
+
+reduceLabelSet :: LabelSet -> Label -> LabelSet
+reduceLabelSet lbls (Label bid) = S.delete bid lbls
 
 elemLabelSet :: Label -> LabelSet -> Bool
 elemLabelSet (Label bid) lbls = S.member bid lbls
@@ -93,6 +97,13 @@ minusLabelSet = S.difference
 unionLabelSet :: LabelSet -> LabelSet -> LabelSet
 unionLabelSet = S.union
 
+interLabelSet :: LabelSet -> LabelSet -> LabelSet
+interLabelSet = S.intersection
+
+sizeLabelSet :: LabelSet -> Int
+sizeLabelSet = S.size
+
 mkLabelSet :: [Label] -> LabelSet
 mkLabelSet = S.fromList . map unLabel
+
 

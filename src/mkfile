@@ -3,7 +3,16 @@ HOOPL=Compiler/Hoopl
 HS=${SRC:%=$HOOPL/%.hs}
 O=${SRC:%=$HOOPL/%.o}
 
-all:V: $O
+all:V: $O hoopl.pdf
+
+dist:V: hoopl.pdf
+	cabal sdist
+
+hoopl.pdf: ../paper/dfopt.pdf
+	cp -a -v $prereq $target
+
+%.pdf: %.tex
+	(cd `dirname $prereq`; mk `basename $target`)
 
 
 %.o: %.hs

@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
-module IR (Proc (..), Node (..), Exp (..), Lit (..), Value (..), BinOp(..), Var,
+module IR (Proc (..), Insn (..), Exp (..), Lit (..), Value (..), BinOp(..), Var,
            showG, showProc) where
 
 import Prelude hiding (succ)
@@ -16,18 +16,18 @@ type Var   = String
 data Lit   = Bool Bool | Int Integer deriving Eq
 data Value = B Bool    | I   Integer deriving Eq
 
-data Proc = Proc { name :: String, args :: [Var], entry :: Label, body :: Body Node }
+data Proc = Proc { name :: String, args :: [Var], entry :: Label, body :: Body Insn }
 
-data Node e x where
-  Label  :: Label ->                                Node C O
-  Assign :: Var     -> Exp     ->                   Node O O
-  Store  :: Exp     -> Exp     ->                   Node O O
-  Branch :: Label   ->                              Node O C
-  Cond   :: Exp     -> Label   -> Label ->          Node O C
-  Call   :: [Var]   -> String  -> [Exp] -> Label -> Node O C -- String is bogus
-  Return :: [Exp]   ->                              Node O C
+data Insn e x where
+  Label  :: Label ->                                Insn C O
+  Assign :: Var     -> Exp     ->                   Insn O O
+  Store  :: Exp     -> Exp     ->                   Insn O O
+  Branch :: Label   ->                              Insn O C
+  Cond   :: Exp     -> Label   -> Label ->          Insn O C
+  Call   :: [Var]   -> String  -> [Exp] -> Label -> Insn O C -- String is bogus
+  Return :: [Exp]   ->                              Insn O C
 
-instance Edges Node where
+instance Edges Insn where
   entryLabel (Label l)      = l
   successors (Branch l)     = [l]
   successors (Cond _ t f)   = [t, f]
@@ -41,24 +41,24 @@ showProc proc = name proc ++ tuple (args proc) ++ graph
   where
     graph  = " {\n" ++ showBody (body proc) ++ "}\n"
 
-showG :: Graph Node e x -> String
+showG :: Graph Insn e x -> String
 showG GNil = ""
 showG (GUnit block) = showB block
 showG (GMany g_entry g_blocks g_exit) =
   showOpen showB g_entry ++ showBody g_blocks ++ showOpen showB g_exit
 
-showBody :: Body Node -> String
+showBody :: Body Insn -> String
 showBody blocks = concatMap showB (map snd $ bodyList blocks)
 
 showOpen :: (Block n e x -> String) -> MaybeO z (Block n e x) -> String
 showOpen _ NothingO  = ""
 showOpen p (JustO n) = p n
 
-showB :: Block Node e x -> String
+showB :: Block Insn e x -> String
 showB (BUnit n)    = show n ++ "\n"
 showB (BCat b1 b2) = showB b1 ++ showB b2
 
-instance Show (Node e x) where
+instance Show (Insn e x) where
   show (Label lbl)        = show lbl ++ ":"
   show (Assign v e)       = ind $ v ++ " = " ++ show e
   show (Store addr e)     = ind $ "m[" ++ show addr ++ "] = " ++ show e

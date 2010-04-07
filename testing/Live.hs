@@ -22,10 +22,10 @@ liveLattice = DataflowLattice
               j = new `S.union` old
               ch = if S.size j > S.size old then SomeChange else NoChange
 
-liveness :: BwdTransfer Node Live
+liveness :: BwdTransfer Insn Live
 liveness n outfact = live outfact n
   where
-    live :: Fact x Live -> Node e x -> Fact e Live
+    live :: Fact x Live -> Insn e x -> Fact e Live
     live f (Assign x _)    = addUses (S.delete x f) n
     live f (Label l)       = mkFactBase [(l, f)]
     live f (Store _ _)     = addUses f n
@@ -38,9 +38,9 @@ liveness n outfact = live outfact n
     addVar s (Var v) = S.insert v s
     addVar s _       = s
      
-deadAsstElim :: BwdRewrite Node Live
+deadAsstElim :: BwdRewrite Insn Live
 deadAsstElim = shallowBwdRw d
   where
-    d :: SimpleBwdRewrite Node Live
+    d :: SimpleBwdRewrite Insn Live
     d (Assign x _) live = if x `S.member` live then Nothing else Just (return GNil)
     d _ _ = Nothing

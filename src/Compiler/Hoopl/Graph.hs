@@ -2,7 +2,7 @@
 
 module Compiler.Hoopl.Graph 
   ( O, C, Block(..), Body(..), Graph(..), MaybeO(..)
-  , Edges, entryLabel, successors
+  , Edges(entryLabel, successors)
   , addBlock, bodyList
   )
 where

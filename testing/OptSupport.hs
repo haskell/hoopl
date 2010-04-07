@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall -fno-warn-incomplete-patterns -XGADTs -XRankNTypes #-}
 module OptSupport (WithTop (..), stdMapJoin, map_EE, map_EN, fold_EE, fold_EN,
-                   getFwdFact, nodeToA) where
+                   getFwdFact, insnToA) where
 
 import Control.Monad
 import qualified Data.Map as M
@@ -35,7 +35,7 @@ stdMapJoin eltJoin new old = M.foldWithKey add (NoChange, old) new
 -- Common code for getting and propagating facts:
 ----------------------------------------------
 
-getFwdFact :: Node e x -> Fact e f -> f -> f
+getFwdFact :: Insn e x -> Fact e f -> f -> f
 getFwdFact (Label l)      f def = fromMaybe def $ lookupFact f l
 getFwdFact (Assign _ _)   f _   = f
 getFwdFact (Store _ _)    f _   = f
@@ -45,11 +45,11 @@ getFwdFact (Call _ _ _ _) f _   = f
 getFwdFact (Return _)     f _   = f
 
 ----------------------------------------------
--- Map/Fold functions for expressions/nodes
+-- Map/Fold functions for expressions/insns
 ----------------------------------------------
 
 map_EE :: (Exp -> Maybe Exp) -> Exp      -> Maybe Exp
-map_EN :: (Exp -> Maybe Exp) -> Node e x -> Maybe (Node e x)
+map_EN :: (Exp -> Maybe Exp) -> Insn e x -> Maybe (Insn e x)
 
 map_EE f e@(Lit _)     = f e
 map_EE f e@(Var _)     = f e
@@ -84,7 +84,7 @@ map_EN f   (Return es) =
      where es' = map f es
 
 fold_EE :: (a -> Exp -> a) -> a -> Exp      -> a
-fold_EN :: (a -> Exp -> a) -> a -> Node e x -> a
+fold_EN :: (a -> Exp -> a) -> a -> Insn e x -> a
 
 fold_EE f z e@(Lit _)         = f z e
 fold_EE f z e@(Var _)         = f z e
@@ -100,14 +100,14 @@ fold_EN f z (Call _ _ es _) = foldl f z es
 fold_EN f z (Return es)     = foldl f z es
 
 ----------------------------------------------
--- Lift a node to an AGraph
+-- Lift a insn to an AGraph
 ----------------------------------------------
 
-nodeToA :: Node e x -> AGraph Node e x
-nodeToA n@(Label _)      = mkFirst n
-nodeToA n@(Assign _ _)   = mkMiddle n
-nodeToA n@(Store _ _)    = mkMiddle n
-nodeToA n@(Branch _)     = mkLast n
-nodeToA n@(Cond _ _ _)   = mkLast n
-nodeToA n@(Call _ _ _ _) = mkLast n
-nodeToA n@(Return _)     = mkLast n
+insnToA :: Insn e x -> AGraph Insn e x
+insnToA n@(Label _)      = mkFirst n
+insnToA n@(Assign _ _)   = mkMiddle n
+insnToA n@(Store _ _)    = mkMiddle n
+insnToA n@(Branch _)     = mkLast n
+insnToA n@(Cond _ _ _)   = mkLast n
+insnToA n@(Call _ _ _ _) = mkLast n
+insnToA n@(Return _)     = mkLast n

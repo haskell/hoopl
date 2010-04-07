@@ -1,0 +1,17 @@
+This is Hoopl, a higher-order optimization library.
+There are two unpublished papers describing Hoopl:
+
+  Hoopl: Dataflow Optimization Made Simple
+  Hoopl: A Modular, Reusable Library for Dataflow Analysis and Transformation
+
+The second such paper is attached to this package.
+
+The version number is split into four parts:
+
+  3.   Third major body plan (phylum)
+  7.   Seventh iteration (roughly) of data structures
+  2.   Major version; changes when clients must change
+  1.   Minor version; changes when clients can stay the same
+
+
+Version 3.7.3.2 has KNOWN BUGS!  John Dias will update soon.

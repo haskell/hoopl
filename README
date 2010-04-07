@@ -1,0 +1,28 @@
+This repository contains things related to
+
+              Hoopl: A Higher-Order OPtimization Library
+
+Directory     Contents
+
+paper/        A paper about Hoopl
+prototypes/   A sampling of prototypes and early designs
+src/          The current official sources to the Cabal package
+testing/      Tests, including a sample client
+
+To build the library, change to the src directory and run
+
+  cabal configure --prefix=$HOME --user   # we have no idea what this means
+  cabal build
+  cabal install --enable-documentation
+
+You'll need a Haskell Platform, which should include appropriate
+versions of Cabal and GHC.
+
+To upload to Hackage,
+
+  cabal sdist
+  cabal upload dist/something.tar.gz
+
+
+
+  
