@@ -1,12 +1,12 @@
 f(x) {
-0:
-  if x > 5 then goto 1 else goto 2
-1:
+L0:
+  if x > 5 then goto L1 else goto L2
+L1:
   z = 1
-  goto 3
-2:
+  goto L3
+L2:
   z = 1
-  goto 3
-3:
+  goto L3
+L3:
   ret (z)
 }

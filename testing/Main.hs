@@ -4,10 +4,11 @@ import Test
 
 -- Hardcoding test locations for now
 tests = map (\t -> "tests" ++ "/" ++ t)
-            ["if-test2", "if-test3", "if-test4"]
-            -- ["test1", "test2", "test3", "test4", "if-test"]
+            -- ["test2"]
+            (["test1", "test2", "test3", "test4"] ++
+             ["if-test", "if-test2", "if-test3", "if-test4"])
 
 main :: IO ()
 -- main = do mapM evalTest tests
-main = do mapM optTest tests
+main = do mapM (\x -> parseTest x >> optTest x) tests
           return ()

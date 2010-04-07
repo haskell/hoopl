@@ -10,7 +10,7 @@ import Control.Monad.Error
 import qualified Data.Map as M
 import Prelude hiding (succ)
 
-import Hoopl
+import Compiler.Hoopl
 import IR
 
 type ErrorM        = Either String
@@ -37,7 +37,7 @@ instance MonadError String (EvalM v) where
 type VarEnv  v = M.Map Var  v
 type HeapEnv v = M.Map Addr v -- word addressed heap
 type Addr      = Integer
-type BEnv      = BlockEnv B
+type BEnv      = FactBase B
 type B         = Block Node C C
 type PEnv      = M.Map String Proc
 
@@ -101,9 +101,9 @@ set_heap addr val =
   do event $ StoreEvt addr val
      upd_state $ \ s -> s { heap = M.insert addr val (heap s) }
 
-get_block :: BlockId -> EvalM v B
-get_block bid = get_state >>= k
-  where k (State {frames = (_, blocks):_}) = flookup "block" bid blocks
+get_block :: Label -> EvalM v B
+get_block lbl = get_state >>= k
+  where k (State {frames = (_, blocks):_}) = flookup "block" lbl blocks
         k _ = error "can't get blocks from empty stack"
 
 get_proc :: String -> EvalM v Proc
@@ -111,10 +111,7 @@ get_proc name = get_state >>= mlookup "proc" name . procs
 
 newFrame :: VarEnv v -> [B] -> EvalM v ()
 newFrame vars blocks = upd_state $ \s -> s { frames = (vars, blockEnv) : frames s}
-  where blockEnv = mkBlockEnv (zip (map blockId blocks) blocks)
-        blockId :: Block Node C x -> BlockId
-        blockId (BUnit (Label bid)) = bid
-        blockId (b1 `BCat`  _) = blockId b1
+  where blockEnv = mkFactBase (zip (map entryLabel blocks) blocks)
 
 popFrame :: EvalM v ()
 popFrame = upd_state f
@@ -137,5 +134,5 @@ generic_lookup blame lookupf k m =
 mlookup :: Ord k => String -> k -> M.Map k v -> EvalM v' v
 mlookup blame = generic_lookup blame M.lookup
 
-flookup :: String -> BlockId -> BlockEnv a -> EvalM v a
-flookup blame = generic_lookup blame $ flip findBEnv
+flookup :: String -> Label -> FactBase a -> EvalM v a
+flookup blame = generic_lookup blame $ flip lookupFact

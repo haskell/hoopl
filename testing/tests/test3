@@ -1,14 +1,14 @@
 f (x, y) {
-100:
-  goto 101
-101:
-  if x > 0 then goto 102 else goto 104
-102:
-  (z) = f(x-1, y-1) goto 103
-103:
+L100:
+  goto L101
+L101:
+  if x > 0 then goto L102 else goto L104
+L102:
+  (z) = f(x-1, y-1) goto L103
+L103:
   y = y + z
   x = x - 1
-  goto 101
-104:
+  goto L101
+L104:
   ret (y)
 }

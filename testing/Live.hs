@@ -2,18 +2,19 @@
 {-# LANGUAGE ScopedTypeVariables, GADTs #-}
 module Live (liveLattice, liveness, deadAsstElim) where
 
+import Data.Maybe
 import qualified Data.Set as S
 
-import Hoopl
+import Compiler.Hoopl
 import IR
 import OptSupport
 
 type Live = S.Set Var
 liveLattice :: DataflowLattice Live
 liveLattice = DataflowLattice
-  { fact_name   = "Live variables"
-  , fact_bot    = S.empty
-  , fact_extend = add
+  { fact_name       = "Live variables"
+  , fact_bot        = S.empty
+  , fact_extend     = add
   , fact_do_logging = False
   }
     where add new old = (ch, j)
@@ -21,23 +22,25 @@ liveLattice = DataflowLattice
               j = new `S.union` old
               ch = if S.size j > S.size old then SomeChange else NoChange
 
-liveness :: BackwardTransfers Node Live
-liveness outfact n = add_uses (l outfact n) n
+liveness :: BwdTransfer Node Live
+liveness n outfact = live outfact n
   where
-    l :: TailFactB x Live -> Node e x -> Live
-    l f (Assign x _)      = S.delete x f
-    l f (Label _)         = f
-    l f (Store _ _)       = f
-    l f (Branch bid)      = fact f bid
-    l f (Cond _ tid fid)  = fact f tid `S.union` fact f fid
-    l f (Call vs _ _ bid) = fact f bid `S.difference` S.fromList vs
-    l _ (Return _)        = fact_bot liveLattice
-    fact = lookupFact liveLattice
-    add_uses = fold_EN (fold_EE add_var)
-    add_var s (Var v) = S.insert v s
-    add_var s _       = s
+    live :: Fact x Live -> Node e x -> Fact e Live
+    live f (Assign x _)    = addUses (S.delete x f) n
+    live f (Label l)       = mkFactBase [(l, f)]
+    live f (Store _ _)     = addUses f n
+    live f (Branch l)      = addUses (fact f l) n
+    live f (Cond _ tl fl)  = addUses (fact f tl `S.union` fact f fl) n
+    live f (Call vs _ _ l) = addUses (fact f l `S.difference` S.fromList vs) n
+    live _ (Return _)      = addUses (fact_bot liveLattice) n
+    fact f l = fromMaybe S.empty $ lookupFact f l
+    addUses = fold_EN (fold_EE addVar)
+    addVar s (Var v) = S.insert v s
+    addVar s _       = s
      
-deadAsstElim :: BackwardRewrites Node Live
-deadAsstElim live (Assign x _) =
-  if x `S.member` live then Nothing else Just (return GNil)
-deadAsstElim _ _ = Nothing
+deadAsstElim :: BwdRewrite Node Live
+deadAsstElim = shallowBwdRw d
+  where
+    d :: SimpleBwdRewrite Node Live
+    d (Assign x _) live = if x `S.member` live then Nothing else Just (return GNil)
+    d _ _ = Nothing

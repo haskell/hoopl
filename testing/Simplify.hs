@@ -2,14 +2,15 @@
 {-# LANGUAGE ScopedTypeVariables, GADTs, PatternGuards #-}
 module Simplify (simplify) where
 
-import Hoopl
+import Compiler.Hoopl
 import IR
 import OptSupport
 
 -- Simplification ("constant folding")
-simplify :: ForwardRewrites Node a
-simplify _ node = s node >>= return . toAGraph
+simplify :: FwdRewrite Node a
+simplify = deepFwdRw $ shallowFwdRw simp
   where
+    simp node _ = s node >>= return . nodeToA
     s :: Node e x -> Maybe (Node e x)
     s (Cond (Lit (Bool True))  t _) = Just $ Branch t
     s (Cond (Lit (Bool False)) f _) = Just $ Branch f

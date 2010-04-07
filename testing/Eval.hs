@@ -4,12 +4,11 @@
 module Eval (evalProg, ErrorM) where
 
 import Control.Monad.Error
-import qualified Data.IntMap as IM
 import qualified Data.Map    as M
 import Prelude hiding (succ)
 
 import EvalMonad
-import Hoopl
+import Compiler.Hoopl
 import IR
 
 -- Evaluation functions
@@ -24,16 +23,13 @@ evalProc proc_name actuals =
 evalProc' :: EvalTarget v => Proc -> [v] -> EvalM v [v]
 evalProc' (Proc {name=_, args, body, entry}) actuals =
   if length args == length actuals then
-    evalG (M.fromList $ zip args actuals) body entry
+    evalBody (M.fromList $ zip args actuals) body entry
   else throwError $ "Param/actual mismatch: " ++ show args ++ " = " ++ show actuals
 
 -- Responsible for allocating and deallocating its own stack frame.
-evalG :: EvalTarget v => VarEnv v -> Graph Node C C -> BlockId -> EvalM v [v]
-evalG vars (GMany b bs NoTail) entry =
-  do ress <- inNewFrame vars (b : map snd (IM.toList bs)) $ get_block entry >>= evalB 
-
-     return ress
--- GADT checker can't see that preceding pattern is exhaustive.
+evalBody :: EvalTarget v => VarEnv v -> Body Node -> Label -> EvalM v [v]
+evalBody vars bs entry =
+  inNewFrame vars (map snd (bodyList bs)) $ get_block entry >>= evalB 
 
 evalB    :: EvalTarget v => Block Node C C -> EvalM v [v]
 evalB    (BCat b1 b2) = evalB_CO b1 >> evalB_OC b2
@@ -169,8 +165,8 @@ data Sym = L  Lit
          | Ld Sym
          | BO BinOp Sym Sym
   deriving Show
-sym_vsupply :: [Sym]
-sym_vsupply = [In n | n <- [0..]]
+-- sym_vsupply :: [Sym]
+-- sym_vsupply = [In n | n <- [0..]]
 
 instance EvalTarget Sym where
   toAddr _ = undefined

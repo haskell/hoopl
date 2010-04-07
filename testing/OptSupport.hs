@@ -1,49 +1,20 @@
 {-# OPTIONS_GHC -Wall -fno-warn-incomplete-patterns -XGADTs -XRankNTypes #-}
-module OptSupport (WithTop (..), stdMapJoin, combine,
-                   map_EE, map_EN, fold_EE, fold_EN, toAGraph) where
+module OptSupport (WithTop (..), stdMapJoin, map_EE, map_EN, fold_EE, fold_EN,
+                   getFwdFact, nodeToA) where
 
 import Control.Monad
 import qualified Data.Map as M
 import Data.Maybe
 import Prelude hiding (succ)
 
-import Hoopl
+import Compiler.Hoopl
 import IR
-
-----------------------------------------------
--- Tx as monad
---   Probably doesn't belong here, but until
---   Hoopl[1..] settles down, it'll stay here.
-----------------------------------------------
-
--- instance Monad TxRes where
---   return x = TxRes NoChange x
---   TxRes c x >>= k = TxRes (max c c') y
---                       where TxRes c' y = k x
--- 
--- changeTx :: x -> TxRes x
--- changeTx x = TxRes SomeChange x
--- 
--- txToMaybe :: TxRes x -> Maybe x
--- txToMaybe (TxRes SomeChange x) = Just x
--- txToMaybe (TxRes NoChange   _) = Nothing
--- 
--- instance Eq ChangeFlag where
---   x == y = cmpCh x y == EQ
--- instance Ord ChangeFlag where
---   compare = cmpCh
--- 
--- cmpCh :: ChangeFlag -> ChangeFlag -> Ordering
--- cmpCh NoChange NoChange     = EQ
--- cmpCh NoChange SomeChange   = LT
--- cmpCh SomeChange NoChange   = GT
--- cmpCh SomeChange SomeChange = EQ
 
 ----------------------------------------------
 -- Common lattice utility code:
 ----------------------------------------------
 
-data WithTop a = Elt a | Top deriving Eq
+data WithTop a = Elt a | Top deriving (Eq, Show)
 
 -- It's common to represent dataflow facts as a map from locations
 -- to some fact about the locations. For these maps, the join
@@ -61,13 +32,17 @@ stdMapJoin eltJoin new old = M.foldWithKey add (NoChange, old) new
                         (NoChange,   _)  -> (ch, joinmap)
 
 ----------------------------------------------
--- Combine Transformations
+-- Common code for getting and propagating facts:
 ----------------------------------------------
 
--- Combine the transformations, executing the 2nd if the 1st does no rewriting.
-combine :: ForwardRewrites n f -> ForwardRewrites n f -> ForwardRewrites n f
-combine r1 r2 = \n f -> case r1 n f of Nothing -> r2 n f
-                                       x -> x
+getFwdFact :: Node e x -> Fact e f -> f -> f
+getFwdFact (Label l)      f def = fromMaybe def $ lookupFact f l
+getFwdFact (Assign _ _)   f _   = f
+getFwdFact (Store _ _)    f _   = f
+getFwdFact (Branch _)     f _   = f
+getFwdFact (Cond _ _ _)   f _   = f
+getFwdFact (Call _ _ _ _) f _   = f
+getFwdFact (Return _)     f _   = f
 
 ----------------------------------------------
 -- Map/Fold functions for expressions/nodes
@@ -125,15 +100,14 @@ fold_EN f z (Call _ _ es _) = foldl f z es
 fold_EN f z (Return es)     = foldl f z es
 
 ----------------------------------------------
--- Common fact/graph operations
+-- Lift a node to an AGraph
 ----------------------------------------------
 
--- Probably not quite what we want long term
-toAGraph :: Node e x -> AGraph Node e x
-toAGraph n@(Label _)      = agraphOfNode n
-toAGraph n@(Assign _ _)   = agraphOfNode n
-toAGraph n@(Store _ _)    = agraphOfNode n
-toAGraph n@(Branch _)     = agraphOfNode n
-toAGraph n@(Cond _ _ _)   = agraphOfNode n
-toAGraph n@(Call _ _ _ _) = agraphOfNode n
-toAGraph n@(Return _)     = agraphOfNode n
+nodeToA :: Node e x -> AGraph Node e x
+nodeToA n@(Label _)      = mkFirst n
+nodeToA n@(Assign _ _)   = mkMiddle n
+nodeToA n@(Store _ _)    = mkMiddle n
+nodeToA n@(Branch _)     = mkLast n
+nodeToA n@(Cond _ _ _)   = mkLast n
+nodeToA n@(Call _ _ _ _) = mkLast n
+nodeToA n@(Return _)     = mkLast n
