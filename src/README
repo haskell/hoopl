@@ -12,3 +12,6 @@ The version number is split into four parts:
   7.   Seventh iteration (roughly) of data structures
   2.   Major version; changes when clients must change
   1.   Minor version; changes when clients can stay the same
+
+
+Version 3.7.3.2 has KNOWN BUGS!  John Dias will update soon.
