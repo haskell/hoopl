@@ -1,4 +1,6 @@
+PKG=hoopl
 SRC=Graph Label GraphUtil Fuel MkGraph Dataflow
+VERSION=`awk '$1 == "Version:" { print $2 }' $PKG.cabal`
 HOOPL=Compiler/Hoopl
 HS=${SRC:%=$HOOPL/%.hs}
 O=${SRC:%=$HOOPL/%.o}
@@ -10,6 +12,23 @@ dist:V: hoopl.pdf
 
 hoopl.pdf: ../paper/dfopt.pdf
 	cp -a -v $prereq $target
+
+test:V: 
+	cabal install
+	(cd ../testing && mk test)
+
+install:V:
+	cabal configure --user
+	cabal install
+
+upload:V: hoopl.pdf
+	cabal configure --user
+	cabal build
+	cabal sdist
+	cabal upload dist/$PKG-$VERSION.tar.gz
+
+clean:V:
+	rm -f `find [A-Z]* ../testing -name '*.o' -o '*.hi'`
 
 %.pdf: %.tex
 	(cd `dirname $prereq`; mk `basename $target`)
