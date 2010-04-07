@@ -887,8 +887,8 @@ added to the @Body@ of the result.
 
 \begin{figure}
 \begin{code}
-data `ForwardPass n f
-  = `FwdPass { `fp_lattice  :: DataflowLattice f
+data `FwdPass n f
+  = FwdPass { `fp_lattice  :: DataflowLattice f
             , `fp_transfer :: FwdTransfer n f
             , `fp_rewrite  :: FwdRewrite n f }
 
@@ -1059,25 +1059,25 @@ in Sections \ref{sec:rewrites} and \ref{sec:shallow-vs-deep}.
 These requirements are summarized in \tabref{parts}.
 Because facts, transfer functions, and rewrite functions work closely together,
 we represent their combination
-as a single record of type @ForwardPass@ (\figref{api-types}).
-The elements of @ForwardPass@ are, and must be,
+as a single record of type @FwdPass@ (\figref{api-types}).
+The elements of @FwdPass@ are, and must be,
 polymorphic functions---\ourlib{} must use higher-rank types.
 
 
-Given a node type~@n@ and a @ForwardPass@,
+Given a node type~@n@ and a @FwdPass@,
 a client can ask \ourlib{}\ to analyze and rewrite a closed/closed
 graph represented as @Body n@:
 \begin{code}
 analyzeAndRewriteFwd
   :: Edges n           -- Access to flow edges
-  => ForwardPass n f   -- Lattice, transfer, 
+  => FwdPass n f   -- Lattice, transfer, 
                        -- and rewrite functions
   -> Body n                 -- Input body
   -> FactBase f             -- Input fact(s)
   -> FuelMonad (Body n,     -- Result body
                 FactBase f) -- ...and its facts
 \end{code}
-Given a @ForwardPass@, the 
+Given a @FwdPass@, the 
 analyze-and-rewrite function transforms a @Body@ into an
 optimized @Body@.
 As its type shows, this function
@@ -1187,7 +1187,7 @@ because if not, the analysis has not reached a fixed point.
 The bottom element and join operation of a lattice of facts of
 type~@f@ are stored in a value of type @DataflowLattice f@
 (\figref{lattice}). 
-%%Such a value is part of the  @ForwardPass n f@ that is passed to
+%%Such a value is part of the  @FwdPass n f@ that is passed to
 %%@analyzeAndRewriteFwd@ above.
 As noted in the previous paragraph, 
 \ourlib{} needs to know when the result of a join is equal
@@ -1321,7 +1321,7 @@ turn a conditional branch into an unconditional one.
 Similarly, a liveness analysis may allow us to 
 replace a dead assignment with a no-op.
 
-A @ForwardPass@ therefore includes a \emph{rewriting function}, whose
+A @FwdPass@ therefore includes a \emph{rewriting function}, whose
 type, @FwdRewrite@, is given in \figref{api-types}.
 A rewriting function takes a node and a fact, and optionally returns\ldots what?
 At first one might
@@ -1369,11 +1369,11 @@ Once the rewrite has been performed, what then?
 Since the rewrite returns a graph, the 
 replacement graph must itself be analyzed, and its nodes may be rewritten.
 So we must call @analyzeAndRewriteFwd@ to process the replacement
-graph---but what @ForwardPass@ should we use?
+graph---but what @FwdPass@ should we use?
 There are two common situations:
 \begin{itemize}
 \item Sometimes we want to analyze and transform the replacement graph
-with an unmodified @ForwardPass@, further rewriting the replacement graph.
+with an unmodified @FwdPass@, further rewriting the replacement graph.
 This procedure is
 called \emph{deep rewriting}. 
 When deep rewriting is used, the client's rewrite function must
@@ -1381,7 +1381,7 @@ ensure that the graphs it produces are not rewritten indefinitely
 (\secref{correctness}). 
 \item Sometimes we want to analyze \emph{but not further rewrite} the
 replacement graph.  This procedure is called \emph{shallow rewriting}.
-It~is easily implemented by using a modified @ForwardPass@
+It~is easily implemented by using a modified @FwdPass@
 whose rewriting function always returns @Nothing@.
 \end{itemize}
 Deep rewriting is essential to achieve the full benefits of
@@ -1458,9 +1458,9 @@ It~can also be useful to combine entire dataflow passes that use
 different facts.
 We~invite you to write one such combinator, with type
 \begin{code}
-  `thenFwd :: ForwardPass n f1 
-          -> ForwardPass n f2
-          -> ForwardPass n (f1,f2)
+  `thenFwd :: FwdPass n f1 
+          -> FwdPass n f2
+          -> FwdPass n (f1,f2)
 \end{code}
 The two passes run interleaved, not sequentially, and each may help
 the other,
@@ -1539,7 +1539,7 @@ mapE f (Assign x e)  = fmap (Assign x) $ f e
 
 -------------------------------------------------------
 -- Defining the forward dataflow pass
-`constPropPass = ForwardPass
+`constPropPass = FwdPass
    { fp_lattice  = constLattice
    , fp_transfer = varHasConst
    , fp_rewrite  = constProp `thenFwdRw` simplify } 
@@ -1842,13 +1842,13 @@ described in \secref{graph-rep}.  For each thing in the hierarchy,
 we develop a function of this type:
 \begin{code}
 type `ARF thing n
- = forall f e x. ForwardPass n f
+ = forall f e x. FwdPass n f
               -> thing e x -> Fact e f 
               -> FuelMonad (RG n e x, Fact x f)
 \end{code}
 An @ARF@ (short for ``analyze and rewrite forward'') is a combination of
 a rewrite and transfer function.
-An @ARF@ takes a @ForwardPass@, a @thing@ (a node, block, or graph),
+An @ARF@ takes a @FwdPass@, a @thing@ (a node, block, or graph),
 and an input fact,
 and it returns a rewritten graph of type @(RG n e x)@ of the same shape
 as the @thing@, plus a suitably shaped output fact.
@@ -1912,7 +1912,7 @@ functions, each of which calls the previous one:
  arfNode  :: Edges n => ARF n n
  arfBlock :: Edges n => ARF (Block n) n
  arfBody  :: Edges n
-          => ForwardPass n f -> Body n -> FactBase f
+          => FwdPass n f -> Body n -> FactBase f
           -> FuelMonad (RG n f C C, FactBase f)
  arfGraph :: Edges n => ARF (Graph n) n
 \end{code} 
@@ -1949,7 +1949,7 @@ matter of matching the external API to the internal functions:
 \begin{code}
   `analyzeAndRewriteFwd
      :: forall n f. Edges n
-     => ForwardPass n f -> Body n -> FactBase f
+     => FwdPass n f -> Body n -> FactBase f
      -> FuelMonad (Body n, FactBase f)
 
   analyzeAndRewriteFwd pass body facts
@@ -2024,7 +2024,7 @@ The code here is more complicated,
 but still admirably brief.  
 Using the @fp_rewrite@ record selector (\figref{api-types}),
 we~begin by extracting the
-rewriting function from the @ForwardPass@,
+rewriting function from the @FwdPass@,
 and we apply it to the node~@n@ 
 and the  incoming fact~@f@.  
 
@@ -2045,7 +2045,7 @@ We~return a single-node
 graph @(RGUnit f (BUnit n))@, decorated with its incoming fact.
 We~also apply the transfer function @(fp_transfer pass)@ 
 to the incoming fact to produce the outgoing fact.
-(Like @fp_rewrite@, @fp_transfer@ is a record selector of @ForwardPass@.)
+(Like @fp_rewrite@, @fp_transfer@ is a record selector of @FwdPass@.)
 
 In the @Just@ case, we receive a replacement
 @AGraph@ @ag@ and a new rewrite function~@rw@.
@@ -2073,7 +2073,7 @@ cleanly separated from everything else:
 \par{\small
 \begin{code}
 arfBody  :: Edges n
-         => ForwardPass n f -> Body n -> FactBase f
+         => FwdPass n f -> Body n -> FactBase f
          -> FuelMonad (RG n f C C, FactBase f)
 `arfBody pass body fbase
   = fixpoint (fp_lattice pass) (arfBlock pass) fbase $
