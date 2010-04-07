@@ -17,4 +17,5 @@ Library
                      Compiler.Hoopl.Dataflow, Compiler.Hoopl.Graph, 
                      Compiler.Hoopl.MkGraph,
                      Compiler.Hoopl.Fuel, Compiler.Hoopl.Label
+  Other-modules:     Compiler.Hoopl.GraphUtil
   ghc-options:       -Wall -fno-warn-name-shadowing
