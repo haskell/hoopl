@@ -127,7 +127,10 @@ thenFwdRw rw1 rw2 n f
       Just (FwdRes ag rw1a) -> Just (FwdRes ag (rw1a `thenFwdRw` rw2))
 
 deepFwdRw :: FwdRewrite n f -> FwdRewrite n f
-deepFwdRw rw = rw `thenFwdRw` deepFwdRw rw
+deepFwdRw rw =
+  \ n f -> case rw n f of
+             Just (FwdRes g rw2) -> Just $ FwdRes g (rw2 `thenFwdRw` deepFwdRw rw)
+             Nothing             -> Nothing
 
 analyzeAndRewriteFwd
    :: forall n f. Edges n
@@ -196,11 +199,13 @@ arfGraph pass (GMany (JustO entry) body (JustO exit)) f
        ; (exit', fx)  <- arfBlock pass exit fb
        ; return (entry' `RGCatC` body' `RGCatC` exit', fx) }
 
-forwardBlockList :: Edges n => [Label] -> Body n -> [(Label,Block n C C)]
--- This produces a list of blocks in order suitable for forward analysis.
+forwardBlockList :: Edges n => [Label] -> Body n -> [((Label,Block n C C), [Label])]
+-- This produces a list of blocks in order suitable for forward analysis,
+-- along with the list of Labels it may depend on for facts.
 -- ToDo: Do a topological sort to improve convergence rate of fixpoint
 --       This will require a (HavingSuccessors l) class constraint
-forwardBlockList  _ blks = bodyList blks
+forwardBlockList  _ blks = map withLbl $ bodyList blks
+  where withLbl (l, b) = ((l, b), [l])
 
 -----------------------------------------------------------------------------
 --		Backward analysis and rewriting: the interface
@@ -295,9 +300,11 @@ arbGraph pass (GMany (JustO entry) body (JustO exit)) f
        ; (entry', fe) <- arbBlock pass entry fb
        ; return (entry' `RGCatC` body' `RGCatC` exit', fe) }
 
-backwardBlockList :: Edges n => [Label] -> Body n -> [(Label,Block n C C)]
--- This produces a list of blocks in order suitable for backward analysis.
-backwardBlockList _ blks = bodyList blks
+backwardBlockList :: Edges n => [Label] -> Body n -> [((Label, Block n C C), [Label])]
+-- This produces a list of blocks in order suitable for backward analysis,
+-- along with the list of Labels it may depend on for facts.
+backwardBlockList _ blks = map withSuccs $ bodyList blks
+  where withSuccs (l, b) = ((l, b), successors b)
 
 analyzeAndRewriteBwd
    :: forall n f. Edges n
@@ -339,7 +346,7 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
     (cha2, res_fact) 
        = case lookupFact fbase lbl of
            Nothing -> (SomeChange, new_fact)  -- Note [Unreachable blocks]
-           Just old_fact -> fact_extend lat old_fact new_fact
+           Just old_fact -> fact_extend lat new_fact old_fact
     new_fbase = extendFactBase fbase lbl res_fact
 
 fixpoint :: forall n f. Edges n
@@ -347,41 +354,43 @@ fixpoint :: forall n f. Edges n
          -> DataflowLattice f
          -> (Block n C C -> FactBase f
               -> FuelMonad (RG n f C C, FactBase f))
-         -> FactBase f -> [(Label, Block n C C)]
+         -> FactBase f -> [((Label, Block n C C), [Label])]
          -> FuelMonad (RG n f C C, FactBase f)
 fixpoint is_fwd lat do_block init_fbase blocks
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
-                 tfb_fbase tx_fb `delFromFactBase` blocks) }
+                 tfb_fbase tx_fb `delFromFactBase` map fst blocks) }
 	     -- The successors of the Graph are the the Labels for which
 	     -- we have facts, that are *not* in the blocks of the graph
   where
-    tx_blocks :: [(Label, Block n C C)] 
+    tx_blocks :: [((Label, Block n C C), [Label])] 
               -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-    tx_blocks []             tx_fb = return tx_fb
-    tx_blocks ((lbl,blk):bs) tx_fb = tx_block lbl blk tx_fb >>= tx_blocks bs
+    tx_blocks []              tx_fb = return tx_fb
+    tx_blocks (((lbl,blk), deps):bs) tx_fb = tx_block lbl blk deps tx_fb >>= tx_blocks bs
+     -- "deps" == Labels the block may _depend_ upon for facts
 
-    tx_block :: Label -> Block n C C 
+    tx_block :: Label -> Block n C C -> [Label]
              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-    tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
-                                 , tfb_rg = blks, tfb_cha = cha })
+    tx_block lbl blk deps tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
+                                      , tfb_rg = blks, tfb_cha = cha })
       | is_fwd && not (lbl `elemFactBase` fbase)
-      = return tx_fb	-- Note [Unreachable blocks]
+      = return tx_fb {tfb_lbls = lbls `unionLabelSet` mkLabelSet deps}	-- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
                    = foldr (updateFact lat lbls) (cha,fbase) 
                            (factBaseList out_facts)
-           ; return (TxFB { tfb_lbls  = extendLabelSet lbls lbl
-                          , tfb_rg  = rg `RGCatC` blks
+                 lbls' = lbls `unionLabelSet` mkLabelSet deps
+           ; return (TxFB { tfb_lbls  = lbls'
+                          , tfb_rg    = rg `RGCatC` blks
                           , tfb_fbase = fbase', tfb_cha = cha' }) }
 
     loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
     loop fuel fbase 
       = do { let init_tx_fb = TxFB { tfb_fbase = fbase
                                    , tfb_cha   = NoChange
-                                   , tfb_rg  = RGNil
+                                   , tfb_rg    = RGNil
                                    , tfb_lbls  = emptyLabelSet }
            ; tx_fb <- tx_blocks blocks init_tx_fb
            ; case tfb_cha tx_fb of

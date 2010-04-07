@@ -2,7 +2,7 @@
 module Compiler.Hoopl.MkGraph
     ( AGraph, (<*>)
     , emptyAGraph, withFreshLabels
-    , mkMiddle, mkMiddles, mkLast, mkEntry, mkBranch, mkLabel, mkIfThenElse, mkWhileDo
+    , mkFirst, mkMiddle, mkMiddles, mkLast, mkEntry, mkBranch, mkLabel, mkIfThenElse, mkWhileDo
     , addEntrySeq, addExitSeq, catAGraphs
     , IfThenElseable
     )
