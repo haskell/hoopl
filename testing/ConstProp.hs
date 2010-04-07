@@ -23,8 +23,8 @@ constLattice = DataflowLattice
   , fact_do_logging = False
   }
   where
-    constFactAdd :: (WithTop Lit -> WithTop Lit -> (ChangeFlag, WithTop Lit))
-    constFactAdd new old = (ch, joined)
+    constFactAdd :: JoinFun (WithTop Lit)
+    constFactAdd (OldFact old) (NewFact new) = (ch, joined)
       where joined = if new == old then new else Top
             ch = if joined == old then NoChange else SomeChange
 

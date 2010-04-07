@@ -56,7 +56,7 @@ This was made possible by
 -}
 
 module Compiler.Hoopl.Dataflow 
-  ( DataflowLattice(..)
+  ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..)
   , ChangeFlag(..), changeIf
   , FwdPass(..),  FwdTransfer, FwdRewrite, SimpleFwdRewrite
   , noFwdRewrite, thenFwdRw, shallowFwdRw, deepFwdRw
@@ -78,13 +78,17 @@ import Compiler.Hoopl.MkGraph (AGraph)
 --		DataflowLattice
 -----------------------------------------------------------------------------
 
-data DataflowLattice a = DataflowLattice  { 
-  fact_name       :: String,                   -- Documentation
-  fact_bot        :: a,                        -- Lattice bottom element
-  fact_extend     :: a -> a -> (ChangeFlag,a), -- Lattice join plus change flag
-                                               -- (changes iff result > first arg)
-  fact_do_logging :: Bool                      -- log changes
-}
+data DataflowLattice a = DataflowLattice  
+ { fact_name       :: String          -- Documentation
+ , fact_bot        :: a               -- Lattice bottom element
+ , fact_extend     :: JoinFun a       -- Lattice join plus change flag
+                                      -- (changes iff result > old fact)
+ , fact_do_logging :: Bool            -- log changes
+ }
+
+type JoinFun a = OldFact a -> NewFact a -> (ChangeFlag, a)
+newtype OldFact a = OldFact a
+newtype NewFact a = NewFact a
 
 data ChangeFlag = NoChange | SomeChange
 changeIf :: Bool -> ChangeFlag
@@ -349,7 +353,7 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
     (cha2, res_fact) 
        = case lookupFact fbase lbl of
            Nothing -> (SomeChange, new_fact)  -- Note [Unreachable blocks]
-           Just old_fact -> fact_extend lat new_fact old_fact
+           Just old_fact -> fact_extend lat (OldFact old_fact) (NewFact new_fact)
     new_fbase = extendFactBase fbase lbl res_fact
 
 fixpoint :: forall n f. Edges n

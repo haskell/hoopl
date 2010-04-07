@@ -2,7 +2,6 @@
 module OptSupport (WithTop (..), stdMapJoin, map_EE, map_EN, fold_EE, fold_EN,
                    getFwdFact, insnToA) where
 
-import Control.Monad
 import qualified Data.Map as M
 import Data.Maybe
 import Prelude hiding (succ)
@@ -20,14 +19,13 @@ data WithTop a = Elt a | Top deriving (Eq, Show)
 -- to some fact about the locations. For these maps, the join
 -- operation on the map can be expressed in terms of the join
 -- on each element:
-stdMapJoin :: Ord k => (v -> v -> (ChangeFlag, v)) ->
-                       M.Map k v -> M.Map k v -> (ChangeFlag, M.Map k v)
-stdMapJoin eltJoin new old = M.foldWithKey add (NoChange, old) new
+stdMapJoin :: Ord k => JoinFun v -> JoinFun (M.Map k v)
+stdMapJoin eltJoin (OldFact old) (NewFact new) = M.foldWithKey add (NoChange, old) new
   where 
     add k new_v (ch, joinmap) =
       case M.lookup k joinmap of
         Nothing    -> (SomeChange, M.insert k new_v joinmap)
-        Just old_v -> case eltJoin new_v old_v of
+        Just old_v -> case eltJoin (OldFact old_v) (NewFact new_v) of
                         (SomeChange, v') -> (SomeChange, M.insert k v' joinmap)
                         (NoChange,   _)  -> (ch, joinmap)
 

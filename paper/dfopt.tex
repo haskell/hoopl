@@ -1199,8 +1199,9 @@ expensive).
 Instead, \ourlib\ requires that @fact_extend@ return a @ChangeFlag@ as
 well as the least upper bound.
 The @ChangeFlag@ should be @NoChange@ if
-the result is the same as the second argument, and @SomeChange@ if the
-result differs.  (Function @fact_extend@ is \emph{not} symmetric in
+the result is the same as the first argument (the old fact), and
+@SomeChange@ if the result differs.  
+(Function @fact_extend@ is \emph{not} symmetric in
 its arguments.)
 
 % A~possible representation of the facts needed to implement
@@ -1487,7 +1488,7 @@ type `ConstFact = Map.Map Var HasConst
   { fact_bot    = Map.empty
   , fact_extend = stdMapJoin constFactAdd }
   where
-    `constFactAdd new old = (c, j)
+    `constFactAdd old new = (c, j)
       where j = if new == old then new else Top
             c = if j == old then NoChange else SomeChange
 
