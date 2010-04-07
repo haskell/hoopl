@@ -57,7 +57,7 @@ This was made possible by
 
 module Compiler.Hoopl.Dataflow 
   ( DataflowLattice(..)
-  , ChangeFlag(..)
+  , ChangeFlag(..), changeIf
   , ForwardPass(..),  FwdTransfer, FwdRewrite, SimpleFwdRewrite
   , noFwdRewrite, thenFwdRw, shallowFwdRw, deepFwdRw
   , BackwardPass(..), BwdTransfer, BwdRewrite, SimpleBwdRewrite
@@ -82,10 +82,13 @@ data DataflowLattice a = DataflowLattice  {
   fact_name       :: String,                   -- Documentation
   fact_bot        :: a,                        -- Lattice bottom element
   fact_extend     :: a -> a -> (ChangeFlag,a), -- Lattice join plus change flag
+                                               -- (changes iff result > first arg)
   fact_do_logging :: Bool                      -- log changes
 }
 
 data ChangeFlag = NoChange | SomeChange
+changeIf :: Bool -> ChangeFlag
+changeIf changed = if changed then SomeChange else NoChange
 
 -----------------------------------------------------------------------------
 --		Analyze and rewrite forward: the interface
