@@ -1,0 +1,7 @@
+This is Hoopl, a higher-order optimization library.
+There are two unpublished papers describing Hoopl:
+
+  Hoopl: Dataflow Optimization Made Simple
+  Hoopl: A Modular, Reusable Library for Dataflow Analysis and Transformation
+
+The second such paper is attached to this package.
