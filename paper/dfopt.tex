@@ -1443,15 +1443,19 @@ to produce a rewriting function that is a combination of deep and shallow.
 %% Our shortsightedness; Lerner/Grove/Chambers is deep only ---NR
 
 
-A shallow rewriting function can easily be made deep:
-\begin{code}
-  `deepFwdRw :: FwdRewrite n f -> FwdRewrite n f
-  deepFwdRw rw = rw `thenFwdRw` deepFwdRw rw
-\end{code}
+A shallow rewriting function can be made deep by iterating it:
+\begin{smallcode}
+iterFwdRw :: FwdRewrite n f -> FwdRewrite n f
+iterFwdRw rw =
+ \n f -> case rw n f of
+          Just (FwdRes g rw2) -> 
+            Just $ FwdRes g (rw2 `thenFwdRw` iterFwdRw rw)
+          Nothing -> Nothing
+\end{smallcode}
 If we have shallow rewrites $A$~and~$B$ then we can build $AB$,
 $A^*B$, $(AB)^*$, 
 and so on: sequential composition is @thenFwdRw@ and the Kleene star
-is @deepFwdRw@. 
+is @iterFwdRw@.\remark{Do we still believe this claim?}
 
 The combinators above operate on rewrite functions that share a common
 fact type and transfer function.
