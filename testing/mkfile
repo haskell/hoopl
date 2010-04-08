@@ -1,6 +1,9 @@
 HS=`echo *.hs`
 
 all:V: Main
+clean:V: 
+	rm -f Main
+	rm -f *.o *.hi *~
 
 Main: $HS
 	ghc --make Main.hs
