@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs, EmptyDataDecls #-}
 
 module Compiler.Hoopl.Graph 
-  ( O, C, Block(..), Body(..), Graph(..), MaybeO(..)
+  ( O, C, Block(..), Body(..), bodyMap, Graph(..), MaybeO(..)
   , Edges(entryLabel, successors)
   , addBlock, bodyList
   )
@@ -59,4 +59,7 @@ bodyList body = go body []
     go BodyEmpty       bs = bs
     go (BodyUnit b)    bs = (entryLabel b, b) : bs
     go (BodyCat b1 b2) bs = go b1 (go b2 bs)
+
+bodyMap :: Edges n => Body n -> LabelMap (Block n C C)
+bodyMap = mkFactBase . bodyList
 
