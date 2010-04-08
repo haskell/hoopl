@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# OPTIONS_GHC -Wall #-}
 module Parse (parseCode) where
 
@@ -193,14 +194,16 @@ ret =
      }
  <?> "ret"
 
-block :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Block Insn C C))
+block :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Graph Insn C C))
 block =
   do { f   <- lexeme labl
      ; ms  <- many $ try mid
      ; l   <- lexeme last
      ; return $ \lmap -> do { (lmap1, lbl, first) <- f lmap
                             ; (lmap2, lst)        <- l lmap1
-                            ; return (lmap2, lbl, BCat (foldl BCat (BUnit first) $ map BUnit ms) (BUnit lst))
+                            ; g <- foldl (<*>) (mkFirst first) (map mkMiddle ms)
+                                              <*> mkLast lst
+                            ; return (lmap2, lbl, g)
                             }
      }
  <?> "Expected basic block; maybe you forgot a label following a control-transfer?"
@@ -208,21 +211,28 @@ block =
 tuple :: Parser a -> Parser [a]
 tuple = parens . commaSep
 
-procBody :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Body Insn))
+infix 3 <**>
+(<**>) :: AGraph n e C -> AGraph n C x -> AGraph n e x
+(<**>) = gCatClosed
+
+procBody :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Graph Insn C C))
 procBody = do { b  <- block
               ; bs <- many block
               ; return $ \lmap ->
                    do { (lmap1, lbl, b') <- b lmap
-                      ; (lmap2, bs') <- foldM threadMap (lmap1, BodyEmpty) bs
-                      ; return (lmap2, lbl, BodyUnit b' `BodyCat` bs')
+                      ; (lmap2, bs') <-
+                          foldM threadMap (lmap1, emptyClosedAGraph) $ bs
+                      ; g <- return b' <**> bs'
+                      ; return (lmap2, lbl, g)
                       }
               }
         <?> "proc body"
   where
-    threadMap :: (IdLabelMap, Body Insn) -> (IdLabelMap -> FuelMonad (IdLabelMap, Label, Block Insn C C))
-                                         -> FuelMonad (IdLabelMap, Body Insn)
+    threadMap :: (IdLabelMap, AGraph Insn C C)
+              -> (IdLabelMap -> FuelMonad (IdLabelMap, Label, Graph Insn C C))
+              -> FuelMonad (IdLabelMap, AGraph Insn C C)
     threadMap (lmap, bdy) f = do (lmap', _, b) <- f lmap
-                                 return (lmap', BodyUnit b `BodyCat` bdy)
+                                 return (lmap', return b <**> bdy)
 
 proc :: Parser (FuelMonad Proc)
 proc = do { whitespace
@@ -230,10 +240,13 @@ proc = do { whitespace
           ; params <- tuple  var
           ; bdy    <- braces procBody
           ; return $ do { (_, lbl, code) <- bdy M.empty
-                        ; return $ Proc { name = f, args = params, body = code, entry = lbl }
+                        ; return $ Proc { name = f, args = params
+                                        , body = bodyOf code, entry = lbl }
                         }
           }
     <?> "proc"
+  where bodyOf :: Graph a C C -> Body a
+        bodyOf (GMany NothingO b NothingO) = b
 
 parseCode :: String -> String -> Either ParseError (FuelMonad [Proc])
 parseCode file inp =

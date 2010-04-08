@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Compiler.Hoopl.MkGraph
-    ( AGraph, (<*>)
-    , emptyAGraph, withFreshLabels
+    ( AGraph, (<*>), gCatClosed
+    , emptyAGraph, emptyClosedAGraph, withFreshLabels
     , mkFirst, mkMiddle, mkMiddles, mkLast, mkEntry, mkBranch, mkLabel, mkWhileDo
     , addEntrySeq, addExitSeq, catAGraphs
     , IfThenElseable(mkIfThenElse)
@@ -26,6 +26,9 @@ class Labels l where
 
 emptyAGraph :: AGraph n O O
 emptyAGraph = return GNil
+
+emptyClosedAGraph :: AGraph n C C
+emptyClosedAGraph = return $ GMany NothingO BodyEmpty NothingO
 
 addEntrySeq    :: AGraph n O C -> AGraph n C x -> AGraph n O x
 addExitSeq     :: AGraph n e C -> AGraph n C O -> AGraph n e O
