@@ -5,7 +5,7 @@ module Compiler.Hoopl.MkGraph
     , mkFirst, mkMiddle, mkMiddles, mkLast, mkEntry, mkBranch, mkLabel, mkWhileDo
     , addEntrySeq, addExitSeq, catAGraphs
     , IfThenElseable(mkIfThenElse)
-    , Node(mkLabelNode, mkBranchNode)
+    , HooplNode(mkLabelNode, mkBranchNode)
     )
 where
 
@@ -42,21 +42,21 @@ mkFirst  :: n C O -> AGraph n C O
 mkMiddle :: n O O -> AGraph n O O
 mkLast   :: n O C -> AGraph n O C
 
-mkLabel :: (Node n) => Label -> AGraph n C O -- graph contains the label
+mkLabel :: HooplNode n => Label -> AGraph n C O -- graph contains the label
 
 -- below for convenience
 mkMiddles :: [n O O] -> AGraph n O O
 mkEntry   :: Block n O C -> AGraph n O C
 mkExit    :: Block n C O -> AGraph n C O
 
-class Edges n => Node n where
+class Edges n => HooplNode n where
   mkBranchNode :: Label -> n O C
   mkLabelNode  :: Label -> n C O
 
-mkBranch :: (Node n) => Label -> AGraph n O C
+mkBranch :: HooplNode n => Label -> AGraph n O C
 
 class IfThenElseable x where
-  mkIfThenElse :: Node n
+  mkIfThenElse :: HooplNode n
                => (Label -> Label -> AGraph n O C) -- branch condition
                -> AGraph n O x   -- code in the 'then' branch
                -> AGraph n O x   -- code in the 'else' branch 
@@ -66,10 +66,10 @@ class IfThenElseable x where
                 => Label -> AGraph n e x -> AGraph n e C
 -}
 
-mkWhileDo    :: (Node n)
-                => (Label -> Label -> AGraph n O C) -- loop condition
-                -> AGraph n O O  -- body of the bloop
-                -> AGraph n O O -- the final while loop
+mkWhileDo    :: HooplNode n
+             => (Label -> Label -> AGraph n O C) -- loop condition
+             -> AGraph n O O  -- body of the bloop
+             -> AGraph n O O -- the final while loop
 
 -- ================================================================
 --                          IMPLEMENTATION
