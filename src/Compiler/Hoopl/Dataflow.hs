@@ -449,6 +449,9 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 --          TOTALLY internal to Hoopl
 -----------------------------------------------------------------------------
 
+-- this type exists because we have not yet found a way to write arfNode
+-- to return a Graph; the invariants of Graph seem too strong
+
 data RG n f e x where
   RGNil   :: RG n f a a
   RGUnit  :: Fact e f -> Block n e x -> RG n f e x
