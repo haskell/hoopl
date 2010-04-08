@@ -1,0 +1,6 @@
+3.7.7.0
+
+  - Restrict clients so they see much less, including hiding
+    the value constructors for Body.
+
+
