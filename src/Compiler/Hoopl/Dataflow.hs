@@ -58,9 +58,9 @@ This was made possible by
 module Compiler.Hoopl.Dataflow 
   ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..)
   , ChangeFlag(..), changeIf
-  , FwdPass(..),  FwdTransfer, FwdRewrite, SimpleFwdRewrite
+  , FwdPass(..),  FwdTransfer, FwdRewrite, SimpleFwdRewrite, FwdRes(..)
   , noFwdRewrite, thenFwdRw, shallowFwdRw, deepFwdRw, iterFwdRw
-  , BwdPass(..), BwdTransfer, BwdRewrite, SimpleBwdRewrite
+  , BwdPass(..), BwdTransfer, BwdRewrite, SimpleBwdRewrite, BwdRes(..)
   , noBwdRewrite, thenBwdRw, shallowBwdRw, deepBwdRw, iterBwdRw
   , Fact
   , analyzeAndRewriteFwd, analyzeAndRewriteBwd
