@@ -16,3 +16,11 @@ The version number is split into four parts:
 
 Version 3.7.3.3 has fixed known bugs.
 
+Version 3.7.8.0 will be the last version uploaded to Hackage for some time.
+This library is undergoing *very* rapid development, and we ask that you
+get the most recent version from our public git repository:
+
+  git clone -o tufts git://ghc.cs.tufts.edu/hoopl/hoopl.git
+
+If you are not familiar with git, we recommend the tutorial 'Git Magic'
+by Ben Lynn.

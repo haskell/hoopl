@@ -1,3 +1,7 @@
+3.7.8.0
+
+  - Rationalized AGraph splicing functions.
+
 3.7.7.0
 
   - Restrict clients so they see much less, including hiding
