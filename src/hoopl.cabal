@@ -1,12 +1,13 @@
 Name:                hoopl
-Version:             3.7.7.0
+Version:             3.7.8.0
 Description:         Higher-order optimization library
 License:             BSD3
 License-file:        LICENSE
 Author:              Norman Ramsey, João Dias, and Simon Peyton Jones
 Maintainer:          nr@cs.tufts.edu
+Homepage:            http://ghc.cs.tufts.edu/hoopl/
 Build-Type:          Simple
-Cabal-Version:       >=1.2
+Cabal-Version:       >=1.6
 Stability:           alpha
 Synopsis:            A library to support dataflow analysis and optimization
 Category:            Compilers/Interpreters
@@ -23,3 +24,8 @@ Library
                        Compiler.Hoopl.Fuel, Compiler.Hoopl.Label,
                        Compiler.Hoopl.Util
   ghc-options:       -Wall -fno-warn-name-shadowing
+
+
+Source-repository head
+  Type:       git
+  Location:   git://ghc.cs.tufts.edu/hoopl/hoopl.git
