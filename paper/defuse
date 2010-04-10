@@ -46,10 +46,11 @@ local omitted = { } --
 local reserved =
   table.set { 'where', 'let', 'in', '_', '|', '->', '--', '=', '=>',
               'if', 'then', 'else', 'data', 'type', 'newtype', 'module',
-              'class', 'instance', 
+              'class', 'instance', 'family',
               'import', 'case', 'of', ';', '{', '}', 'do', '<-', 'forall',
               '...', -- not really a reserved word, but treated as such
               '@', -- ditto
+              'goto', -- from low-level code examples
             }
 
 for id in io.lines 'hsprelude' do
@@ -91,7 +92,8 @@ local function write_defn(id)
   end
 end
 
-local codecontexts = table.set { 'code', 'smallcode', 'numberedcode' }
+local codecontexts =
+  table.set { 'code', 'smallcode', 'numberedcode', 'fuzzcode', 'smallfuzzcode' }
 local codeusewaiting = { }
 
 local function write_use(id)
@@ -304,9 +306,9 @@ for _, env in ipairs { 'smallverbatim', 'alltt' } do
   endspecial[env] = endspecial.verbatim
 end
 
-
-special.numberedcode  = special.code
-special.smallcode     = special.code
+for c in pairs(codecontexts) do
+  special[c] = special[c] or special.code
+end
 
 function special.figure(line, env)
   io.write(line, '\n')
@@ -335,10 +337,14 @@ while line do
     io.write('% ====> THIS IS A DERIVED FILE; DO NOT EDIT IT <======\n')
     io.write('% ===========> SIMON, THIS MEANS YOU! <===============\n')
   else
-    local env      = line:match [[^%s*\begin{(.*)}]]
+    local env      = line:match [[^%s*\begin(%b{})]]
+    env = env and env:sub(2, -2)
     local endenv   = line:match [[^%s*\end{(.*)}]]
     local def      = line:match '^%%%s*defn%s+(%S+)%s*$'
     local omit, ty = line:match '^%%%s*omit%s+(%S+)%s+::%s+(.-)%s*$'
+if line:match 'fuzzcode' then
+  fprintf(io.stderr, "%s: env = %s, endenv = %s\n", line, env or '<nil>', endenv or '<nil>')
+end
     if env and special[env] then
       special[env](line, env)
     elseif endenv and special[endenv] then
