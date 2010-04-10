@@ -44,3 +44,8 @@ take
 drop
 otherwise
 Integer
+Map.insert
+Map.lookup
+Map.empty
+Map.Map
+fmap

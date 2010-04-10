@@ -67,6 +67,8 @@
 
 \usepackage{verbatim} % allows to define \begin{smallcode}
 \newenvironment{smallcode}{\par\unskip\small\verbatim}{\endverbatim}
+\newenvironment{fuzzcode}[1]{\par\unskip\hfuzz=#1 \verbatim}{\endverbatim}
+\newenvironment{smallfuzzcode}[1]{\par\unskip\small\hfuzz=#1 \verbatim}{\endverbatim}
 
 \newcommand\lineref[1]{line~\ref{line:#1}}
 \newcommand\linepairref[2]{lines \ref{line:#1}~and~\ref{line:#2}}
@@ -153,6 +155,7 @@
 \let\citeyear=\citeyearpar
 
 \usepackage[ps2pdf,bookmarksopen,breaklinks,pdftitle=dataflow-made-simple]{hyperref}
+\usepackage{breakurl} % enables \burl
 
 \newcommand\naive{na\"\i ve}
 \newcommand\naively{na\"\i vely}
@@ -424,7 +427,7 @@ and maybe the open/closed story is hard to understand here.}
 % unconditional branch.  We know of no other system that offers 
 % static guarantees this strong.
 
-\item \ourlib{} implements subtle algorithms, including at least
+\item \ourlib{} implements subtle algorithms, including 
 (a)~interleaved analysis and rewriting, (b)~speculative rewriting,
 (c)~computing fixed points, and (d)~dynamic fault isolation.
 Previous implementations of these algorithms---including three of our
@@ -442,8 +445,8 @@ The result is sufficiently elegant that
 we emphasize the implementation as an object of interest in
 its own right.
 \end{itemize}
-A working prototype of \ourlib{} will soon be available for download 
-at \url{http://ghc.cs.tufts.edu/hoopl}.
+A working prototype of \ourlib{} is available from
+\burl{http://ghc.cs.tufts.edu/hoopl}.
 It is no toy: an ancestor of this library is
 part of the Glasgow Haskell Compiler, where it optimizes the
 imperative {\PAL} code in GHC's back end.  The new design is far
@@ -456,7 +459,7 @@ As such, \ourlib{} offers a compelling case study in the utility
 of these features.
 
 
-\section{Dataflow analysis {\&} transformation by \rlap{example}}
+\section{Dataflow analysis {\&} transformation by \texorpdfstring{\rlap{example}}{example}}
 \seclabel{overview}
 \seclabel{constant-propagation}
 \seclabel{example:transforms}
@@ -663,7 +666,7 @@ whatever.
 
 
 \begin{figure}
-\begin{code}
+\begin{fuzzcode}{0.98pt}
 data `Node e x where
   `LabelNode  :: Label -> Node C O
   `Assign     :: Var   -> Expr -> Node O O
@@ -671,7 +674,7 @@ data `Node e x where
   `Branch     :: Label -> Node O C
   `CondBranch :: Expr  -> Label -> Label -> Node O C
     -- ... more constructors ...
-\end{code}
+\end{fuzzcode}
 \caption{A typical node type as it might be defined by a client} 
 \figlabel{cmm-node}
 \end{figure}
@@ -698,7 +701,7 @@ defined by \ourlib{} (\figref{graph}).
 
 Similarly, an @Assign@ node takes a variable and an expression, and
 returns a @Node@ open at both entry and exit; the @Store@ node is
-similar.  The types @Var@ and @Expr@ are private to the client, and
+similar.  The types @`Var@ and @`Expr@ are private to the client, and
 \ourlib{} knows nothing of them.  
 Finally, the control-transfer nodes @Branch@ and @CondBranch@ are open at entry
 and closed at exit.  
@@ -724,7 +727,7 @@ respectively.
 \subsection{Blocks} \seclabel{blocks}
 
 \begin{figure}
-\begin{code}
+\begin{fuzzcode}{0.98pt}
 data `O   -- Open
 data `C   -- Closed
 
@@ -745,7 +748,7 @@ data `Body n where
   `BodyUnit  :: Block n C C -> Body n
   `BodyCat   :: Body n -> Body n -> Body n
 
-data `MaybeO ex t where
+data `MaybeO ^ex t where
   `JustO    :: t -> MaybeO O t
   `NothingO ::      MaybeO C t
 
@@ -754,7 +757,7 @@ newtype `Label = Label Int
 class `Edges n where
   `entryLabel :: n C x -> Label
   `successors :: n e C -> [Label]
-\end{code}
+\end{fuzzcode}
 \caption{The block and graph types defined by \ourlib} 
 \figlabel{graph} \figlabel{edges}
 \end{figure}
@@ -945,7 +948,7 @@ not particularly thrilled.}
 %%%%    From these definitions
 To guarantee uniqueness, @GUnit@ is restricted to open/open
 blocks.
-If~@GUnit@ were more accommodating, there would be 
+If~@GUnit@ were more polymorphic, there would be 
 more than one way to represent some graphs, and it wouldn't be obvious
 to a client which representation to choose---or if the choice made a difference.
 
@@ -1128,6 +1131,7 @@ analyzing the replacement graph.
 In this section we flesh out the
 \emph{interface} to @analyzeAndRewriteFwd@, leaving the implementation for
 \secref{engine}.  
+{\hfuzz=7.2pt\par}
 
 \subsection{Dataflow lattices} \seclabel{lattices} \seclabel{facts}
 
@@ -1257,8 +1261,8 @@ coming out of a node
 
 We have ordered the arguments such that if
 \begin{code}
-  transfer_fn :: FwdTransfer n f
-  node        :: n e x
+  `transfer_fn :: FwdTransfer n f
+  `node        :: n e x
 \end{code}
 then @(transfer_fn node)@ is a predicate transformer:
 \begin{code}
@@ -1271,29 +1275,28 @@ then @(transfer_fn node)@ is a predicate transformer:
  \seclabel{example-rewrites}
 
 \begin{figure}
-\hfuzz=5.7pt % cheating again!
-\begin{code}
+\begin{smallfuzzcode}{6.6pt}
 type `AGraph n e x 
   = [Label] -> (Graph n e x, [Label])
 
 `withLabels :: Int -> ([Label] -> AGraph n e x)
            -> AGraph n e x
-withLabels n fn = \ls -> fn (take n ls) (drop n ls)
+withLabels n ^fn = \ls -> fn (take n ^ls) (drop n ls)
 
 `mkIfThenElse :: Expr -> AGraph Node O O
              -> AGraph Node O O -> AGraph Node O O
 mkIfThenElse p t e
   = withLabels 3 $ \[l1,l2,l3] ->
-    gUnitOC (BUnit (CondBranch p l1 l2))   `gCat` 
-    mkLabel l1 `gCat` t `gCat` mkBranch l3 `gCat`
-    mkLabel l2 `gCat` e `gCat` mkBranch l3 `gCat`
+    gUnitOC (BUnit (CondBranch p l1 l2)) `gSplice` 
+    mkLabel l1 `gSplice` t `gSplice` mkBranch l3 `gSplice`
+    mkLabel l2 `gSplice` e `gSplice` mkBranch l3 `gSplice`
     mkLabel l3
 
 `mkLabel  l = gUnitCO (BUnit (LabelNode l))          
 `mkBranch l = gUnitOC (BUnit (Branch l))
 `gUnitOC  b = GMany (JustO b) BodyEmpty   NothingO
 `gUnitCO  b = GMany NothingO  BodyEmpty   (JustO b)
-\end{code}
+\end{smallfuzzcode}
 \caption{The \texttt{AGraph} type and example constructions} \figlabel{agraph}
 \end{figure}
 
@@ -1318,6 +1321,8 @@ introducing new blocks with internal control flow.
 In~general, a rewrite function must be able to return a
 \emph{graph}. 
 
+\ifpagetuning\enlargethispage{0.8\baselineskip}\fi
+
 Concretely, a @FwdRewrite@ takes a node and a suitably shaped
 fact, and returns either @Nothing@, indicating that the node should
 not be replaced,
@@ -1334,6 +1339,7 @@ The figure also shows an implementation of @AGraph@
 and a few simple functions typically used to
 build @AGraph@s.
 
+\ifpagetuning\enlargethispage{0.8\baselineskip}\fi
 
 The type of @FwdRewrite@ in \figref{api-types} guarantees
 \emph{at compile time} that
@@ -1351,9 +1357,9 @@ rewritten to an empty graph.
  \seclabel{shallow-vs-deep}
 
 Once the rewrite has been performed, what then?  
-Since the rewrite returns a graph, the 
-replacement graph must itself be analyzed, and its nodes may be rewritten.
-So we must call @analyzeAndRewriteFwd@ to process the replacement
+The rewrite returns a replacement graph, 
+which must itself be analyzed, and its nodes may be further rewritten.
+We~call @analyzeAndRewriteFwd@ to process the replacement
 graph---but what @FwdPass@ should we use?
 There are two common situations:
 \begin{itemize}
@@ -1402,10 +1408,10 @@ that combines two rewriting functions in sequence:
   thenFwdRw :: FwdRewrite n f 
             -> FwdRewrite n f 
             -> FwdRewrite n f
-  `thenFwdRw rw1 rw2 n f
+  `thenFwdRw ^rw1 ^rw2 n f
     = case rw1 n f of
         Nothing              -> rw2 n f
-        Just (FwdRes g rw1a) -> Just $ FwdRes g $
+        Just (FwdRes g ^rw1a) -> Just $ FwdRes g $
                                 rw1a `thenFwdRw` rw2
 
   `noFwdRw :: FwdRewrite n f
@@ -1427,15 +1433,16 @@ to produce a rewriting function that is a combination of deep and shallow.
 %% Our shortsightedness; Lerner/Grove/Chambers is deep only ---NR
 
 
-A shallow rewriting function can be made deep by iterating it:
-\begin{smallcode}
+A shallow rewriting function can be made deep by iterating
+it:\remark{Algebraic law wanted!}
+\begin{smallfuzzcode}{6.6pt}
 iterFwdRw :: FwdRewrite n f -> FwdRewrite n f
-iterFwdRw rw =
+`iterFwdRw rw =
  \n f -> case rw n f of
           Just (FwdRes g rw2) -> 
             Just $ FwdRes g (rw2 `thenFwdRw` iterFwdRw rw)
           Nothing -> Nothing
-\end{smallcode}
+\end{smallfuzzcode}
 If we have shallow rewrites $A$~and~$B$ then we can build $AB$,
 $A^*B$, $(AB)^*$, 
 and so on: sequential composition is @thenFwdRw@ and the Kleene star
@@ -1467,7 +1474,7 @@ yielding better results than running $A$~and then~$B$ or $B$~and then~$A$
 
 
 \begin{figure}
-{\small
+{\small\hfuzz=3pt
 \begin{code}
 -- Types and definition of the lattice
 data `HasConst = `Top | `B Bool | `I Integer
@@ -1476,7 +1483,7 @@ type `ConstFact = Map.Map Var HasConst
   { fact_bot    = Map.empty
   , fact_extend = stdMapJoin constFactAdd }
   where
-    `constFactAdd old new = (c, j)
+    `constFactAdd ^old ^new = (c, j)
       where j = if new == old then new else Top
             c = if j == old then NoChange else SomeChange
 
@@ -1489,7 +1496,7 @@ varHasConst (Assign x (Bool b)) f = Map.insert x (B b) f
 varHasConst (Assign x (Int  i)) f = Map.insert x (I i) f
 varHasConst (Assign x _)        f = Map.insert x Top   f
 varHasConst (Branch l)          f = mkFactBase [(l, f)]
-varHasConst (CondBranch (Var x) tid fid) f
+varHasConst (CondBranch (Var x) ^tid ^fid) f
   = mkFactBase [(tid, Map.insert x (B True)  f),
                 (fid, Map.insert x (B False) f)]
 varHasConst (CondBranch _ tid fid) f 
@@ -1498,11 +1505,11 @@ varHasConst (CondBranch _ tid fid) f
 -------------------------------------------------------
 -- Constant propagation
 `constProp :: FwdRewrite Node ConstFact
-constProp node facts
+constProp node ^facts
   = fmap toAGraph (mapE rewriteE node)
   where
     `rewriteE e (Var x)
-      = case M.lookup x facts of
+      = case Map.lookup x facts of
           Just (B b) -> Just $ Bool b
           Just (I i) -> Just $ Int  i
           _          -> Nothing
@@ -1515,7 +1522,7 @@ simplify (CondBranch (Bool b) t f) _
   = Just $ toAGraph $ Branch (if b then t else f)
 simplify node _ = fmap toAGraph (mapE s_exp node)
   where
-    s_exp (Binop Add (Int i1) (Int i2))
+    `s_exp (Binop Add (Int i1) (Int i2))
        = Just $ Int $ i1 + i2
     ...  -- more cases for constant folding
 
@@ -1556,6 +1563,8 @@ We~use the @stdMapJoin@ function to lift the join operation
 for a single variable (@constFactAdd@) up to the map containing facts
 for all variables.
 
+% omit stdMapJoin :: Ord k => JoinFun v -> JoinFun (Map.Map k v)
+
 For the transfer function, @varHasConst@, 
 there are two interesting kinds of nodes:
 assignment and conditional branch.
@@ -1586,7 +1595,7 @@ to apply @rewriteE@ to each use of a variable in each kind of node;
 in turn, the @rewriteE@ function checks if the variable has a constant
 value and makes the substitution.  We assume an auxiliary function
 \begin{code}
-  toAGraph :: Node e x -> AGraph e x
+  `toAGraph :: Node e x -> AGraph Node e x
 \end{code}
 
 \figref{const-prop} also gives a completely separate rewrite function 
@@ -1725,7 +1734,7 @@ assumptions expressed by the incoming dataflow fact~@f@.
 %%  that are prevented (or even affected) by this restriction.}
 \item 
 The rewrite function must be \emph{consistent} with the transfer function;
-that is, \mbox{@transfer n f@ $\sqsubseteq$ @transfer g f@}.
+that is, \mbox{@`transfer n f@ $\sqsubseteq$ @transfer g f@}.
 For example, if the analysis says that @x@ is dead before the node~@n@,
 then it had better still be dead if @n@ is replaced by @g@.
 \item 
@@ -1824,19 +1833,21 @@ exactly analogous and are included in \hoopl.
 
 \subsection{Overview}
 
+{\hfuzz=0.6pt
 We concentrate on implementing @analyzeAndRewriteFwd@, whose
 type is in \secref{using-hoopl}.
 Its implementation is built on the hierarchy of nodes, blocks, and graphs
 described in \secref{graph-rep}.  For each thing in the hierarchy,
 we develop a function of this type:
 \begin{code}
-type `ARF thing n
+type `ARF ^thing n
  = forall f e x. FwdPass n f
               -> thing e x -> Fact e f 
               -> FuelMonad (RG n e x, Fact x f)
 \end{code}
 An @ARF@ (short for ``analyze and rewrite forward'') is a combination of
 a rewrite and transfer function.
+}%
 An @ARF@ takes a @FwdPass@, a @thing@ (a node, block, or graph),
 and an input fact,
 and it returns a rewritten graph of type @(RG n e x)@ of the same shape
@@ -1867,6 +1878,7 @@ splits an @RG@ into a @Body@ and its corresponding @FactBase@:
               -> (Body n, FactBase f)
 \end{code}
 \begin{figure}
+\hfuzz=0.98pt
 \begin{code}
 data `RG n f e x where
   `RGNil   :: RG n f a a
@@ -1881,6 +1893,7 @@ The essential points are that constructor @RGUnit@ is polymorphic in
 the shape of a block, @RGUnit@ carries a fact as
 well as a block, and the concatenation constructors record the shapes
 of the graphs at the point of concatenation.
+\remark{Not too happy with calling this ``concatenation''}
 (A~record of the shapes is needed so that when
 @normalizeBody@ is presented with a block carried by @RGUnit@, it is
 known whether the block is an entry sequence, an exit sequence, or a
@@ -1920,11 +1933,11 @@ the analysis and rewriting from nodes to blocks (\secref{arf-block}).
 
 \item
 Using @arfBlock@ we define @arfBody@, which analyzes and rewrites a
-@Body@: that is, a group of closed/closed blocks linked by arbitrary
+@Body@: a~group of closed/closed blocks linked by arbitrary
 control flow.
 Because a @Body@ is
 always closed/closed and does not take shape parameters, function
-@arfBody@ is less polymorphic than the others, but its type is what
+@arfBody@ is less polymorphic than the others; its type is what
 would be obtained by expanding and specializing the definition of
 @ARF@ for a @thing@ which is always closed/closed and is equivalent to
 a @Body@.
@@ -1941,8 +1954,8 @@ matter of matching the external API to the internal functions:
      => FwdPass n f -> Body n -> FactBase f
      -> FuelMonad (Body n, FactBase f)
 
-  analyzeAndRewriteFwd pass body facts
-    = do { (rg, _) <- arfBody pass body facts
+  analyzeAndRewriteFwd pass ^body facts
+    = do { (^rg, _) <- arfBody pass body facts
          ; return (normalizeBody rg) }
 \end{code}
  
@@ -1974,18 +1987,18 @@ Function @arfGraph@ is equally straightforward:
 arfGraph _    GNil        f = return (RGNil, f)
 arfGraph pass (GUnit blk) f = arfBlock pass blk f
 arfGraph pass (GMany NothingO body NothingO) f
-  = do { (body', fb) <- arfBody pass body f
+  = do { (^body', ^fb) <- arfBody pass body f
        ; return (body', fb) }
-arfGraph pass (GMany NothingO body (JustO exit)) f
+arfGraph pass (GMany NothingO body (JustO ^exit)) f
   = do { (body', fb) <- arfBody  pass body f
-       ; (exit', fx) <- arfBlock pass exit fb
+       ; (^exit', ^fx) <- arfBlock pass exit fb
        ; return (body' `RGCatC` exit', fx) }
  --  ... two more equations for GMany ...
 \end{code}
 The pattern is the same as for @arfBlock@: thread
 facts through the sequence, and concatenate the results.
 Because the constructors of type~@RG@ are more polymorphic than those
-of @Graph@, type @RG@ can represent
+of @Graph@, type~@RG@ can represent
 graphs more simply than @Graph@; for example, each element of a
 @GMany@ becomes a single @RG@ object, and these @RG@ objects are then 
 concatenated to form a single result of type~@RG@.
@@ -1997,18 +2010,18 @@ concatenated to form a single result of type~@RG@.
 Although interleaving analysis with transformation is tricky, we have
 succeeded in isolating the algorithm in just two functions,  
 @arfNode@ and its backward analog, @`arbNode@:
-\begin{code}
+\begin{fuzzcode}{10.5pt}
 `arfNode :: Edges n => ARF n n
-arfNode pass n f
- = do { mb_g <- withFuel (fp_rewrite pass n f)
+arfNode ^pass n f
+ = do { ^mb_g <- withFuel (fp_rewrite pass n f)
       ; case mb_g of
           Nothing -> return (RGUnit f (BUnit n),
                              fp_transfer pass n f)
-          Just (FwdRes ag rw) ->
+          Just (FwdRes ^ag ^rw) ->
             do { g <- graphOfAGraph ag
-               ; let pass' = pass { fp_rewrite = rw }
+               ; let ^pass' = pass { fp_rewrite = rw }
                ; arfGraph pass' g f } }
-\end{code}
+\end{fuzzcode}
 The code here is more complicated, 
 but still admirably brief.  
 Using the @fp_rewrite@ record selector (\figref{api-types}),
@@ -2064,7 +2077,7 @@ cleanly separated from everything else:
 arfBody  :: Edges n
          => FwdPass n f -> Body n -> FactBase f
          -> FuelMonad (RG n f C C, FactBase f)
-`arfBody pass body fbase
+`arfBody pass body ^fbase
   = fixpoint (fp_lattice pass) (arfBlock pass) fbase $
     forwardBlockList (factBaseLabels fbase) body
 \end{code}}
@@ -2097,6 +2110,7 @@ How do we know what entry points to pass to @forwardBlockList@?
 We treat
 any block with an entry in the in-flowing @FactBase@ as an entry point.
 \finalremark{Why does this work?}
+{\hfuzz=0.8pt \par}
 
 The rest of the work is done by @fixpoint@, which is shared by
 both forward and backward analyses:
@@ -2106,7 +2120,7 @@ both forward and backward analyses:
   => Bool     -- going Forward?
   -> DataflowLattice f
   -> (Block n C C -> FactBase f -> 
-                FuelMonad (RG n f C C, FactBase f))
+               FuelMonad (RG n f C C, FactBase f))
   -> FactBase f 
   -> [(Label, Block n C C)]
   -> FuelMonad (RG n f C C, FactBase f)
@@ -2526,7 +2540,7 @@ extended visits to the third author.
 
 % omit LabelSet :: *
 % omit LabelMap :: *
-% omit delFromFactBase :: FactBase f -> [(Label,a)] -> FactBase f
+% omit delFromFactBase :: FactBase f -> [(Label,f)] -> FactBase f
 % omit elemFactBase :: Label -> FactBase f -> Bool
 % omit elemLabelSet :: Label -> LabelSet -> Bool
 % omit emptyLabelSet :: LabelSet
@@ -2534,11 +2548,14 @@ extended visits to the third author.
 % omit extendFactBase :: FactBase f -> Label -> f -> FactBase f
 % omit extendLabelSet :: LabelSet -> Label -> LabelSet
 % omit getFuel :: FuelMonad Fuel
+% omit setFuel :: Fuel -> FuelMonad ()
 % omit lookupFact :: FactBase f -> Label -> Maybe f
+% omit factBaseList :: FactBase f -> [(Label, f)]
 
-\section{Code for \texttt{fixpoint}}  \label{app:fixpoint}
+\section{Code for \textmd{\texttt{fixpoint}}}
+\label{app:fixpoint}
 
-{\def\baselinestretch{0.95}
+{\def\baselinestretch{0.95}\hfuzz=20pt
 \begin{smallcode}
 data `TxFactBase n f
   = `TxFB { `tfb_fbase :: FactBase f
@@ -2554,15 +2571,15 @@ data `TxFactBase n f
 `updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
            -> (ChangeFlag, FactBase f) 
            -> (ChangeFlag, FactBase f)
-updateFact lat lbls (lbl, new_fact) (cha, fbase)
-  | NoChange <- cha2        = (cha,        fbase)
+updateFact ^lat ^lbls (lbl, ^new_fact) (^cha, fbase)
+  | NoChange <- ^cha2        = (cha,        fbase)
   | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
   | otherwise               = (cha,        new_fbase)
   where
     (cha2, ^res_fact) 
       = case lookupFact fbase lbl of
          Nothing -> (SomeChange, new_fact)
-         Just old_fact -> fact_extend lat old_fact new_fact
+         Just ^old_fact -> fact_extend lat old_fact new_fact
     ^new_fbase = extendFactBase fbase lbl res_fact
 
 fixpoint :: forall n f. Edges n
@@ -2572,9 +2589,9 @@ fixpoint :: forall n f. Edges n
               -> FuelMonad (RG n f C C, FactBase f))
          -> FactBase f -> [(Label, Block n C C)]
          -> FuelMonad (RG n f C C, FactBase f)
-fixpoint is_fwd lat do_block ^init_fbase blocks
- = do { fuel <- getFuel  
-      ; tx_fb <- loop fuel init_fbase
+fixpoint ^is_fwd lat ^do_block ^init_fbase ^blocks
+ = do { ^fuel <- getFuel  
+      ; ^tx_fb <- loop fuel init_fbase
       ; return (tfb_rg tx_fb, 
                 tfb_fbase tx_fb `delFromFactBase` blocks) }
           -- The outgoing FactBase contains facts only for 
@@ -2588,15 +2605,15 @@ fixpoint is_fwd lat do_block ^init_fbase blocks
 
   `tx_block :: Label -> Block n C C 
            -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-  tx_block lbl blk tx_fb@(TxFB { tfb_fbase = fbase
+  tx_block ^lbl ^blk tx_fb@(TxFB { tfb_fbase = fbase
                                , tfb_lbls  = lbls
-                               , tfb_rg    = blks
+                               , tfb_rg    = ^blks
                                , tfb_cha   = cha })
     | is_fwd && not (lbl `elemFactBase` fbase)
     = return tx_fb    -- Note [Unreachable blocks]
     | otherwise
-    = do { (rg, out_facts) <- do_block blk fbase
-         ; let (cha',fbase') 
+    = do { (rg, ^out_facts) <- do_block blk fbase
+         ; let (^cha', ^fbase') 
                  = foldr (updateFact lat lbls) (cha,fbase) 
                          (factBaseList out_facts)
          ; return (TxFB { tfb_lbls = extendLabelSet lbls lbl
@@ -2606,7 +2623,7 @@ fixpoint is_fwd lat do_block ^init_fbase blocks
 
   loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
   `loop fuel fbase 
-    = do { let init_tx_fb = TxFB { tfb_fbase = fbase
+    = do { let ^init_tx_fb = TxFB { tfb_fbase = fbase
                                  , tfb_cha   = NoChange
                                  , tfb_rg    = RGNil
                                  , tfb_lbls  = emptyLabelSet}
@@ -2716,7 +2733,7 @@ listed in Appendix~\ref{sec:prelude}.
   \else
     \undefinedsectiontrue
     \par
-    \section{Identifiers defined in Haskell Prelude}\label{sec:prelude}
+    \section{Identifiers defined in Haskell Prelude or a standard library}\label{sec:prelude}
     \texttt{#1}%
   \fi
 }
