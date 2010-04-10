@@ -212,8 +212,8 @@ tuple :: Parser a -> Parser [a]
 tuple = parens . commaSep
 
 infix 3 <**>
-(<**>) :: AGraph n e C -> AGraph n C x -> AGraph n e x
-(<**>) = gCatClosed
+(<**>) :: AGraph n C C -> AGraph n C C -> AGraph n C C
+(<**>) = unionBlocks
 
 procBody :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Graph Insn C C))
 procBody = do { b  <- block

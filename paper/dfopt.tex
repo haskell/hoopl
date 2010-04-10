@@ -831,51 +831,35 @@ The exit sequence is dual to the entry sequence, and like the entry
 sequence, its presence or absence is deducible from the static type of the graph.
 \end{itemize}
 
-Graphs concatenate nicely, in constant time.
-Unlike blocks, two graphs may be concatenated 
-not only when they are both open
+We can splice graphs together nicely, in constant time.
+Unlike blocks, two graphs may be spliced together
 \ifpagetuning\vadjust{\penalty-10000 }\fi
- at the point of concatenation but also
+not only when they are both open
+ at splice point but also
 when they are both closed---and not in the other two cases:
-\finalremark{We've lost John's point about concatenation, which
-I~found convincing.  If it's too late to do something by Friday, we
-should remember to revisit this question later.
-John's point is that in order to force programmers to think carefully
-about what they are doing we should give concatenation different
-\emph{names} depending on the \emph{types} of the graphs being
-concatenated:
-\begin{tabular}{>{\ttfamily}l}
-O/O `cat` O/O\\
-O/C `addEntrySequence` C/x\\
-e/C `addExitSequence` C/O\\
-e/C `addBlocks` C/C\\
-\end{tabular}
-}
+\begin{smallfuzzcode}{10.8pt}
+`gSplice :: Graph n e a -> Graph n a x -> Graph n e x
+gSplice GNil g2 = g2
+gSplice g1 GNil = g1
 
-\par{\small
-\begin{code}
-`gCat :: Graph n e a -> Graph n a x -> Graph n e x
-gCat GNil g2 = g2
-gCat g1 GNil = g1
+gSplice (GUnit ^b1) (GUnit ^b2) = GUnit (b1 `BCat` b2)
 
-gCat (GUnit ^b1) (GUnit ^b2) = GUnit (b1 `BCat` b2)
-
-gCat (GUnit b) (GMany (JustO e) bs x) 
+gSplice (GUnit b) (GMany (JustO e) bs x) 
   = GMany (JustO (b `BCat` e)) bs x
 
-gCat (GMany e bs (JustO x)) (GUnit b2) 
+gSplice (GMany e ^bs (JustO x)) (GUnit b2) 
   = GMany e bs (JustO (x `BCat` b2))
 
-gCat (GMany e1 bs1 (JustO x1)) (GMany (JustO e2) bs2 x2)
+gSplice (GMany e1 ^bs1 (JustO x1)) (GMany (JustO e2) ^bs2 x2)
   = GMany e1 (bs1 `BodyCat` b `BodyCat` bs2) x2
   where b = BodyUnit (x1 `BCat` e2)
 
-gCat (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
+gSplice (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
   = GMany e1 (bs1 `BodyCat` bs2) x2
-\end{code}}
+\end{smallfuzzcode}
 This definition illustrates the power of GADTs: the
 pattern matching is exhaustive, and all the open/closed invariants are
-statically checked.  For example, consider the second-last equation for @gCat@.
+statically checked.  For example, consider the second-last equation for @gSplice@.
 Since the exit link of the first argument is @JustO x1@,
 we know that type parameter~@a@ is~@O@, and hence the entry link of the second 
 argument must be @JustO e2@.

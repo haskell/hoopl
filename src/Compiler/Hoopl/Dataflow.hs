@@ -497,7 +497,7 @@ normCC (RGCatC g1 g2) = normCC g1 `gwfCat` normCC g2
 gwfCat :: Edges n => GraphWithFacts n f e a
                   -> GraphWithFacts n f a x 
                   -> GraphWithFacts n f e x
-gwfCat (g1, fb1) (g2, fb2) = (g1 `gCat` g2, fb1 `unionFactBase` fb2)
+gwfCat (g1, fb1) (g2, fb2) = (g1 `U.gSplice` g2, fb1 `unionFactBase` fb2)
 
 {-
 bwfUnion :: BodyWithFacts n f -> BodyWithFacts n f -> BodyWithFacts n f
@@ -508,14 +508,4 @@ bwfUnion (bg1, fb1) (bg2, fb2) = (bg1 `BodyCat` bg2, fb1 `unionFactBase` fb2)
 
 graphOfAGraph :: AGraph node e x -> FuelMonad (Graph node e x)
 graphOfAGraph ag = ag
-
-
-gCat :: Graph n e a -> Graph n a x -> Graph n e x
-gCat = U.gCatAny
-
-{- Not sure why the following does not work!  ---NR
-gCat g@(GMany _ _ NothingO) g' = U.gCatClosed g g'
-gCat g g'@(GMany NothingO _ _) = U.gCatClosed g g'
-gCat g g' = U.gCat g g'
--}
 

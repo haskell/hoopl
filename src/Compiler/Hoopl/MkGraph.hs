@@ -1,10 +1,10 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, GADTs #-}
 module Compiler.Hoopl.MkGraph
-    ( AGraph, (<*>), gCatClosed
+    ( AGraph, (<*>), catAGraphs, addEntrySeq, addExitSeq, addBlocks, unionBlocks
     , emptyAGraph, emptyClosedAGraph, withFreshLabels
-    , mkFirst, mkMiddle, mkMiddles, mkLast, mkEntry, mkBranch, mkLabel, mkWhileDo
-    , addEntrySeq, addExitSeq, catAGraphs
+    , mkFirst, mkMiddle, mkMiddles, mkLast, mkBranch, mkLabel, mkWhileDo
     , IfThenElseable(mkIfThenElse)
+    , mkEntry, mkExit
     , HooplNode(mkLabelNode, mkBranchNode)
     )
 where
@@ -18,9 +18,6 @@ import Control.Monad (liftM2)
 
 type AGraph n e x = FuelMonad (Graph n e x)
 
-infixr 3 <*>
-(<*>) :: AGraph n e O -> AGraph n O x -> AGraph n e x
-
 class Labels l where
   withFreshLabels :: (l -> AGraph n e x) -> AGraph n e x
 
@@ -30,13 +27,67 @@ emptyAGraph = return GNil
 emptyClosedAGraph :: AGraph n C C
 emptyClosedAGraph = return $ GMany NothingO BodyEmpty NothingO
 
+{-|
+As noted in the paper, we can define a single, polymorphic type of 
+splicing operation with the very polymorphic type
+@
+  AGraph n e a -> AGraph n a x -> AGraph n e x
+@
+However, we feel that this operation is a bit /too/ polymorphic,
+and that it's too easy for clients to use it blindly without 
+thinking.  We therfore split it into several operations:
+
+  * The '<*>' operator is true concatenation, for connecting open graphs.
+
+  * The operators 'addEntrySeq' or 'addExitSeq' allow a client to add
+    an entry or exit sequence to a graph that is closed at the entry or 
+    exit.
+
+  * The operator 'addBlocks' adds a set of basic blocks (represented as
+    a closed/closed 'AGraph' to an existing graph, without changing the shape
+    of the existing graph.  In some cases, it's necessary to introduce 
+    a branch and a label to 'get around' the blocks added, so this operator, 
+    and other functions based on it, requires a 'HooplNode' type-class constraint.
+    (In GHC 6.12 this operator was called 'outOfLine'.)
+
+  * The operator 'unionBlocks' takes the union of two sets of basic blocks,
+    each of which is represented as a closed/closed 'AGraph'.  It is not 
+    redundant with 'addBlocks', because 'addBlocks' requires a 'HooplNode'
+    constraint but 'unionBlocks' does not.
+
+There is some redundancy in this representation (any instance of
+'addEntrySeq' is also an instance of either 'addExitSeq' or 'addBlocks'),
+but because the different operators restrict polymorphism in different ways, 
+we felt some redundancy would be appropriate.
+
+-}
+
+
+
+infixl 3 <*>
+(<*>) :: AGraph n e O -> AGraph n O x -> AGraph n e x
+
+
 addEntrySeq    :: AGraph n O C -> AGraph n C x -> AGraph n O x
 addExitSeq     :: AGraph n e C -> AGraph n C O -> AGraph n e O
-gCatClosed     :: AGraph n e C -> AGraph n C x -> AGraph n e x
+addBlocks      :: HooplNode n
+               => AGraph n e x -> AGraph n C C -> AGraph n e x
+unionBlocks    :: AGraph n C C -> AGraph n C C -> AGraph n C C
 
-addEntrySeq = liftM2 U.addEntrySeq
-addExitSeq  = liftM2 U.addExitSeq
-gCatClosed  = liftM2 U.gCatClosed
+addEntrySeq = liftM2 U.gSplice
+addExitSeq  = liftM2 U.gSplice
+unionBlocks = liftM2 U.gSplice
+
+addBlocks g blocks = g >>= \g -> blocks >>= add g
+  where add :: HooplNode n => Graph n e x -> Graph n C C -> AGraph n e x
+        add (GMany e body x) (GMany NothingO body' NothingO) =
+          return $ GMany e (body `BodyCat` body') x
+        add g@GNil      blocks = spliceOO g blocks
+        add g@(GUnit _) blocks = spliceOO g blocks
+        spliceOO :: HooplNode n => Graph n O O -> Graph n C C -> AGraph n O O
+        spliceOO g blocks = withFreshLabels $ \l ->
+          return g <*> mkBranch l `addEntrySeq` return blocks `addExitSeq` mkLabel l
+
 
 mkFirst  :: n C O -> AGraph n C O
 mkMiddle :: n O O -> AGraph n O O
@@ -75,10 +126,10 @@ mkWhileDo    :: HooplNode n
 --                          IMPLEMENTATION
 -- ================================================================
 
-(<*>) = liftM2 U.gCat 
-
+(<*>) = liftM2 U.gSplice 
 catAGraphs :: [AGraph n O O] -> AGraph n O O
 catAGraphs = foldr (<*>) emptyAGraph
+
 
 -------------------------------------
 -- constructors
@@ -87,27 +138,14 @@ mkLabel  id     = mkFirst $ mkLabelNode id
 mkBranch target = mkLast  $ mkBranchNode target
 mkMiddles ms = foldr (<*>) (return GNil) (map mkMiddle ms)
 
-
-{-
-outOfLine (AGraph g :: AGraph n C C) = AGraph g'
-  where g' :: UniqSM (Graph n O O)
-        g' = do zgraph <- g
-                case zgraph of
-                  GF (Z.ZE_C _) _ Z.ZX_C ->
-                      do id <- freshLabel "outOfLine"
-                         return $ Z.mkLast (mkBranchNode id) <**> zgraph <**>
-                                  Z.mkLabel id
-                  _ -> panic "tried to outOfLine a graph open at one or both ends"
--}
-
 instance IfThenElseable O where
   mkIfThenElse cbranch tbranch fbranch = do
     endif  <- freshLabel
     ltrue  <- freshLabel
     lfalse <- freshLabel
     cbranch ltrue lfalse `addEntrySeq`
-      (mkLabel ltrue  <*> tbranch <*> mkBranch endif) `gCatClosed`
-      (mkLabel lfalse <*> fbranch <*> mkBranch endif) `gCatClosed`
+      (mkLabel ltrue  <*> tbranch <*> mkBranch endif) `addBlocks`
+      (mkLabel lfalse <*> fbranch <*> mkBranch endif) `addExitSeq`
       mkLabel endif
 
 {-
@@ -118,9 +156,9 @@ instance IfThenElseable C where
   mkIfThenElse cbranch tbranch fbranch = do
     ltrue  <- freshLabel
     lfalse <- freshLabel
-    cbranch ltrue lfalse `gCatClosed`
-       mkLabel ltrue  <*> tbranch `gCatClosed`
-       mkLabel lfalse <*> fbranch
+    cbranch ltrue lfalse `addEntrySeq`
+       (mkLabel ltrue  <*> tbranch) `addBlocks`
+       (mkLabel lfalse <*> fbranch)
 {-
   fallThroughTo _ g = g
 -}
@@ -130,9 +168,9 @@ mkWhileDo cbranch body = do
   head <- freshLabel
   endwhile <- freshLabel
      -- Forrest Baskett's while-loop layout
-  mkBranch test `gCatClosed`
-    mkLabel head <*> body <*> mkBranch test `gCatClosed`
-    mkLabel test <*> cbranch head endwhile  `gCatClosed`
+  mkBranch test `addEntrySeq`
+    (mkLabel head <*> body <*> mkBranch test) `addBlocks`
+    (mkLabel test <*> cbranch head endwhile)  `addExitSeq`
     mkLabel endwhile
 
 -------------------------------------
