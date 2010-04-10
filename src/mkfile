@@ -14,12 +14,15 @@ hoopl.pdf: ../paper/dfopt.pdf
 	cp -a -v $prereq $target
 
 test:V: 
-	cabal install
+	cabal install --enable-documentation
 	(cd ../testing && mk test)
 
 install:V:
 	cabal configure --user
-	cabal install
+	cabal install --enable-documentation
+
+check:V: 
+	cabal check
 
 upload:V: hoopl.pdf
 	cabal configure --user
