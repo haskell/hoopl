@@ -23,4 +23,9 @@ get the most recent version from our public git repository:
   git clone -o tufts git://ghc.cs.tufts.edu/hoopl/hoopl.git
 
 If you are not familiar with git, we recommend the tutorial 'Git Magic'
-by Ben Lynn.
+by Ben Lynn.  To get some ideas about how to use git effectively,
+
+  http://whygitisbetterthanx.com/ 
+
+is also useful.
+
