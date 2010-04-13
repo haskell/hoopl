@@ -2,11 +2,12 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
 module Test (parseTest, evalTest, optTest) where
 
+import Compiler.Hoopl
 import Control.Monad.Error
 
+import Ast2ir
 import ConstProp
 import Eval  (evalProg, ErrorM)
-import Compiler.Hoopl
 import IR
 import Live
 import Parse (parseCode)
@@ -16,7 +17,7 @@ parse :: String -> String -> ErrorM (FuelMonad [Proc])
 parse file text =
   case parseCode file text of
     Left  err -> throwError $ show err
-    Right p   -> return p
+    Right ps  -> return $ mapM astToIR ps
 
 parseTest :: String -> IO ()
 parseTest file =

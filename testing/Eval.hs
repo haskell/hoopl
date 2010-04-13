@@ -83,9 +83,9 @@ evalN_OC (Return es) =
      return vs
 
 class Show v => EvalTarget v where
-  toAddr :: v   -> EvalM v Integer
-  toBool :: v   -> EvalM v Bool
-  eval   :: Exp -> EvalM v v
+  toAddr :: v    -> EvalM v Integer
+  toBool :: v    -> EvalM v Bool
+  eval   :: Expr -> EvalM v v
 
 instance EvalTarget Value where
   toAddr (I i) = return i

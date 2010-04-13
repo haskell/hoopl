@@ -3,11 +3,11 @@
 module Parse (parseCode) where
 
 import Control.Monad
-import qualified Data.Map as M
 import Prelude hiding (id, last, succ)
 
-import Compiler.Hoopl
-import IR
+-- Note: We do not need to import Hoopl to build an AST.
+import Ast
+import Expr
 import           Text.ParserCombinators.Parsec
 import           Text.ParserCombinators.Parsec.Expr
 import           Text.ParserCombinators.Parsec.Language
@@ -48,9 +48,9 @@ whitespace :: CharParser () ()
 whitespace = P.whiteSpace lexer
 
 -- Expressions:
-expr :: Parser Exp
+expr :: Parser Expr
 expr = buildExpressionParser table factor
-    <?> "expression"
+    <?> "Expression"
   where
     table = [[op "*"  (Binop Mul) AssocLeft, op "/"  (Binop Div) AssocLeft], 
              [op "+"  (Binop Add) AssocLeft, op "-"  (Binop Sub) AssocLeft],
@@ -62,13 +62,13 @@ expr = buildExpressionParser table factor
            <|> lit
            <|> fetchVar
            <|> load
-           <?> "simple expression"
+           <?> "simple Expression"
 
 bool :: Parser Bool
 bool =  (try $ lexeme (string "True")  >> return True)
     <|> (try $ lexeme (string "False") >> return False)
 
-lit :: Parser Exp
+lit :: Parser Expr
 lit =  (natural >>= (return . Lit . Int))
    <|> (bool    >>= (return . Lit . Bool))
    <|> (bool    >>= (return . Lit . Bool))
@@ -87,40 +87,28 @@ var :: Parser String
 var  = identifier
     <?> "var"
 
-mem :: Parser Exp -- address
+mem :: Parser Expr -- address
 mem  =  loc 'm' expr
     <?> "mem"
 
-fetchVar, load :: Parser Exp
+fetchVar, load :: Parser Expr
 fetchVar = var >>= return . Var
 load     = mem >>= return . Load
 
 
--- Statements:
-type IdLabelMap = M.Map String Label
-getLbl :: String -> IdLabelMap -> FuelMonad (IdLabelMap, Label)
-getLbl id lmap =
-  do { case M.lookup id lmap of
-         Just l -> return (lmap, l)
-         Nothing  -> freshLabel >>= \l ->
-                     return (M.insert id l lmap, l)
-     }
-
-labl :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Insn C O))
+labl :: Parser Lbl
 labl = lexeme (do { id <- identifier
                   ; char' ':'
-                  ; return $ \lmap -> do { (m, l) <- getLbl id lmap
-                                         ; return (m, l, Label l)
-                                         }
+                  ; return id
                   })
   <?> "label"
 
-mid :: Parser (Insn O O)
+mid :: Parser Insn
 mid =   asst
     <|> store
     <?> "assignment or store"
 
-asst :: Parser (Insn O O)
+asst :: Parser Insn
 asst = do { v <- lexeme var
           ; lexeme (char' '=')
           ; e <- expr
@@ -128,7 +116,7 @@ asst = do { v <- lexeme var
           }
     <?> "asst"
 
-store :: Parser (Insn O O)
+store :: Parser Insn
 store = do { addr <- lexeme mem
            ; lexeme (char' '=')
            ; e <- expr
@@ -136,31 +124,28 @@ store = do { addr <- lexeme mem
            }
      <?> "store"
 
-type LastParse = Parser (IdLabelMap -> FuelMonad (IdLabelMap, Insn O C))
-last :: LastParse
-last =  branch
-    <|> cond
-    <|> call
-    <|> ret
-    <?> "control-transfer"
+control :: Parser Control
+control =  branch
+       <|> cond
+       <|> call
+       <|> ret
+       <?> "control-transfer"
 
 
-goto :: Parser String
+goto :: Parser Lbl
 goto = do { lexeme (reserved "goto")
           ; identifier
           }
     <?> "goto"
 
-branch :: LastParse
+branch :: Parser Control
 branch =
     do { l <- goto
-       ; return $ \lmap -> do { (m, lbl) <- getLbl l lmap
-                              ; return (m, Branch lbl)
-                              } 
+       ; return $ Branch l
        }
  <?> "branch"
 
-cond, call, ret :: LastParse
+cond, call, ret :: Parser Control
 cond =
   do { lexeme (reserved "if")
      ; cnd <- expr
@@ -168,10 +153,7 @@ cond =
      ; thn <- goto
      ; lexeme (reserved "else")
      ; els <- goto
-     ; return $ \lmap -> do { (m',  tlbl) <- getLbl thn lmap
-                            ; (m'', flbl) <- getLbl els m'
-                            ; return (m'', Cond cnd tlbl flbl)
-                            }
+     ; return $ Cond cnd thn els
      }
  <?> "cond"
 
@@ -179,77 +161,42 @@ call =
   do { results <- tuple var
      ; lexeme (char' '=')
      ; f <- identifier
-     ; params  <- tuple expr
-     ; succ <- goto
-     ; return $ \lmap -> do { (m',  slbl) <- getLbl succ lmap
-                            ; return (m', Call results f params slbl)
-                            }
+     ; params <- tuple expr
+     ; succ   <- goto
+     ; return $ Call results f params succ
      }
  <?> "call"
 
 ret =
   do { lexeme (reserved "ret")
      ; results <- tuple expr
-     ; return $ \lmap -> return (lmap, Return results)
+     ; return $ Return results
      }
  <?> "ret"
 
-block :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Graph Insn C C))
+block :: Parser Block
 block =
   do { f   <- lexeme labl
      ; ms  <- many $ try mid
-     ; l   <- lexeme last
-     ; return $ \lmap -> do { (lmap1, lbl, first) <- f lmap
-                            ; (lmap2, lst)        <- l lmap1
-                            ; g <- foldl (<*>) (mkFirst first) (map mkMiddle ms)
-                                              <*> mkLast lst
-                            ; return (lmap2, lbl, g)
-                            }
+     ; l   <- lexeme control
+     ; return $ Block { first = f, mids = ms, last = l }
      }
  <?> "Expected basic block; maybe you forgot a label following a control-transfer?"
 
 tuple :: Parser a -> Parser [a]
 tuple = parens . commaSep
 
-infix 3 <**>
-(<**>) :: AGraph n C C -> AGraph n C C -> AGraph n C C
-(<**>) = unionBlocks
-
-procBody :: Parser (IdLabelMap -> FuelMonad (IdLabelMap, Label, Graph Insn C C))
-procBody = do { b  <- block
-              ; bs <- many block
-              ; return $ \lmap ->
-                   do { (lmap1, lbl, b') <- b lmap
-                      ; (lmap2, bs') <-
-                          foldM threadMap (lmap1, emptyClosedAGraph) $ bs
-                      ; g <- return b' <**> bs'
-                      ; return (lmap2, lbl, g)
-                      }
-              }
-        <?> "proc body"
-  where
-    threadMap :: (IdLabelMap, AGraph Insn C C)
-              -> (IdLabelMap -> FuelMonad (IdLabelMap, Label, Graph Insn C C))
-              -> FuelMonad (IdLabelMap, AGraph Insn C C)
-    threadMap (lmap, bdy) f = do (lmap', _, b) <- f lmap
-                                 return (lmap', return b <**> bdy)
-
-proc :: Parser (FuelMonad Proc)
+proc :: Parser Proc
 proc = do { whitespace
           ; f      <- identifier
           ; params <- tuple  var
-          ; bdy    <- braces procBody
-          ; return $ do { (_, lbl, code) <- bdy M.empty
-                        ; return $ Proc { name = f, args = params
-                                        , body = bodyOf code, entry = lbl }
-                        }
+          ; bdy    <- braces $ do { b <- block
+                                  ; bs <- many block
+                                  ; return (b : bs)
+                                  } -- procedure must have at least one block
+          ; return $ Proc { name = f, args = params, body = bdy }
           }
     <?> "proc"
-  where bodyOf :: Graph a C C -> Body a
-        bodyOf (GMany NothingO b NothingO) = b
 
-parseCode :: String -> String -> Either ParseError (FuelMonad [Proc])
-parseCode file inp =
-  case parse (many proc) file inp of
-    Right ps -> Right $ sequence ps
-    Left  e  -> Left e
+parseCode :: String -> String -> Either ParseError [Proc]
+parseCode file inp = parse (many proc) file inp

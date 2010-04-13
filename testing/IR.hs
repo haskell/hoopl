@@ -1,31 +1,26 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
-module IR (Proc (..), Insn (..), Exp (..), Lit (..), Value (..), BinOp(..), Var,
+module IR (Proc (..), Insn (..), Expr (..), Lit (..), Value (..), BinOp(..), Var,
            showG, showProc) where
 
 import Prelude hiding (succ)
 
 import Compiler.Hoopl
+import Expr
+import PP
 
-data Exp = Lit   Lit
-         | Var   Var
-         | Load  Exp
-         | Binop BinOp Exp Exp
-data BinOp = Add | Sub | Mul | Div | Eq | Ne | Lt | Gt | Lte | Gte
-type Var   = String
-data Lit   = Bool Bool | Int Integer deriving Eq
-data Value = B Bool    | I   Integer deriving Eq
+data Value = B Bool | I Integer deriving Eq
 
 data Proc = Proc { name :: String, args :: [Var], entry :: Label, body :: Body Insn }
 
 data Insn e x where
-  Label  :: Label ->                                Insn C O
-  Assign :: Var     -> Exp     ->                   Insn O O
-  Store  :: Exp     -> Exp     ->                   Insn O O
-  Branch :: Label   ->                              Insn O C
-  Cond   :: Exp     -> Label   -> Label ->          Insn O C
-  Call   :: [Var]   -> String  -> [Exp] -> Label -> Insn O C -- String is bogus
-  Return :: [Exp]   ->                              Insn O C
+  Label  :: Label  ->                               Insn C O
+  Assign :: Var    -> Expr    ->                    Insn O O
+  Store  :: Expr   -> Expr    ->                    Insn O O
+  Branch :: Label  ->                               Insn O C
+  Cond   :: Expr   -> Label   -> Label  ->          Insn O C
+  Call   :: [Var]  -> String  -> [Expr] -> Label -> Insn O C
+  Return :: [Expr] ->                               Insn O C
 
 instance Edges Insn where
   entryLabel (Label l)      = l
@@ -34,7 +29,9 @@ instance Edges Insn where
   successors (Call _ _ _ l) = [l]
   successors (Return _)     = []
 
+--------------------------------------------------------------------------------
 -- Prettyprinting
+--------------------------------------------------------------------------------
 
 showProc :: Proc -> String
 showProc proc = name proc ++ tuple (args proc) ++ graph
@@ -72,35 +69,6 @@ instance Show (Insn e x) where
 ind :: String -> String
 ind x = "  " ++ x
 
-tuple :: [String] -> String
-tuple []     = "()"
-tuple [a]    = "(" ++ a ++ ")"
-tuple (a:as) = "(" ++ a ++ concat (map ((++) ", ") as) ++ ")"
-
-instance Show Exp where
-  show (Lit   i) = show i
-  show (Var   v) = v
-  show (Load  e) = "m[" ++ show e ++ "]"
-  show (Binop b e1 e2) = sub e1 ++ " " ++ show b ++ " " ++ sub e2
-    where sub e@(Binop _ _ _) = tuple [show e]
-          sub e = show e
-
-instance Show Lit where
-  show (Int  i) = show i
-  show (Bool b) = show b
-
 instance Show Value where
   show (B b) = show b
   show (I i) = show i
-
-instance Show BinOp where
-  show Add  = "+"
-  show Sub  = "-"
-  show Mul  = "*"
-  show Div  = "/"
-  show Eq   = "="
-  show Ne   = "/="
-  show Gt   = ">"
-  show Lt   = "<"
-  show Gte  = ">="
-  show Lte  = "<="

@@ -46,8 +46,8 @@ getFwdFact (Return _)     f _   = f
 -- Map/Fold functions for expressions/insns
 ----------------------------------------------
 
-map_EE :: (Exp -> Maybe Exp) -> Exp      -> Maybe Exp
-map_EN :: (Exp -> Maybe Exp) -> Insn e x -> Maybe (Insn e x)
+map_EE :: (Expr -> Maybe Expr) -> Expr      -> Maybe Expr
+map_EN :: (Expr -> Maybe Expr) -> Insn e x -> Maybe (Insn e x)
 
 map_EE f e@(Lit _)     = f e
 map_EE f e@(Var _)     = f e
@@ -81,8 +81,8 @@ map_EN f   (Return es) =
    else Just $ Return (map (uncurry fromMaybe) (zip es es'))
      where es' = map f es
 
-fold_EE :: (a -> Exp -> a) -> a -> Exp      -> a
-fold_EN :: (a -> Exp -> a) -> a -> Insn e x -> a
+fold_EE :: (a -> Expr -> a) -> a -> Expr      -> a
+fold_EN :: (a -> Expr -> a) -> a -> Insn e x -> a
 
 fold_EE f z e@(Lit _)         = f z e
 fold_EE f z e@(Var _)         = f z e
