@@ -2,12 +2,14 @@ This repository contains things related to
 
               Hoopl: A Higher-Order OPtimization Library
 
+** The closest thing we have to a SAMPLE CLIENT is in ./testing **
+
 Directory     Contents
 
 paper/        A paper about Hoopl
 prototypes/   A sampling of prototypes and early designs
 src/          The current official sources to the Cabal package
-testing/      Tests, including a sample client
+testing/      Tests, including a sample client.  See ./testing/README.
 
 To build the library, change to the src directory and run
 

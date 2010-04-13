@@ -16,7 +16,7 @@ import qualified IR  as I
 -- To keep the mapping from (String -> Label) consistent, we use a LabelMapM monad with
 -- the following operation:
 labelFor :: String         -> LabelMapM Label
-getBody  :: AGraph n C C -> LabelMapM (Body n)
+getBody  :: AGraph n C C   -> LabelMapM (Body n)
 run      :: LabelMapM a    -> FuelMonad a
 
 -- We proceed with the translation from AST to IR; the implementation of the monad
