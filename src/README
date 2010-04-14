@@ -29,3 +29,7 @@ by Ben Lynn.  To get some ideas about how to use git effectively,
 
 is also useful.
 
+If you've been given an account at Tufts with write privileges to the
+git repository, you'll want to use a different URL:
+
+  git clone -o tufts linux.cs.tufts.edu:/r/ghc/www/hoopl/hoopl.git
