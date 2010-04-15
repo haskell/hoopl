@@ -16,7 +16,8 @@ import qualified IR  as I
 -- To keep the mapping from (String -> Label) consistent, we use a LabelMapM monad with
 -- the following operation:
 labelFor :: String         -> LabelMapM Label
-getBody  :: AGraph n C C   -> LabelMapM (Body n)
+getBody  :: forall n.
+            AGraph n C C   -> LabelMapM (Body n)
 run      :: LabelMapM a    -> FuelMonad a
 
 -- We proceed with the translation from AST to IR; the implementation of the monad
@@ -76,6 +77,8 @@ labelFor l = LabelMapM f
                 Nothing -> do l' <- freshLabel
                               let m' = M.insert l l' m
                               return (m', l')
-getBody agraph = LabelMapM (\m -> do GMany NothingO body NothingO <- agraph
-                                     return (m, body))
+
+getBody agraph = LabelMapM $ \m ->
+       (do GMany NothingO body NothingO <- graphOfAGraph agraph
+           return (m, body)) :: FuelMonad (IdLabelMap, Body n)
 run (LabelMapM f) = f M.empty >>=  return . snd

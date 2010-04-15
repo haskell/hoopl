@@ -42,5 +42,5 @@ deadAsstElim :: BwdRewrite Insn Live
 deadAsstElim = shallowBwdRw d
   where
     d :: SimpleBwdRewrite Insn Live
-    d (Assign x _) live = if x `S.member` live then Nothing else Just (return GNil)
+    d (Assign x _) live = if x `S.member` live then Nothing else Just emptyAGraph
     d _ _ = Nothing
