@@ -20,6 +20,7 @@ Library
   Other-modules:     Compiler.Hoopl.GraphUtil,
                      -- GraphUtil should *never* be seen by clients.
                      -- The remaining modules are hidden *provisionally*
+                       Compiler.Hoopl.Combinators,
                        Compiler.Hoopl.Dataflow, Compiler.Hoopl.Graph, 
                        Compiler.Hoopl.MkGraph,
                        Compiler.Hoopl.Fuel, Compiler.Hoopl.Label,
