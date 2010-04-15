@@ -1,5 +1,5 @@
 Name:                hoopl
-Version:             3.7.8.0
+Version:             3.7.8.1
 Description:         Higher-order optimization library
 License:             BSD3
 License-file:        LICENSE
@@ -19,6 +19,7 @@ Library
   Other-modules:     Compiler.Hoopl.GraphUtil,
                      -- GraphUtil should *never* be seen by clients.
                      -- The remaining modules are hidden *provisionally*
+                       Compiler.Hoopl.Combinators,
                        Compiler.Hoopl.Dataflow, Compiler.Hoopl.Graph, 
                        Compiler.Hoopl.MkGraph,
                        Compiler.Hoopl.Fuel, Compiler.Hoopl.Label,
