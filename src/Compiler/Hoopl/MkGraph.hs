@@ -1,6 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables, GADTs #-}
 module Compiler.Hoopl.MkGraph
-    ( AGraph, (<*>), catAGraphs, addEntrySeq, addExitSeq, addBlocks, unionBlocks
+    ( AGraph, graphOfAGraph
+    , (<*>), (|*><*|), catAGraphs, addEntrySeq, addExitSeq, addBlocks, unionBlocks
     , emptyAGraph, emptyClosedAGraph, withFreshLabels
     , mkFirst, mkMiddle, mkMiddles, mkLast, mkBranch, mkLabel, mkWhileDo
     , IfThenElseable(mkIfThenElse)
@@ -16,16 +17,16 @@ import qualified Compiler.Hoopl.GraphUtil as U
 
 import Control.Monad (liftM2)
 
-type AGraph n e x = FuelMonad (Graph n e x)
+newtype AGraph n e x = A { graphOfAGraph :: FuelMonad (Graph n e x) }
 
 class Labels l where
   withFreshLabels :: (l -> AGraph n e x) -> AGraph n e x
 
 emptyAGraph :: AGraph n O O
-emptyAGraph = return GNil
+emptyAGraph = A $ return GNil
 
 emptyClosedAGraph :: AGraph n C C
-emptyClosedAGraph = return $ GMany NothingO BodyEmpty NothingO
+emptyClosedAGraph = A $ return $ GMany NothingO BodyEmpty NothingO
 
 {-|
 As noted in the paper, we can define a single, polymorphic type of 
@@ -55,6 +56,17 @@ thinking.  We therfore split it into several operations:
     redundant with 'addBlocks', because 'addBlocks' requires a 'HooplNode'
     constraint but 'unionBlocks' does not.
 
+  * The operator |*><*| splices two graphs at a closed point. The
+    vertical bar stands for "closed point" just as the angle brackets
+    above stand for "open point".  Unlike the <*> operator, the |*><*|
+    can create a control-flow graph with dangling outedges or
+    unreachable blocks.  The operator must be used carefully, so we
+    have chosen a long name on purpose, to help call people's
+    attention to what they're doing.
+
+  * We have discussed a dynamic assertion about dangling outedges and
+    unreachable blocks, but nothing is implemented yet.
+
 There is some redundancy in this representation (any instance of
 'addEntrySeq' is also an instance of either 'addExitSeq' or 'addBlocks'),
 but because the different operators restrict polymorphism in different ways, 
@@ -65,7 +77,9 @@ we felt some redundancy would be appropriate.
 
 
 infixl 3 <*>
-(<*>) :: AGraph n e O -> AGraph n O x -> AGraph n e x
+infixl 2 |*><*|
+(<*>)    :: AGraph n e O -> AGraph n O x -> AGraph n e x
+(|*><*|) :: AGraph n e C -> AGraph n C x -> AGraph n e x
 
 
 addEntrySeq    :: AGraph n O C -> AGraph n C x -> AGraph n O x
@@ -74,19 +88,24 @@ addBlocks      :: HooplNode n
                => AGraph n e x -> AGraph n C C -> AGraph n e x
 unionBlocks    :: AGraph n C C -> AGraph n C C -> AGraph n C C
 
-addEntrySeq = liftM2 U.gSplice
-addExitSeq  = liftM2 U.gSplice
-unionBlocks = liftM2 U.gSplice
+liftA2 :: (Graph  n a b -> Graph  n c d -> Graph  n e f)
+       -> (AGraph n a b -> AGraph n c d -> AGraph n e f)
 
-addBlocks g blocks = g >>= \g -> blocks >>= add g
-  where add :: HooplNode n => Graph n e x -> Graph n C C -> AGraph n e x
+liftA2 f (A g) (A g') = A (liftM2 f g g')
+
+addEntrySeq = liftA2 U.gSplice
+addExitSeq  = liftA2 U.gSplice
+unionBlocks = liftA2 U.gSplice
+
+addBlocks (A g) (A blocks) = A $ g >>= \g -> blocks >>= add g
+  where add :: HooplNode n => Graph n e x -> Graph n C C -> FuelMonad (Graph n e x)
         add (GMany e body x) (GMany NothingO body' NothingO) =
           return $ GMany e (body `BodyCat` body') x
         add g@GNil      blocks = spliceOO g blocks
         add g@(GUnit _) blocks = spliceOO g blocks
-        spliceOO :: HooplNode n => Graph n O O -> Graph n C C -> AGraph n O O
-        spliceOO g blocks = withFreshLabels $ \l ->
-          return g <*> mkBranch l `addEntrySeq` return blocks `addExitSeq` mkLabel l
+        spliceOO :: HooplNode n => Graph n O O -> Graph n C C -> FuelMonad(Graph n O O)
+        spliceOO g blocks = graphOfAGraph $ withFreshLabels $ \l ->
+          A (return g) <*> mkBranch l |*><*| A (return blocks) |*><*| mkLabel l
 
 
 mkFirst  :: n C O -> AGraph n C O
@@ -126,7 +145,8 @@ mkWhileDo    :: HooplNode n
 --                          IMPLEMENTATION
 -- ================================================================
 
-(<*>) = liftM2 U.gSplice 
+(<*>)    = liftA2 U.gSplice 
+(|*><*|) = liftA2 U.gSplice 
 catAGraphs :: [AGraph n O O] -> AGraph n O O
 catAGraphs = foldr (<*>) emptyAGraph
 
@@ -136,16 +156,13 @@ catAGraphs = foldr (<*>) emptyAGraph
 
 mkLabel  id     = mkFirst $ mkLabelNode id
 mkBranch target = mkLast  $ mkBranchNode target
-mkMiddles ms = foldr (<*>) (return GNil) (map mkMiddle ms)
+mkMiddles ms = foldr (<*>) emptyAGraph (map mkMiddle ms)
 
 instance IfThenElseable O where
-  mkIfThenElse cbranch tbranch fbranch = do
-    endif  <- freshLabel
-    ltrue  <- freshLabel
-    lfalse <- freshLabel
-    cbranch ltrue lfalse `addEntrySeq`
-      (mkLabel ltrue  <*> tbranch <*> mkBranch endif) `addBlocks`
-      (mkLabel lfalse <*> fbranch <*> mkBranch endif) `addExitSeq`
+  mkIfThenElse cbranch tbranch fbranch = withFreshLabels $ \(endif, ltrue, lfalse) ->
+    cbranch ltrue lfalse |*><*|
+      mkLabel ltrue  <*> tbranch <*> mkBranch endif |*><*|
+      mkLabel lfalse <*> fbranch <*> mkBranch endif |*><*|
       mkLabel endif
 
 {-
@@ -153,24 +170,19 @@ instance IfThenElseable O where
 -}
 
 instance IfThenElseable C where
-  mkIfThenElse cbranch tbranch fbranch = do
-    ltrue  <- freshLabel
-    lfalse <- freshLabel
-    cbranch ltrue lfalse `addEntrySeq`
-       (mkLabel ltrue  <*> tbranch) `addBlocks`
-       (mkLabel lfalse <*> fbranch)
+  mkIfThenElse cbranch tbranch fbranch = withFreshLabels $ \(ltrue, lfalse) ->
+    cbranch ltrue lfalse |*><*|
+       mkLabel ltrue  <*> tbranch |*><*|
+       mkLabel lfalse <*> fbranch
 {-
   fallThroughTo _ g = g
 -}
 
-mkWhileDo cbranch body = do
-  test <- freshLabel
-  head <- freshLabel
-  endwhile <- freshLabel
+mkWhileDo cbranch body = withFreshLabels $ \(test, head, endwhile) ->
      -- Forrest Baskett's while-loop layout
-  mkBranch test `addEntrySeq`
-    (mkLabel head <*> body <*> mkBranch test) `addBlocks`
-    (mkLabel test <*> cbranch head endwhile)  `addExitSeq`
+  mkBranch test |*><*|
+    mkLabel head <*> body <*> mkBranch test |*><*|
+    mkLabel test <*> cbranch head endwhile  |*><*|
     mkLabel endwhile
 
 -------------------------------------
@@ -194,7 +206,7 @@ Emitting a Branch at this point is fine:
 
 
 instance Labels Label where
-  withFreshLabels f = freshLabel >>= f
+  withFreshLabels f = A $ freshLabel >>= (graphOfAGraph . f)
 
 instance (Labels l1, Labels l2) => Labels (l1, l2) where
   withFreshLabels f = withFreshLabels $ \l1 ->
@@ -215,9 +227,9 @@ instance (Labels l1, Labels l2, Labels l3, Labels l4) => Labels (l1, l2, l3, l4)
                       f (l1, l2, l3, l4)
 
 
-mkExit   block = return $ GMany NothingO      BodyEmpty (JustO block)
-mkEntry  block = return $ GMany (JustO block) BodyEmpty NothingO
+mkExit   block = A $ return $ GMany NothingO      BodyEmpty (JustO block)
+mkEntry  block = A $ return $ GMany (JustO block) BodyEmpty NothingO
 
 mkFirst  = mkExit  . BUnit
 mkLast   = mkEntry . BUnit
-mkMiddle = return  . GUnit . BUnit
+mkMiddle = A . return  . GUnit . BUnit

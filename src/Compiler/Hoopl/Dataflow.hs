@@ -69,7 +69,7 @@ import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
 import qualified Compiler.Hoopl.GraphUtil as U
 import Compiler.Hoopl.Label
-import Compiler.Hoopl.MkGraph (AGraph)
+import Compiler.Hoopl.MkGraph (AGraph, graphOfAGraph)
 
 
 -----------------------------------------------------------------------------
@@ -446,9 +446,3 @@ gwfCat (g1, fb1) (g2, fb2) = (g1 `U.gSplice` g2, fb1 `unionFactBase` fb2)
 bwfUnion :: BodyWithFacts n f -> BodyWithFacts n f -> BodyWithFacts n f
 bwfUnion (bg1, fb1) (bg2, fb2) = (bg1 `BodyCat` bg2, fb1 `unionFactBase` fb2)
 -}
-
------------------------------------------------------------------------------
-
-graphOfAGraph :: AGraph node e x -> FuelMonad (Graph node e x)
-graphOfAGraph ag = ag
-

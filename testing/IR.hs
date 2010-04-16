@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
-module IR (Proc (..), Insn (..), Expr (..), Lit (..), Value (..), BinOp(..), Var,
-           showG, showProc) where
+module IR (Proc (..), Insn (..), Expr (..), Lit (..), Value (..), BinOp(..), Var
+          , showProc) where
 
 import Prelude hiding (succ)
 
@@ -36,24 +36,7 @@ instance Edges Insn where
 showProc :: Proc -> String
 showProc proc = name proc ++ tuple (args proc) ++ graph
   where
-    graph  = " {\n" ++ showBody (body proc) ++ "}\n"
-
-showG :: Graph Insn e x -> String
-showG GNil = ""
-showG (GUnit block) = showB block
-showG (GMany g_entry g_blocks g_exit) =
-  showOpen showB g_entry ++ showBody g_blocks ++ showOpen showB g_exit
-
-showBody :: Body Insn -> String
-showBody blocks = concatMap showB (map snd $ bodyList blocks)
-
-showOpen :: (Block n e x -> String) -> MaybeO z (Block n e x) -> String
-showOpen _ NothingO  = ""
-showOpen p (JustO n) = p n
-
-showB :: Block Insn e x -> String
-showB (BUnit n)    = show n ++ "\n"
-showB (BCat b1 b2) = showB b1 ++ showB b2
+    graph  = " {\n" ++ showGraph show (GMany NothingO (body proc) NothingO) ++ "}\n"
 
 instance Show (Insn e x) where
   show (Label lbl)        = show lbl ++ ":"

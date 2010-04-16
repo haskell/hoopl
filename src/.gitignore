@@ -3,3 +3,4 @@
 *.o
 dist
 hoopl.pdf
+.config.*

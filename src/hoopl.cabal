@@ -1,5 +1,9 @@
 Name:                hoopl
+<<<<<<< HEAD:src/hoopl.cabal
 Version:             3.7.9.0
+=======
+Version:             3.7.10.0
+>>>>>>> master:src/hoopl.cabal
 Description:         Higher-order optimization library
 License:             BSD3
 License-file:        LICENSE
@@ -24,7 +28,7 @@ Library
                        Compiler.Hoopl.Dataflow, Compiler.Hoopl.Graph, 
                        Compiler.Hoopl.MkGraph,
                        Compiler.Hoopl.Fuel, Compiler.Hoopl.Label,
-                       Compiler.Hoopl.Util
+                       Compiler.Hoopl.Show, Compiler.Hoopl.Util
   ghc-options:       -Wall -fno-warn-name-shadowing
 
 

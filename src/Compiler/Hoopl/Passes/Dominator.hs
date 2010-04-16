@@ -13,15 +13,25 @@ import Data.Maybe
 import Compiler.Hoopl 
 
 type Doms = [Label] -- might hide this one day
+  -- represents part of the domination relation: each label
+  -- in a list is dominated by all its successors
 
 extendDom :: Label -> Doms -> Doms
 extendDom = (:)
 
 data DominatorNode = Entry | Labelled Label
 data DominatorTree = Dominates DominatorNode [DominatorTree]
-
 -- ^ This data structure is a *rose tree* in which each node may have
---  arbitrarily many children.
+--  arbitrarily many children.  Each node dominates all its descendants.
+
+{-
+Also, here is my mapping from a FactBase for dominator lists into a
+dominator tree.  I have *not* tested this code yet, so it may have
+bugs.  The key insight is this: to find lists that all have the same
+head, convert from a list of lists to a finite map, in 'children'.
+Then, to convert from the finite map to list of dominator trees,
+use the invariant that each key dominates all the lists of values.
+-}
 
 tree :: [(Label, Doms)] -> DominatorTree
 tree facts = Dominates Entry $ merge $ map reverse $ map (uncurry (:)) facts
