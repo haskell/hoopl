@@ -1,0 +1,68 @@
+Problems with polymorphic transfer functions on the left of an arrow
+using RankNTypes: 
+
+  - Can't easily write generic debugging code to show facts
+    propagating through a graph, because
+      . can't tell the shape of the node
+      . therefore can't tell the type of the facts
+
+  - Can't write a generic dominator analysis that assumes only (Edges n)
+
+  - Can't use default cases (or at least not easily) in the transfer
+    function
+
+  - Harder to reuse common predicate transformers like
+
+      - id
+      - distributeFacts :: Edges n => n -> f -> FactBase f
+        distributeFacts n f = mkFactBase [(l, f) | l <- successors n]
+
+
+
+----------------------------------
+Instructions given to NR's class:
+
+
+All,
+
+If you consult the type definition of FwdTransfer,
+you'll see that it requires a polymorphic function and uses a type 
+family which alters the types of arguments and results depending on
+the shape of a node.  If the type of a fact is 'f', then
+
+  - The predicate transformer for a closed/open node has type  f -> FactBase f
+  - The predicate transformer for an open/open node has type   f -> f
+  - The predicate transformer for an open/closed node has type FactBase f -> f
+
+Simon was very enamored of this interface, but it's clear that it
+imposes a heavy burden on clients:
+
+ 1. For a typical first node such as
+
+        LabelNode l
+
+    You'll have to capture the fact using
+
+        fromJust $ factLookup factbase l
+
+ 2. For a last node you may want something like
+
+        \f -> mkFactBase [(l, f) | l <- successors n]
+
+    Some last nodes may require more elaborate code.
+
+ 3. Because the function is both GADT and polymorphic, you can't
+    default any cases---every constructor has to be written
+    explicitly.  When you are doing this, but you don't care about the
+    constructor's arguments, it can be useful to use the record
+    wildcard syntax:
+
+       xfer (ArraySet {}) = id
+
+    This syntax matches any fully saturated application of ArraySet,
+    no matter how many arguments ArraySet expects.
+
+    
+
+
+Norman
