@@ -90,7 +90,7 @@ type JoinFun a = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
 newtype OldFact a = OldFact a
 newtype NewFact a = NewFact a
 
-data ChangeFlag = NoChange | SomeChange deriving (Ord)
+data ChangeFlag = NoChange | SomeChange deriving (Eq, Ord)
 changeIf :: Bool -> ChangeFlag
 changeIf changed = if changed then SomeChange else NoChange
 
