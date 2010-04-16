@@ -384,6 +384,10 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
        bottom
        the points above bottom
 
+* Even if the fact is going from UNR to bottom, we still call the
+  client's fact_extend function because it might give the client
+  some useful debugging information.
+
 * All of this only applies for *forward* fixpoints.  For the backward
   case we must treat every block as reachable; it might finish with a
   'return', and therefore have no successors, for example.
