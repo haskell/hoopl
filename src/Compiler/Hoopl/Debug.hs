@@ -8,21 +8,26 @@ where
 import Compiler.Hoopl.Dataflow
 
 --------------------------------------------------------------------------------
--- Debugging combinators:
+-- | Debugging combinators:
 -- Each combinator takes a dataflow pass and produces
 -- a dataflow pass that can output debugging messages.
 -- You provide the function, we call it with the applicable message.
 -- 
 -- The most common use case is probably to:
---  1. import Debug.Trace
---  2. pass trace as the 1st argument to the debug combinator
+--
+--   1. import 'Debug.Trace'
+--
+--   2. pass 'trace' as the 1st argument to the debug combinator
+--
+--   3. pass 'const true' as the 2nd argument to the debug combinator
 --------------------------------------------------------------------------------
 
 
-type TraceFn    = forall a . String -> a -> a
-type ChangePred = ChangeFlag -> Bool
 debugFwdJoins :: forall n f . Show f => TraceFn -> ChangePred -> FwdPass n f -> FwdPass n f
 debugBwdJoins :: forall n f . Show f => TraceFn -> ChangePred -> BwdPass n f -> BwdPass n f
+
+type TraceFn    = forall a . String -> a -> a
+type ChangePred = ChangeFlag -> Bool
 
 debugFwdJoins trace pred p = p { fp_lattice = debugJoins trace pred $ fp_lattice p }
 debugBwdJoins trace pred p = p { bp_lattice = debugJoins trace pred $ bp_lattice p }
