@@ -13,7 +13,7 @@ simplify = deepFwdRw simp
     simp insn _ = s insn >>= return . insnToA
     s :: Insn e x -> Maybe (Insn e x)
     s (Cond (Lit (Bool True))  t _) = Just $ Branch t
-    s (Cond (Lit (Bool False)) f _) = Just $ Branch f
+    s (Cond (Lit (Bool False)) _ f) = Just $ Branch f
     s n = map_EN (map_EE s_e) n
     s_e (Binop opr e1 e2)
       | (Just op, Lit (Int i1), Lit (Int i2)) <- (intOp opr, e1, e2) =

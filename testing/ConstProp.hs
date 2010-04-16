@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall -fno-warn-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
 {-# LANGUAGE ScopedTypeVariables, GADTs #-}
 module ConstProp (ConstFact, constLattice, initFact, varHasLit, constProp) where
 
@@ -24,7 +24,7 @@ constLattice = DataflowLattice
   }
   where
     constFactAdd :: JoinFun (WithTop Lit)
-    constFactAdd (OldFact old) (NewFact new) = (ch, joined)
+    constFactAdd _ (OldFact old) (NewFact new) = (ch, joined)
       where joined = if new == old then new else Top
             ch = if joined == old then NoChange else SomeChange
 
@@ -32,8 +32,8 @@ constLattice = DataflowLattice
 initFact :: [Var] -> ConstFact
 initFact vars = M.fromList $ [(v, Top) | v <- vars]
 
--- Only interesting semantic choice: I'm killing the values of the variables
--- at a call site.
+-- Only interesting semantic choice: values of variables are live across
+-- a call site.
 -- Note that we don't need a case for x := y, where y holds a constant.
 -- We can write the simplest solution and rely on the interleaved optimization.
 varHasLit :: FwdTransfer Insn ConstFact
@@ -47,7 +47,8 @@ varHasLit (Cond (Var x) tid fid) f = mkFactBase [(tid, tf), (fid, ff)]
         ff = M.insert x (bool False) f
         bool b = Elt (Bool b)
 varHasLit (Cond _ tid fid) f = mkFactBase [(tid, f), (fid, f)]
-varHasLit (Call _ _ _ bid) _ = mkFactBase [(bid, fact_bot constLattice)]
+varHasLit (Call vs _ _ bid) f = mkFactBase [(bid, foldl toTop f vs)]
+  where toTop f v = M.insert v Top f
 varHasLit (Return _)       _ = mkFactBase []
 
 -- Constant propagation: rewriting
