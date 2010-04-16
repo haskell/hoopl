@@ -62,7 +62,7 @@ module Compiler.Hoopl.Dataflow
   , BwdPass(..), BwdTransfer, BwdRewrite, BwdRes(..)
   , Fact
   , analyzeAndRewriteFwd, analyzeAndRewriteBwd
-  , arfGraph, normOO, normCC, normCO, normOC
+  , analyzeAndRewriteFwd'
   )
 where
 
@@ -124,6 +124,35 @@ analyzeAndRewriteFwd
 analyzeAndRewriteFwd pass body facts
   = do { (rg, _) <- arfBody pass body facts
        ; return (normaliseBody rg) }
+
+-- | if the graph being analyzed is open at the entry, there must
+--   be no other entry point, or all goes horribly wrong...
+analyzeAndRewriteFwd'
+   :: forall n f e x. Edges n
+   => FwdPass n f
+   -> Graph n e x -> Fact e f
+   -> FuelMonad (Graph n e x, FactBase f, MaybeO x f)
+analyzeAndRewriteFwd' pass g f =
+  do (rg, fout) <- arfGraph pass g f
+     let (g', fb) = normalizeGraph g rg
+     return (g', fb, distinguishedOutFact g' fout)
+
+distinguishedOutFact :: forall n e x f . Graph n e x -> Fact x f -> MaybeO x f
+distinguishedOutFact g f = maybe g
+    where maybe :: Graph n e x -> MaybeO x f
+          maybe GNil       = JustO f
+          maybe (GUnit {}) = JustO f
+          maybe (GMany _ _ x) = case x of NothingO -> NothingO
+                                          JustO _  -> JustO f
+
+normalizeGraph :: Edges n => Graph n e x -> RG n f e x -> GraphWithFacts n f e x
+normalizeGraph GNil = normOO
+normalizeGraph (GUnit {}) = normOO
+normalizeGraph (GMany NothingO  _ NothingO)  = normCC
+normalizeGraph (GMany (JustO _) _ NothingO)  = normOC
+normalizeGraph (GMany NothingO  _ (JustO _)) = normCO
+normalizeGraph (GMany (JustO _) _ (JustO _)) = normOO
+
 
 ----------------------------------------------------------------
 --       Forward Implementation
