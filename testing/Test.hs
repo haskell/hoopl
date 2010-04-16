@@ -55,7 +55,7 @@ optTest' file text =
          ; (body'', _) <- analyzeAndRewriteBwd bwd body' (mkFactBase [])
          ; return $ proc { body = body'' } }
     -- With debugging info: 
-    -- fwd  = debugFwdJoins trace $ FwdPass { fp_lattice = constLattice, fp_transfer = varHasLit
+    -- fwd  = debugFwdJoins trace (const True) $ FwdPass { fp_lattice = constLattice, fp_transfer = varHasLit
     --                                      , fp_rewrite = constProp `thenFwdRw` simplify }
     fwd  = FwdPass { fp_lattice = constLattice, fp_transfer = varHasLit
                    , fp_rewrite = constProp `thenFwdRw` simplify }
