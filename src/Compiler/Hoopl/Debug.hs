@@ -34,7 +34,7 @@ debugJoins trace l@(DataflowLattice {fact_extend = extend}) = l {fact_extend = e
      case extend l f1 f2 of
        res@(NoChange, _)    -> res
        res@(SomeChange, f') ->
-         trace ("Join@" ++ show l ++ ": " ++ show of1 ++ " + " ++ show nf2 ++ " = " ++ show f') res
+         trace ("Join@" ++ show l ++ ": " ++ show of1 ++ " |_| " ++ show nf2 ++ " = " ++ show f') res
 
 --------------------------------------------------------------------------------
 -- Functions we'd like to have, but don't know how to implement generically:
