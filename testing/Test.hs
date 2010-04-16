@@ -63,7 +63,7 @@ optTest file =
   do text    <- readFile file
      case optTest' file text of
        Left err -> putStrLn err
-       Right p  -> mapM (putStrLn . showProc) (runWithFuel fuel p) >> return ()
+       Right p  -> mapM_ (putStrLn . showProc) (runWithFuel fuel p)
   where
     fuel = 99999
 
