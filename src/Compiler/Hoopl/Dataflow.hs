@@ -62,6 +62,7 @@ module Compiler.Hoopl.Dataflow
   , BwdPass(..), BwdTransfer, BwdRewrite, BwdRes(..)
   , Fact
   , analyzeAndRewriteFwd, analyzeAndRewriteBwd
+  , arfGraph, normOO, normCC, normCO, normOC
   )
 where
 
