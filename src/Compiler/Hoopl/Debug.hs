@@ -28,7 +28,6 @@ debugFwdJoins trace pred p = p { fp_lattice = debugJoins trace pred $ fp_lattice
 debugBwdJoins trace pred p = p { bp_lattice = debugJoins trace pred $ bp_lattice p }
 
 debugJoins :: Show f => TraceFn -> ChangePred -> DataflowLattice f -> DataflowLattice f
--- JoinFun a -> JoinFun a 
 debugJoins trace showOutput l@(DataflowLattice {fact_extend = extend}) = l {fact_extend = extend'}
   where
    extend' l f1@(OldFact of1) f2@(NewFact nf2) =
