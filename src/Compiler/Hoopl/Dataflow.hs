@@ -84,7 +84,8 @@ data DataflowLattice a = DataflowLattice
  , fact_do_logging :: Bool            -- log changes
  }
 
-type JoinFun a = OldFact a -> NewFact a -> (ChangeFlag, a)
+type JoinFun a = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
+  -- the label argument is for debugging purposes only
 newtype OldFact a = OldFact a
 newtype NewFact a = NewFact a
 
@@ -302,10 +303,11 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
   | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
   | otherwise               = (cha,        new_fbase)
   where
-    (cha2, res_fact) 
+    (cha2, res_fact) -- Note [Unreachable blocks]
        = case lookupFact fbase lbl of
-           Nothing -> (SomeChange, new_fact)  -- Note [Unreachable blocks]
-           Just old_fact -> fact_extend lat (OldFact old_fact) (NewFact new_fact)
+           Nothing -> (SomeChange, snd $ join $ fact_bot lat)  -- Note [Unreachable blocks]
+           Just old_fact -> join old_fact
+         where join old_fact = fact_extend lat lbl (OldFact old_fact) (NewFact new_fact)
     new_fbase = extendFactBase fbase lbl res_fact
 
 fixpoint :: forall n f. Edges n
@@ -381,6 +383,10 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
        UNR
        bottom
        the points above bottom
+
+* Even if the fact is going from UNR to bottom, we still call the
+  client's fact_extend function because it might give the client
+  some useful debugging information.
 
 * All of this only applies for *forward* fixpoints.  For the backward
   case we must treat every block as reachable; it might finish with a

@@ -20,12 +20,12 @@ data WithTop a = Elt a | Top deriving (Eq, Show)
 -- operation on the map can be expressed in terms of the join
 -- on each element:
 stdMapJoin :: Ord k => JoinFun v -> JoinFun (M.Map k v)
-stdMapJoin eltJoin (OldFact old) (NewFact new) = M.foldWithKey add (NoChange, old) new
+stdMapJoin eltJoin l (OldFact old) (NewFact new) = M.foldWithKey add (NoChange, old) new
   where 
     add k new_v (ch, joinmap) =
       case M.lookup k joinmap of
         Nothing    -> (SomeChange, M.insert k new_v joinmap)
-        Just old_v -> case eltJoin (OldFact old_v) (NewFact new_v) of
+        Just old_v -> case eltJoin l (OldFact old_v) (NewFact new_v) of
                         (SomeChange, v') -> (SomeChange, M.insert k v' joinmap)
                         (NoChange,   _)  -> (ch, joinmap)
 
@@ -65,7 +65,7 @@ map_EE f e@(Binop op e1 e2) =
 map_EN _   (Label _)           = Nothing
 map_EN f   (Assign v e)        = fmap (Assign v) $ f e
 map_EN f   (Store addr e)      =
-  case (map_EE f addr, map_EE f e) of
+  case (f addr, f e) of
     (Nothing, Nothing) -> Nothing
     (addr', e') -> Just $ Store (fromMaybe addr addr') (fromMaybe e e')
 map_EN _   (Branch _)          = Nothing

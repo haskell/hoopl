@@ -7,6 +7,7 @@ import Control.Monad.Error
 
 import Ast2ir
 import ConstProp
+import Debug.Trace
 import Eval  (evalProg, ErrorM)
 import IR
 import Live
@@ -53,10 +54,13 @@ optTest' file text =
       do { (body', _)  <- analyzeAndRewriteFwd fwd body  (mkFactBase [(entry, initFact args)])
          ; (body'', _) <- analyzeAndRewriteBwd bwd body' (mkFactBase [])
          ; return $ proc { body = body'' } }
-    fwd  = FwdPass { fp_lattice = constLattice, fp_transfer = varHasLit,
-                     fp_rewrite = constProp `thenFwdRw` simplify }
-    bwd  = BwdPass { bp_lattice = liveLattice, bp_transfer = liveness,
-                     bp_rewrite = deadAsstElim }
+    -- With debugging info: 
+    -- fwd  = debugFwdJoins trace $ FwdPass { fp_lattice = constLattice, fp_transfer = varHasLit
+    --                                      , fp_rewrite = constProp `thenFwdRw` simplify }
+    fwd  = FwdPass { fp_lattice = constLattice, fp_transfer = varHasLit
+                   , fp_rewrite = constProp `thenFwdRw` simplify }
+    bwd  = BwdPass { bp_lattice = liveLattice, bp_transfer = liveness
+                   , bp_rewrite = deadAsstElim }
 
 optTest :: String -> IO ()
 optTest file =
