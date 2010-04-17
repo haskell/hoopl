@@ -15,7 +15,8 @@ Extra-source-files:  README, hoopl.pdf, CHANGES
 
 Library
   Build-Depends:     base >= 3 && < 5, containers
-  Exposed-modules:   Compiler.Hoopl
+  Exposed-modules:   Compiler.Hoopl,
+                       Compiler.Hoopl.Zipper
   Other-modules:     Compiler.Hoopl.GraphUtil,
                      -- GraphUtil should *never* be seen by clients.
                      -- The remaining modules are hidden *provisionally*
