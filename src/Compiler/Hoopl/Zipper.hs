@@ -2,6 +2,7 @@
 
 module Compiler.Hoopl.Zipper
   ( ZBlock(..), ZGraph, ZBody
+  , frontBiasBlock, backBiasBlock
   )
 where
 
