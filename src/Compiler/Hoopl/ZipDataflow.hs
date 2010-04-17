@@ -158,8 +158,16 @@ arfNode bunit pass node f
                                      ; let pass' = pass { fp_rewrite = rw }
                                      ; arfGraph pass' g f } }
 
+-- type demonstration
+_arfBlock :: Edges n => ARF' n f (ZBlock n) e x
+_arfBlock = arfBlock
+_arfGraph :: Edges n => ARF' n f (ZGraph n) e x
+_arfGraph = arfGraph
+
+
 arfMiddle :: Edges n => ARF' n f n O O
 arfMiddle = arfNode ZMiddle
+
 
 arfBlock :: Edges n => ARF (ZBlock n) n
 -- Lift from nodes to blocks
@@ -171,8 +179,8 @@ arfBlock pass (ZHead h n)     = arfCat arfBlock  arfMiddle pass h n
 arfBlock pass (ZTail n t)     = arfCat arfMiddle arfBlock  pass n t
 arfBlock pass (ZClosed h t)   = arfCat arfBlock  arfBlock  pass h t
 
-arfCat :: Edges n => ARF' n f t1 e O -> ARF' n f t2 O x
-       -> FwdPass n f -> t1 e O -> t2 O x
+arfCat :: Edges n => ARF' n f thing1 e O -> ARF' n f thing2 O x
+       -> FwdPass n f -> thing1 e O -> thing2 O x
        -> Fact e f -> FuelMonad (RG n f e x, Fact x f)
 arfCat arf1 arf2 pass thing1 thing2 f = do { (g1,f1) <- arf1 pass thing1 f
                                            ; (g2,f2) <- arf2 pass thing2 f1
@@ -268,8 +276,8 @@ arbBlock pass (ZHead h n)     = arbCat arbBlock  arbMiddle pass h n
 arbBlock pass (ZTail n t)     = arbCat arbMiddle arbBlock  pass n t
 arbBlock pass (ZClosed h t)   = arbCat arbBlock  arbBlock  pass h t
 
-arbCat :: Edges n => ARB' n f t1 e O -> ARB' n f t2 O x
-       -> BwdPass n f -> t1 e O -> t2 O x
+arbCat :: Edges n => ARB' n f thing1 e O -> ARB' n f thing2 O x
+       -> BwdPass n f -> thing1 e O -> thing2 O x
        -> Fact x f -> FuelMonad (RG n f e x, Fact e f)
 arbCat arb1 arb2 pass thing1 thing2 f = do { (g2,f2) <- arb2 pass thing2 f
                                            ; (g1,f1) <- arb1 pass thing1 f2
