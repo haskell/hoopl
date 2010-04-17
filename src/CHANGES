@@ -1,3 +1,9 @@
+3.7.12.1
+
+  - Added a bunch of zipper experiments.
+  - Existing clients should not be affected.
+
+
 3.7.12.0
 
   - More expressive debugging support
