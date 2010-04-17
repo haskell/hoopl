@@ -55,44 +55,29 @@ This was made possible by
 * I renamed BlockId to Label
 -}
 
-module Compiler.Hoopl.Dataflow 
-  ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..)
-  , ChangeFlag(..), changeIf
-  , FwdPass(..),  FwdTransfer, FwdRewrite, FwdRes(..)
+module Compiler.Hoopl.ZipDataflow 
+  ( FwdPass(..),  FwdTransfer, FwdRewrite, FwdRes(..)
   , BwdPass(..), BwdTransfer, BwdRewrite, BwdRes(..)
-  , Fact
   , analyzeAndRewriteFwd,  analyzeAndRewriteBwd
   , analyzeAndRewriteFwd', analyzeAndRewriteBwd'
   )
 where
 
+import Compiler.Hoopl.Dataflow 
+           ( DataflowLattice(..), OldFact(..), NewFact(..)
+           , ChangeFlag(..)
+           , Fact
+           )
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
 import qualified Compiler.Hoopl.GraphUtil as U
 import Compiler.Hoopl.Label
-import Compiler.Hoopl.MkGraph (AGraph, graphOfAGraph)
 import Compiler.Hoopl.Util
+import Compiler.Hoopl.Zipper
 
------------------------------------------------------------------------------
---		DataflowLattice
------------------------------------------------------------------------------
-
-data DataflowLattice a = DataflowLattice  
- { fact_name       :: String          -- Documentation
- , fact_bot        :: a               -- Lattice bottom element
- , fact_extend     :: JoinFun a       -- Lattice join plus change flag
-                                      -- (changes iff result > old fact)
- , fact_do_logging :: Bool            -- log changes
- }
-
-type JoinFun a = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
-  -- the label argument is for debugging purposes only
-newtype OldFact a = OldFact a
-newtype NewFact a = NewFact a
-
-data ChangeFlag = NoChange | SomeChange deriving (Eq, Ord)
-changeIf :: Bool -> ChangeFlag
-changeIf changed = if changed then SomeChange else NoChange
+type AGraph n e x = FuelMonad (ZGraph n e x)
+graphOfAGraph :: AGraph n e x -> FuelMonad (ZGraph n e x)
+graphOfAGraph = id
 
 -----------------------------------------------------------------------------
 --		Analyze and rewrite forward: the interface
@@ -111,15 +96,11 @@ type FwdRewrite n f
 data FwdRes n f e x = FwdRes (AGraph n e x) (FwdRewrite n f)
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
-type family   Fact x f :: *
-type instance Fact C f = FactBase f
-type instance Fact O f = f
-
 analyzeAndRewriteFwd
    :: forall n f. Edges n
    => FwdPass n f
-   -> Body n -> FactBase f
-   -> FuelMonad (Body n, FactBase f)
+   -> ZBody n -> FactBase f
+   -> FuelMonad (ZBody n, FactBase f)
 
 analyzeAndRewriteFwd pass body facts
   = do { (rg, _) <- arfBody pass body facts
@@ -130,22 +111,22 @@ analyzeAndRewriteFwd pass body facts
 analyzeAndRewriteFwd'
    :: forall n f e x. Edges n
    => FwdPass n f
-   -> Graph n e x -> Fact e f
-   -> FuelMonad (Graph n e x, FactBase f, MaybeO x f)
+   -> ZGraph n e x -> Fact e f
+   -> FuelMonad (ZGraph n e x, FactBase f, MaybeO x f)
 analyzeAndRewriteFwd' pass g f =
   do (rg, fout) <- arfGraph pass g f
      let (g', fb) = normalizeGraph g rg
      return (g', fb, distinguishedExitFact g' fout)
 
-distinguishedExitFact :: forall n e x f . Graph n e x -> Fact x f -> MaybeO x f
+distinguishedExitFact :: forall n e x f . ZGraph n e x -> Fact x f -> MaybeO x f
 distinguishedExitFact g f = maybe g
-    where maybe :: Graph n e x -> MaybeO x f
+    where maybe :: ZGraph n e x -> MaybeO x f
           maybe GNil       = JustO f
           maybe (GUnit {}) = JustO f
           maybe (GMany _ _ x) = case x of NothingO -> NothingO
                                           JustO _  -> JustO f
 
-normalizeGraph :: Edges n => Graph n e x -> RG n f e x -> GraphWithFacts n f e x
+normalizeGraph :: Edges n => ZGraph n e x -> RG n f e x -> GraphWithFacts n f e x
 normalizeGraph GNil = normOO
 normalizeGraph (GUnit {}) = normOO
 normalizeGraph (GMany NothingO  _ NothingO)  = normCC
@@ -159,29 +140,54 @@ normalizeGraph (GMany (JustO _) _ (JustO _)) = normOO
 ----------------------------------------------------------------
 
 
-type ARF thing n 
-  = forall f e x. FwdPass n f -> thing e x 
-               -> Fact e f -> FuelMonad (RG n f e x, Fact x f)
+type ARF' n f thing e x
+  = FwdPass n f -> thing e x -> Fact e f -> FuelMonad (RG n f e x, Fact x f)
 
-arfNode :: Edges n => ARF n n
-arfNode pass node f
+type ARF thing n = forall f e x . ARF' n f thing e x
+
+
+arfNode :: Edges n
+        => (n e x -> ZBlock n e x)
+        -> ARF' n f n e x
+arfNode bunit pass node f
   = do { mb_g <- withFuel (fp_rewrite pass node f)
        ; case mb_g of
-           Nothing -> return (RGUnit f (BUnit node),
+           Nothing -> return (RGUnit f (bunit node),
                               fp_transfer pass node f)
       	   Just (FwdRes ag rw) -> do { g <- graphOfAGraph ag
                                      ; let pass' = pass { fp_rewrite = rw }
                                      ; arfGraph pass' g f } }
 
-arfBlock :: Edges n => ARF (Block n) n
--- Lift from nodes to blocks
-arfBlock pass (BUnit node)   f = arfNode pass node f
-arfBlock pass (BCat hd mids) f = do { (g1,f1) <- arfBlock pass hd   f  
-                                    ; (g2,f2) <- arfBlock pass mids f1 
-	                            ; return (g1 `RGCatO` g2, f2) }
+-- type demonstration
+_arfBlock :: Edges n => ARF' n f (ZBlock n) e x
+_arfBlock = arfBlock
+_arfGraph :: Edges n => ARF' n f (ZGraph n) e x
+_arfGraph = arfGraph
 
+
+arfMiddle :: Edges n => ARF' n f n O O
+arfMiddle = arfNode ZMiddle
+
+
+arfBlock :: Edges n => ARF (ZBlock n) n
+-- Lift from nodes to blocks
+arfBlock pass (ZFirst  node)  = arfNode ZFirst  pass node
+arfBlock pass (ZMiddle node)  = arfNode ZMiddle pass node
+arfBlock pass (ZLast   node)  = arfNode ZLast   pass node
+arfBlock pass (ZCat b1 b2)    = arfCat arfBlock  arfBlock  pass b1 b2
+arfBlock pass (ZHead h n)     = arfCat arfBlock  arfMiddle pass h n
+arfBlock pass (ZTail n t)     = arfCat arfMiddle arfBlock  pass n t
+arfBlock pass (ZClosed h t)   = arfCat arfBlock  arfBlock  pass h t
+
+arfCat :: Edges n => ARF' n f thing1 e O -> ARF' n f thing2 O x
+       -> FwdPass n f -> thing1 e O -> thing2 O x
+       -> Fact e f -> FuelMonad (RG n f e x, Fact x f)
+arfCat arf1 arf2 pass thing1 thing2 f = do { (g1,f1) <- arf1 pass thing1 f
+                                           ; (g2,f2) <- arf2 pass thing2 f1
+                                           ; return (g1 `RGCatO` g2, f2) }
 arfBody :: Edges n
-        => FwdPass n f -> Body n -> FactBase f
+                  
+        => FwdPass n f -> ZBody n -> FactBase f
         -> FuelMonad (RG n f C C, FactBase f)
 		-- Outgoing factbase is restricted to Labels *not* in
 		-- in the Body; the facts for Labels *in*
@@ -190,7 +196,7 @@ arfBody pass blocks init_fbase
   = fixpoint True (fp_lattice pass) (arfBlock pass) init_fbase $
     forwardBlockList (factBaseLabels init_fbase) blocks
 
-arfGraph :: Edges n => ARF (Graph n) n
+arfGraph :: Edges n => ARF (ZGraph n) n
 -- Lift from blocks to graphs
 arfGraph _    GNil        f = return (RGNil, f)
 arfGraph pass (GUnit blk) f = arfBlock pass blk f
@@ -212,7 +218,7 @@ arfGraph pass (GMany (JustO entry) body (JustO exit)) f
        ; return (entry' `RGCatC` body' `RGCatC` exit', fx) }
 
 forwardBlockList :: (Edges n, LabelsPtr entry)
-                 => entry -> Body n -> [Block n C C]
+                 => entry -> ZBody n -> [ZBlock n C C]
 -- This produces a list of blocks in order suitable for forward analysis,
 -- along with the list of Labels it may depend on for facts.
 forwardBlockList entries blks = postorder_dfs_from (bodyMap blks) entries
@@ -236,39 +242,55 @@ data BwdRes n f e x = BwdRes (AGraph n e x) (BwdRewrite n f)
 --		Backward implementation
 -----------------------------------------------------------------------------
 
-type ARB thing n 
-  = forall f e x. BwdPass n f -> thing e x
-               -> Fact x f -> FuelMonad (RG n f e x, Fact e f)
+type ARB' n f thing e x
+  = BwdPass n f -> thing e x -> Fact x f -> FuelMonad (RG n f e x, Fact e f)
 
-arbNode :: Edges n => ARB n n
+type ARB thing n = forall f e x. ARB' n f thing e x 
+
+arbNode :: Edges n
+        => (n e x -> ZBlock n e x)
+        -> ARB' n f n e x
 -- Lifts (BwdTransfer,BwdRewrite) to ARB_Node; 
 -- this time we do rewriting as well. 
 -- The ARB_Graph parameters specifies what to do with the rewritten graph
-arbNode pass node f
+arbNode bunit pass node f
   = do { mb_g <- withFuel (bp_rewrite pass node f)
        ; case mb_g of
-           Nothing -> return (RGUnit entry_f (BUnit node), entry_f)
+           Nothing -> return (RGUnit entry_f (bunit node), entry_f)
                     where
                       entry_f = bp_transfer pass node f
       	   Just (BwdRes ag rw) -> do { g <- graphOfAGraph ag
                                      ; let pass' = pass { bp_rewrite = rw }
                                      ; arbGraph pass' g f} }
 
-arbBlock :: Edges n => ARB (Block n) n 
+arbMiddle :: Edges n => ARB' n f n O O
+arbMiddle = arbNode ZMiddle
+
+arbBlock :: Edges n => ARB (ZBlock n) n
 -- Lift from nodes to blocks
-arbBlock pass (BUnit node) f = arbNode pass node f
-arbBlock pass (BCat b1 b2) f = do { (g2,f2) <- arbBlock pass b2 f
-                                  ; (g1,f1) <- arbBlock pass b1 f2
-	                          ; return (g1 `RGCatO` g2, f1) }
+arbBlock pass (ZFirst  node)  = arbNode ZFirst  pass node
+arbBlock pass (ZMiddle node)  = arbNode ZMiddle pass node
+arbBlock pass (ZLast   node)  = arbNode ZLast   pass node
+arbBlock pass (ZCat b1 b2)    = arbCat arbBlock  arbBlock  pass b1 b2
+arbBlock pass (ZHead h n)     = arbCat arbBlock  arbMiddle pass h n
+arbBlock pass (ZTail n t)     = arbCat arbMiddle arbBlock  pass n t
+arbBlock pass (ZClosed h t)   = arbCat arbBlock  arbBlock  pass h t
+
+arbCat :: Edges n => ARB' n f thing1 e O -> ARB' n f thing2 O x
+       -> BwdPass n f -> thing1 e O -> thing2 O x
+       -> Fact x f -> FuelMonad (RG n f e x, Fact e f)
+arbCat arb1 arb2 pass thing1 thing2 f = do { (g2,f2) <- arb2 pass thing2 f
+                                           ; (g1,f1) <- arb1 pass thing1 f2
+                                           ; return (g1 `RGCatO` g2, f1) }
 
 arbBody :: Edges n
-        => BwdPass n f -> Body n -> FactBase f
+        => BwdPass n f -> ZBody n -> FactBase f
         -> FuelMonad (RG n f C C, FactBase f)
 arbBody pass blocks init_fbase
   = fixpoint False (bp_lattice pass) (arbBlock pass) init_fbase $
     backwardBlockList blocks 
 
-arbGraph :: Edges n => ARB (Graph n) n
+arbGraph :: Edges n => ARB (ZGraph n) n
 arbGraph _    GNil        f = return (RGNil, f)
 arbGraph pass (GUnit blk) f = arbBlock pass blk f
 arbGraph pass (GMany NothingO body NothingO) f
@@ -288,7 +310,7 @@ arbGraph pass (GMany (JustO entry) body (JustO exit)) f
        ; (entry', fe) <- arbBlock pass entry fb
        ; return (entry' `RGCatC` body' `RGCatC` exit', fe) }
 
-backwardBlockList :: Edges n => Body n -> [Block n C C]
+backwardBlockList :: Edges n => ZBody n -> [ZBlock n C C]
 -- This produces a list of blocks in order suitable for backward analysis,
 -- along with the list of Labels it may depend on for facts.
 backwardBlockList body = reachable ++ missing
@@ -337,8 +359,8 @@ NR
 analyzeAndRewriteBwd
    :: forall n f. Edges n
    => BwdPass n f 
-   -> Body n -> FactBase f 
-   -> FuelMonad (Body n, FactBase f)
+   -> ZBody n -> FactBase f 
+   -> FuelMonad (ZBody n, FactBase f)
 
 analyzeAndRewriteBwd pass body facts
   = do { (rg, _) <- arbBody pass body facts
@@ -349,21 +371,20 @@ analyzeAndRewriteBwd pass body facts
 analyzeAndRewriteBwd'
    :: forall n f e x. Edges n
    => BwdPass n f
-   -> Graph n e x -> Fact x f
-   -> FuelMonad (Graph n e x, FactBase f, MaybeO e f)
+   -> ZGraph n e x -> Fact x f
+   -> FuelMonad (ZGraph n e x, FactBase f, MaybeO e f)
 analyzeAndRewriteBwd' pass g f =
   do (rg, fout) <- arbGraph pass g f
      let (g', fb) = normalizeGraph g rg
      return (g', fb, distinguishedEntryFact g' fout)
 
-distinguishedEntryFact :: forall n e x f . Graph n e x -> Fact e f -> MaybeO e f
+distinguishedEntryFact :: forall n e x f . ZGraph n e x -> Fact e f -> MaybeO e f
 distinguishedEntryFact g f = maybe g
-    where maybe :: Graph n e x -> MaybeO e f
+    where maybe :: ZGraph n e x -> MaybeO e f
           maybe GNil       = JustO f
           maybe (GUnit {}) = JustO f
           maybe (GMany e _ _) = case e of NothingO -> NothingO
                                           JustO _  -> JustO f
-
 
 -----------------------------------------------------------------------------
 --      fixpoint: finding fixed points
@@ -398,32 +419,32 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
          where join old_fact = fact_extend lat lbl (OldFact old_fact) (NewFact new_fact)
     new_fbase = extendFactBase fbase lbl res_fact
 
-fixpoint :: forall n f. Edges n
+fixpoint :: forall block n f. Edges (block n)
          => Bool	-- Going forwards?
          -> DataflowLattice f
-         -> (Block n C C -> FactBase f
+         -> (block n C C -> FactBase f
               -> FuelMonad (RG n f C C, FactBase f))
          -> FactBase f 
-         -> [Block n C C]
+         -> [block n C C]
          -> FuelMonad (RG n f C C, FactBase f)
 fixpoint is_fwd lat do_block init_fbase untagged_blocks
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
                  tfb_fbase tx_fb `delFromFactBase` map fst blocks) }
-	     -- The successors of the Graph are the the Labels for which
+	     -- The successors of the ZGraph are the the Labels for which
 	     -- we have facts, that are *not* in the blocks of the graph
   where
     blocks = map tag untagged_blocks
      where tag b = ((entryLabel b, b), if is_fwd then [entryLabel b] else successors b)
 
-    tx_blocks :: [((Label, Block n C C), [Label])]   -- I do not understand this type
+    tx_blocks :: [((Label, block n C C), [Label])]   -- I do not understand this type
               -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_blocks []              tx_fb = return tx_fb
     tx_blocks (((lbl,blk), deps):bs) tx_fb = tx_block lbl blk deps tx_fb >>= tx_blocks bs
      -- "deps" == Labels the block may _depend_ upon for facts
 
-    tx_block :: Label -> Block n C C -> [Label]
+    tx_block :: Label -> block n C C -> [Label]
              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_block lbl blk deps tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                                       , tfb_rg = blks, tfb_cha = cha })
@@ -491,17 +512,18 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 -----------------------------------------------------------------------------
 
 -- this type exists because we have not yet found a way to write arfNode
--- to return a Graph; the invariants of Graph seem too strong
+-- to return a Graph; the invariants of ZGraph seem too strong
 
-data RG n f e x where
-  RGNil   :: RG n f a a
-  RGUnit  :: Fact e f -> Block n e x -> RG n f e x
-  RGCatO  :: RG n f e O -> RG n f O x -> RG n f e x
-  RGCatC  :: RG n f e C -> RG n f C x -> RG n f e x
+data RG' block n f e x where
+  RGNil   :: RG' block n f a a
+  RGUnit  :: Fact e f -> block n e x -> RG' block n f e x
+  RGCatO  :: RG' block n f e O -> RG' block n f O x -> RG' block n f e x
+  RGCatC  :: RG' block n f e C -> RG' block n f C x -> RG' block n f e x
+type RG = RG' ZBlock
 
-type BodyWithFacts  n f     = (Body n, FactBase f)
-type GraphWithFacts n f e x = (Graph n e x, FactBase f)
-  -- A Graph together with the facts for that graph
+type BodyWithFacts  n f     = (ZBody n, FactBase f)
+type GraphWithFacts n f e x = (ZGraph n e x, FactBase f)
+  -- A ZGraph together with the facts for that graph
   -- The domains of the two maps should be identical
 
 normaliseBody :: Edges n => RG n f C C -> BodyWithFacts n f
@@ -538,7 +560,7 @@ normCC (RGCatC g1 g2) = normCC g1 `gwfCat` normCC g2
 gwfCat :: Edges n => GraphWithFacts n f e a
                   -> GraphWithFacts n f a x 
                   -> GraphWithFacts n f e x
-gwfCat (g1, fb1) (g2, fb2) = (g1 `U.gSplice` g2, fb1 `unionFactBase` fb2)
+gwfCat (g1, fb1) (g2, fb2) = (g1 `U.zSplice` g2, fb1 `unionFactBase` fb2)
 
 {-
 bwfUnion :: BodyWithFacts n f -> BodyWithFacts n f -> BodyWithFacts n f

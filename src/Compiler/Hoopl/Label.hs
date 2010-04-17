@@ -74,36 +74,40 @@ delFromFactBase :: FactBase f -> [(Label,a)] -> FactBase f
 delFromFactBase fb blks = foldr (M.delete . unLabel . fst) fb blks
 
 ----------------------
-type LabelSet = S.IntSet -- ought to be a newtype or we expose the rep...
+newtype LabelSet = LS { unLS :: S.IntSet }
 
 emptyLabelSet :: LabelSet
-emptyLabelSet = S.empty
+emptyLabelSet = LS S.empty
 
 extendLabelSet :: LabelSet -> Label -> LabelSet
-extendLabelSet lbls (Label bid) = S.insert bid lbls
+extendLabelSet lbls (Label bid) = LS $ S.insert bid $ unLS lbls
 
 reduceLabelSet :: LabelSet -> Label -> LabelSet
-reduceLabelSet lbls (Label bid) = S.delete bid lbls
+reduceLabelSet lbls (Label bid) = LS $ S.delete bid $ unLS lbls
 
 elemLabelSet :: Label -> LabelSet -> Bool
-elemLabelSet (Label bid) lbls = S.member bid lbls
+elemLabelSet (Label bid) lbls = S.member bid (unLS lbls)
 
 labelSetElems :: LabelSet -> [Label]
-labelSetElems = map Label . S.toList
+labelSetElems = map Label . S.toList . unLS
+
+set2 :: (S.IntSet -> S.IntSet -> S.IntSet)
+     -> (LabelSet -> LabelSet -> LabelSet)
+set2 f (LS ls) (LS ls') = LS (f ls ls')
 
 minusLabelSet :: LabelSet -> LabelSet -> LabelSet
-minusLabelSet = S.difference
+minusLabelSet = set2 S.difference
 
 unionLabelSet :: LabelSet -> LabelSet -> LabelSet
-unionLabelSet = S.union
+unionLabelSet = set2 S.union
 
 interLabelSet :: LabelSet -> LabelSet -> LabelSet
-interLabelSet = S.intersection
+interLabelSet = set2 S.intersection
 
 sizeLabelSet :: LabelSet -> Int
-sizeLabelSet = S.size
+sizeLabelSet = S.size . unLS
 
 mkLabelSet :: [Label] -> LabelSet
-mkLabelSet = S.fromList . map unLabel
+mkLabelSet = LS . S.fromList . map unLabel
 
 
