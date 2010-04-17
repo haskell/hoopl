@@ -47,17 +47,17 @@ gSplice = splice BCat
 zSplice = splice zCat
 
 zCat :: ZBlock n e O -> ZBlock n O x -> ZBlock n e x
-zCat b1@(ZFirst {})  b2@(ZMiddle n)  = ZHead   b1 n
+zCat b1@(ZFirst {})     (ZMiddle n)  = ZHead   b1 n
 zCat b1@(ZFirst {})  b2@(ZLast{})    = ZClosed b1 b2
 zCat b1@(ZFirst {})  b2@(ZTail{})    = ZClosed b1 b2
 zCat b1@(ZFirst {})     (ZCat b2 b3) = (b1 `zCat` b2) `zCat` b3
 zCat b1@(ZHead {})      (ZCat b2 b3) = (b1 `zCat` b2) `zCat` b3
-zCat b1@(ZHead {})   b2@(ZMiddle n)  = ZHead   b1 n
+zCat b1@(ZHead {})      (ZMiddle n)  = ZHead   b1 n
 zCat b1@(ZHead {})   b2@(ZLast{})    = ZClosed b1 b2
 zCat b1@(ZHead {})   b2@(ZTail{})    = ZClosed b1 b2
-zCat b1@(ZMiddle n)  b2@(ZLast{})    = ZTail    n b2
+zCat    (ZMiddle n)  b2@(ZLast{})    = ZTail    n b2
 zCat b1@(ZMiddle {}) b2@(ZCat{})     = ZCat    b1 b2
-zCat b1@(ZMiddle n)  b2@(ZTail{})    = ZTail    n b2
+zCat    (ZMiddle n)  b2@(ZTail{})    = ZTail    n b2
 zCat    (ZCat b1 b2) b3@(ZLast{})    = b1 `zCat` (b2 `zCat` b3)
 zCat    (ZCat b1 b2) b3@(ZTail{})    = b1 `zCat` (b2 `zCat` b3)
 zCat b1@(ZCat {})    b2@(ZCat{})     = ZCat    b1 b2
