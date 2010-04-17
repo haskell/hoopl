@@ -57,15 +57,15 @@ This was made possible by
 
 module Compiler.Hoopl.ZipDataflow 
   ( FwdPass(..),  FwdTransfer, FwdRewrite, FwdRes(..)
---  , BwdPass(..), BwdTransfer, BwdRewrite, BwdRes(..)
-  , analyzeAndRewriteFwd --,  -- analyzeAndRewriteBwd
-  , analyzeAndRewriteFwd' --, -- analyzeAndRewriteBwd'
+  , BwdPass(..), BwdTransfer, BwdRewrite, BwdRes(..)
+  , analyzeAndRewriteFwd,  analyzeAndRewriteBwd
+  , analyzeAndRewriteFwd', analyzeAndRewriteBwd'
   )
 where
 
 import Compiler.Hoopl.Dataflow 
-           ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..)
-           , ChangeFlag(..), changeIf
+           ( DataflowLattice(..), OldFact(..), NewFact(..)
+           , ChangeFlag(..)
            , Fact
            )
 import Compiler.Hoopl.Fuel
