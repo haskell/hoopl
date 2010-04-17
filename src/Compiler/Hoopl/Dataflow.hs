@@ -71,7 +71,7 @@ import Compiler.Hoopl.Graph
 import qualified Compiler.Hoopl.GraphUtil as U
 import Compiler.Hoopl.Label
 import Compiler.Hoopl.MkGraph (AGraph, graphOfAGraph)
-
+import Compiler.Hoopl.Util
 
 -----------------------------------------------------------------------------
 --		DataflowLattice
@@ -211,13 +211,12 @@ arfGraph pass (GMany (JustO entry) body (JustO exit)) f
        ; (exit', fx)  <- arfBlock pass exit fb
        ; return (entry' `RGCatC` body' `RGCatC` exit', fx) }
 
-forwardBlockList :: Edges n => [Label] -> Body n -> [((Label,Block n C C), [Label])]
+forwardBlockList :: (Edges n, LabelsPtr entry)
+                 => entry -> Body n -> [((Label,Block n C C), [Label])]
 -- This produces a list of blocks in order suitable for forward analysis,
 -- along with the list of Labels it may depend on for facts.
--- ToDo: Do a topological sort to improve convergence rate of fixpoint
---       This will require a (HavingSuccessors l) class constraint
-forwardBlockList  _ blks = map withLbl $ bodyList blks
-  where withLbl (l, b) = ((l, b), [l])
+forwardBlockList entries blks = map tag $ postorder_dfs_from (bodyMap blks) entries
+  where tag b = ((entryLabel b, b), [entryLabel b])
 
 -----------------------------------------------------------------------------
 --		Backward analysis and rewriting: the interface
@@ -268,7 +267,7 @@ arbBody :: Edges n
         -> FuelMonad (RG n f C C, FactBase f)
 arbBody pass blocks init_fbase
   = fixpoint False (bp_lattice pass) (arbBlock pass) init_fbase $
-    backwardBlockList (factBaseLabels init_fbase) blocks 
+    backwardBlockList blocks 
 
 arbGraph :: Edges n => ARB (Graph n) n
 arbGraph _    GNil        f = return (RGNil, f)
@@ -290,11 +289,11 @@ arbGraph pass (GMany (JustO entry) body (JustO exit)) f
        ; (entry', fe) <- arbBlock pass entry fb
        ; return (entry' `RGCatC` body' `RGCatC` exit', fe) }
 
-backwardBlockList :: Edges n => [Label] -> Body n -> [((Label, Block n C C), [Label])]
+backwardBlockList :: Edges n => Body n -> [((Label, Block n C C), [Label])]
 -- This produces a list of blocks in order suitable for backward analysis,
 -- along with the list of Labels it may depend on for facts.
-backwardBlockList _ blks = map withSuccs $ bodyList blks
-  where withSuccs (l, b) = ((l, b), successors b)
+backwardBlockList blks = reverse $ forwardBlockList entries blks
+  where entries = externalEntryLabels blks
 
 analyzeAndRewriteBwd
    :: forall n f. Edges n
