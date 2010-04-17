@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs, EmptyDataDecls #-}
 
 module Compiler.Hoopl.Graph 
-  ( O, C, Block(..), Body(..), bodyMap, Graph(..), MaybeO(..)
+  ( O, C, Block(..), Body, Body'(..), bodyMap, Graph, Graph'(..), MaybeO(..)
   , Edges(entryLabel, successors)
   , addBlock, bodyList
   )
@@ -21,18 +21,20 @@ data Block n e x where
   BUnit :: n e x -> Block n e x
   BCat  :: Block n e O -> Block n O x -> Block n e x
 
-data Body n where
-  BodyEmpty :: Body n
-  BodyUnit  :: Block n C C -> Body n
-  BodyCat   :: Body n -> Body n -> Body n
+type Body = Body' Block
+data Body' block n where
+  BodyEmpty :: Body' block n
+  BodyUnit  :: block n C C -> Body' block n
+  BodyCat   :: Body' block n -> Body' block n -> Body' block n
 
-data Graph n e x where
-  GNil  :: Graph n O O
-  GUnit :: Block n O O -> Graph n O O
-  GMany :: MaybeO e (Block n O C) 
-        -> Body n
-        -> MaybeO x (Block n C O)
-        -> Graph n e x
+type Graph = Graph' Block
+data Graph' block n e x where
+  GNil  :: Graph' block n O O
+  GUnit :: block n O O -> Graph' block n O O
+  GMany :: MaybeO e (block n O C) 
+        -> Body' block n
+        -> MaybeO x (block n C O)
+        -> Graph' block n e x
 
 data MaybeO ex t where
   JustO    :: t -> MaybeO O t
