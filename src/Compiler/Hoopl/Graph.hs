@@ -55,13 +55,13 @@ instance Edges n => Edges (Block n) where
 addBlock :: Block n C C -> Body n -> Body n
 addBlock b body = BodyUnit b `BodyCat` body
 
-bodyList :: Edges n => Body n -> [(Label,Block n C C)]
+bodyList :: Edges (block n) => Body' block n -> [(Label,block n C C)]
 bodyList body = go body []
   where
     go BodyEmpty       bs = bs
     go (BodyUnit b)    bs = (entryLabel b, b) : bs
     go (BodyCat b1 b2) bs = go b1 (go b2 bs)
 
-bodyMap :: Edges n => Body n -> LabelMap (Block n C C)
+bodyMap :: Edges (block n) => Body' block n -> LabelMap (block n C C)
 bodyMap = mkFactBase . bodyList
 
