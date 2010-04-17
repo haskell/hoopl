@@ -300,6 +300,40 @@ backwardBlockList body = reachable ++ missing
             mkLabelSet (map entryLabel reachable)
         missing = map snd $ filter (flip elemLabelSet missingLabels . fst) all
 
+{-
+
+The forward and backward dataflow analyses now use postorder depth-first
+order for faster convergence.
+
+The forward and backward cases are not dual.  In the forward case, the
+entry points are known, and one simply traverses the body blocks from
+those points.  In the backward case, something is known about the exit
+points, but this information is essentially useless, because we don't
+actually have a dual graph (that is, one with edges reversed) to
+compute with.  (Even if we did have a dual graph, it would not avail
+us---a backward analysis must include reachable blocks that don't
+reach the exit, as in a procedure that loops forever and has side
+effects.)
+
+Since in the general case, no information is available about entry
+points, I have put in a horrible hack.  First, I assume that every
+label defined but not used is an entry point.  Then, because an entry
+point might also be a loop header, I add, in arbitrary order, all the
+remaining "missing" blocks.  Needless to say, I am not pleased.  
+I am not satisfied.  I am not Senator Morgan.
+
+Wait! I believe that the Right Thing here is to require that anyone
+wishing to analyze a graph closed at the entry provide a way of
+determining the entry points, if any, of that graph.  This requirement
+can apply equally to forward and backward analyses; I believe that
+using the input FactBase to determine the entry points of a closed
+graph is *also* a hack.
+
+NR
+
+-}
+
+
 analyzeAndRewriteBwd
    :: forall n f. Edges n
    => BwdPass n f 
