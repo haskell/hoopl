@@ -534,7 +534,7 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
           exitFacts (JustO (FZBlock f b)) = unitFact (entryLabel b) f
           bodyFacts :: Body' (FZBlock f) n -> FactBase f
           bodyFacts (BodyUnit (FZBlock f b)) = unitFact (entryLabel b) f
-          bodyFacts (b1 `BodyCat` b2) = bodyFacts b1 `unionFactBase` bodyFacts b1
+          bodyFacts (b1 `BodyCat` b2) = bodyFacts b1 `unionFactBase` bodyFacts b2
 
 normaliseBody rg = (body, fact_base)
   where (GMany _ body _, fact_base) = normalizeGraph rg
