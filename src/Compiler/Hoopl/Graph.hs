@@ -52,7 +52,7 @@ instance Edges n => Edges (Block n) where
   successors (BCat _ b)  = successors b
 
 ------------------------------
-addBlock :: Block n C C -> Body n -> Body n
+addBlock :: block n C C -> Body' block n -> Body' block n
 addBlock b body = BodyUnit b `BodyCat` body
 
 bodyList :: Edges (block n) => Body' block n -> [(Label,block n C C)]
