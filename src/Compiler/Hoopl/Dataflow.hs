@@ -212,11 +212,10 @@ arfGraph pass (GMany (JustO entry) body (JustO exit)) f
        ; return (entry' `RGCatC` body' `RGCatC` exit', fx) }
 
 forwardBlockList :: (Edges n, LabelsPtr entry)
-                 => entry -> Body n -> [((Label,Block n C C), [Label])]
+                 => entry -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for forward analysis,
 -- along with the list of Labels it may depend on for facts.
-forwardBlockList entries blks = map tag $ postorder_dfs_from (bodyMap blks) entries
-  where tag b = ((entryLabel b, b), [entryLabel b])
+forwardBlockList entries blks = postorder_dfs_from (bodyMap blks) entries
 
 -----------------------------------------------------------------------------
 --		Backward analysis and rewriting: the interface
@@ -289,11 +288,17 @@ arbGraph pass (GMany (JustO entry) body (JustO exit)) f
        ; (entry', fe) <- arbBlock pass entry fb
        ; return (entry' `RGCatC` body' `RGCatC` exit', fe) }
 
-backwardBlockList :: Edges n => Body n -> [((Label, Block n C C), [Label])]
+backwardBlockList :: Edges n => Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for backward analysis,
 -- along with the list of Labels it may depend on for facts.
-backwardBlockList blks = reverse $ forwardBlockList entries blks
-  where entries = externalEntryLabels blks
+backwardBlockList body = reachable ++ missing
+  where reachable = reverse $ forwardBlockList entries body
+        entries = externalEntryLabels body
+        all = bodyList body
+        missingLabels =
+            mkLabelSet (map fst all) `minusLabelSet`
+            mkLabelSet (map entryLabel reachable)
+        missing = map snd $ filter (flip elemLabelSet missingLabels . fst) all
 
 analyzeAndRewriteBwd
    :: forall n f. Edges n
@@ -364,9 +369,10 @@ fixpoint :: forall n f. Edges n
          -> DataflowLattice f
          -> (Block n C C -> FactBase f
               -> FuelMonad (RG n f C C, FactBase f))
-         -> FactBase f -> [((Label, Block n C C), [Label])]
+         -> FactBase f 
+         -> [Block n C C]
          -> FuelMonad (RG n f C C, FactBase f)
-fixpoint is_fwd lat do_block init_fbase blocks
+fixpoint is_fwd lat do_block init_fbase untagged_blocks
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
@@ -374,7 +380,10 @@ fixpoint is_fwd lat do_block init_fbase blocks
 	     -- The successors of the Graph are the the Labels for which
 	     -- we have facts, that are *not* in the blocks of the graph
   where
-    tx_blocks :: [((Label, Block n C C), [Label])] 
+    blocks = map tag untagged_blocks
+     where tag b = ((entryLabel b, b), if is_fwd then [entryLabel b] else successors b)
+
+    tx_blocks :: [((Label, Block n C C), [Label])]   -- I do not understand this type
               -> TxFactBase n f -> FuelMonad (TxFactBase n f)
     tx_blocks []              tx_fb = return tx_fb
     tx_blocks (((lbl,blk), deps):bs) tx_fb = tx_block lbl blk deps tx_fb >>= tx_blocks bs
