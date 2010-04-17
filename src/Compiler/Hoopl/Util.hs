@@ -95,8 +95,8 @@ preorder_dfs  :: Edges (block n) => Graph' block n O x -> [block n C C]
 graphDfs :: (Edges (block n))
          => (LabelMap (block n C C) -> block n O C -> LabelSet -> [block n C C])
          -> (Graph' block n O x -> [block n C C])
-graphDfs order (GNil)    = []
-graphDfs order (GUnit{}) = []
+graphDfs _     (GNil)    = []
+graphDfs _     (GUnit{}) = []
 graphDfs order (GMany (JustO entry) body _) = order blockenv entry emptyLabelSet
   where blockenv = bodyMap body
 
@@ -183,7 +183,7 @@ labelsUsed (GMany e body _) = foldBodyBlocks addTargets body $ entryTargets e
         entryTargets (JustO b) = addTargets b emptyLabelSet
 
 foldBodyBlocks :: (block n C C -> a -> a) -> Body' block n -> a -> a
-foldBodyBlocks f BodyEmpty      = id
+foldBodyBlocks _ BodyEmpty      = id
 foldBodyBlocks f (BodyUnit b)   = f b
 foldBodyBlocks f (BodyCat b b') = foldBodyBlocks f b . foldBodyBlocks f b'
 
