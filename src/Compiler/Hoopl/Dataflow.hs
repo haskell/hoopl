@@ -61,8 +61,8 @@ module Compiler.Hoopl.Dataflow
   , FwdPass(..),  FwdTransfer, FwdRewrite, FwdRes(..)
   , BwdPass(..), BwdTransfer, BwdRewrite, BwdRes(..)
   , Fact
-  , analyzeAndRewriteFwd, analyzeAndRewriteBwd
-  , analyzeAndRewriteFwd'
+  , analyzeAndRewriteFwd,  analyzeAndRewriteBwd
+  , analyzeAndRewriteFwd', analyzeAndRewriteBwd'
   )
 where
 
@@ -135,10 +135,10 @@ analyzeAndRewriteFwd'
 analyzeAndRewriteFwd' pass g f =
   do (rg, fout) <- arfGraph pass g f
      let (g', fb) = normalizeGraph g rg
-     return (g', fb, distinguishedOutFact g' fout)
+     return (g', fb, distinguishedExitFact g' fout)
 
-distinguishedOutFact :: forall n e x f . Graph n e x -> Fact x f -> MaybeO x f
-distinguishedOutFact g f = maybe g
+distinguishedExitFact :: forall n e x f . Graph n e x -> Fact x f -> MaybeO x f
+distinguishedExitFact g f = maybe g
     where maybe :: Graph n e x -> MaybeO x f
           maybe GNil       = JustO f
           maybe (GUnit {}) = JustO f
@@ -305,6 +305,26 @@ analyzeAndRewriteBwd
 analyzeAndRewriteBwd pass body facts
   = do { (rg, _) <- arbBody pass body facts
        ; return (normaliseBody rg) }
+
+-- | if the graph being analyzed is open at the exit, I don't
+--   quite understand the implications of possible other exits
+analyzeAndRewriteBwd'
+   :: forall n f e x. Edges n
+   => BwdPass n f
+   -> Graph n e x -> Fact x f
+   -> FuelMonad (Graph n e x, FactBase f, MaybeO e f)
+analyzeAndRewriteBwd' pass g f =
+  do (rg, fout) <- arbGraph pass g f
+     let (g', fb) = normalizeGraph g rg
+     return (g', fb, distinguishedEntryFact g' fout)
+
+distinguishedEntryFact :: forall n e x f . Graph n e x -> Fact e f -> MaybeO e f
+distinguishedEntryFact g f = maybe g
+    where maybe :: Graph n e x -> MaybeO e f
+          maybe GNil       = JustO f
+          maybe (GUnit {}) = JustO f
+          maybe (GMany e _ _) = case e of NothingO -> NothingO
+                                          JustO _  -> JustO f
 
 
 -----------------------------------------------------------------------------
