@@ -24,6 +24,15 @@ data ZBlock n e x where
 type ZGraph = Graph' ZBlock
 type ZBody  = Body'  ZBlock
 
+instance Edges n => Edges (ZBlock n) where
+  entryLabel (ZFirst n)    = entryLabel n
+  entryLabel (ZHead h _)   = entryLabel h
+  entryLabel (ZClosed h _) = entryLabel h
+  successors (ZLast n)     = successors n
+  successors (ZTail _ t)   = successors t
+  successors (ZClosed _ t) = successors t
+
+
 ----------------------------------------------------------------
 
 -- | A block is "front biased" if the left child of every
