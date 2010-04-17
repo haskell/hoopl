@@ -1,7 +1,8 @@
-{-# LANGUAGE GADTs, ScopedTypeVariables, FlexibleInstances #-}
+{-# LANGUAGE GADTs, ScopedTypeVariables, FlexibleInstances, RankNTypes #-}
 
 module Compiler.Hoopl.Util
   ( gUnitOO, gUnitOC, gUnitCO, gUnitCC
+  , graphMapBlocks
   , zblockGraph
   , postorder_dfs, postorder_dfs_from, postorder_dfs_from_except
   , preorder_dfs, preorder_dfs_from_except
@@ -34,6 +35,27 @@ zblockGraph b@(ZHead {})   = gUnitCO b
 zblockGraph b@(ZTail {})   = gUnitOC b
 zblockGraph b@(ZClosed {}) = gUnitCC b
 
+
+graphMapBlocks :: forall block n block' n' e x .
+                  (forall e x . block n e x -> block' n' e x)
+               -> (Graph' block n e x -> Graph' block' n' e x)
+bodyMapBlocks  :: forall block n block' n' .
+                  (block n C C -> block' n' C C)
+               -> (Body' block n -> Body' block' n')
+
+graphMapBlocks f = map
+  where map :: Graph' block n e x -> Graph' block' n' e x
+        map GNil = GNil
+        map (GUnit b) = GUnit (f b)
+        map (GMany e b x) = GMany (fmap f e) (bodyMapBlocks f b) (fmap f x)
+
+bodyMapBlocks f = map
+  where map BodyEmpty = BodyEmpty
+        map (BodyUnit b) = BodyUnit (f b)
+        map (BodyCat b1 b2) = BodyCat (map b1) (map b2)
+
+
+----------------------------------------------------------------
 
 class LabelsPtr l where
   targetLabels :: l -> [Label]
