@@ -34,6 +34,11 @@ instance Show a => Show (WithBot a) where
   show Bot = "_|_"
   show (NonBot a) = show a
 
+instance Functor WithBot where
+  fmap _ Bot = Bot
+  fmap f (NonBot a) = NonBot (f a)
+
+
 
 -- | Adds a top element to a set to help form a lattice
 data WithTop a = Top | NonTop a
@@ -59,3 +64,7 @@ addTop' name joinx = DataflowLattice name Top join False
 instance Show a => Show (WithTop a) where
   show Top = "T"
   show (NonTop a) = show a
+
+instance Functor WithTop where
+  fmap _ Top = Top
+  fmap f (NonTop a) = NonTop (f a)
