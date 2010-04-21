@@ -1,3 +1,51 @@
+\iffalse
+
+P.S. The three of us should have a nice little Skype chat about
+higher-rank types.  A lot of the questions still at issue boil down to
+the following observations:
+
+  - It's really convenient for the *implementation* of Hoopl to put
+    forall to the left of an arrow.  Polymorphic functions as
+    arguments are powerful and keen, and they make it really easy for
+    Hoopl to do its job.
+
+  - It's a bid inconvenient for a *client* of Hoopl to be forced to
+    supply functions that are polymorphic in shape.  All constructors
+    have to be written out by hand; defaulting is not possible.  (Or
+    at least John and I haven't figured out how to do it.)
+
+  - Using higher-rank types in Hoopl's interface makes some very
+    desirable things downright impossible:
+
+      - One can't write a generic dominator analysis with type
+
+           dom :: Edges n => FwdPass n Dominators
+
+      - One can't write a generic debugging wrapper of type
+
+           debug :: (Show n, Show f)
+                 => TraceFn -> WhatToTrace -> FwdPass n f -> FwdPass n f
+
+      - One can't write a cominator of type
+
+           product :: FwdPass n f -> FwdPass n f' -> FwdPass n (f, f')
+
+    I submit that these things are all very desirable.
+
+I'm therefore strongly in favor of removing the *requirement* that a
+FwdPass include transfer and rewrite functions that are polymorphic in
+shape.  It will be a bit tedious to return to triples of functions,
+but for those lucky clients who *can* write polymorphic functions and
+who wish to, we can provide injection functions.
+
+I should stress that I believe the tedium can be contained within
+reasonable bounds---for example, the arfXXX functions that are
+internal to Hoopl all remain polymorphic in shape (although not
+higher-rank any longer).
+
+\fi
+
+
 %
 % TODO
 %
