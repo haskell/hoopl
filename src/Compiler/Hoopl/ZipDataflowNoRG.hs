@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies #-}
+{-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-} -- bug in GHC
 
 {- Notes about the genesis of Hoopl7
@@ -136,36 +136,29 @@ type ARF' n f thing e x
 
 type ARF thing n = forall f e x . ARF' n f thing e x
 
-
-arfNode :: Edges n
-        => (n e x -> ZBlock n e x) -> (f -> Fact e f)
-        -> ARF' n f n e x
-arfNode bunit lift pass node f
+arfNode :: (Edges n, ShapeLifter e x) => ARF' n f n e x
+arfNode pass node f
   = do { mb_g <- withFuel (fp_rewrite pass node f)
        ; case mb_g of
-           Nothing -> return (rgunit f (bunit node),
+           Nothing -> return (rgunit f (unit node),
                               fp_transfer pass node f)
       	   Just (FwdRes ag rw) -> do { g <- graphOfAGraph ag
                                      ; let pass' = pass { fp_rewrite = rw }
-                                     ; arfGraph pass' g (lift f) } }
+                                     ; arfGraph pass' g (elift node f) } }
 
 -- type demonstration
 _arfBlock :: Edges n => ARF' n f (ZBlock n) e x
 _arfBlock = arfBlock
 
-arfMiddle :: Edges n => ARF' n f n O O
-arfMiddle = arfNode ZMiddle id
-
 arfBlock :: Edges n => ARF (ZBlock n) n
 -- Lift from nodes to blocks
-arfBlock pass (ZFirst  node)  = arfNode ZFirst lift pass node
-  where lift f = mkFactBase [(entryLabel node, f)]
-arfBlock pass (ZMiddle node)  = arfNode ZMiddle id pass node
-arfBlock pass (ZLast   node)  = arfNode ZLast   id pass node
-arfBlock pass (ZCat b1 b2)    = arfCat arfBlock  arfBlock  pass b1 b2
-arfBlock pass (ZHead h n)     = arfCat arfBlock  arfMiddle pass h n
-arfBlock pass (ZTail n t)     = arfCat arfMiddle arfBlock  pass n t
-arfBlock pass (ZClosed h t)   = arfCat arfBlock  arfBlock  pass h t
+arfBlock pass (ZFirst  node)  = arfNode pass node
+arfBlock pass (ZMiddle node)  = arfNode pass node
+arfBlock pass (ZLast   node)  = arfNode pass node
+arfBlock pass (ZCat b1 b2)    = arfCat arfBlock arfBlock pass b1 b2
+arfBlock pass (ZHead h n)     = arfCat arfBlock arfNode  pass h n
+arfBlock pass (ZTail n t)     = arfCat arfNode  arfBlock pass n t
+arfBlock pass (ZClosed h t)   = arfCat arfBlock arfBlock pass h t
 
 arfCat :: Edges n => ARF' n f thing1 e O -> ARF' n f thing2 O x
        -> FwdPass n f -> thing1 e O -> thing2 O x
@@ -239,35 +232,29 @@ type ARB' n f thing e x
 
 type ARB thing n = forall f e x. ARB' n f thing e x 
 
-arbNode :: Edges n
-        => (n e x -> ZBlock n e x) -> (Fact e f -> f)
-        -> ARB' n f n e x
+arbNode :: (Edges n, ShapeLifter e x) => ARB' n f n e x
 -- Lifts (BwdTransfer,BwdRewrite) to ARB_Node; 
 -- this time we do rewriting as well. 
 -- The ARB_Graph parameters specifies what to do with the rewritten graph
-arbNode bunit lower pass node f
+arbNode pass node f
   = do { mb_g <- withFuel (bp_rewrite pass node f)
        ; case mb_g of
-           Nothing -> return (rgunit entry_f (bunit node), entry_f)
+           Nothing -> return (rgunit entry_f (unit node), entry_f)
                     where entry_f  = bp_transfer pass node f
       	   Just (BwdRes ag rw) -> do { g <- graphOfAGraph ag
                                      ; let pass' = pass { bp_rewrite = rw }
                                      ; (g, f) <- arbGraph pass' g f
-                                     ; return (g, lower f)} }
-
-arbMiddle :: Edges n => ARB' n f n O O
-arbMiddle = arbNode ZMiddle id 
+                                     ; return (g, elower (bp_lattice pass) node f)} }
 
 arbBlock :: Edges n => ARB (ZBlock n) n
 -- Lift from nodes to blocks
-arbBlock pass (ZFirst  node)  = arbNode ZFirst  lower pass node
-  where lower f = lookupB pass (entryLabel node) f
-arbBlock pass (ZMiddle node)  = arbNode ZMiddle id   pass node
-arbBlock pass (ZLast   node)  = arbNode ZLast   id   pass node
-arbBlock pass (ZCat b1 b2)    = arbCat arbBlock  arbBlock  pass b1 b2
-arbBlock pass (ZHead h n)     = arbCat arbBlock  arbMiddle pass h n
-arbBlock pass (ZTail n t)     = arbCat arbMiddle arbBlock  pass n t
-arbBlock pass (ZClosed h t)   = arbCat arbBlock  arbBlock  pass h t
+arbBlock pass (ZFirst  node)  = arbNode pass node
+arbBlock pass (ZMiddle node)  = arbNode pass node
+arbBlock pass (ZLast   node)  = arbNode pass node
+arbBlock pass (ZCat b1 b2)    = arbCat arbBlock arbBlock pass b1 b2
+arbBlock pass (ZHead h n)     = arbCat arbBlock arbNode  pass h n
+arbBlock pass (ZTail n t)     = arbCat arbNode  arbBlock pass n t
+arbBlock pass (ZClosed h t)   = arbCat arbBlock arbBlock pass h t
 
 arbCat :: Edges n => ARB' n f thing1 e O -> ARB' n f thing2 O x
        -> BwdPass n f -> thing1 e O -> thing2 O x
@@ -562,15 +549,38 @@ rgCat = U.splice fzCat
   where fzCat (FZBlock f b1) (FZBlock _ b2) = FZBlock f (b1 `U.zCat` b2)
 
 ----------------------------------------------------------------
---       Utility for fact lookup
+--       Utilities
 ----------------------------------------------------------------
 
--- Lookup the fact `orelse` bottom
-lookupF :: FwdPass n f -> Label -> FactBase f -> f
-lookupB :: BwdPass n f -> Label -> FactBase f -> f
+-- Lifting based on shape:
+--  - from nodes to blocks
+--  - from facts to fact-like things
+-- Lowering back:
+--  - from fact-like things to facts
+-- Note that the latter two functions depend only on the entry shape.
+class ShapeLifter e x where
+  unit   :: n e x -> ZBlock n e x
+  elift  :: Edges n =>                      n e x -> f -> Fact e f
+  elower :: Edges n => DataflowLattice f -> n e x -> Fact e f -> f
 
+instance ShapeLifter C O where
+  unit            = ZFirst
+  elift      n f  = mkFactBase [(entryLabel n, f)]
+  elower lat n fb = getFact lat (entryLabel n) fb
+
+instance ShapeLifter O O where
+  unit         = ZMiddle
+  elift    _ f = f
+  elower _ _ f = f
+
+instance ShapeLifter O C where
+  unit         = ZLast
+  elift    _ f = f
+  elower _ _ f = f
+
+-- Fact lookup: the fact `orelse` bottom
+lookupF :: FwdPass n f -> Label -> FactBase f -> f
 lookupF = getFact . fp_lattice
-lookupB = getFact . bp_lattice
 
 getFact  :: DataflowLattice f -> Label -> FactBase f -> f
 getFact lat l fb = case lookupFact fb l of Just  f -> f
