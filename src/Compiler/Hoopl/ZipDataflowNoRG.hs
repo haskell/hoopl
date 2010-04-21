@@ -183,7 +183,8 @@ arfBody pass blocks init_fbase
   = fixpoint True (fp_lattice pass) do_block init_fbase $
     forwardBlockList (factBaseLabels init_fbase) blocks
   where
-    do_block b f = arfBlock pass b $ lookupF pass (entryLabel b) f
+    do_block b f = do (g, fb) <- arfBlock pass b $ lookupF pass (entryLabel b) f
+                      return (g, factBaseList fb)
 
 arfGraph :: Edges n
          => FwdPass n f -> ZGraph n e x -> Fact e f
@@ -248,18 +249,18 @@ arbNode bunit lower pass node f
   = do { mb_g <- withFuel (bp_rewrite pass node f)
        ; case mb_g of
            Nothing -> return (rgunit entry_f (bunit node), entry_f)
-                    where
-                      entry_f  = bp_transfer pass node f
+                    where entry_f  = bp_transfer pass node f
       	   Just (BwdRes ag rw) -> do { g <- graphOfAGraph ag
                                      ; let pass' = pass { bp_rewrite = rw }
-                                     ; arbGraph pass' g f} }
+                                     ; (g, f) <- arbGraph pass' g f
+                                     ; return (g, lower f)} }
 
 arbMiddle :: Edges n => ARB' n f n O O
 arbMiddle = arbNode ZMiddle id 
 
 arbBlock :: Edges n => ARB (ZBlock n) n
 -- Lift from nodes to blocks
-arbBlock pass (ZFirst  node)  = arbNode ZFirst  undefined pass node
+arbBlock pass (ZFirst  node)  = arbNode ZFirst  lower pass node
   where lower f = lookupB pass (entryLabel node) f
 arbBlock pass (ZMiddle node)  = arbNode ZMiddle id   pass node
 arbBlock pass (ZLast   node)  = arbNode ZLast   id   pass node
@@ -279,10 +280,15 @@ arbBody :: Edges n
         => BwdPass n f -> ZBody n -> FactBase f
         -> FuelMonad (RG f n C C, FactBase f)
 arbBody pass blocks init_fbase
-  = fixpoint False (bp_lattice pass) (arbBlock pass) init_fbase $
+  = fixpoint False (bp_lattice pass) do_block init_fbase $
     backwardBlockList blocks 
+  where
+    do_block b f = do (g, f) <- arbBlock pass b f
+                      return (g, [(entryLabel b, f)])
 
-arbGraph :: Edges n => ARB (ZGraph n) n
+arbGraph :: Edges n
+         => BwdPass n f -> ZGraph n e x -> Fact x f
+         -> FuelMonad (RG f n e x, Fact e f)
 arbGraph _    GNil        f = return (rgnil, f)
 arbGraph pass (GUnit blk) f = arbBlock pass blk f
 arbGraph pass (GMany NothingO body NothingO) f
@@ -290,7 +296,7 @@ arbGraph pass (GMany NothingO body NothingO) f
        ; return (body', fb) }
 arbGraph pass (GMany NothingO body (JustO exit)) f
   = do { (exit', fx) <- arbBlock pass exit f
-       ; (body', fb) <- arbBody  pass body fx
+       ; (body', fb) <- arbBody  pass body $ mkFactBase [(entryLabel exit, fx)]
        ; return (body' `rgCat` exit', fb) }
 arbGraph pass (GMany (JustO entry) body NothingO) f
   = do { (body', fb)  <- arbBody  pass body f
@@ -298,7 +304,7 @@ arbGraph pass (GMany (JustO entry) body NothingO) f
        ; return (entry' `rgCat` body', fe) }
 arbGraph pass (GMany (JustO entry) body (JustO exit)) f
   = do { (exit', fx)  <- arbBlock pass exit f
-       ; (body', fb)  <- arbBody  pass body fx
+       ; (body', fb)  <- arbBody  pass body $ mkFactBase [(entryLabel exit, fx)]
        ; (entry', fe) <- arbBlock pass entry fb
        ; return (entry' `rgCat` body' `rgCat` exit', fe) }
 
@@ -415,7 +421,7 @@ fixpoint :: forall block n f. Edges (block n)
          => Bool	-- Going forwards?
          -> DataflowLattice f
          -> (block n C C -> FactBase f
-              -> FuelMonad (RG f n C C, FactBase f))
+              -> FuelMonad (RG f n C C, [(Label, f)]))
          -> FactBase f 
          -> [block n C C]
          -> FuelMonad (RG f n C C, FactBase f)
@@ -445,8 +451,7 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
-                   = foldr (updateFact lat lbls) (cha,fbase) 
-                           (factBaseList out_facts)
+                   = foldr (updateFact lat lbls) (cha,fbase) out_facts
                  lbls' = lbls `unionLabelSet` mkLabelSet deps
            ; return (TxFB { tfb_lbls  = lbls'
                           , tfb_rg    = rg `rgCat` blks
