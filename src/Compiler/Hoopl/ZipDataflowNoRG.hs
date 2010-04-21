@@ -89,10 +89,10 @@ data FwdPass n f
             , fp_rewrite  :: FwdRewrite n f }
 
 type FwdTransfer n f 
-  = forall e x. n e x -> Fact e f -> Fact x f 
+  = forall e x. n e x -> f -> Fact x f 
 
 type FwdRewrite n f 
-  = forall e x. n e x -> Fact e f -> Maybe (FwdRes n f e x)
+  = forall e x. n e x -> f -> Maybe (FwdRes n f e x)
 data FwdRes n f e x = FwdRes (AGraph n e x) (FwdRewrite n f)
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
@@ -138,16 +138,17 @@ type ARF thing n = forall f e x . ARF' n f thing e x
 
 
 arfNode :: Edges n
-        => (n e x -> ZBlock n e x)
+        => (n e x -> ZBlock n e x) -> (Fact e f -> f)
         -> ARF' n f n e x
-arfNode bunit pass node f
-  = do { mb_g <- withFuel (fp_rewrite pass node f)
+arfNode bunit lower pass node f
+  = do { mb_g <- withFuel (fp_rewrite pass node f')
        ; case mb_g of
            Nothing -> return (rgunit f (bunit node),
-                              fp_transfer pass node f)
+                              fp_transfer pass node f')
       	   Just (FwdRes ag rw) -> do { g <- graphOfAGraph ag
                                      ; let pass' = pass { fp_rewrite = rw }
                                      ; arfGraph pass' g f } }
+    where f' = lower f
 
 -- type demonstration
 _arfBlock :: Edges n => ARF' n f (ZBlock n) e x
@@ -155,16 +156,17 @@ _arfBlock = arfBlock
 _arfGraph :: Edges n => ARF' n f (ZGraph n) e x
 _arfGraph = arfGraph
 
-
 arfMiddle :: Edges n => ARF' n f n O O
-arfMiddle = arfNode ZMiddle
-
+arfMiddle = arfNode ZMiddle id
 
 arfBlock :: Edges n => ARF (ZBlock n) n
 -- Lift from nodes to blocks
-arfBlock pass (ZFirst  node)  = arfNode ZFirst  pass node
-arfBlock pass (ZMiddle node)  = arfNode ZMiddle pass node
-arfBlock pass (ZLast   node)  = arfNode ZLast   pass node
+arfBlock pass (ZFirst  node)  = arfNode ZFirst lookup pass node
+  where lookup f = case lookupFact f (entryLabel node) of
+                     Just f  -> f
+                     Nothing -> fact_bot $ fp_lattice pass
+arfBlock pass (ZMiddle node)  = arfNode ZMiddle id pass node
+arfBlock pass (ZLast   node)  = arfNode ZLast   id pass node
 arfBlock pass (ZCat b1 b2)    = arfCat arfBlock  arfBlock  pass b1 b2
 arfBlock pass (ZHead h n)     = arfCat arfBlock  arfMiddle pass h n
 arfBlock pass (ZTail n t)     = arfCat arfMiddle arfBlock  pass n t
@@ -224,7 +226,7 @@ data BwdPass n f
             , bp_rewrite  :: BwdRewrite n f }
 
 type BwdTransfer n f 
-  = forall e x. n e x -> Fact x f -> Fact e f 
+  = forall e x. n e x -> Fact x f -> f 
 type BwdRewrite n f 
   = forall e x. n e x -> Fact x f -> Maybe (BwdRes n f e x)
 data BwdRes n f e x = BwdRes (AGraph n e x) (BwdRewrite n f)
@@ -239,29 +241,30 @@ type ARB' n f thing e x
 type ARB thing n = forall f e x. ARB' n f thing e x 
 
 arbNode :: Edges n
-        => (n e x -> ZBlock n e x)
+        => (n e x -> ZBlock n e x) -> (f -> Fact e f)
         -> ARB' n f n e x
 -- Lifts (BwdTransfer,BwdRewrite) to ARB_Node; 
 -- this time we do rewriting as well. 
 -- The ARB_Graph parameters specifies what to do with the rewritten graph
-arbNode bunit pass node f
+arbNode bunit lift pass node f
   = do { mb_g <- withFuel (bp_rewrite pass node f)
        ; case mb_g of
            Nothing -> return (rgunit entry_f (bunit node), entry_f)
                     where
-                      entry_f = bp_transfer pass node f
+                      entry_f = lift $ bp_transfer pass node f
       	   Just (BwdRes ag rw) -> do { g <- graphOfAGraph ag
                                      ; let pass' = pass { bp_rewrite = rw }
                                      ; arbGraph pass' g f} }
 
 arbMiddle :: Edges n => ARB' n f n O O
-arbMiddle = arbNode ZMiddle
+arbMiddle = arbNode ZMiddle id 
 
 arbBlock :: Edges n => ARB (ZBlock n) n
 -- Lift from nodes to blocks
-arbBlock pass (ZFirst  node)  = arbNode ZFirst  pass node
-arbBlock pass (ZMiddle node)  = arbNode ZMiddle pass node
-arbBlock pass (ZLast   node)  = arbNode ZLast   pass node
+arbBlock pass (ZFirst  node)  = arbNode ZFirst  lift pass node
+  where lift f = mkFactBase [(entryLabel node, f)]
+arbBlock pass (ZMiddle node)  = arbNode ZMiddle id   pass node
+arbBlock pass (ZLast   node)  = arbNode ZLast   id   pass node
 arbBlock pass (ZCat b1 b2)    = arbCat arbBlock  arbBlock  pass b1 b2
 arbBlock pass (ZHead h n)     = arbCat arbBlock  arbMiddle pass h n
 arbBlock pass (ZTail n t)     = arbCat arbMiddle arbBlock  pass n t
