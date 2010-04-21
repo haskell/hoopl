@@ -132,39 +132,34 @@ distinguishedExitFact g f = maybe g
 
 
 type ARF' n f thing e x
-  = FwdPass n f -> thing e x -> Fact e f -> FuelMonad (RG f n e x, Fact x f)
+  = FwdPass n f -> thing e x -> f -> FuelMonad (RG f n e x, Fact x f)
 
 type ARF thing n = forall f e x . ARF' n f thing e x
 
 
 arfNode :: Edges n
-        => (n e x -> ZBlock n e x) -> (Fact e f -> f)
+        => (n e x -> ZBlock n e x) -> (f -> Fact e f)
         -> ARF' n f n e x
-arfNode bunit lower pass node f
-  = do { mb_g <- withFuel (fp_rewrite pass node f')
+arfNode bunit lift pass node f
+  = do { mb_g <- withFuel (fp_rewrite pass node f)
        ; case mb_g of
            Nothing -> return (rgunit f (bunit node),
-                              fp_transfer pass node f')
+                              fp_transfer pass node f)
       	   Just (FwdRes ag rw) -> do { g <- graphOfAGraph ag
                                      ; let pass' = pass { fp_rewrite = rw }
-                                     ; arfGraph pass' g f } }
-    where f' = lower f
+                                     ; arfGraph pass' g (lift f) } }
 
 -- type demonstration
 _arfBlock :: Edges n => ARF' n f (ZBlock n) e x
 _arfBlock = arfBlock
-_arfGraph :: Edges n => ARF' n f (ZGraph n) e x
-_arfGraph = arfGraph
 
 arfMiddle :: Edges n => ARF' n f n O O
 arfMiddle = arfNode ZMiddle id
 
 arfBlock :: Edges n => ARF (ZBlock n) n
 -- Lift from nodes to blocks
-arfBlock pass (ZFirst  node)  = arfNode ZFirst lookup pass node
-  where lookup f = case lookupFact f (entryLabel node) of
-                     Just f  -> f
-                     Nothing -> fact_bot $ fp_lattice pass
+arfBlock pass (ZFirst  node)  = arfNode ZFirst lift pass node
+  where lift f = mkFactBase [(entryLabel node, f)]
 arfBlock pass (ZMiddle node)  = arfNode ZMiddle id pass node
 arfBlock pass (ZLast   node)  = arfNode ZLast   id pass node
 arfBlock pass (ZCat b1 b2)    = arfCat arfBlock  arfBlock  pass b1 b2
@@ -174,22 +169,25 @@ arfBlock pass (ZClosed h t)   = arfCat arfBlock  arfBlock  pass h t
 
 arfCat :: Edges n => ARF' n f thing1 e O -> ARF' n f thing2 O x
        -> FwdPass n f -> thing1 e O -> thing2 O x
-       -> Fact e f -> FuelMonad (RG f n e x, Fact x f)
+       -> f -> FuelMonad (RG f n e x, Fact x f)
 arfCat arf1 arf2 pass thing1 thing2 f = do { (g1,f1) <- arf1 pass thing1 f
                                            ; (g2,f2) <- arf2 pass thing2 f1
                                            ; return (g1 `rgCat` g2, f2) }
 arfBody :: Edges n
-                  
         => FwdPass n f -> ZBody n -> FactBase f
         -> FuelMonad (RG f n C C, FactBase f)
 		-- Outgoing factbase is restricted to Labels *not* in
 		-- in the Body; the facts for Labels *in*
                 -- the Body are in the BodyWithFacts
 arfBody pass blocks init_fbase
-  = fixpoint True (fp_lattice pass) (arfBlock pass) init_fbase $
+  = fixpoint True (fp_lattice pass) do_block init_fbase $
     forwardBlockList (factBaseLabels init_fbase) blocks
+  where
+    do_block b f = arfBlock pass b $ lookupF pass (entryLabel b) f
 
-arfGraph :: Edges n => ARF (ZGraph n) n
+arfGraph :: Edges n
+         => FwdPass n f -> ZGraph n e x -> Fact e f
+         -> FuelMonad (RG f n e x, Fact x f)
 -- Lift from blocks to graphs
 arfGraph _    GNil        f = return (rgnil, f)
 arfGraph pass (GUnit blk) f = arfBlock pass blk f
@@ -198,7 +196,7 @@ arfGraph pass (GMany NothingO body NothingO) f
        ; return (body', fb) }
 arfGraph pass (GMany NothingO body (JustO exit)) f
   = do { (body', fb) <- arfBody  pass body f
-       ; (exit', fx) <- arfBlock pass exit fb
+       ; (exit', fx) <- arfBlock pass exit $ lookupF pass (entryLabel exit) fb
        ; return (body' `rgCat` exit', fx) }
 arfGraph pass (GMany (JustO entry) body NothingO) f
   = do { (entry', fe) <- arfBlock pass entry f
@@ -207,7 +205,7 @@ arfGraph pass (GMany (JustO entry) body NothingO) f
 arfGraph pass (GMany (JustO entry) body (JustO exit)) f
   = do { (entry', fe) <- arfBlock pass entry f
        ; (body', fb)  <- arfBody  pass body fe
-       ; (exit', fx)  <- arfBlock pass exit fb
+       ; (exit', fx)  <- arfBlock pass exit  $ lookupF pass (entryLabel exit) fb
        ; return (entry' `rgCat` body' `rgCat` exit', fx) }
 
 forwardBlockList :: (Edges n, LabelsPtr entry)
@@ -236,22 +234,22 @@ data BwdRes n f e x = BwdRes (AGraph n e x) (BwdRewrite n f)
 -----------------------------------------------------------------------------
 
 type ARB' n f thing e x
-  = BwdPass n f -> thing e x -> Fact x f -> FuelMonad (RG f n e x, Fact e f)
+  = BwdPass n f -> thing e x -> Fact x f -> FuelMonad (RG f n e x, f)
 
 type ARB thing n = forall f e x. ARB' n f thing e x 
 
 arbNode :: Edges n
-        => (n e x -> ZBlock n e x) -> (f -> Fact e f)
+        => (n e x -> ZBlock n e x) -> (Fact e f -> f)
         -> ARB' n f n e x
 -- Lifts (BwdTransfer,BwdRewrite) to ARB_Node; 
 -- this time we do rewriting as well. 
 -- The ARB_Graph parameters specifies what to do with the rewritten graph
-arbNode bunit lift pass node f
+arbNode bunit lower pass node f
   = do { mb_g <- withFuel (bp_rewrite pass node f)
        ; case mb_g of
            Nothing -> return (rgunit entry_f (bunit node), entry_f)
                     where
-                      entry_f = lift $ bp_transfer pass node f
+                      entry_f  = bp_transfer pass node f
       	   Just (BwdRes ag rw) -> do { g <- graphOfAGraph ag
                                      ; let pass' = pass { bp_rewrite = rw }
                                      ; arbGraph pass' g f} }
@@ -261,8 +259,8 @@ arbMiddle = arbNode ZMiddle id
 
 arbBlock :: Edges n => ARB (ZBlock n) n
 -- Lift from nodes to blocks
-arbBlock pass (ZFirst  node)  = arbNode ZFirst  lift pass node
-  where lift f = mkFactBase [(entryLabel node, f)]
+arbBlock pass (ZFirst  node)  = arbNode ZFirst  undefined pass node
+  where lower f = lookupB pass (entryLabel node) f
 arbBlock pass (ZMiddle node)  = arbNode ZMiddle id   pass node
 arbBlock pass (ZLast   node)  = arbNode ZLast   id   pass node
 arbBlock pass (ZCat b1 b2)    = arbCat arbBlock  arbBlock  pass b1 b2
@@ -272,7 +270,7 @@ arbBlock pass (ZClosed h t)   = arbCat arbBlock  arbBlock  pass h t
 
 arbCat :: Edges n => ARB' n f thing1 e O -> ARB' n f thing2 O x
        -> BwdPass n f -> thing1 e O -> thing2 O x
-       -> Fact x f -> FuelMonad (RG f n e x, Fact e f)
+       -> Fact x f -> FuelMonad (RG f n e x, f)
 arbCat arb1 arb2 pass thing1 thing2 f = do { (g2,f2) <- arb2 pass thing2 f
                                            ; (g1,f1) <- arb1 pass thing1 f2
                                            ; return (g1 `rgCat` g2, f1) }
@@ -506,13 +504,13 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 -----------------------------------------------------------------------------
 
 type RG      f n e x = Graph' (FZBlock f) n e x
-data FZBlock f n e x = FZBlock (Fact e f) (ZBlock n e x)
+data FZBlock f n e x = FZBlock f (ZBlock n e x)
 
 --- constructors
 
 rgnil  :: RG f n O O
 rgnilC :: RG f n C C
-rgunit :: Fact e f -> ZBlock n e x -> RG f n e x
+rgunit :: f -> ZBlock n e x -> RG f n e x
 rgCat  :: RG f n e a -> RG f n a x -> RG f n e x
 
 ---- observers
@@ -534,9 +532,9 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
           facts (GMany _ body exit) = bodyFacts body `unionFactBase` exitFacts exit
           exitFacts :: MaybeO x (FZBlock f n C O) -> FactBase f
           exitFacts NothingO = noFacts
-          exitFacts (JustO (FZBlock f b)) = unitFact (entryLabel b) f
+          exitFacts (JustO (FZBlock f b)) = mkFactBase [(entryLabel b, f)]
           bodyFacts :: Body' (FZBlock f) n -> FactBase f
-          bodyFacts (BodyUnit (FZBlock f b)) = unitFact (entryLabel b) f
+          bodyFacts (BodyUnit (FZBlock f b)) = mkFactBase [(entryLabel b, f)]
           bodyFacts (b1 `BodyCat` b2) = bodyFacts b1 `unionFactBase` bodyFacts b2
 
 normaliseBody rg = (body, fact_base)
@@ -557,3 +555,18 @@ rgunit f b@(ZClosed {}) = gUnitCC (FZBlock f b)
 
 rgCat = U.splice fzCat
   where fzCat (FZBlock f b1) (FZBlock _ b2) = FZBlock f (b1 `U.zCat` b2)
+
+----------------------------------------------------------------
+--       Utility for fact lookup
+----------------------------------------------------------------
+
+-- Lookup the fact `orelse` bottom
+lookupF :: FwdPass n f -> Label -> FactBase f -> f
+lookupB :: BwdPass n f -> Label -> FactBase f -> f
+
+lookupF = getFact . fp_lattice
+lookupB = getFact . bp_lattice
+
+getFact  :: DataflowLattice f -> Label -> FactBase f -> f
+getFact lat l fb = case lookupFact fb l of Just  f -> f
+                                           Nothing -> fact_bot lat
