@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs, EmptyDataDecls #-}
 
 module Compiler.Hoopl.Graph 
-  ( O, C, Block(..), Body(..), bodyMap, Graph(..), MaybeO(..)
+  ( O, C, Block(..), Body, Body'(..), bodyMap, Graph, Graph'(..), MaybeO(..)
   , Edges(entryLabel, successors)
   , addBlock, bodyList
   )
@@ -21,22 +21,28 @@ data Block n e x where
   BUnit :: n e x -> Block n e x
   BCat  :: Block n e O -> Block n O x -> Block n e x
 
-data Body n where
-  BodyEmpty :: Body n
-  BodyUnit  :: Block n C C -> Body n
-  BodyCat   :: Body n -> Body n -> Body n
+type Body = Body' Block
+data Body' block n where
+  BodyEmpty :: Body' block n
+  BodyUnit  :: block n C C -> Body' block n
+  BodyCat   :: Body' block n -> Body' block n -> Body' block n
 
-data Graph n e x where
-  GNil  :: Graph n O O
-  GUnit :: Block n O O -> Graph n O O
-  GMany :: MaybeO e (Block n O C) 
-        -> Body n
-        -> MaybeO x (Block n C O)
-        -> Graph n e x
+type Graph = Graph' Block
+data Graph' block n e x where
+  GNil  :: Graph' block n O O
+  GUnit :: block n O O -> Graph' block n O O
+  GMany :: MaybeO e (block n O C) 
+        -> Body' block n
+        -> MaybeO x (block n C O)
+        -> Graph' block n e x
 
 data MaybeO ex t where
   JustO    :: t -> MaybeO O t
   NothingO ::      MaybeO C t
+
+instance Functor (MaybeO ex) where
+  fmap f NothingO = NothingO
+  fmap f (JustO a) = JustO (f a)
 
 -------------------------------
 class Edges thing where
@@ -50,16 +56,16 @@ instance Edges n => Edges (Block n) where
   successors (BCat _ b)  = successors b
 
 ------------------------------
-addBlock :: Block n C C -> Body n -> Body n
+addBlock :: block n C C -> Body' block n -> Body' block n
 addBlock b body = BodyUnit b `BodyCat` body
 
-bodyList :: Edges n => Body n -> [(Label,Block n C C)]
+bodyList :: Edges (block n) => Body' block n -> [(Label,block n C C)]
 bodyList body = go body []
   where
     go BodyEmpty       bs = bs
     go (BodyUnit b)    bs = (entryLabel b, b) : bs
     go (BodyCat b1 b2) bs = go b1 (go b2 bs)
 
-bodyMap :: Edges n => Body n -> LabelMap (Block n C C)
+bodyMap :: Edges (block n) => Body' block n -> LabelMap (block n C C)
 bodyMap = mkFactBase . bodyList
 
