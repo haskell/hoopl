@@ -1,7 +1,9 @@
 module Compiler.Hoopl.Label
   ( Label
   , allLabels -- to be used only by the Fuel monad
-  , LabelMap
+  , LabelMap, emptyLabelMap, mkLabelMap, lookupLabel, extendLabelMap
+            , delFromLabelMap, unionLabelMap
+            , elemLabelMap, labelMapLabels, labelMapList
   , FactBase, noFacts, mkFactBase, unitFact, lookupFact, extendFactBase
             , delFromFactBase, unionFactBase
             , elemFactBase, factBaseLabels, factBaseList
@@ -24,9 +26,6 @@ instance Show Label where
 
 allLabels :: [Label]
 allLabels = map Label [1..]
-
-type LabelMap a = M.IntMap a
-
 
 
 -----------------------------------------------------------------------------
@@ -72,6 +71,36 @@ factBaseList = map (mapFst Label) . M.toList
 
 delFromFactBase :: FactBase f -> [(Label,a)] -> FactBase f
 delFromFactBase fb blks = foldr (M.delete . unLabel . fst) fb blks
+
+----------------------------------------------------------------
+type LabelMap a = M.IntMap a
+
+emptyLabelMap :: LabelMap f
+emptyLabelMap = M.empty
+
+mkLabelMap :: [(Label, f)] -> LabelMap f
+mkLabelMap = mkFactBase
+
+lookupLabel :: LabelMap f -> Label -> Maybe f
+lookupLabel = lookupFact
+
+extendLabelMap :: LabelMap f -> Label -> f -> LabelMap f
+extendLabelMap = extendFactBase
+
+unionLabelMap :: LabelMap f -> LabelMap f -> LabelMap f
+unionLabelMap = M.union
+
+elemLabelMap :: Label -> LabelMap f -> Bool
+elemLabelMap = elemFactBase
+
+labelMapLabels :: LabelMap f -> [Label]
+labelMapLabels = factBaseLabels
+
+labelMapList :: LabelMap f -> [(Label, f)]
+labelMapList = factBaseList
+
+delFromLabelMap :: LabelMap f -> [(Label,a)] -> LabelMap f
+delFromLabelMap = delFromFactBase
 
 ----------------------
 newtype LabelSet = LS { unLS :: S.IntSet }
