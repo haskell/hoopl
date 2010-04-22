@@ -56,8 +56,8 @@ This was made possible by
 -}
 
 module Compiler.Hoopl.ZipDataflowNoRG
-  ( FwdPass(..),  FwdTransfer, mkFTransfers, mkFTransfers', FwdRewrite, FwdRes(..)
-  , BwdPass(..), BwdTransfer, mkBTransfers, mkBTransfers', BwdRewrite, BwdRes(..)
+  ( FwdPass(..), FwdTransfer, mkFTransfer, mkFTransfer', FwdRewrite, FwdRes(..)
+  , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer', BwdRewrite, BwdRes(..)
   , analyzeAndRewriteFwd,  analyzeAndRewriteBwd
   , analyzeAndRewriteFwd', analyzeAndRewriteBwd'
   )
@@ -88,23 +88,23 @@ data FwdPass n f
             , fp_transfer :: FwdTransfer n f
             , fp_rewrite  :: FwdRewrite n f }
 
-type FwdTransfer n f 
-  = ( n C O -> f -> f
-    , n O O -> f -> f
-    , n O C -> f -> FactBase f
-    )
+newtype FwdTransfer n f 
+  = FwdTransfers ( n C O -> f -> f
+                 , n O O -> f -> f
+                 , n O C -> f -> FactBase f
+                 )
 
 type FwdRewrite n f 
   = forall e x. n e x -> f -> Maybe (FwdRes n f e x)
 data FwdRes n f e x = FwdRes (AGraph n e x) (FwdRewrite n f)
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
-mkFTransfers :: (n C O -> f -> f) -> (n O O -> f -> f) ->
-                (n O C -> f -> FactBase f) -> FwdTransfer n f
-mkFTransfers f m l = (f, m, l)
+mkFTransfer :: (n C O -> f -> f) -> (n O O -> f -> f) ->
+               (n O C -> f -> FactBase f) -> FwdTransfer n f
+mkFTransfer f m l = FwdTransfers (f, m, l)
 
-mkFTransfers' :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
-mkFTransfers' f = (f, f, f)
+mkFTransfer' :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
+mkFTransfer' f = FwdTransfers (f, f, f)
 
 
 analyzeAndRewriteFwd
@@ -228,21 +228,21 @@ data BwdPass n f
             , bp_transfer :: BwdTransfer n f
             , bp_rewrite  :: BwdRewrite n f }
 
-type BwdTransfer n f 
-  = ( n C O -> f          -> f
-    , n O O -> f          -> f
-    , n O C -> FactBase f -> f
-    )
+newtype BwdTransfer n f 
+  = BwdTransfers ( n C O -> f          -> f
+                 , n O O -> f          -> f
+                 , n O C -> FactBase f -> f
+                 )
 type BwdRewrite n f 
   = forall e x. n e x -> Fact x f -> Maybe (BwdRes n f e x)
 data BwdRes n f e x = BwdRes (AGraph n e x) (BwdRewrite n f)
 
-mkBTransfers :: (n C O -> f -> f) -> (n O O -> f -> f) ->
-                (n O C -> FactBase f -> f) -> BwdTransfer n f
-mkBTransfers f m l = (f, m, l)
+mkBTransfer :: (n C O -> f -> f) -> (n O O -> f -> f) ->
+               (n O C -> FactBase f -> f) -> BwdTransfer n f
+mkBTransfer f m l = BwdTransfers (f, m, l)
 
-mkBTransfers' :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
-mkBTransfers' f = (f, f, f)
+mkBTransfer' :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
+mkBTransfer' f = BwdTransfers (f, f, f)
 
 
 -----------------------------------------------------------------------------
@@ -591,22 +591,22 @@ instance ShapeLifter C O where
   unit            = ZFirst
   elift      n f  = mkFactBase [(entryLabel n, f)]
   elower lat n fb = getFact lat (entryLabel n) fb
-  ftransfer (FwdPass {fp_transfer = (ft, _, _)}) n f = ft n f
-  btransfer (BwdPass {bp_transfer = (bt, _, _)}) n f = bt n f
+  ftransfer (FwdPass {fp_transfer = FwdTransfers (ft, _, _)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = BwdTransfers (bt, _, _)}) n f = bt n f
 
 instance ShapeLifter O O where
   unit         = ZMiddle
   elift    _ f = f
   elower _ _ f = f
-  ftransfer (FwdPass {fp_transfer = (_, ft, _)}) n f = ft n f
-  btransfer (BwdPass {bp_transfer = (_, bt, _)}) n f = bt n f
+  ftransfer (FwdPass {fp_transfer = FwdTransfers (_, ft, _)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = BwdTransfers (_, bt, _)}) n f = bt n f
 
 instance ShapeLifter O C where
   unit         = ZLast
   elift    _ f = f
   elower _ _ f = f
-  ftransfer (FwdPass {fp_transfer = (_, _, ft)}) n f = ft n f
-  btransfer (BwdPass {bp_transfer = (_, _, bt)}) n f = bt n f
+  ftransfer (FwdPass {fp_transfer = FwdTransfers (_, _, ft)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = BwdTransfers (_, _, bt)}) n f = bt n f
 
 -- Fact lookup: the fact `orelse` bottom
 lookupF :: FwdPass n f -> Label -> FactBase f -> f
