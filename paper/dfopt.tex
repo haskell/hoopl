@@ -1,5 +1,30 @@
 \iffalse
 
+I was thinking again about unwrapped nodes, cons-lists, snoc-lists,
+and tree fringe.  I think there's an analogy with ordinary lists, and
+the analogy is 'concatMap' vs 'fold'.  Just as with lists, the common
+case of 'concatMap (\a -> [a])' does a lot of unnecessary wrapping and
+unwrapping of elements.  We nevertheless prefer 'concatMap' because it
+provides better separation of concerns.  But this analogy suggests
+several ideas:
+
+  - Can block processing be written in higher-order fashion?
+
+  - Can it be done in both styles (concatMap *and* fold)?
+
+  - Once we have framed the problem in these terms, can we write
+    fold-style cold that is not too hard to understand and maintain?
+
+  - Finally, is there an analog of stream fusion that would work for
+    control-flow graphs, enabling us to write some graph combinators
+    that be both perspicuous and efficient?
+
+These are good observations for the paper and for future work.
+
+
+----------------------------------------------------------------
+
+
 P.S. The three of us should have a nice little Skype chat about
 higher-rank types.  A lot of the questions still at issue boil down to
 the following observations:

@@ -60,8 +60,8 @@ addTop name join = addTop' name join'
 
 addTop' name joinx = DataflowLattice name Top join False
   where  -- careful: order of cases matters for ChangeFlag
-        join _ (OldFact Top)          (NewFact f)   = (NoChange, Top)
-        join _ (OldFact f)            (NewFact Top) = (SomeChange, Top)
+        join _ (OldFact Top)          (NewFact _)   = (NoChange, Top)
+        join _ (OldFact _)            (NewFact Top) = (SomeChange, Top)
         join l (OldFact (NonTop old)) (NewFact (NonTop new))
            = joinx l (OldFact old) (NewFact new)
 

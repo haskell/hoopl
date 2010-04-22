@@ -1,0 +1,45 @@
+Thoughts about loop-based analyses
+==================================
+
+A loop analysis will want to have certain inputs, perhaps including
+
+  - A set of loop headers
+  - The dominance relation
+  - The reachability relation
+
+Let's assume
+
+  type Header  = Label
+  type Headers = LabelSet
+
+We can imagine doing loop analyses as follows:
+
+  - The dataflow fact is `Map Header f` where `f` is a lattice of
+    facts.
+
+  - If at a given point (edge) in the flow graph, header `H` is a key in the
+    map, then that point is reachable from `H`, and the fact stored in
+    the map is true on all paths that originate at `H` and terminate
+    at that point.
+
+  - If a given point (edge) in the flow graph cannot reach `H`, it is
+    safe (but not necessary) to delete `H` from the map.  It is
+    probably worth deleting `H` if possible, because if nothing else
+    it will keep the program from allocating one thunk per node `N`
+    that is reachable from `H` but does not reach `H`.
+
+  - If at a given point in the flow graph, `H` is not a key in the map,
+    then we expect either the point is not reachable from `H` or it
+    does not reach `H`.  That is, we want `H` to be a key at exactly
+    those points that are in a loop containing `H`.
+
+  - If a join function gets two maps and `H` is a key in just one of
+    them, the map without `H` can be ignored, since that edge is not
+    yet known to be reachable from `H`.  We can therefore use the
+    empty map as a bottom element.
+
+  - If `join` is the join function on `f`, the join function on maps
+    can *almost* be defined using `Data.Map.unionWithKey f`, but
+    unfortunately not, because of the beastly `ChangeFlag`.
+    A person like Chris Rice should explore a suitable higher-order
+    function for lifting joins into finite maps.
