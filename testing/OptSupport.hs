@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall -fno-warn-incomplete-patterns -XGADTs -XRankNTypes #-}
-module OptSupport (WithTop (..), stdMapJoin, map_EE, map_EN, fold_EE, fold_EN,
+module OptSupport (stdMapJoin, map_EE, map_EN, fold_EE, fold_EN,
                    getFwdFact, insnToA) where
 
 import qualified Data.Map as M
@@ -12,8 +12,6 @@ import IR
 ----------------------------------------------
 -- Common lattice utility code:
 ----------------------------------------------
-
-data WithTop a = Elt a | Top deriving (Eq, Show)
 
 -- It's common to represent dataflow facts as a map from locations
 -- to some fact about the locations. For these maps, the join

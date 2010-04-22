@@ -4,6 +4,7 @@
 
 module Compiler.Hoopl.Pointed
   ( Pointed(..), addPoints, addPoints', addTop, addTop'
+  , WithTop, WithBot, WithTopAndBot
   )
 where
 
@@ -13,9 +14,10 @@ import Compiler.Hoopl.Dataflow
 
 -- | Adds top, bottom, or both to help form a lattice
 data Pointed t b a where
-  Bot   ::      Pointed t C a
-  Top   ::      Pointed C b a
-  PElem :: a -> Pointed t b a
+   Bot   ::      Pointed t C a
+   PElem :: a -> Pointed t b a
+   Top   ::      Pointed C b a
+
 -- ^ The type parameters 't' and 'b' are used to say whether top
 -- and bottom elements have been added.  The analogy with 'Block'
 -- is nearly exact:
@@ -41,6 +43,17 @@ data Pointed t b a where
 -- 'Bot', 'Top', and 'PElem' can all be used polymorphically.
 --
 -- A 'Pointed t b' type is an instance of 'Functor' and 'Show'.
+
+
+
+type WithBot a = Pointed O C a
+-- ^ Type 'a' with a bottom element adjoined
+
+type WithTop a = Pointed C O a
+-- ^ Type 'a' with a top element adjoined
+
+type WithTopAndBot a = Pointed C C a
+-- ^ Type 'a' with top and bottom elements adjoined
 
 
 -- | Given a join function and a name, creates a semi lattice by
@@ -102,3 +115,18 @@ instance Functor (Pointed t b) where
   fmap _ Bot = Bot
   fmap _ Top = Top
   fmap f (PElem a) = PElem (f a)
+
+instance Eq a => Eq (Pointed t b a) where
+  Bot == Bot = True
+  Top == Top = True
+  (PElem a) == (PElem a') = a == a'
+  _ == _ = False
+
+instance Ord a => Ord (Pointed t b a) where
+  Bot     `compare` Bot      = EQ
+  Bot     `compare` _        = LT
+  _       `compare` Bot      = GT
+  PElem a `compare` PElem a' = a `compare` a'
+  Top     `compare` Top      = EQ
+  Top     `compare` _        = GT
+  _       `compare` Top      = LT

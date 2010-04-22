@@ -84,6 +84,10 @@ data DataflowLattice a = DataflowLattice
                                       -- (changes iff result > old fact)
  , fact_do_logging :: Bool            -- log changes
  }
+-- ^ A transfer function might want to use the logging flag
+-- to control debugging, as in for example, it updates just one element
+-- in a big finite map.  We don't want Hoopl to show the whole fact,
+-- and only the transfer function knows exactly what changed.
 
 type JoinFun a = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
   -- the label argument is for debugging purposes only
@@ -203,13 +207,21 @@ arfGraph pass (GMany NothingO body (JustO exit)) f
        ; return (body' `RGCatC` exit', fx) }
 arfGraph pass (GMany (JustO entry) body NothingO) f
   = do { (entry', fe) <- arfBlock pass entry f
-       ; (body', fb)  <- arfBody  pass body fe
+       ; (body', fb)  <- arfBody  pass body $ joinInFacts (fp_lattice pass) fe
        ; return (entry' `RGCatC` body', fb) }
 arfGraph pass (GMany (JustO entry) body (JustO exit)) f
   = do { (entry', fe) <- arfBlock pass entry f
-       ; (body', fb)  <- arfBody  pass body fe
+       ; (body', fb)  <- arfBody  pass body $ joinInFacts (fp_lattice pass) fe
        ; (exit', fx)  <- arfBlock pass exit fb
        ; return (entry' `RGCatC` body' `RGCatC` exit', fx) }
+
+-- Join all the incoming facts with bottom.
+-- We know the results _shouldn't change_, but the transfer
+-- functions might, for example, generate some debugging traces.
+joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
+joinInFacts (DataflowLattice {fact_bot = bot, fact_extend = fe}) fb =
+  mkFactBase $ map botJoin $ factBaseList fb
+    where botJoin (l, f) = (l, snd $ fe l (OldFact bot) (NewFact f))
 
 forwardBlockList :: (Edges n, LabelsPtr entry)
                  => entry -> Body n -> [Block n C C]
@@ -276,7 +288,7 @@ arbGraph pass (GMany NothingO body NothingO) f
        ; return (body', fb) }
 arbGraph pass (GMany NothingO body (JustO exit)) f
   = do { (exit', fx) <- arbBlock pass exit f
-       ; (body', fb) <- arbBody  pass body fx
+       ; (body', fb) <- arbBody  pass body $ joinInFacts (bp_lattice pass) fx
        ; return (body' `RGCatC` exit', fb) }
 arbGraph pass (GMany (JustO entry) body NothingO) f
   = do { (body', fb)  <- arbBody  pass body f
@@ -284,7 +296,7 @@ arbGraph pass (GMany (JustO entry) body NothingO) f
        ; return (entry' `RGCatC` body', fe) }
 arbGraph pass (GMany (JustO entry) body (JustO exit)) f
   = do { (exit', fx)  <- arbBlock pass exit f
-       ; (body', fb)  <- arbBody  pass body fx
+       ; (body', fb)  <- arbBody  pass body $ joinInFacts (bp_lattice pass) fx
        ; (entry', fe) <- arbBlock pass entry fb
        ; return (entry' `RGCatC` body' `RGCatC` exit', fe) }
 
