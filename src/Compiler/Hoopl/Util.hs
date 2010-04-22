@@ -69,6 +69,10 @@ zblockGraph b@(ZTail {})   = gUnitOC b
 zblockGraph b@(ZClosed {}) = gUnitCC b
 
 
+-- | Function 'graphMapBlocks' enables a change of representation of blocks,
+-- nodes, or both.  It lifts a polymorphic block transform into a polymorphic
+-- graph transform.  When the block representation stabilizes, a similar
+-- function should be provided for blocks.
 graphMapBlocks :: forall block n block' n' e x .
                   (forall e x . block n e x -> block' n' e x)
                -> (Graph' block n e x -> Graph' block' n' e x)
