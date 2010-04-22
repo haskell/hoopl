@@ -39,7 +39,7 @@ debugJoins trace showOutput l@(DataflowLattice {fact_extend = extend}) = l {fact
      if showOutput c then trace output res else res
        where res@(c, f') = extend l f1 f2
              output = case c of
-                        SomeChange -> "+ Join@" ++ show l ++ ": " ++ show of1 ++ " |_| "
+                        SomeChange -> "+ Join@" ++ show l ++ ": " ++ show of1 ++ " `join` "
                                                                   ++ show nf2 ++ " = " ++ show f'
                         NoChange   -> "_ Join@" ++ show l ++ ": " ++ show nf2 ++ " <= " ++ show of1
 
