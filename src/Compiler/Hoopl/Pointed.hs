@@ -16,6 +16,32 @@ data Pointed t b a where
   Bot   ::      Pointed t C a
   Top   ::      Pointed C b a
   PElem :: a -> Pointed t b a
+-- ^ The type parameters 't' and 'b' are used to say whether top
+-- and bottom elements have been added.  The analogy with 'Block'
+-- is nearly exact:
+--
+--  * A 'Block' is closed at the entry if and only if it has a first node;
+--    a 'Pointed' is closed at the top if and only if it has a top element.
+--
+--  * A 'Block' is closed at the exit if and only if it has a last node;
+--    a 'Pointed' is closed at the bottom if and only if it has a bottom element.
+--
+-- We thus have four possible types, of which three are interesting:
+--
+--  [@Pointed C C a@] Type @a@ extended with both top and bottom elements.
+--
+--  [@Pointed C O a@] Type @a@ extended with a top element
+--  only. (Presumably @a@ comes equipped with a bottom element of its own.)
+--
+--  [@Pointed O C a@] Type @a@ extended with a bottom element only. 
+--
+--  [@Pointed O O a@] Isomorphic to @a@, and therefore not interesting.
+--
+-- The advantage of all this GADT-ishness is that the constructors
+-- 'Bot', 'Top', and 'PElem' can all be used polymorphically.
+--
+-- A 'Pointed t b' type is an instance of 'Functor' and 'Show'.
+
 
 -- | Given a join function and a name, creates a semi lattice by
 -- adding a bottom element, and possibly a top element also.
