@@ -13,22 +13,21 @@ import Data.Maybe
 import Compiler.Hoopl 
 
 domEntry :: Doms
-domEntry = DPath []
+domEntry = NonBot (DPath [])
 
-data Doms = Unreached
-          | DPath [Label] -- might hide this one day
+newtype DPath = DPath [Label]
+data Doms = WithBot [Label] -- might hide this one day
   -- ^ represents part of the domination relation: each label
   -- in a list is dominated by all its successors
 
-instance Show Doms where
-  show Unreached = "<unreached node>"
+instance Show DPath where
   show (DPath ls) = concat (foldr (\l path -> show l : " -> " : path) ["entry"] ls)
 
 domPath :: Doms -> [Label]
 domPath Unreached = [] -- lies
 domPath (DPath ls) = ls
 
-extendDom :: Label -> Doms -> Doms
+extendDom :: Label -> DPath -> DPath
 extendDom _ Unreached = error "fault in dominator analysis"
 extendDom l (DPath ls) = DPath (l:ls)
 
