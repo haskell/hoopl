@@ -115,3 +115,18 @@ instance Functor (Pointed t b) where
   fmap _ Bot = Bot
   fmap _ Top = Top
   fmap f (PElem a) = PElem (f a)
+
+instance Eq a => Eq (Pointed t b a) where
+  Bot == Bot = True
+  Top == Top = True
+  (PElem a) == (PElem a') = a == a'
+  _ == _ = False
+
+instance Ord a => Ord (Pointed t b a) where
+  Bot     `compare` Bot      = EQ
+  Bot     `compare` _        = LT
+  _       `compare` Bot      = GT
+  PElem a `compare` PElem a' = a `compare` a'
+  Top     `compare` Top      = EQ
+  Top     `compare` _        = GT
+  _       `compare` Top      = LT
