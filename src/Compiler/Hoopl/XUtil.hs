@@ -45,7 +45,7 @@ instance Functor WithBot where
 
 
 -- | Adds a top element to a set to help form a lattice
-data WithTop a = Top | NonTop a
+data WithTop a = Top | NonTop a deriving Eq
 
 -- | Given a join function and a name, creates a semi lattice by
 -- adding a top element.  A specialized version of 'addTop''.
