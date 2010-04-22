@@ -1,6 +1,111 @@
 3.7.12.3
 
-  - Added Compiler.Hoopl.Pointed, as well as other stuff.
+  Updates to Hoopl in the last week
+  =================================
+
+
+  Interface changes
+  -----------------
+  The type of AGraph is now abstract.
+  It is now recommended to create AGraphs with just three functions:
+
+    <*>          concatenation
+    |*><*|       splicing at a closed point
+    addBlocks    add C/C blocks out of line
+
+  There are new utility functions in modules Util and XUtil, all
+  exported by Compiler.Hoopl.  Here's a selection:
+
+    -- | A utility function so that a transfer function for a first
+    -- node can be given just a fact; we handle the lookup.  This
+    -- function is planned to be made obsolete by changes in the dataflow
+    -- interface.
+    firstXfer :: Edges n => (n C O -> f -> f) -> (n C O -> FactBase f -> f)
+    firstXfer xfer n fb = xfer n $ fromJust $ lookupFact fb $ entryLabel n
+    
+    -- | This utility function handles a common case in which a transfer function
+    -- produces a single fact out of a last node, which is then distributed
+    -- over the outgoing edges.
+    distributeXfer :: Edges n => (n O C -> f -> f) -> (n O C -> f -> FactBase f)
+    distributeXfer xfer n f = mkFactBase [ (l, xfer n f) | l <- successors n ]
+    
+    -- | This utility function handles a common case in which a transfer function
+    -- for a last node takes the incoming fact unchanged and simply distributes
+    -- that fact over the outgoing edges.
+    distributeFact :: Edges n => n O C -> f -> FactBase f
+
+    -- | Function 'graphMapBlocks' enables a change of representation of blocks,
+    -- nodes, or both.  It lifts a polymorphic block transform into a polymorphic
+    -- graph transform.  When the block representation stabilizes, a similar
+    -- function should be provided for blocks.
+    graphMapBlocks :: forall block n block' n' e x .
+                      (forall e x . block n e x -> block' n' e x)
+                   -> (Graph' block n e x -> Graph' block' n' e x)
+
+    postorder_dfs :: Edges (block n) => Graph' block n O x -> [block n C C]
+
+  There are quite a few other variations related to depth-first traversal.
+
+
+  There is a new module Compiler.Hoopl.Pointed, which uses GADTs to
+  enable you to add a Top or Bot element to a lattice, or both, all
+  using the same type.  (Types 'WithBot' and 'WithTop' in XUtil,
+  exported by Compiler.Hoopl, do similar jobs, but I think they are
+  inferior.  Your opinion is solicited.)
+
+  I added a function showGraph to print Graphs.  Right now it requires a
+  polymorphic node-showing function as argument. When we change the
+  Block representation we may get enough static type information that we
+  can simply have an instance declaration for 
+
+    instance (Show n C O, Show n O O, Show n O C) => Show (Graph n e x)
+
+  At present, I don't see how to achieve such a declaration.
+
+
+  John added new functions 'debugFwdJoins' and 'debugBwdJoins' to extend
+  passes with debugging information.
+
+  We added primed versions of the analyzeAndRewrite functions, which
+  operate on Graph, not Body.  Recommended, at least for first-timers.
+
+  Not all maps keyed by Label are FactBases, so there is now a new set
+  of names of functions to manipulate LabelMaps that do not contain
+  dataflow facts.
+
+
+
+  Implementation changes
+  ----------------------
+  Split pass and rewrite-function combinators into Compiler.Hoopl.Combinators.
+
+  Changed order of blocks for forward and backward analysis.
+  These changes have not been tested, because we don't have a true
+  regression suite yet.
+
+  Graph and Body types now have more polymorphic variants Graph' and Body'.
+
+  Lots of experiments with zippers.
+
+
+
+  Changes ahead
+  -------------
+  ForwardTransfer will become an abstract type, and clients will have
+  two ways to create ForwardTransfers: as now, with a single,
+  polymorphic transfer function; or with a triple of monomorphic
+  transfer functions.  The implementation will use monomorphic
+  functions, which will enable more useful combinators on passes,
+  including adding more debugging information and enabling us to combine
+  passes. 
+
+  Perhaps we should provide splicing and 'addBlocks' on Graph?
+
+  Change of block representation to have three monomorphic unit
+  constructors and one polymorphic concatenation constructor.
+
+  Graph body to be represented by a finite map; add functions to check
+  for duplicate labels.
 
 3.7.12.1
 
