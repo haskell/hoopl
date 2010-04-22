@@ -41,7 +41,7 @@ data MaybeO ex t where
   NothingO ::      MaybeO C t
 
 instance Functor (MaybeO ex) where
-  fmap f NothingO = NothingO
+  fmap _ NothingO = NothingO
   fmap f (JustO a) = JustO (f a)
 
 -------------------------------

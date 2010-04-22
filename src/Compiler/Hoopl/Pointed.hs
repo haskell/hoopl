@@ -35,9 +35,9 @@ addPoints' name joinx = DataflowLattice name Bot join False
   where -- careful: order of cases matters for ChangeFlag
         join :: JoinFun (Pointed t C a)
         join _ (OldFact f)            (NewFact Bot) = (NoChange, f)
-        join _ (OldFact Top)          (NewFact f)   = (NoChange, Top)
+        join _ (OldFact Top)          (NewFact _)   = (NoChange, Top)
         join _ (OldFact Bot)          (NewFact f)   = (SomeChange, f)
-        join _ (OldFact f)            (NewFact Top) = (SomeChange, Top)
+        join _ (OldFact _)            (NewFact Top) = (SomeChange, Top)
         join l (OldFact (PElem old)) (NewFact (PElem new))
            = joinx l (OldFact old) (NewFact new)
 
@@ -62,8 +62,8 @@ addTop lattice = lattice' { fact_do_logging = fact_do_logging lattice }
 addTop' name bot joinx = DataflowLattice name (PElem bot) join False
   where -- careful: order of cases matters for ChangeFlag
         join :: JoinFun (Pointed C O a)
-        join _ (OldFact Top)          (NewFact f)   = (NoChange, Top)
-        join _ (OldFact f)            (NewFact Top) = (SomeChange, Top)
+        join _ (OldFact Top)          (NewFact _)   = (NoChange, Top)
+        join _ (OldFact _)            (NewFact Top) = (SomeChange, Top)
         join l (OldFact (PElem old)) (NewFact (PElem new))
            = joinx l (OldFact old) (NewFact new)
 
