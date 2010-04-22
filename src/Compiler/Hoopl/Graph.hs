@@ -18,16 +18,16 @@ data C
 
 data Block n e x where
   -- nodes
-  ZFirst  :: n C O                 -> Block n C O
-  ZMiddle :: n O O                 -> Block n O O
-  ZLast   :: n O C                 -> Block n O C
+  First  :: n C O                 -> Block n C O
+  Middle :: n O O                 -> Block n O O
+  Last   :: n O C                 -> Block n O C
 
   -- concatenation operations
-  ZCat    :: Block n O O -> Block n O O -> Block n O O -- non-list-like
-  ZHead   :: Block n C O -> n O O       -> Block n C O
-  ZTail   :: n O O       -> Block n O C -> Block n O C  
+  Cat    :: Block n O O -> Block n O O -> Block n O O -- non-list-like
+  Head   :: Block n C O -> n O O       -> Block n C O
+  Tail   :: n O O       -> Block n O C -> Block n O C  
 
-  ZClosed :: Block n C O -> Block n O C -> Block n C C -- the zipper
+  Closed :: Block n C O -> Block n O C -> Block n C C -- the zipper
 
 type Body = Body' Block
 data Body' block n where
@@ -58,12 +58,12 @@ class Edges thing where
   successors :: thing e C -> [Label]
 
 instance Edges n => Edges (Block n) where
-  entryLabel (ZFirst n)    = entryLabel n
-  entryLabel (ZHead h _)   = entryLabel h
-  entryLabel (ZClosed h _) = entryLabel h
-  successors (ZLast n)     = successors n
-  successors (ZTail _ t)   = successors t
-  successors (ZClosed _ t) = successors t
+  entryLabel (First n)    = entryLabel n
+  entryLabel (Head h _)   = entryLabel h
+  entryLabel (Closed h _) = entryLabel h
+  successors (Last n)     = successors n
+  successors (Tail _ t)   = successors t
+  successors (Closed _ t) = successors t
 
 ------------------------------
 addBlock :: block n C C -> Body' block n -> Body' block n

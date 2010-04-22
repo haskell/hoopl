@@ -5,7 +5,7 @@ module Compiler.Hoopl.Util
   , catGraphNodeOC, catGraphNodeOO
   , catNodeCOGraph, catNodeOOGraph
   , graphMapBlocks
-  , zblockGraph
+  , blockGraph
   , postorder_dfs, postorder_dfs_from, postorder_dfs_from_except
   , preorder_dfs, preorder_dfs_from_except
   , labelsDefined, labelsUsed, externalEntryLabels
@@ -17,7 +17,6 @@ import Control.Monad
 
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.Label
-import Compiler.Hoopl.Zipper
 
 
 ----------------------------------------------------------------
@@ -37,42 +36,42 @@ catGraphNodeOC :: Graph n e O -> n O C -> Graph n e C
 catNodeOOGraph :: n O O -> Graph n O x -> Graph n O x
 catNodeCOGraph :: n C O -> Graph n O x -> Graph n C x
 
-catGraphNodeOO GNil                     n = gUnitOO $ ZMiddle n
-catGraphNodeOO (GUnit b)                n = gUnitOO $ b `ZCat` ZMiddle n
-catGraphNodeOO (GMany e body (JustO x)) n = GMany e body (JustO $ x `ZHead` n)
+catGraphNodeOO GNil                     n = gUnitOO $ Middle n
+catGraphNodeOO (GUnit b)                n = gUnitOO $ b `Cat` Middle n
+catGraphNodeOO (GMany e body (JustO x)) n = GMany e body (JustO $ x `Head` n)
 
-catGraphNodeOC GNil                     n = gUnitOC $ ZLast n
-catGraphNodeOC (GUnit b)                n = gUnitOC $ addToLeft b $ ZLast n
+catGraphNodeOC GNil                     n = gUnitOC $ Last n
+catGraphNodeOC (GUnit b)                n = gUnitOC $ addToLeft b $ Last n
   where addToLeft :: Block n O O -> Block n O C -> Block n O C
-        addToLeft (ZMiddle m)    g = m `ZTail` g
-        addToLeft (b1 `ZCat` b2) g = addToLeft b1 $ addToLeft b2 g
+        addToLeft (Middle m)    g = m `Tail` g
+        addToLeft (b1 `Cat` b2) g = addToLeft b1 $ addToLeft b2 g
 catGraphNodeOC (GMany e body (JustO x)) n = GMany e body' NothingO
-  where body' = body `BodyCat` BodyUnit (x `ZClosed` ZLast n)
+  where body' = body `BodyCat` BodyUnit (x `Closed` Last n)
 
-catNodeOOGraph n GNil                     = gUnitOO $ ZMiddle n
-catNodeOOGraph n (GUnit b)                = gUnitOO $ ZMiddle n `ZCat` b
-catNodeOOGraph n (GMany (JustO e) body x) = GMany (JustO $ n `ZTail` e) body x
+catNodeOOGraph n GNil                     = gUnitOO $ Middle n
+catNodeOOGraph n (GUnit b)                = gUnitOO $ Middle n `Cat` b
+catNodeOOGraph n (GMany (JustO e) body x) = GMany (JustO $ n `Tail` e) body x
 
-catNodeCOGraph n GNil                     = gUnitCO $ ZFirst n
-catNodeCOGraph n (GUnit b)                = gUnitCO $ addToRight (ZFirst n) b
+catNodeCOGraph n GNil                     = gUnitCO $ First n
+catNodeCOGraph n (GUnit b)                = gUnitCO $ addToRight (First n) b
   where addToRight :: Block n C O -> Block n O O -> Block n C O
-        addToRight g (ZMiddle m)    = g `ZHead` m
-        addToRight g (b1 `ZCat` b2) = addToRight (addToRight g b1) b2
+        addToRight g (Middle m)    = g `Head` m
+        addToRight g (b1 `Cat` b2) = addToRight (addToRight g b1) b2
 catNodeCOGraph n (GMany (JustO e) body x) = GMany NothingO body' x
-  where body' = BodyUnit (ZFirst n `ZClosed` e) `BodyCat` body
+  where body' = BodyUnit (First n `Closed` e) `BodyCat` body
 
 
 
 
 
-zblockGraph :: Block n e x -> Graph n e x
-zblockGraph b@(ZFirst  {}) = gUnitCO b
-zblockGraph b@(ZMiddle {}) = gUnitOO b
-zblockGraph b@(ZLast   {}) = gUnitOC b
-zblockGraph b@(ZCat {})    = gUnitOO b
-zblockGraph b@(ZHead {})   = gUnitCO b
-zblockGraph b@(ZTail {})   = gUnitOC b
-zblockGraph b@(ZClosed {}) = gUnitCC b
+blockGraph :: Block n e x -> Graph n e x
+blockGraph b@(First  {}) = gUnitCO b
+blockGraph b@(Middle {}) = gUnitOO b
+blockGraph b@(Last   {}) = gUnitOC b
+blockGraph b@(Cat {})    = gUnitOO b
+blockGraph b@(Head {})   = gUnitCO b
+blockGraph b@(Tail {})   = gUnitOC b
+blockGraph b@(Closed {}) = gUnitCC b
 
 
 -- | Function 'graphMapBlocks' enables a change of representation of blocks,

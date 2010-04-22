@@ -185,13 +185,13 @@ _arfBlock = arfBlock
 
 arfBlock :: Edges n => ARF (Block n) n
 -- Lift from nodes to blocks
-arfBlock pass (ZFirst  node)  = arfNode pass node
-arfBlock pass (ZMiddle node)  = arfNode pass node
-arfBlock pass (ZLast   node)  = arfNode pass node
-arfBlock pass (ZCat b1 b2)    = arfCat arfBlock arfBlock pass b1 b2
-arfBlock pass (ZHead h n)     = arfCat arfBlock arfNode  pass h n
-arfBlock pass (ZTail n t)     = arfCat arfNode  arfBlock pass n t
-arfBlock pass (ZClosed h t)   = arfCat arfBlock arfBlock pass h t
+arfBlock pass (First  node)  = arfNode pass node
+arfBlock pass (Middle node)  = arfNode pass node
+arfBlock pass (Last   node)  = arfNode pass node
+arfBlock pass (Cat b1 b2)    = arfCat arfBlock arfBlock pass b1 b2
+arfBlock pass (Head h n)     = arfCat arfBlock arfNode  pass h n
+arfBlock pass (Tail n t)     = arfCat arfNode  arfBlock pass n t
+arfBlock pass (Closed h t)   = arfCat arfBlock arfBlock pass h t
 
 arfCat :: Edges n => ARF' n f thing1 e O -> ARF' n f thing2 O x
        -> FwdPass n f -> thing1 e O -> thing2 O x
@@ -292,13 +292,13 @@ arbNode pass node f
 
 arbBlock :: Edges n => ARB (Block n) n
 -- Lift from nodes to blocks
-arbBlock pass (ZFirst  node)  = arbNode pass node
-arbBlock pass (ZMiddle node)  = arbNode pass node
-arbBlock pass (ZLast   node)  = arbNode pass node
-arbBlock pass (ZCat b1 b2)    = arbCat arbBlock arbBlock pass b1 b2
-arbBlock pass (ZHead h n)     = arbCat arbBlock arbNode  pass h n
-arbBlock pass (ZTail n t)     = arbCat arbNode  arbBlock pass n t
-arbBlock pass (ZClosed h t)   = arbCat arbBlock arbBlock pass h t
+arbBlock pass (First  node)  = arbNode pass node
+arbBlock pass (Middle node)  = arbNode pass node
+arbBlock pass (Last   node)  = arbNode pass node
+arbBlock pass (Cat b1 b2)    = arbCat arbBlock arbBlock pass b1 b2
+arbBlock pass (Head h n)     = arbCat arbBlock arbNode  pass h n
+arbBlock pass (Tail n t)     = arbCat arbNode  arbBlock pass n t
+arbBlock pass (Closed h t)   = arbCat arbBlock arbBlock pass h t
 
 arbCat :: Edges n => ARB' n f thing1 e O -> ARB' n f thing2 O x
        -> BwdPass n f -> thing1 e O -> thing2 O x
@@ -581,16 +581,16 @@ normaliseBody rg = (body, fact_base)
 rgnil  = GNil
 rgnilC = GMany NothingO BodyEmpty NothingO
 
-rgunit f b@(ZFirst  {}) = gUnitCO (FBlock f b)
-rgunit f b@(ZMiddle {}) = gUnitOO (FBlock f b)
-rgunit f b@(ZLast   {}) = gUnitOC (FBlock f b)
-rgunit f b@(ZCat {})    = gUnitOO (FBlock f b)
-rgunit f b@(ZHead {})   = gUnitCO (FBlock f b)
-rgunit f b@(ZTail {})   = gUnitOC (FBlock f b)
-rgunit f b@(ZClosed {}) = gUnitCC (FBlock f b)
+rgunit f b@(First  {}) = gUnitCO (FBlock f b)
+rgunit f b@(Middle {}) = gUnitOO (FBlock f b)
+rgunit f b@(Last   {}) = gUnitOC (FBlock f b)
+rgunit f b@(Cat {})    = gUnitOO (FBlock f b)
+rgunit f b@(Head {})   = gUnitCO (FBlock f b)
+rgunit f b@(Tail {})   = gUnitOC (FBlock f b)
+rgunit f b@(Closed {}) = gUnitCC (FBlock f b)
 
 rgCat = U.splice fzCat
-  where fzCat (FBlock f b1) (FBlock _ b2) = FBlock f (b1 `U.zCat` b2)
+  where fzCat (FBlock f b1) (FBlock _ b2) = FBlock f (b1 `U.cat` b2)
 
 ----------------------------------------------------------------
 --       Utilities
@@ -610,21 +610,21 @@ class ShapeLifter e x where
   btransfer :: BwdPass n f -> n e x -> Fact x f -> f
 
 instance ShapeLifter C O where
-  unit            = ZFirst
+  unit            = First
   elift      n f  = mkFactBase [(entryLabel n, f)]
   elower lat n fb = getFact lat (entryLabel n) fb
   ftransfer (FwdPass {fp_transfer = FwdTransfers (ft, _, _)}) n f = ft n f
   btransfer (BwdPass {bp_transfer = BwdTransfers (bt, _, _)}) n f = bt n f
 
 instance ShapeLifter O O where
-  unit         = ZMiddle
+  unit         = Middle
   elift    _ f = f
   elower _ _ f = f
   ftransfer (FwdPass {fp_transfer = FwdTransfers (_, ft, _)}) n f = ft n f
   btransfer (BwdPass {bp_transfer = BwdTransfers (_, bt, _)}) n f = bt n f
 
 instance ShapeLifter O C where
-  unit         = ZLast
+  unit         = Last
   elift    _ f = f
   elower _ _ f = f
   ftransfer (FwdPass {fp_transfer = FwdTransfers (_, _, ft)}) n f = ft n f
