@@ -11,8 +11,7 @@ import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.MkGraph
 
 type SimpleFwdRewrite n f 
-  = forall e x. n e x -> Fact e f
-             -> Maybe (AGraph n e x)
+  = forall e x. n e x -> f -> Maybe (AGraph n e x)
 
 noFwdRewrite :: FwdRewrite n f
 noFwdRewrite _ _ = Nothing

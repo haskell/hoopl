@@ -32,34 +32,40 @@ gUnitCO b = GMany NothingO  BodyEmpty   (JustO b)
 gUnitCC b = GMany NothingO  (BodyUnit b) NothingO
 
 
-catGraphNodeOC :: Graph n e O -> n O C -> Graph n e C
 catGraphNodeOO :: Graph n e O -> n O O -> Graph n e O
-catNodeCOGraph :: n C O -> Graph n O x -> Graph n C x
+catGraphNodeOC :: Graph n e O -> n O C -> Graph n e C
 catNodeOOGraph :: n O O -> Graph n O x -> Graph n O x
+catNodeCOGraph :: n C O -> Graph n O x -> Graph n C x
 
-catGraphNodeOO GNil                     n = gUnitOO $ BUnit n
-catGraphNodeOO (GUnit b)                n = gUnitOO $ b `BCat` BUnit n
-catGraphNodeOO (GMany e body (JustO x)) n = GMany e body (JustO $ x `BCat` BUnit n)
+catGraphNodeOO GNil                     n = gUnitOO $ ZMiddle n
+catGraphNodeOO (GUnit b)                n = gUnitOO $ b `ZCat` ZMiddle n
+catGraphNodeOO (GMany e body (JustO x)) n = GMany e body (JustO $ x `ZHead` n)
 
-catGraphNodeOC GNil                     n = gUnitOC $ BUnit n
-catGraphNodeOC (GUnit b)                n = gUnitOC $ b `BCat` BUnit n
+catGraphNodeOC GNil                     n = gUnitOC $ ZLast n
+catGraphNodeOC (GUnit b)                n = gUnitOC $ addToLeft b $ ZLast n
+  where addToLeft :: Block n O O -> Block n O C -> Block n O C
+        addToLeft (ZMiddle m)    g = m `ZTail` g
+        addToLeft (b1 `ZCat` b2) g = addToLeft b1 $ addToLeft b2 g
 catGraphNodeOC (GMany e body (JustO x)) n = GMany e body' NothingO
-  where body' = body `BodyCat` BodyUnit (x `BCat` BUnit n)
+  where body' = body `BodyCat` BodyUnit (x `ZClosed` ZLast n)
 
-catNodeOOGraph n GNil                     = gUnitOO $ BUnit n
-catNodeOOGraph n (GUnit b)                = gUnitOO $ BUnit n `BCat` b
-catNodeOOGraph n (GMany (JustO e) body x) = GMany (JustO $ BUnit n `BCat` e) body x
+catNodeOOGraph n GNil                     = gUnitOO $ ZMiddle n
+catNodeOOGraph n (GUnit b)                = gUnitOO $ ZMiddle n `ZCat` b
+catNodeOOGraph n (GMany (JustO e) body x) = GMany (JustO $ n `ZTail` e) body x
 
-catNodeCOGraph n GNil                     = gUnitCO $ BUnit n
-catNodeCOGraph n (GUnit b)                = gUnitCO $ BUnit n `BCat` b
+catNodeCOGraph n GNil                     = gUnitCO $ ZFirst n
+catNodeCOGraph n (GUnit b)                = gUnitCO $ addToRight (ZFirst n) b
+  where addToRight :: Block n C O -> Block n O O -> Block n C O
+        addToRight g (ZMiddle m)    = g `ZHead` m
+        addToRight g (b1 `ZCat` b2) = addToRight (addToRight g b1) b2
 catNodeCOGraph n (GMany (JustO e) body x) = GMany NothingO body' x
-  where body' = BodyUnit (BUnit n `BCat` e) `BodyCat` body
+  where body' = BodyUnit (ZFirst n `ZClosed` e) `BodyCat` body
 
 
 
 
 
-zblockGraph :: ZBlock n e x -> ZGraph n e x
+zblockGraph :: Block n e x -> Graph n e x
 zblockGraph b@(ZFirst  {}) = gUnitCO b
 zblockGraph b@(ZMiddle {}) = gUnitOO b
 zblockGraph b@(ZLast   {}) = gUnitOC b

@@ -230,6 +230,6 @@ instance (Labels l1, Labels l2, Labels l3, Labels l4) => Labels (l1, l2, l3, l4)
 mkExit   block = A $ return $ GMany NothingO      BodyEmpty (JustO block)
 mkEntry  block = A $ return $ GMany (JustO block) BodyEmpty NothingO
 
-mkFirst  = mkExit  . BUnit
-mkLast   = mkEntry . BUnit
-mkMiddle = A . return  . GUnit . BUnit
+mkFirst  = mkExit  . ZFirst
+mkLast   = mkEntry . ZLast
+mkMiddle = A . return  . GUnit . ZMiddle

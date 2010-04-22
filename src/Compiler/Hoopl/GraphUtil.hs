@@ -4,7 +4,7 @@
 -- N.B. addBasicBlocks won't work on OO without a Node (branch/label) constraint
 
 module Compiler.Hoopl.GraphUtil
-  ( splice, gSplice, zSplice
+  ( splice, gSplice
   , zCat
   , bodyGraph
   )
@@ -40,13 +40,10 @@ splice bcat = sp
            = GMany e1 (bs1 `BodyCat` bs2) x2
 
 
-gSplice :: Graph  n e a -> Graph  n a x -> Graph  n e x
-zSplice :: ZGraph n e a -> ZGraph n a x -> ZGraph n e x
+gSplice :: Graph n e a -> Graph n a x -> Graph n e x
+gSplice = splice zCat
 
-gSplice = splice BCat
-zSplice = splice zCat
-
-zCat :: ZBlock n e O -> ZBlock n O x -> ZBlock n e x
+zCat :: Block n e O -> Block n O x -> Block n e x
 zCat b1@(ZFirst {})     (ZMiddle n)  = ZHead   b1 n
 zCat b1@(ZFirst {})  b2@(ZLast{})    = ZClosed b1 b2
 zCat b1@(ZFirst {})  b2@(ZTail{})    = ZClosed b1 b2

@@ -23,8 +23,13 @@ showGraph node = g
             open b g_entry ++ body g_blocks ++ open b g_exit
         body blocks = concatMap b (map snd $ bodyList blocks)
         b :: forall e x . Block n e x -> String
-        b (BUnit n)    = node n ++ "\n"
-        b (BCat b1 b2) = b b1 ++ b b2
+        b (ZFirst  n)     = node n
+        b (ZMiddle n)     = node n
+        b (ZLast   n)     = node n ++ "\n"
+        b (ZCat b1 b2)    = b b1   ++ b b2
+        b (ZHead b1 n)    = b b1   ++ node n ++ "\n"
+        b (ZTail n b1)    = node n ++ b b1
+        b (ZClosed b1 b2) = b b1   ++ b b2
 
 open :: (a -> String) -> MaybeO z a -> String
 open _ NothingO  = ""

@@ -17,7 +17,6 @@ Library
   Build-Depends:     base >= 3 && < 5, containers
   Exposed-modules:   Compiler.Hoopl,
                        Compiler.Hoopl.Zipper,
-                       Compiler.Hoopl.ZipDataflowNoRG,
                        Compiler.Hoopl.Pointed
   Other-modules:     Compiler.Hoopl.GraphUtil,
                      -- GraphUtil should *never* be seen by clients.
@@ -30,7 +29,6 @@ Library
                        Compiler.Hoopl.Fuel, Compiler.Hoopl.Label,
                        Compiler.Hoopl.Show, Compiler.Hoopl.Util
                        Compiler.Hoopl.XUtil
-                       Compiler.Hoopl.ZipDataflow
   ghc-options:       -Wall -fno-warn-name-shadowing
 
 
