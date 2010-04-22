@@ -56,8 +56,8 @@ This was made possible by
 -}
 
 module Compiler.Hoopl.ZipDataflowNoRG
-  ( FwdPass(..),  FwdTransfer, FwdRewrite, FwdRes(..)
-  , BwdPass(..), BwdTransfer, BwdRewrite, BwdRes(..)
+  ( FwdPass(..),  FwdTransfer, mkFTransfers, mkFTransfers', FwdRewrite, FwdRes(..)
+  , BwdPass(..), BwdTransfer, mkBTransfers, mkBTransfers', BwdRewrite, BwdRes(..)
   , analyzeAndRewriteFwd,  analyzeAndRewriteBwd
   , analyzeAndRewriteFwd', analyzeAndRewriteBwd'
   )
@@ -89,12 +89,23 @@ data FwdPass n f
             , fp_rewrite  :: FwdRewrite n f }
 
 type FwdTransfer n f 
-  = forall e x. n e x -> f -> Fact x f 
+  = ( n C O -> f -> f
+    , n O O -> f -> f
+    , n O C -> f -> FactBase f
+    )
 
 type FwdRewrite n f 
   = forall e x. n e x -> f -> Maybe (FwdRes n f e x)
 data FwdRes n f e x = FwdRes (AGraph n e x) (FwdRewrite n f)
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
+
+mkFTransfers :: (n C O -> f -> f) -> (n O O -> f -> f) ->
+                (n O C -> f -> FactBase f) -> FwdTransfer n f
+mkFTransfers f m l = (f, m, l)
+
+mkFTransfers' :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
+mkFTransfers' f = (f, f, f)
+
 
 analyzeAndRewriteFwd
    :: forall n f. Edges n
@@ -141,7 +152,7 @@ arfNode pass node f
   = do { mb_g <- withFuel (fp_rewrite pass node f)
        ; case mb_g of
            Nothing -> return (rgunit f (unit node),
-                              fp_transfer pass node f)
+                              ftransfer pass node f)
       	   Just (FwdRes ag rw) -> do { g <- graphOfAGraph ag
                                      ; let pass' = pass { fp_rewrite = rw }
                                      ; arfGraph pass' g (elift node f) } }
@@ -218,10 +229,21 @@ data BwdPass n f
             , bp_rewrite  :: BwdRewrite n f }
 
 type BwdTransfer n f 
-  = forall e x. n e x -> Fact x f -> f 
+  = ( n C O -> f          -> f
+    , n O O -> f          -> f
+    , n O C -> FactBase f -> f
+    )
 type BwdRewrite n f 
   = forall e x. n e x -> Fact x f -> Maybe (BwdRes n f e x)
 data BwdRes n f e x = BwdRes (AGraph n e x) (BwdRewrite n f)
+
+mkBTransfers :: (n C O -> f -> f) -> (n O O -> f -> f) ->
+                (n O C -> FactBase f -> f) -> BwdTransfer n f
+mkBTransfers f m l = (f, m, l)
+
+mkBTransfers' :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
+mkBTransfers' f = (f, f, f)
+
 
 -----------------------------------------------------------------------------
 --		Backward implementation
@@ -240,7 +262,7 @@ arbNode pass node f
   = do { mb_g <- withFuel (bp_rewrite pass node f)
        ; case mb_g of
            Nothing -> return (rgunit entry_f (unit node), entry_f)
-                    where entry_f  = bp_transfer pass node f
+                    where entry_f  = btransfer pass node f
       	   Just (BwdRes ag rw) -> do { g <- graphOfAGraph ag
                                      ; let pass' = pass { bp_rewrite = rw }
                                      ; (g, f) <- arbGraph pass' g f
@@ -559,24 +581,32 @@ rgCat = U.splice fzCat
 --  - from fact-like things to facts
 -- Note that the latter two functions depend only on the entry shape.
 class ShapeLifter e x where
-  unit   :: n e x -> ZBlock n e x
-  elift  :: Edges n =>                      n e x -> f -> Fact e f
-  elower :: Edges n => DataflowLattice f -> n e x -> Fact e f -> f
+  unit      :: n e x -> ZBlock n e x
+  elift     :: Edges n =>                      n e x -> f -> Fact e f
+  elower    :: Edges n => DataflowLattice f -> n e x -> Fact e f -> f
+  ftransfer :: FwdPass n f -> n e x -> f        -> Fact x f
+  btransfer :: BwdPass n f -> n e x -> Fact x f -> f
 
 instance ShapeLifter C O where
   unit            = ZFirst
   elift      n f  = mkFactBase [(entryLabel n, f)]
   elower lat n fb = getFact lat (entryLabel n) fb
+  ftransfer (FwdPass {fp_transfer = (ft, _, _)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = (bt, _, _)}) n f = bt n f
 
 instance ShapeLifter O O where
   unit         = ZMiddle
   elift    _ f = f
   elower _ _ f = f
+  ftransfer (FwdPass {fp_transfer = (_, ft, _)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = (_, bt, _)}) n f = bt n f
 
 instance ShapeLifter O C where
   unit         = ZLast
   elift    _ f = f
   elower _ _ f = f
+  ftransfer (FwdPass {fp_transfer = (_, _, ft)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = (_, _, bt)}) n f = bt n f
 
 -- Fact lookup: the fact `orelse` bottom
 lookupF :: FwdPass n f -> Label -> FactBase f -> f
