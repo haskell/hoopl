@@ -84,6 +84,10 @@ data DataflowLattice a = DataflowLattice
                                       -- (changes iff result > old fact)
  , fact_do_logging :: Bool            -- log changes
  }
+-- ^ A transfer function might want to use the logging flag
+-- to control debugging, as in for example, it updates just one element
+-- in a big finite map.  We don't want Hoopl to show the whole fact,
+-- and only the transfer function knows exactly what changed.
 
 type JoinFun a = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
   -- the label argument is for debugging purposes only
