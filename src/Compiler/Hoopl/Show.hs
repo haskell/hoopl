@@ -1,11 +1,12 @@
 {-# LANGUAGE RankNTypes, GADTs, ScopedTypeVariables, FlexibleContexts #-}
 
 module Compiler.Hoopl.Show 
-  ( showGraph
+  ( showGraph, showFactBase
   )
 where
 
 import Compiler.Hoopl.Graph
+import Compiler.Hoopl.Label
 
 --------------------------------------------------------------------------------
 -- Prettyprinting
@@ -34,3 +35,6 @@ showGraph node = g
 open :: (a -> String) -> MaybeO z a -> String
 open _ NothingO  = ""
 open p (JustO n) = p n
+
+showFactBase :: Show f => FactBase f -> String
+showFactBase = show . factBaseList
