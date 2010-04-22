@@ -14,11 +14,11 @@ import Compiler.Hoopl hiding (Top, Bot)
 import Compiler.Hoopl.Pointed
 
 type Doms = Pointed O C DPath
- -- ^ List of labels, extended with a standard bottom element
+-- ^ List of labels, extended with a standard bottom element
 
- -- | The fact that goes into the entry of a dominator analysis: the first node
- -- is dominated only by the entry point, which is represented by the empty list
- -- of labels.
+-- | The fact that goes into the entry of a dominator analysis: the first node
+-- is dominated only by the entry point, which is represented by the empty list
+-- of labels.
 domEntry :: Doms
 domEntry = PElem (DPath [])
 
