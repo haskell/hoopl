@@ -1,3 +1,7 @@
+3.7.12.3
+
+  - Added Compiler.Hoopl.Pointed, as well as other stuff.
+
 3.7.12.1
 
   - Added a bunch of zipper experiments.
