@@ -58,8 +58,8 @@ This was made possible by
 module Compiler.Hoopl.Dataflow
   ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..), Fact
   , ChangeFlag(..), changeIf
-  , FwdPass(..), FwdTransfer, mkFTransfer, mkFTransfer', FwdRewrite, FwdRes(..)
-  , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer', BwdRewrite, BwdRes(..)
+  , FwdPass(..), FwdTransfer, mkFTransfer, mkFTransfer', getFTransfers, FwdRewrite, FwdRes(..)
+  , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer', getBTransfers, BwdRewrite, BwdRes(..)
   , analyzeAndRewriteFwd,  analyzeAndRewriteBwd
   , analyzeAndRewriteFwd', analyzeAndRewriteBwd'
   )
@@ -124,6 +124,12 @@ mkFTransfer f m l = FwdTransfers (f, m, l)
 
 mkFTransfer' :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
 mkFTransfer' f = FwdTransfers (f, f, f)
+
+getFTransfers :: FwdTransfer n f ->
+                (n C O -> f -> f,
+                 n O O -> f -> f, 
+                 n O C -> f -> FactBase f)
+getFTransfers (FwdTransfers fts) = fts
 
 type family   Fact x f :: *
 type instance Fact C f = FactBase f
@@ -265,6 +271,13 @@ mkBTransfer f m l = BwdTransfers (f, m, l)
 
 mkBTransfer' :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
 mkBTransfer' f = BwdTransfers (f, f, f)
+
+getBTransfers :: BwdTransfer n f ->
+                 (n C O -> f -> f,
+                  n O O -> f -> f, 
+                  n O C -> FactBase f -> f)
+getBTransfers (BwdTransfers bts) = bts
+
 
 
 -----------------------------------------------------------------------------
