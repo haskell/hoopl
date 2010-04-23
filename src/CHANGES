@@ -2,7 +2,9 @@
 
   Major reorganization per simonpj visit to Tufts 20 April 2010
 
+3.7.13.1
 
+  Added function to fold over nodes in graph.
 
 3.7.13.0
 
