@@ -9,6 +9,8 @@ module Compiler.Hoopl.Combinators
 
 where
 
+import Data.Function
+
 import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Graph (C, O)
 import Compiler.Hoopl.MkGraph
@@ -55,6 +57,28 @@ wrapFRewrites2 (mapF, mapM, mapL) frw1 frw2 =
   mkFRewrite (mapF f1 f2) (mapM m1 m2) (mapL l1 l2)
     where (f1, m1, l1) = getFRewrites frw1
           (f2, m2, l2) = getFRewrites frw2
+
+wrapSFRewritesalso :: ExTriple (LiftFRW n f) -> SimpleFwdRewrite n f -> FR n f
+wrapSFRewritesalso lift rw = uncurry3 mkFRewrite $ apply lift rw
+
+wrapFRewritesalso :: ExTriple (MapFRW n f) -> FR n f -> FR n f
+wrapFRewritesalso maps frw = uncurry3 mkFRewrite $ apply maps $ getFRewrites frw
+
+wrapFRewrites2also :: ExTriple (MapFRW2 n f) -> FR n f -> FR n f -> FR n f
+wrapFRewrites2also maps frw1 frw2 =
+  uncurry3 mkFRewrite $ (applyBinary maps `on` getFRewrites) frw1 frw2
+
+uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
+uncurry3 f (a, b, c) = f a b c
+
+applyBinary :: (a -> b -> c, d -> e -> f, g -> h -> i)
+            -> (a, d, g) -> (b, e, h) -> (c, f, i)
+applyBinary (f1, f2, f3) (x1, x2, x3) (y1, y2, y3) = (f1 x1 y1, f2 x2 y2, f3 x3 y3)
+
+apply :: (a -> b, d -> e, g -> h)
+            -> (a, d, g) -> (b, e, h)
+apply (f1, f2, f3) (x1, x2, x3) = (f1 x1, f2 x2, f3 x3)
+
 
 wrapFRewrites2' :: (forall e x . MapFRW2 n f e x) -> FR n f -> FR n f -> FR n f
 wrapFRewrites2' map = wrapFRewrites2 (map, map, map)

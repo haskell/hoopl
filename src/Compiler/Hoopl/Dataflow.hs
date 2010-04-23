@@ -116,10 +116,11 @@ newtype FwdTransfer n f
                  )
 
 newtype FwdRewrite n f 
-  = FwdRewrites ( n C O -> f -> Maybe (FwdRes n f C O)
-                , n O O -> f -> Maybe (FwdRes n f O O)
-                , n O C -> f -> Maybe (FwdRes n f O C)
-                )
+  = FwdRewrites { getFRewrites ::
+                    ( n C O -> f -> Maybe (FwdRes n f C O)
+                    , n O O -> f -> Maybe (FwdRes n f O O)
+                    , n O C -> f -> Maybe (FwdRes n f O C)
+                    ) }
 data FwdRes n f e x = FwdRes (AGraph n e x) (FwdRewrite n f)
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
@@ -144,12 +145,6 @@ mkFRewrite f m l = FwdRewrites (f, m, l)
 
 mkFRewrite' :: (forall e x . n e x -> f -> Maybe (FwdRes n f e x)) -> FwdRewrite n f
 mkFRewrite' f = FwdRewrites (f, f, f)
-
-getFRewrites :: FwdRewrite n f ->
-                (n C O -> f -> Maybe (FwdRes n f C O),
-                 n O O -> f -> Maybe (FwdRes n f O O),
-                 n O C -> f -> Maybe (FwdRes n f O C))
-getFRewrites (FwdRewrites frws) = frws
 
 
 type family   Fact x f :: *
