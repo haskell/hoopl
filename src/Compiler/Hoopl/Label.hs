@@ -5,7 +5,7 @@ module Compiler.Hoopl.Label
             , delFromLabelMap, unionLabelMap
             , elemLabelMap, labelMapLabels, labelMapList
   , FactBase, noFacts, mkFactBase, unitFact, lookupFact, extendFactBase
-            , delFromFactBase, unionFactBase
+            , delFromFactBase, unionFactBase, mapFactBase, mapWithLFactBase
             , elemFactBase, factBaseLabels, factBaseList
   , LabelSet, emptyLabelSet, extendLabelSet, reduceLabelSet
             , mkLabelSet, elemLabelSet, labelSetElems
@@ -59,6 +59,13 @@ extendFactBase env (Label blk_id) f = M.insert blk_id f env
 
 unionFactBase :: FactBase f -> FactBase f -> FactBase f
 unionFactBase = M.union
+
+mapFactBase :: (f -> f') -> FactBase f -> FactBase f'
+mapFactBase = M.map
+
+mapWithLFactBase :: (Label -> f -> f') -> FactBase f -> FactBase f'
+mapWithLFactBase f = M.mapWithKey f'
+  where f' l = f (Label l)
 
 elemFactBase :: Label -> FactBase f -> Bool
 elemFactBase (Label l) = M.member l
