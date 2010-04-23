@@ -66,8 +66,8 @@ class GraphRep g where
   mkMiddle :: n O O -> g n O O
   -- | Create a graph from a last node
   mkLast   :: n O C -> g n O C
-  mkFirst = mkExit  . First
-  mkLast  = mkEntry . Last
+  mkFirst = mkExit  . BFirst
+  mkLast  = mkEntry . BLast
   infixl 3 <*>
   infixl 2 |*><*| 
   -- | Concatenate two graphs; control flows from left to right.
@@ -102,7 +102,7 @@ instance GraphRep Graph where
   emptyClosedGraph = GMany NothingO BodyEmpty NothingO
   (<*>)       = U.gSplice
   (|*><*|)    = U.gSplice
-  mkMiddle    = GUnit . Middle
+  mkMiddle    = GUnit . BMiddle
   mkExit   block = GMany NothingO      BodyEmpty (JustO block)
   mkEntry  block = GMany (JustO block) BodyEmpty NothingO
 

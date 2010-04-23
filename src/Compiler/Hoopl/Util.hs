@@ -36,42 +36,42 @@ catGraphNodeOC :: Graph n e O -> n O C -> Graph n e C
 catNodeOOGraph :: n O O -> Graph n O x -> Graph n O x
 catNodeCOGraph :: n C O -> Graph n O x -> Graph n C x
 
-catGraphNodeOO GNil                     n = gUnitOO $ Middle n
-catGraphNodeOO (GUnit b)                n = gUnitOO $ b `Cat` Middle n
-catGraphNodeOO (GMany e body (JustO x)) n = GMany e body (JustO $ x `Head` n)
+catGraphNodeOO GNil                     n = gUnitOO $ BMiddle n
+catGraphNodeOO (GUnit b)                n = gUnitOO $ b `BCat` BMiddle n
+catGraphNodeOO (GMany e body (JustO x)) n = GMany e body (JustO $ x `BHead` n)
 
-catGraphNodeOC GNil                     n = gUnitOC $ Last n
-catGraphNodeOC (GUnit b)                n = gUnitOC $ addToLeft b $ Last n
+catGraphNodeOC GNil                     n = gUnitOC $ BLast n
+catGraphNodeOC (GUnit b)                n = gUnitOC $ addToLeft b $ BLast n
   where addToLeft :: Block n O O -> Block n O C -> Block n O C
-        addToLeft (Middle m)    g = m `Tail` g
-        addToLeft (b1 `Cat` b2) g = addToLeft b1 $ addToLeft b2 g
+        addToLeft (BMiddle m)    g = m `BTail` g
+        addToLeft (b1 `BCat` b2) g = addToLeft b1 $ addToLeft b2 g
 catGraphNodeOC (GMany e body (JustO x)) n = GMany e body' NothingO
-  where body' = body `BodyCat` BodyUnit (x `Closed` Last n)
+  where body' = body `BodyCat` BodyUnit (x `BClosed` BLast n)
 
-catNodeOOGraph n GNil                     = gUnitOO $ Middle n
-catNodeOOGraph n (GUnit b)                = gUnitOO $ Middle n `Cat` b
-catNodeOOGraph n (GMany (JustO e) body x) = GMany (JustO $ n `Tail` e) body x
+catNodeOOGraph n GNil                     = gUnitOO $ BMiddle n
+catNodeOOGraph n (GUnit b)                = gUnitOO $ BMiddle n `BCat` b
+catNodeOOGraph n (GMany (JustO e) body x) = GMany (JustO $ n `BTail` e) body x
 
-catNodeCOGraph n GNil                     = gUnitCO $ First n
-catNodeCOGraph n (GUnit b)                = gUnitCO $ addToRight (First n) b
+catNodeCOGraph n GNil                     = gUnitCO $ BFirst n
+catNodeCOGraph n (GUnit b)                = gUnitCO $ addToRight (BFirst n) b
   where addToRight :: Block n C O -> Block n O O -> Block n C O
-        addToRight g (Middle m)    = g `Head` m
-        addToRight g (b1 `Cat` b2) = addToRight (addToRight g b1) b2
+        addToRight g (BMiddle m)    = g `BHead` m
+        addToRight g (b1 `BCat` b2) = addToRight (addToRight g b1) b2
 catNodeCOGraph n (GMany (JustO e) body x) = GMany NothingO body' x
-  where body' = BodyUnit (First n `Closed` e) `BodyCat` body
+  where body' = BodyUnit (BFirst n `BClosed` e) `BodyCat` body
 
 
 
 
 
 blockGraph :: Block n e x -> Graph n e x
-blockGraph b@(First  {}) = gUnitCO b
-blockGraph b@(Middle {}) = gUnitOO b
-blockGraph b@(Last   {}) = gUnitOC b
-blockGraph b@(Cat {})    = gUnitOO b
-blockGraph b@(Head {})   = gUnitCO b
-blockGraph b@(Tail {})   = gUnitOC b
-blockGraph b@(Closed {}) = gUnitCC b
+blockGraph b@(BFirst  {}) = gUnitCO b
+blockGraph b@(BMiddle {}) = gUnitOO b
+blockGraph b@(BLast   {}) = gUnitOC b
+blockGraph b@(BCat {})    = gUnitOO b
+blockGraph b@(BHead {})   = gUnitCO b
+blockGraph b@(BTail {})   = gUnitOC b
+blockGraph b@(BClosed {}) = gUnitCC b
 
 
 -- | Function 'graphMapBlocks' enables a change of representation of blocks,
