@@ -10,9 +10,11 @@ module Compiler.Hoopl.Combinators
 where
 
 import Data.Function
+import Data.Maybe
 
 import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Graph (C, O)
+import Compiler.Hoopl.Label
 import Compiler.Hoopl.MkGraph
 
 type FR n f = FwdRewrite n f
@@ -29,45 +31,6 @@ type MapFRW2 n f e x = FRW  n f e x -> FRW n f e x -> FRW n f e x
 
 ----------------------------------------------------------------
 
-
-
-type Bogus a = (forall e x . a e x) -> ExTriple a
-
-
-scalar :: forall a . Bogus a
--- scalar :: forall a . (forall e x . a e x) -> ExTriple a
-scalar a = (a, a, a)
-
-wrapSFRewrites :: ExTriple (LiftFRW n f) -> SimpleFwdRewrite n f -> FR n f
-wrapSFRewrites (liftF, liftM, liftL) (rwF, rwM, rwL) =
-  mkFRewrite (liftF rwF) (liftM rwM) (liftL rwL)
-
-wrapSFRewrites' :: (forall e x . LiftFRW n f e x) -> SimpleFwdRewrite n f -> FR n f
-wrapSFRewrites' lift = wrapSFRewrites (lift, lift, lift)
-
-wrapFRewrites :: ExTriple (MapFRW n f) -> FR n f -> FR n f
-wrapFRewrites (mapF, mapM, mapL) frw = mkFRewrite (mapF f) (mapM m) (mapL l)
-  where (f, m, l) = getFRewrites frw
-wrapFRewrites' :: (forall e x . MapFRW n f e x) -> FR n f -> FR n f
--- wrapFRewrites' map = wrapFRewrites $ (scalar::Bogus (MapFRW n f)) map --  (map, map, map)
-wrapFRewrites' map = wrapFRewrites (map, map, map)
-
-wrapFRewrites2 :: ExTriple (MapFRW2 n f) -> FR n f -> FR n f -> FR n f
-wrapFRewrites2 (mapF, mapM, mapL) frw1 frw2 =
-  mkFRewrite (mapF f1 f2) (mapM m1 m2) (mapL l1 l2)
-    where (f1, m1, l1) = getFRewrites frw1
-          (f2, m2, l2) = getFRewrites frw2
-
-wrapSFRewritesalso :: ExTriple (LiftFRW n f) -> SimpleFwdRewrite n f -> FR n f
-wrapSFRewritesalso lift rw = uncurry3 mkFRewrite $ apply lift rw
-
-wrapFRewritesalso :: ExTriple (MapFRW n f) -> FR n f -> FR n f
-wrapFRewritesalso maps frw = uncurry3 mkFRewrite $ apply maps $ getFRewrites frw
-
-wrapFRewrites2also :: ExTriple (MapFRW2 n f) -> FR n f -> FR n f -> FR n f
-wrapFRewrites2also maps frw1 frw2 =
-  uncurry3 mkFRewrite $ (applyBinary maps `on` getFRewrites) frw1 frw2
-
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
 uncurry3 f (a, b, c) = f a b c
 
@@ -79,6 +42,25 @@ apply :: (a -> b, d -> e, g -> h)
             -> (a, d, g) -> (b, e, h)
 apply (f1, f2, f3) (x1, x2, x3) = (f1 x1, f2 x2, f3 x3)
 
+----------------------------------------------------------------
+
+wrapSFRewrites :: ExTriple (LiftFRW n f) -> SimpleFwdRewrite n f -> FR n f
+wrapSFRewrites lift rw = uncurry3 mkFRewrite $ apply lift rw
+
+wrapFRewrites :: ExTriple (MapFRW n f) -> FR n f -> FR n f
+wrapFRewrites map frw = uncurry3 mkFRewrite $ apply map $ getFRewrites frw
+
+wrapFRewrites2 :: ExTriple (MapFRW2 n f) -> FR n f -> FR n f -> FR n f
+wrapFRewrites2 map frw1 frw2 =
+  uncurry3 mkFRewrite $ (applyBinary map `on` getFRewrites) frw1 frw2
+
+
+-- Combinators for higher-rank rewriting functions:
+wrapSFRewrites' :: (forall e x . LiftFRW n f e x) -> SimpleFwdRewrite n f -> FR n f
+wrapSFRewrites' lift = wrapSFRewrites (lift, lift, lift)
+
+wrapFRewrites' :: (forall e x . MapFRW n f e x) -> FR n f -> FR n f
+wrapFRewrites' map = wrapFRewrites (map, map, map)
 
 wrapFRewrites2' :: (forall e x . MapFRW2 n f e x) -> FR n f -> FR n f -> FR n f
 wrapFRewrites2' map = wrapFRewrites2 (map, map, map)
@@ -119,7 +101,7 @@ iterFwdRw rw = wrapFRewrites' f rw
 
 type SBRW n f e x = n e x -> Fact x f -> Maybe (AGraph n e x)
 type BRW  n f e x = n e x -> Fact x f -> Maybe (BwdRes n f e x)
-type SimpleBwdRewrite  n f = ( SBRW n f C O , SBRW n f O O , SBRW n f O C )
+type SimpleBwdRewrite  n f = ExTriple ( SBRW n f)
 type SimpleBwdRewrite' n f = forall e x . SBRW n f e x
 type LiftBRW n f e x = SBRW n f e x -> BRW n f e x
 type MapBRW  n f e x = BRW  n f e x -> BRW n f e x
@@ -128,22 +110,22 @@ type MapBRW2 n f e x = BRW  n f e x -> BRW n f e x -> BRW n f e x
 ----------------------------------------------------------------
 
 wrapSBRewrites :: ExTriple (LiftBRW n f) -> SimpleBwdRewrite n f -> BwdRewrite n f
-wrapSBRewrites (liftF, liftM, liftL) (rwF, rwM, rwL) =
-  mkBRewrite (liftF rwF) (liftM rwM) (liftL rwL)
+wrapSBRewrites lift rw = uncurry3 mkBRewrite $ apply lift rw
 
+wrapBRewrites :: ExTriple (MapBRW n f) -> BwdRewrite n f -> BwdRewrite n f
+wrapBRewrites map rw = uncurry3 mkBRewrite $ apply map $ getBRewrites rw
+
+wrapBRewrites2 :: ExTriple (MapBRW2 n f) -> BR n f -> BR n f -> BR n f
+wrapBRewrites2 map rw1 rw2 =
+  uncurry3 mkBRewrite $ (applyBinary map `on` getBRewrites) rw1 rw2
+
+-- Combinators for higher-rank rewriting functions:
 wrapSBRewrites' :: (forall e x . LiftBRW n f e x) -> SimpleBwdRewrite n f -> BR n f
 wrapSBRewrites' lift = wrapSBRewrites (lift, lift, lift)
 
-wrapBRewrites :: ExTriple (MapBRW n f) -> BwdRewrite n f -> BwdRewrite n f
-wrapBRewrites (mapF, mapM, mapL) brw = mkBRewrite (mapF f) (mapM m) (mapL l)
-  where (f, m, l) = getBRewrites brw
 wrapBRewrites' :: (forall e x . MapBRW n f e x) -> BwdRewrite n f -> BwdRewrite n f
 wrapBRewrites' map = wrapBRewrites (map, map, map)
 
-wrapBRewrites2 :: ExTriple (MapBRW2 n f) -> BR n f -> BR n f -> BR n f
-wrapBRewrites2 (mapF, mapM, mapL) brw1 brw2 = mkBRewrite (mapF f1 f2) (mapM m1 m2) (mapL l1 l2)
-  where (f1, m1, l1) = getBRewrites brw1
-        (f2, m2, l2) = getBRewrites brw2
 wrapBRewrites2' :: (forall e x . MapBRW2 n f e x) -> BR n f -> BR n f -> BR n f
 wrapBRewrites2' map = wrapBRewrites2 (map, map, map)
 
@@ -180,13 +162,22 @@ iterBwdRw rw = wrapBRewrites' f rw
             Just (BwdRes g rw2) -> Just $ BwdRes g (rw2 `thenBwdRw` iterBwdRw rw)
             Nothing             -> Nothing
 
+-- Note: The transfer is assymetric if the passes return facts for
+-- different sets of successors...
 {-
 productFwd :: FwdPass n f -> FwdPass n f' -> FwdPass n (f, f')
-productFwd pass pass' = FwdPass lattice transfer rewrite
+productFwd pass1 pass2 = FwdPass lattice transfer rewrite
     where -- can't tell if I have a FactBase of pairs or a pair of facts
-          transfer n fb = (fp_transfer pass  $ factBaseMap fst fb,
-                           fp_transfer pass' $ factBaseMap snd fb)
-          transfer n (f, f') = (fp_transfer pass f, fp_transfer pass' f')
-             ...              
-
+          lattice  = undefined
+          transfer = mkFTransfer (tf tf1 tf2) (tf tm1 tm2) (tfb tl1 tl2)
+            where
+              tf  t1 t2 n (f1, f2) = (t1 n f1, t2 n f2)
+              tfb t1 t2 n (f1, f2) = mapWithLFactBase withfb2 fb1
+                where fb1 = t1 n f1
+                      fb2 = t2 n f2
+                      withfb2 l f = (f, fromMaybe bot2 $ lookupFact fb2 l)
+                      bot2 = fact_bot (fp_lattice pass2)
+              (tf1, tm1, tl1) = getFTransfers (fp_transfer pass1)
+              (tf2, tm2, tl2) = getFTransfers (fp_transfer pass2)
+          rewrite = undefined
 -}
