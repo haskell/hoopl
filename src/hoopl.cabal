@@ -1,5 +1,5 @@
 Name:                hoopl
-Version:             3.7.12.0
+Version:             3.7.13.0
 Description:         Higher-order optimization library
 License:             BSD3
 License-file:        LICENSE
@@ -17,7 +17,6 @@ Library
   Build-Depends:     base >= 3 && < 5, containers
   Exposed-modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Passes.Dominator
-                       Compiler.Hoopl.Zipper
   Other-modules:     Compiler.Hoopl.GraphUtil,
                      -- GraphUtil should *never* be seen by clients.
                      -- The remaining modules are hidden *provisionally*
@@ -28,6 +27,11 @@ Library
                        Compiler.Hoopl.MkGraph,
                        Compiler.Hoopl.Fuel, Compiler.Hoopl.Label,
                        Compiler.Hoopl.Show, Compiler.Hoopl.Util
+                       Compiler.Hoopl.Pointed
+                       Compiler.Hoopl.XUtil
+                       Compiler.Hoopl.ZipDataflow
+                       Compiler.Hoopl.ZipDataflowNoRG,
+                       Compiler.Hoopl.Zipper
   ghc-options:       -Wall -fno-warn-name-shadowing
 
 

@@ -1,7 +1,10 @@
-{-# LANGUAGE GADTs, ScopedTypeVariables, FlexibleInstances #-}
+{-# LANGUAGE GADTs, ScopedTypeVariables, FlexibleInstances, RankNTypes #-}
 
 module Compiler.Hoopl.Util
   ( gUnitOO, gUnitOC, gUnitCO, gUnitCC
+  , catGraphNodeOC, catGraphNodeOO
+  , catNodeCOGraph, catNodeOOGraph
+  , graphMapBlocks
   , zblockGraph
   , postorder_dfs, postorder_dfs_from, postorder_dfs_from_except
   , preorder_dfs, preorder_dfs_from_except
@@ -16,6 +19,9 @@ import Compiler.Hoopl.Graph
 import Compiler.Hoopl.Label
 import Compiler.Hoopl.Zipper
 
+
+----------------------------------------------------------------
+
 gUnitOO :: block n O O -> Graph' block n O O
 gUnitOC :: block n O C -> Graph' block n O C
 gUnitCO :: block n C O -> Graph' block n C O
@@ -24,6 +30,34 @@ gUnitOO b = GUnit b
 gUnitOC b = GMany (JustO b) BodyEmpty   NothingO
 gUnitCO b = GMany NothingO  BodyEmpty   (JustO b)
 gUnitCC b = GMany NothingO  (BodyUnit b) NothingO
+
+
+catGraphNodeOC :: Graph n e O -> n O C -> Graph n e C
+catGraphNodeOO :: Graph n e O -> n O O -> Graph n e O
+catNodeCOGraph :: n C O -> Graph n O x -> Graph n C x
+catNodeOOGraph :: n O O -> Graph n O x -> Graph n O x
+
+catGraphNodeOO GNil                     n = gUnitOO $ BUnit n
+catGraphNodeOO (GUnit b)                n = gUnitOO $ b `BCat` BUnit n
+catGraphNodeOO (GMany e body (JustO x)) n = GMany e body (JustO $ x `BCat` BUnit n)
+
+catGraphNodeOC GNil                     n = gUnitOC $ BUnit n
+catGraphNodeOC (GUnit b)                n = gUnitOC $ b `BCat` BUnit n
+catGraphNodeOC (GMany e body (JustO x)) n = GMany e body' NothingO
+  where body' = body `BodyCat` BodyUnit (x `BCat` BUnit n)
+
+catNodeOOGraph n GNil                     = gUnitOO $ BUnit n
+catNodeOOGraph n (GUnit b)                = gUnitOO $ BUnit n `BCat` b
+catNodeOOGraph n (GMany (JustO e) body x) = GMany (JustO $ BUnit n `BCat` e) body x
+
+catNodeCOGraph n GNil                     = gUnitCO $ BUnit n
+catNodeCOGraph n (GUnit b)                = gUnitCO $ BUnit n `BCat` b
+catNodeCOGraph n (GMany (JustO e) body x) = GMany NothingO body' x
+  where body' = BodyUnit (BUnit n `BCat` e) `BodyCat` body
+
+
+
+
 
 zblockGraph :: ZBlock n e x -> ZGraph n e x
 zblockGraph b@(ZFirst  {}) = gUnitCO b
@@ -34,6 +68,31 @@ zblockGraph b@(ZHead {})   = gUnitCO b
 zblockGraph b@(ZTail {})   = gUnitOC b
 zblockGraph b@(ZClosed {}) = gUnitCC b
 
+
+-- | Function 'graphMapBlocks' enables a change of representation of blocks,
+-- nodes, or both.  It lifts a polymorphic block transform into a polymorphic
+-- graph transform.  When the block representation stabilizes, a similar
+-- function should be provided for blocks.
+graphMapBlocks :: forall block n block' n' e x .
+                  (forall e x . block n e x -> block' n' e x)
+               -> (Graph' block n e x -> Graph' block' n' e x)
+bodyMapBlocks  :: forall block n block' n' .
+                  (block n C C -> block' n' C C)
+               -> (Body' block n -> Body' block' n')
+
+graphMapBlocks f = map
+  where map :: Graph' block n e x -> Graph' block' n' e x
+        map GNil = GNil
+        map (GUnit b) = GUnit (f b)
+        map (GMany e b x) = GMany (fmap f e) (bodyMapBlocks f b) (fmap f x)
+
+bodyMapBlocks f = map
+  where map BodyEmpty = BodyEmpty
+        map (BodyUnit b) = BodyUnit (f b)
+        map (BodyCat b1 b2) = BodyCat (map b1) (map b2)
+
+
+----------------------------------------------------------------
 
 class LabelsPtr l where
   targetLabels :: l -> [Label]

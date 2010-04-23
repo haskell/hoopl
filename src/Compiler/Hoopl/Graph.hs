@@ -40,6 +40,10 @@ data MaybeO ex t where
   JustO    :: t -> MaybeO O t
   NothingO ::      MaybeO C t
 
+instance Functor (MaybeO ex) where
+  fmap _ NothingO = NothingO
+  fmap f (JustO a) = JustO (f a)
+
 -------------------------------
 class Edges thing where
   entryLabel :: thing C x -> Label
@@ -52,7 +56,7 @@ instance Edges n => Edges (Block n) where
   successors (BCat _ b)  = successors b
 
 ------------------------------
-addBlock :: Block n C C -> Body n -> Body n
+addBlock :: block n C C -> Body' block n -> Body' block n
 addBlock b body = BodyUnit b `BodyCat` body
 
 bodyList :: Edges (block n) => Body' block n -> [(Label,block n C C)]
