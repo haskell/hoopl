@@ -7,5 +7,5 @@ obj:V:
 clean:V:
 	rm -f *.o *.hi *~
 
-test install build:V:
+test install build check:V:
 	(cd $TOP && mk $target)
