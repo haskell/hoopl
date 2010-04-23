@@ -10,10 +10,9 @@ where
 
 import Data.Maybe
 
-import Compiler.Hoopl hiding (Top, Bot)
-import Compiler.Hoopl.Pointed
+import Compiler.Hoopl
 
-type Doms = Pointed O C DPath
+type Doms = WithBot DPath
 -- ^ List of labels, extended with a standard bottom element
 
 -- | The fact that goes into the entry of a dominator analysis: the first node
