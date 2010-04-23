@@ -5,16 +5,15 @@ module Compiler.Hoopl.Combinators
   , shallowFwdRw, shallowFwdRw', deepFwdRw, deepFwdRw', iterFwdRw
   , SimpleBwdRewrite, noBwdRewrite, thenBwdRw
   , shallowBwdRw, shallowBwdRw', deepBwdRw, deepBwdRw', iterBwdRw
+  , noRewritePoly
   )
 
 where
 
 import Data.Function
-import Data.Maybe
 
 import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Graph (C, O)
-import Compiler.Hoopl.Label
 import Compiler.Hoopl.MkGraph
 
 type FR n f = FwdRewrite n f
@@ -30,17 +29,18 @@ type MapFRW  n f e x = FRW  n f e x -> FRW n f e x
 type MapFRW2 n f e x = FRW  n f e x -> FRW n f e x -> FRW n f e x
 
 ----------------------------------------------------------------
+-- common operations on triples
 
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
 uncurry3 f (a, b, c) = f a b c
+
+apply :: (a -> b, d -> e, g -> h) -> (a, d, g) -> (b, e, h)
+apply (f1, f2, f3) (x1, x2, x3) = (f1 x1, f2 x2, f3 x3)
 
 applyBinary :: (a -> b -> c, d -> e -> f, g -> h -> i)
             -> (a, d, g) -> (b, e, h) -> (c, f, i)
 applyBinary (f1, f2, f3) (x1, x2, x3) (y1, y2, y3) = (f1 x1 y1, f2 x2 y2, f3 x3 y3)
 
-apply :: (a -> b, d -> e, g -> h)
-            -> (a, d, g) -> (b, e, h)
-apply (f1, f2, f3) (x1, x2, x3) = (f1 x1, f2 x2, f3 x3)
 
 ----------------------------------------------------------------
 
@@ -68,19 +68,22 @@ wrapFRewrites2' map = wrapFRewrites2 (map, map, map)
 ----------------------------------------------------------------
 
 noFwdRewrite :: FwdRewrite n f
-noFwdRewrite = mkFRewrite' $ \ _ _ -> Nothing
+noFwdRewrite = mkFRewrite' noRewritePoly
+
+noRewritePoly :: a -> b -> Maybe c
+noRewritePoly _ _ = Nothing
 
 shallowFwdRw :: forall n f . SimpleFwdRewrite n f -> FwdRewrite n f
-shallowFwdRw rw = wrapSFRewrites' f rw
-  where f rw n f = case (rw n f) of
-                     Nothing -> Nothing
-                     Just ag -> Just (FwdRes ag noFwdRewrite)
+shallowFwdRw rw = wrapSFRewrites' lift rw
+  where lift rw n f = fmap withoutRewrite (rw n f) 
+        withoutRewrite ag = FwdRes ag noFwdRewrite
+
 shallowFwdRw' :: SimpleFwdRewrite' n f -> FwdRewrite n f
 shallowFwdRw' f = shallowFwdRw (f, f, f)
 
-deepFwdRw :: SimpleFwdRewrite n f -> FwdRewrite n f
-deepFwdRw r = iterFwdRw (shallowFwdRw r)
+deepFwdRw  :: SimpleFwdRewrite  n f -> FwdRewrite n f
 deepFwdRw' :: SimpleFwdRewrite' n f -> FwdRewrite n f
+deepFwdRw  r = iterFwdRw (shallowFwdRw r)
 deepFwdRw' f = deepFwdRw (f, f, f)
 
 thenFwdRw :: FwdRewrite n f -> FwdRewrite n f -> FwdRewrite n f
@@ -135,16 +138,16 @@ noBwdRewrite :: BwdRewrite n f
 noBwdRewrite = mkBRewrite' $ \ _ _ -> Nothing
 
 shallowBwdRw :: SimpleBwdRewrite n f -> BwdRewrite n f
-shallowBwdRw rw = wrapSBRewrites' f rw
-  where f rw n f = case (rw n f) of
-                     Nothing -> Nothing
-                     Just ag -> Just (BwdRes ag noBwdRewrite)
+shallowBwdRw rw = wrapSBRewrites' lift rw
+  where lift rw n f = fmap withoutRewrite (rw n f)
+        withoutRewrite ag = BwdRes ag noBwdRewrite
+
 shallowBwdRw' :: SimpleBwdRewrite' n f -> BwdRewrite n f
 shallowBwdRw' f = shallowBwdRw (f, f, f)
 
-deepBwdRw :: SimpleBwdRewrite n f -> BwdRewrite n f
-deepBwdRw r = iterBwdRw (shallowBwdRw r)
+deepBwdRw  :: SimpleBwdRewrite  n f -> BwdRewrite n f
 deepBwdRw' :: SimpleBwdRewrite' n f -> BwdRewrite n f
+deepBwdRw  r = iterBwdRw (shallowBwdRw r)
 deepBwdRw' f = deepBwdRw (f, f, f)
 
 
