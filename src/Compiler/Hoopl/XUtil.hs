@@ -3,7 +3,9 @@
 -- | Utilities for clients of Hoopl, not used internally.
 
 module Compiler.Hoopl.XUtil
-  ( firstXfer, distributeXfer, distributeFact
+  ( firstXfer, distributeXfer
+  , distributeFact, distributeFactBwd
+  , successorFacts
   , foldGraphNodes, foldBlockNodes
   )
 where
@@ -32,6 +34,16 @@ distributeXfer xfer n f = mkFactBase [ (l, xfer n f) | l <- successors n ]
 -- that fact over the outgoing edges.
 distributeFact :: Edges n => n O C -> f -> FactBase f
 distributeFact n f = mkFactBase [ (l, f) | l <- successors n ]
+
+-- | This utility function handles a common case in which a backward transfer
+-- function takes the incoming fact unchanged and tags it with the node's label.
+distributeFactBwd :: Edges n => n C O -> f -> FactBase f
+distributeFactBwd n f = mkFactBase [ (entryLabel n, f) ]
+
+-- | List of (unlabelled) facts from the successors of a last node
+successorFacts :: Edges n => n O C -> FactBase f -> [f]
+successorFacts n fb = [ f | id <- successors n, let Just f = lookupFact fb id ]
+
 
 -- | Fold a function over every node in a block.
 -- The fold function must be polymorphic in the shape of the nodes.
