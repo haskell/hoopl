@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes, LiberalTypeSynonyms #-}
 
 module Compiler.Hoopl.Combinators
   ( SimpleFwdRewrite, noFwdRewrite, thenFwdRw
@@ -13,9 +13,13 @@ import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Graph (C, O)
 import Compiler.Hoopl.MkGraph
 
+type FR n f = FwdRewrite n f
+type BR n f = BwdRewrite n f
+
 type SFRW n f e x = n e x -> f -> Maybe (AGraph n e x)
 type FRW  n f e x = n e x -> f -> Maybe (FwdRes n f e x)
-type SimpleFwdRewrite  n f = ( SFRW n f C O , SFRW n f O O , SFRW n f O C )
+type SimpleFwdRewrite  n f = ExTriple (SFRW n f)
+type ExTriple a = (a C O, a O O, a O C) -- ^ entry/exit triple
 type SimpleFwdRewrite' n f = forall e x . SFRW n f e x
 type LiftFRW n f e x = SFRW n f e x -> FRW n f e x
 type MapFRW  n f e x = FRW  n f e x -> FRW n f e x
@@ -23,24 +27,36 @@ type MapFRW2 n f e x = FRW  n f e x -> FRW n f e x -> FRW n f e x
 
 ----------------------------------------------------------------
 
-wrapSFRewrites :: (LiftFRW n f C O, LiftFRW n f O O, LiftFRW n f O C) -> SimpleFwdRewrite n f -> FwdRewrite n f
+
+
+type Bogus a = (forall e x . a e x) -> ExTriple a
+
+
+scalar :: forall a . Bogus a
+-- scalar :: forall a . (forall e x . a e x) -> ExTriple a
+scalar a = (a, a, a)
+
+wrapSFRewrites :: ExTriple (LiftFRW n f) -> SimpleFwdRewrite n f -> FR n f
 wrapSFRewrites (liftF, liftM, liftL) (rwF, rwM, rwL) =
   mkFRewrite (liftF rwF) (liftM rwM) (liftL rwL)
 
-wrapSFRewrites' :: (forall e x . LiftFRW n f e x) -> SimpleFwdRewrite n f -> FwdRewrite n f
+wrapSFRewrites' :: (forall e x . LiftFRW n f e x) -> SimpleFwdRewrite n f -> FR n f
 wrapSFRewrites' lift = wrapSFRewrites (lift, lift, lift)
 
-wrapFRewrites :: (MapFRW n f C O, MapFRW n f O O, MapFRW n f O C) -> FwdRewrite n f -> FwdRewrite n f
+wrapFRewrites :: ExTriple (MapFRW n f) -> FR n f -> FR n f
 wrapFRewrites (mapF, mapM, mapL) frw = mkFRewrite (mapF f) (mapM m) (mapL l)
   where (f, m, l) = getFRewrites frw
-wrapFRewrites' :: (forall e x . MapFRW n f e x) -> FwdRewrite n f -> FwdRewrite n f
+wrapFRewrites' :: (forall e x . MapFRW n f e x) -> FR n f -> FR n f
+-- wrapFRewrites' map = wrapFRewrites $ (scalar::Bogus (MapFRW n f)) map --  (map, map, map)
 wrapFRewrites' map = wrapFRewrites (map, map, map)
 
-wrapFRewrites2 :: (MapFRW2 n f C O, MapFRW2 n f O O, MapFRW2 n f O C) -> FwdRewrite n f -> FwdRewrite n f -> FwdRewrite n f
-wrapFRewrites2 (mapF, mapM, mapL) frw1 frw2 = mkFRewrite (mapF f1 f2) (mapM m1 m2) (mapL l1 l2)
-  where (f1, m1, l1) = getFRewrites frw1
-        (f2, m2, l2) = getFRewrites frw2
-wrapFRewrites2' :: (forall e x . MapFRW2 n f e x) -> FwdRewrite n f -> FwdRewrite n f -> FwdRewrite n f
+wrapFRewrites2 :: ExTriple (MapFRW2 n f) -> FR n f -> FR n f -> FR n f
+wrapFRewrites2 (mapF, mapM, mapL) frw1 frw2 =
+  mkFRewrite (mapF f1 f2) (mapM m1 m2) (mapL l1 l2)
+    where (f1, m1, l1) = getFRewrites frw1
+          (f2, m2, l2) = getFRewrites frw2
+
+wrapFRewrites2' :: (forall e x . MapFRW2 n f e x) -> FR n f -> FR n f -> FR n f
 wrapFRewrites2' map = wrapFRewrites2 (map, map, map)
 
 ----------------------------------------------------------------
@@ -87,24 +103,24 @@ type MapBRW2 n f e x = BRW  n f e x -> BRW n f e x -> BRW n f e x
 
 ----------------------------------------------------------------
 
-wrapSBRewrites :: (LiftBRW n f C O, LiftBRW n f O O, LiftBRW n f O C) -> SimpleBwdRewrite n f -> BwdRewrite n f
+wrapSBRewrites :: ExTriple (LiftBRW n f) -> SimpleBwdRewrite n f -> BwdRewrite n f
 wrapSBRewrites (liftF, liftM, liftL) (rwF, rwM, rwL) =
   mkBRewrite (liftF rwF) (liftM rwM) (liftL rwL)
 
-wrapSBRewrites' :: (forall e x . LiftBRW n f e x) -> SimpleBwdRewrite n f -> BwdRewrite n f
+wrapSBRewrites' :: (forall e x . LiftBRW n f e x) -> SimpleBwdRewrite n f -> BR n f
 wrapSBRewrites' lift = wrapSBRewrites (lift, lift, lift)
 
-wrapBRewrites :: (MapBRW n f C O, MapBRW n f O O, MapBRW n f O C) -> BwdRewrite n f -> BwdRewrite n f
+wrapBRewrites :: ExTriple (MapBRW n f) -> BwdRewrite n f -> BwdRewrite n f
 wrapBRewrites (mapF, mapM, mapL) brw = mkBRewrite (mapF f) (mapM m) (mapL l)
   where (f, m, l) = getBRewrites brw
 wrapBRewrites' :: (forall e x . MapBRW n f e x) -> BwdRewrite n f -> BwdRewrite n f
 wrapBRewrites' map = wrapBRewrites (map, map, map)
 
-wrapBRewrites2 :: (MapBRW2 n f C O, MapBRW2 n f O O, MapBRW2 n f O C) -> BwdRewrite n f -> BwdRewrite n f -> BwdRewrite n f
+wrapBRewrites2 :: ExTriple (MapBRW2 n f) -> BR n f -> BR n f -> BR n f
 wrapBRewrites2 (mapF, mapM, mapL) brw1 brw2 = mkBRewrite (mapF f1 f2) (mapM m1 m2) (mapL l1 l2)
   where (f1, m1, l1) = getBRewrites brw1
         (f2, m2, l2) = getBRewrites brw2
-wrapBRewrites2' :: (forall e x . MapBRW2 n f e x) -> BwdRewrite n f -> BwdRewrite n f -> BwdRewrite n f
+wrapBRewrites2' :: (forall e x . MapBRW2 n f e x) -> BR n f -> BR n f -> BR n f
 wrapBRewrites2' map = wrapBRewrites2 (map, map, map)
 
 ----------------------------------------------------------------
