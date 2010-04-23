@@ -241,6 +241,14 @@ arfGraph pass (GMany (JustO entry) body (JustO exit)) f
        ; (exit', fx)  <- arfBlock pass exit  $ lookupF pass (entryLabel exit) fb
        ; return (entry' `rgCat` body' `rgCat` exit', fx) }
 
+-- Join all the incoming facts with bottom.
+-- We know the results _shouldn't change_, but the transfer
+-- functions might, for example, generate some debugging traces.
+joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
+joinInFacts (DataflowLattice {fact_bot = bot, fact_extend = fe}) fb =
+  mkFactBase $ map botJoin $ factBaseList fb
+    where botJoin (l, f) = (l, snd $ fe l (OldFact bot) (NewFact f))
+
 forwardBlockList :: (Edges n, LabelsPtr entry)
                  => entry -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for forward analysis,

@@ -38,14 +38,14 @@ initFact vars = M.fromList $ [(v, Top) | v <- vars]
 -- We can write the simplest solution and rely on the interleaved optimization.
 varHasLit :: FwdTransfer Insn ConstFact
 varHasLit (Label l)              f = fromMaybe M.empty $ lookupFact f l
-varHasLit (Assign x (Lit l))     f = M.insert x (Elt l) f
+varHasLit (Assign x (Lit l))     f = M.insert x (NonTop l) f
 varHasLit (Assign x _)           f = M.insert x Top f
 varHasLit (Store _ _)            f = f
 varHasLit (Branch bid)           f = mkFactBase [(bid, f)]
 varHasLit (Cond (Var x) tid fid) f = mkFactBase [(tid, tf), (fid, ff)]
   where tf = M.insert x (bool True)  f
         ff = M.insert x (bool False) f
-        bool b = Elt (Bool b)
+        bool b = NonTop (Bool b)
 varHasLit (Cond _  tid fid)      f = mkFactBase [(tid, f), (fid, f)]
 varHasLit (Call vs _ _ bid)      f = mkFactBase [(bid, foldl toTop f vs)]
   where toTop f v = M.insert v Top f
@@ -57,6 +57,6 @@ constProp = shallowFwdRw cp
   where
     cp n facts = map_EN (map_EE $ rewriteE (getFwdFact n facts M.empty)) n >>= Just . insnToA
     rewriteE facts (Var v) = case M.lookup v facts of
-                               Just (Elt l) -> Just $ Lit l
-                               _            -> Nothing
+                               Just (NonTop l) -> Just $ Lit l
+                               _               -> Nothing
     rewriteE _ _ = Nothing
