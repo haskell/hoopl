@@ -110,10 +110,11 @@ data FwdPass n f
             , fp_rewrite  :: FwdRewrite n f }
 
 newtype FwdTransfer n f 
-  = FwdTransfers ( n C O -> f -> f
-                 , n O O -> f -> f
-                 , n O C -> f -> FactBase f
-                 )
+  = FwdTransfers { getFTransfers ::
+                     ( n C O -> f -> f
+                     , n O O -> f -> f
+                     , n O C -> f -> FactBase f
+                     ) }
 
 newtype FwdRewrite n f 
   = FwdRewrites { getFRewrites ::
@@ -132,10 +133,6 @@ mkFTransfer f m l = FwdTransfers (f, m, l)
 
 mkFTransfer' :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
 mkFTransfer' f = FwdTransfers (f, f, f)
-
-getFTransfers :: FwdTransfer n f ->
-                 (n C O -> f -> f, n O O -> f -> f, n O C -> f -> FactBase f)
-getFTransfers (FwdTransfers fts) = fts
 
 mkFRewrite :: (n C O -> f -> Maybe (FwdRes n f C O))
            -> (n O O -> f -> Maybe (FwdRes n f O O))
@@ -281,15 +278,17 @@ data BwdPass n f
             , bp_rewrite  :: BwdRewrite n f }
 
 newtype BwdTransfer n f 
-  = BwdTransfers ( n C O -> f          -> f
-                 , n O O -> f          -> f
-                 , n O C -> FactBase f -> f
-                 )
+  = BwdTransfers { getBTransfers ::
+                     ( n C O -> f          -> f
+                     , n O O -> f          -> f
+                     , n O C -> FactBase f -> f
+                     ) }
 newtype BwdRewrite n f 
-  = BwdRewrites ( n C O -> f          -> Maybe (BwdRes n f C O)
-                , n O O -> f          -> Maybe (BwdRes n f O O)
-                , n O C -> FactBase f -> Maybe (BwdRes n f O C)
-                )
+  = BwdRewrites { getBRewrites ::
+                    ( n C O -> f          -> Maybe (BwdRes n f C O)
+                    , n O O -> f          -> Maybe (BwdRes n f O O)
+                    , n O C -> FactBase f -> Maybe (BwdRes n f O C)
+                    ) }
 data BwdRes n f e x = BwdRes (AGraph n e x) (BwdRewrite n f)
 
 mkBTransfer :: (n C O -> f -> f) -> (n O O -> f -> f) ->
@@ -299,12 +298,6 @@ mkBTransfer f m l = BwdTransfers (f, m, l)
 mkBTransfer' :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
 mkBTransfer' f = BwdTransfers (f, f, f)
 
-getBTransfers :: BwdTransfer n f ->
-                 (n C O -> f -> f,
-                  n O O -> f -> f, 
-                  n O C -> FactBase f -> f)
-getBTransfers (BwdTransfers bts) = bts
-
 mkBRewrite :: (n C O -> f          -> Maybe (BwdRes n f C O))
            -> (n O O -> f          -> Maybe (BwdRes n f O O))
            -> (n O C -> FactBase f -> Maybe (BwdRes n f O C))
@@ -313,12 +306,6 @@ mkBRewrite f m l = BwdRewrites (f, m, l)
 
 mkBRewrite' :: (forall e x . n e x -> Fact x f -> Maybe (BwdRes n f e x)) -> BwdRewrite n f
 mkBRewrite' f = BwdRewrites (f, f, f)
-
-getBRewrites :: BwdRewrite n f ->
-                (n C O -> f          -> Maybe (BwdRes n f C O),
-                 n O O -> f          -> Maybe (BwdRes n f O O),
-                 n O C -> FactBase f -> Maybe (BwdRes n f O C))
-getBRewrites (BwdRewrites brws) = brws
 
 
 -----------------------------------------------------------------------------
