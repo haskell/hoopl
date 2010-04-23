@@ -1,7 +1,10 @@
+{-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables #-}
+
 -- | Utilities for clients of Hoopl, not used internally.
 
 module Compiler.Hoopl.XUtil
   ( firstXfer, distributeXfer, distributeFact
+  , foldNodes
   )
 where
 
@@ -29,3 +32,31 @@ distributeXfer xfer n f = mkFactBase [ (l, xfer n f) | l <- successors n ]
 -- that fact over the outgoing edges.
 distributeFact :: Edges n => n O C -> f -> FactBase f
 distributeFact n f = mkFactBase [ (l, f) | l <- successors n ]
+
+-- | Fold a function over every node in a graph.
+-- The fold function must be polymorphic in the shape of the nodes.
+foldNodes :: forall n a .
+             (forall e x . n e x       -> a -> a)
+          -> (forall e x . Graph n e x -> a -> a)
+foldNodes f = graph
+    where graph :: forall e x . Graph n e x -> a -> a
+          block :: forall e x . Block n e x -> a -> a
+          lift  :: forall thing ex . (thing -> a -> a) -> (MaybeO ex thing -> a -> a)
+
+          graph GNil              = id
+          graph (GUnit b)         = block b
+          graph (GMany e b x)     = lift block e . body b . lift block x
+          block (BFirst  node)    = f node
+          block (BMiddle node)    = f node
+          block (BLast   node)    = f node
+          block (b1 `BCat`    b2) = block b1 . block b2
+          block (b1 `BClosed` b2) = block b1 . block b2
+          block (b1 `BHead` n)    = block b1 . f n
+          block (n `BTail` b2)    = f n . block b2
+          body (BodyEmpty)        = id
+          body (BodyUnit b)       = block b
+          body (b1 `BodyCat` b2)  = body b1 . body b2
+          lift _ NothingO         = id
+          lift f (JustO thing)    = f thing
+
+                        
