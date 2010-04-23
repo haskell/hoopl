@@ -84,13 +84,13 @@ addPoints' name joinx = DataflowLattice name Bot join False
 -- | Given a join function and a name, creates a semi lattice by
 -- adding a top element but no bottom element.  Caller must supply the bottom 
 -- element.
-addTop  :: DataflowLattice a -> DataflowLattice (Pointed C O a)
+addTop  :: DataflowLattice a -> DataflowLattice (WithTop a)
 -- | A more general case for creating a new lattice
 addTop' :: forall a .
               String
            -> a
-           -> (Label -> OldFact a -> NewFact a -> (ChangeFlag, Pointed C O a))
-           -> DataflowLattice (Pointed C O a)
+           -> (Label -> OldFact a -> NewFact a -> (ChangeFlag, WithTop a))
+           -> DataflowLattice (WithTop a)
 
 addTop lattice = lattice' { fact_do_logging = fact_do_logging lattice }
    where lattice' = addTop' name' (fact_bot lattice) join'
@@ -100,7 +100,7 @@ addTop lattice = lattice' { fact_do_logging = fact_do_logging lattice }
 
 addTop' name bot joinx = DataflowLattice name (PElem bot) join False
   where -- careful: order of cases matters for ChangeFlag
-        join :: JoinFun (Pointed C O a)
+        join :: JoinFun (WithTop a)
         join _ (OldFact Top)          (NewFact _)   = (NoChange, Top)
         join _ (OldFact _)            (NewFact Top) = (SomeChange, Top)
         join l (OldFact (PElem old)) (NewFact (PElem new))
