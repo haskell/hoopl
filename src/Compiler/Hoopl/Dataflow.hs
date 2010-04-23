@@ -233,11 +233,11 @@ arfGraph pass (GMany NothingO body (JustO exit)) f
        ; return (body' `rgCat` exit', fx) }
 arfGraph pass (GMany (JustO entry) body NothingO) f
   = do { (entry', fe) <- arfBlock pass entry f
-       ; (body', fb)  <- arfBody  pass body fe
+       ; (body', fb)  <- arfBody  pass body $ joinInFacts (fp_lattice pass) fe
        ; return (entry' `rgCat` body', fb) }
 arfGraph pass (GMany (JustO entry) body (JustO exit)) f
   = do { (entry', fe) <- arfBlock pass entry f
-       ; (body', fb)  <- arfBody  pass body fe
+       ; (body', fb)  <- arfBody  pass body $ joinInFacts (fp_lattice pass) fe
        ; (exit', fx)  <- arfBlock pass exit  $ lookupF pass (entryLabel exit) fb
        ; return (entry' `rgCat` body' `rgCat` exit', fx) }
 
@@ -348,7 +348,8 @@ arbGraph pass (GMany NothingO body NothingO) f
        ; return (body', fb) }
 arbGraph pass (GMany NothingO body (JustO exit)) f
   = do { (exit', fx) <- arbBlock pass exit f
-       ; (body', fb) <- arbBody  pass body $ mkFactBase [(entryLabel exit, fx)]
+       ; (body', fb) <- arbBody  pass body $
+                          joinInFacts (bp_lattice pass) $ mkFactBase [(entryLabel exit, fx)]
        ; return (body' `rgCat` exit', fb) }
 arbGraph pass (GMany (JustO entry) body NothingO) f
   = do { (body', fb)  <- arbBody  pass body f
@@ -356,7 +357,8 @@ arbGraph pass (GMany (JustO entry) body NothingO) f
        ; return (entry' `rgCat` body', fe) }
 arbGraph pass (GMany (JustO entry) body (JustO exit)) f
   = do { (exit', fx)  <- arbBlock pass exit f
-       ; (body', fb)  <- arbBody  pass body $ mkFactBase [(entryLabel exit, fx)]
+       ; (body', fb)  <- arbBody  pass body $
+                           joinInFacts (bp_lattice pass) $ mkFactBase [(entryLabel exit, fx)]
        ; (entry', fe) <- arbBlock pass entry fb
        ; return (entry' `rgCat` body' `rgCat` exit', fe) }
 
