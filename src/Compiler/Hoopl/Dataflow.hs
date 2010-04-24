@@ -67,6 +67,8 @@ module Compiler.Hoopl.Dataflow
   )
 where
 
+import Data.Maybe
+
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.MkGraph
@@ -185,8 +187,20 @@ distinguishedExitFact g f = maybe g
 
 type ARF' n f thing e x
   = FwdPass n f -> thing e x -> f -> FuelMonad (RG f n e x, Fact x f)
+  -- ^ Analyze and rewrite forward
 
-type ARF thing n = forall f e x . ARF' n f thing e x
+type ARFX' n f thing e x
+  = FwdPass n f -> thing e x -> Fact e f -> FuelMonad (RG f n e x, Fact x f)
+  -- ^ Analyze and rewrite forward extended -- can take @FactBase f@
+
+arfx :: Edges thing => ARF' n f thing C x -> ARFX' n f thing C x
+arfx arf pass thing fb = 
+    arf pass thing $ fromJust $ lookupFact (joinInFacts lattice fb) $ entryLabel thing
+  where lattice = fp_lattice pass
+  -- joinInFacts adds debugging information
+
+type ARF  thing n = forall f e x . ARF'  n f thing e x
+type ARFX thing n = forall f e x . ARFX' n f thing e x
 
 arfNode :: (Edges n, ShapeLifter e x) => ARF' n f n e x
 arfNode pass node f
@@ -315,7 +329,17 @@ mkBRewrite' f = BwdRewrites (f, f, f)
 type ARB' n f thing e x
   = BwdPass n f -> thing e x -> Fact x f -> FuelMonad (RG f n e x, f)
 
-type ARB thing n = forall f e x. ARB' n f thing e x 
+type ARBX' n f thing e x
+  = BwdPass n f -> thing e x -> Fact x f -> FuelMonad (RG f n e x, Fact e f)
+
+type ARB  thing n = forall f e x. ARB'  n f thing e x 
+type ARBX thing n = forall f e x. ARBX' n f thing e x 
+
+arbx :: Edges thing => ARB' n f thing C x -> ARBX' n f thing C x
+arbx arb pass thing f = do { (rg, f) <- arb pass thing f
+                           ; let fb = joinInFacts (bp_lattice pass) $
+                                      mkFactBase [(entryLabel thing, f)]
+                           ; return (rg, fb) }
 
 arbNode :: (Edges n, ShapeLifter e x) => ARB' n f n e x
 -- Lifts (BwdTransfer,BwdRewrite) to ARB_Node; 
