@@ -226,12 +226,14 @@ arfBlock pass (BHead h n)     = arfCat arfBlock arfNode  pass h n
 arfBlock pass (BTail n t)     = arfCat arfNode  arfBlock pass n t
 arfBlock pass (BClosed h t)   = arfCat arfBlock arfBlock pass h t
 
-arfCat :: Edges n => ARF' n f thing1 e O -> ARF' n f thing2 O x
-       -> FwdPass n f -> thing1 e O -> thing2 O x
-       -> f -> FuelMonad (RG f n e x, Fact x f)
+arfCat :: (pass -> thing1 -> info1 -> FuelMonad (RG f n e a, info2))
+       -> (pass -> thing2 -> info2 -> FuelMonad (RG f n a x, info2'))
+       -> (pass -> thing1 -> thing2 -> info1 -> FuelMonad (RG f n e x, info2'))
+{-# INLINE arfCat #-}
 arfCat arf1 arf2 pass thing1 thing2 f = do { (g1,f1) <- arf1 pass thing1 f
                                            ; (g2,f2) <- arf2 pass thing2 f1
                                            ; return (g1 `rgCat` g2, f2) }
+
 arfBody :: Edges n
         => FwdPass n f -> Body n -> FactBase f
         -> FuelMonad (RG f n C C, FactBase f)
@@ -245,28 +247,19 @@ arfBody pass blocks init_fbase
     do_block b f = do (g, fb) <- arfBlock pass b $ lookupF pass (entryLabel b) f
                       return (g, factBaseList fb)
 
-arfGraph :: Edges n
-         => FwdPass n f -> Graph n e x -> Fact e f
-         -> FuelMonad (RG f n e x, Fact x f)
+arfGraph :: Edges n => ARFX (Graph n) n
 -- Lift from blocks to graphs
-arfGraph _    GNil        f = return (rgnil, f)
-arfGraph pass (GUnit blk) f = arfBlock pass blk f
-arfGraph pass (GMany NothingO body NothingO) f
-  = do { (body', fb) <- arfBody pass body f
-       ; return (body', fb) }
-arfGraph pass (GMany NothingO body (JustO exit)) f
-  = do { (body', fb) <- arfBody  pass body f
-       ; (exit', fx) <- arfBlock pass exit $ lookupF pass (entryLabel exit) fb
-       ; return (body' `rgCat` exit', fx) }
-arfGraph pass (GMany (JustO entry) body NothingO) f
-  = do { (entry', fe) <- arfBlock pass entry f
-       ; (body', fb)  <- arfBody  pass body $ joinInFacts (fp_lattice pass) fe
-       ; return (entry' `rgCat` body', fb) }
-arfGraph pass (GMany (JustO entry) body (JustO exit)) f
-  = do { (entry', fe) <- arfBlock pass entry f
-       ; (body', fb)  <- arfBody  pass body $ joinInFacts (fp_lattice pass) fe
-       ; (exit', fx)  <- arfBlock pass exit  $ lookupF pass (entryLabel exit) fb
-       ; return (entry' `rgCat` body' `rgCat` exit', fx) }
+arfGraph _    GNil        = \f -> return (rgnil, f)
+arfGraph pass (GUnit blk) = arfBlock pass blk
+arfGraph pass (GMany NothingO body NothingO) = arfBody pass body
+arfGraph pass (GMany NothingO body (JustO exit))
+  = arfCat arfBody (arfx arfBlock) pass body exit
+arfGraph pass (GMany (JustO entry) body NothingO)
+  = arfCat arfBlock arfBody pass entry body
+arfGraph pass (GMany (JustO entry) body (JustO exit))
+  = arfCat arfeb (arfx arfBlock) pass (entry, body) exit
+ where arfeb pass = uncurry $ arfCat arfBlock arfBody pass
+
 
 -- Join all the incoming facts with bottom.
 -- We know the results _shouldn't change_, but the transfer
@@ -365,9 +358,10 @@ arbBlock pass (BHead h n)     = arbCat arbBlock arbNode  pass h n
 arbBlock pass (BTail n t)     = arbCat arbNode  arbBlock pass n t
 arbBlock pass (BClosed h t)   = arbCat arbBlock arbBlock pass h t
 
-arbCat :: Edges n => ARB' n f thing1 e O -> ARB' n f thing2 O x
-       -> BwdPass n f -> thing1 e O -> thing2 O x
-       -> Fact x f -> FuelMonad (RG f n e x, f)
+arbCat :: (pass -> thing1 -> info1 -> FuelMonad (RG f n e a, info1'))
+       -> (pass -> thing2 -> info2 -> FuelMonad (RG f n a x, info1))
+       -> (pass -> thing1 -> thing2 -> info2 -> FuelMonad (RG f n e x, info1'))
+{-# INLINE arbCat #-}
 arbCat arb1 arb2 pass thing1 thing2 f = do { (g2,f2) <- arb2 pass thing2 f
                                            ; (g1,f1) <- arb1 pass thing1 f2
                                            ; return (g1 `rgCat` g2, f1) }
@@ -382,29 +376,18 @@ arbBody pass blocks init_fbase
     do_block b f = do (g, f) <- arbBlock pass b f
                       return (g, [(entryLabel b, f)])
 
-arbGraph :: Edges n
-         => BwdPass n f -> Graph n e x -> Fact x f
-         -> FuelMonad (RG f n e x, Fact e f)
-arbGraph _    GNil        f = return (rgnil, f)
-arbGraph pass (GUnit blk) f = arbBlock pass blk f
-arbGraph pass (GMany NothingO body NothingO) f
-  = do { (body', fb) <- arbBody pass body f
-       ; return (body', fb) }
-arbGraph pass (GMany NothingO body (JustO exit)) f
-  = do { (exit', fx) <- arbBlock pass exit f
-       ; (body', fb) <- arbBody  pass body $
-                          joinInFacts (bp_lattice pass) $ mkFactBase [(entryLabel exit, fx)]
-       ; return (body' `rgCat` exit', fb) }
-arbGraph pass (GMany (JustO entry) body NothingO) f
-  = do { (body', fb)  <- arbBody  pass body f
-       ; (entry', fe) <- arbBlock pass entry fb
-       ; return (entry' `rgCat` body', fe) }
-arbGraph pass (GMany (JustO entry) body (JustO exit)) f
-  = do { (exit', fx)  <- arbBlock pass exit f
-       ; (body', fb)  <- arbBody  pass body $
-                           joinInFacts (bp_lattice pass) $ mkFactBase [(entryLabel exit, fx)]
-       ; (entry', fe) <- arbBlock pass entry fb
-       ; return (entry' `rgCat` body' `rgCat` exit', fe) }
+arbGraph :: Edges n => ARBX (Graph n) n
+arbGraph _    GNil        = \f -> return (rgnil, f)
+arbGraph pass (GUnit blk) = arbBlock pass blk
+arbGraph pass (GMany NothingO body NothingO) = arbBody pass body
+arbGraph pass (GMany NothingO body (JustO exit)) =
+  arbCat arbBody (arbx arbBlock) pass body exit
+arbGraph pass (GMany (JustO entry) body NothingO) =
+  arbCat arbBlock arbBody pass entry body
+arbGraph pass (GMany (JustO entry) body (JustO exit)) =
+  arbCat arbeb (arbx arbBlock) pass (entry, body) exit
+ where arbeb pass = uncurry $ arbCat arbBlock arbBody pass
+
 
 backwardBlockList :: Edges n => Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for backward analysis,
