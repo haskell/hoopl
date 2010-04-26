@@ -11,8 +11,8 @@ import qualified Data.Set as S
 import Compiler.Hoopl
 
 class HooplNode n => NodeWithVars n where
-  type Var n -- ^ Variable or machine register.  Unequal variables don't alias.
-  type VarSet n
+  data Var    n :: * -- ^ Variable or machine register.  Unequal variables don't alias.
+  data VarSet n :: *
   foldVarsUsed :: forall e x a . (Var n -> a -> a) -> n e x -> a -> a
   foldVarsDefd :: forall e x a . (Var n -> a -> a) -> n e x -> a -> a
   killsAllVars :: forall e x . n e x -> Bool
@@ -63,17 +63,14 @@ liveLattice = addTop lat
                 change = error "type troubles"
                 -- change = changeIf $ varSetSize j > varSetSize old
 
-{-
 liveness :: NodeWithVars n => BwdTransfer n (VarSet n)
-liveness = mkBTransfer distributeFactBwd mid last
-  where mid  m = gen_kill m
-        last l = gen_kill l . unionManyVarSets . successorFacts l
--}
+liveness = mkBTransfer first mid last
+  where first f = gen_kill f
+        mid   m = gen_kill m
+        last  l = gen_kill l . unionManyVarSets . successorFacts l
 
-{-
 gen_kill :: NodeWithVars n => n e x -> VarSet n -> VarSet n
 gen_kill n = gen n . kill n . if killsAllVars n then const emptyVarSet else id
--}
 
 
 -- | The transfer equations use the traditional 'gen' and 'kill'
