@@ -8,6 +8,7 @@ module Compiler.Hoopl.XUtil
   , successorFacts
   , foldGraphNodes, foldBlockNodes
   , analyzeAndRewriteFwdBody
+  , analyzeAndRewriteBwdBody
   )
 where
 
@@ -17,19 +18,39 @@ import Compiler.Hoopl.DataflowNest
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.Label
+import Compiler.Hoopl.Util
 
+
+-- | Forward dataflow analysis and rewriting for the special case of a Body.
+-- A set of entry points must be supplied; blocks not reachable from
+-- the set are thrown away.
 analyzeAndRewriteFwdBody
-   :: forall n f. Edges n
+   :: forall n f entries. (Edges n, LabelsPtr entries)
    => FwdPass n f
-   -> Body n -> FactBase f
+   -> entries -> Body n -> FactBase f
    -> FuelMonad (Body n, FactBase f)
 
-analyzeAndRewriteFwdBody pass body facts
-    = analyzeAndRewriteFwd pass g facts >>= finish
-  where
-    finish :: (Graph n C C, FactBase f, MaybeO C f) -> FuelMonad (Body n, FactBase f)
-    finish (GMany NothingO body NothingO, fb, NothingO) = return (body, fb)
-    g = GMany NothingO body NothingO
+-- | Backward dataflow analysis and rewriting for the special case of a Body.
+-- A set of entry points must be supplied; blocks not reachable from
+-- the set are thrown away.
+analyzeAndRewriteBwdBody
+   :: forall n f entries. (Edges n, LabelsPtr entries)
+   => BwdPass n f 
+   -> entries -> Body n -> FactBase f 
+   -> FuelMonad (Body n, FactBase f)
+
+analyzeAndRewriteFwdBody pass ent = mapBodyFacts (analyzeAndRewriteFwd pass ent)
+analyzeAndRewriteBwdBody pass ent = mapBodyFacts (analyzeAndRewriteBwd pass ent)
+
+mapBodyFacts
+    :: (Graph n C C -> Fact C f   -> FuelMonad (Graph n C C, Fact C f, MaybeO C f))
+    -> (Body n      -> FactBase f -> FuelMonad (Body n, FactBase f))
+-- ^ Internal utility; should not escape
+mapBodyFacts anal b f = anal (GMany NothingO b NothingO) f >>= bodyFacts
+  where -- the type constraint is needed for the pattern match;
+        -- if it were not, we would use do-notation here.
+    bodyFacts :: (Graph n C C, Fact C f, MaybeO C f) -> FuelMonad (Body n, Fact C f)
+    bodyFacts (GMany NothingO body NothingO, fb, NothingO) = return (body, fb)
 
 
 

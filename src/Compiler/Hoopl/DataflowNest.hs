@@ -63,7 +63,6 @@ module Compiler.Hoopl.DataflowNest
   , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer', getBTransfers
   , BwdRes(..),  BwdRewrite,  mkBRewrite,  mkBRewrite',  getBRewrites
   , analyzeAndRewriteFwd,  analyzeAndRewriteBwd
-  , analyzeAndRewriteBwd'
   )
 where
 
@@ -153,12 +152,13 @@ type instance Fact O f = f
 -- | if the graph being analyzed is open at the entry, there must
 --   be no other entry point, or all goes horribly wrong...
 analyzeAndRewriteFwd
-   :: forall n f e x. Edges n
+   :: forall n f e x entries. (Edges n, LabelsPtr entries)
    => FwdPass n f
+   -> entries
    -> Graph n e x -> Fact e f
    -> FuelMonad (Graph n e x, FactBase f, MaybeO x f)
-analyzeAndRewriteFwd pass g f =
-  do (rg, fout) <- arfGraph pass g f
+analyzeAndRewriteFwd pass entries g f =
+  do (rg, fout) <- arfGraph pass (targetLabels entries) g f
      let (g', fb) = normalizeGraph rg
      return (g', fb, distinguishedExitFact g' fout)
 
@@ -176,11 +176,12 @@ distinguishedExitFact g f = maybe g
 
 type FM = FuelMonad
 
+type Entries = [Label]
 
 arfGraph :: forall n f e x .
-            Edges n => FwdPass n f -> 
-            Graph n e x -> Fact e f -> FM (RG f n e x, Fact x f)
-arfGraph pass = graph
+            (Edges n) => FwdPass n f -> 
+            Entries -> Graph n e x -> Fact e f -> FM (RG f n e x, Fact x f)
+arfGraph pass entries = graph
   where
     {- nested type synonyms would be so lovely here 
     type ARF  thing = forall e x . thing e x -> f        -> FM (RG f n e x, Fact x f)
@@ -190,7 +191,7 @@ arfGraph pass = graph
     block :: forall e x . Block n e x -> f        -> FM (RG f n e x, Fact x f)
     node  :: forall e x . (ShapeLifter e x) 
                        => n e x       -> f        -> FM (RG f n e x, Fact x f)
-    arfBody :: Body n -> Fact C f -> FuelMonad (RG f n C C, Fact C f)
+    body  :: Entries -> Body n -> Fact C f -> FuelMonad (RG f n C C, Fact C f)
                     -- Outgoing factbase is restricted to Labels *not* in
                     -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'RG f n C C'
@@ -199,13 +200,14 @@ arfGraph pass = graph
         -> (info' -> FuelMonad (RG f n a x, info''))
         -> (info  -> FuelMonad (RG f n e x, info''))
 
-    graph GNil                                = \f -> return (rgnil, f)
-    graph (GUnit blk)                         = block blk
-    graph (GMany NothingO body NothingO)      = arfBody body
-    graph (GMany NothingO body (JustO exit))  = arfBody body `cat` arfx block exit
-    graph (GMany (JustO entry) body NothingO) = block entry `cat` arfBody body
-    graph (GMany (JustO entry) body (JustO exit))
-      = (block entry `cat` arfBody body) `cat` arfx block exit
+    graph GNil                              = \f -> return (rgnil, f)
+    graph (GUnit blk)                       = block blk
+    graph (GMany NothingO bdy NothingO)     = body entries bdy
+    graph (GMany NothingO bdy (JustO exit)) = body entries bdy `cat` arfx block exit
+    graph (GMany (JustO entry) bdy NothingO)
+      = block entry `cat` body (successors entry) bdy
+    graph (GMany (JustO entry) bdy (JustO exit))
+      = (block entry `cat` body (successors entry) bdy) `cat` arfx block exit
 
     -- Lift from nodes to blocks
     block (BFirst  n)  = node n
@@ -221,9 +223,10 @@ arfGraph pass = graph
            ; case mb_g of
                Nothing -> return (rgunit f (unit thenode),
                                   ftransfer pass thenode f)
-               Just (FwdRes ag rw) -> do { g <- graphOfAGraph ag
-                                         ; let pass' = pass { fp_rewrite = rw }
-                                         ; arfGraph pass' g (elift thenode f) } }
+               Just (FwdRes ag rw) ->
+                   do { g <- graphOfAGraph ag
+                      ; let pass' = pass { fp_rewrite = rw }
+                      ; arfGraph pass' (entry thenode) g (elift thenode f) } }
 
     -- | Compose fact transformers and concatenate the resulting
     -- rewritten graphs.
@@ -245,9 +248,9 @@ arfGraph pass = graph
                     -- Outgoing factbase is restricted to Labels *not* in
     		    -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'RG f n C C'
-    arfBody blocks init_fbase
+    body entries blocks init_fbase
       = fixpoint True (fp_lattice pass) do_block init_fbase $
-        forwardBlockList (factBaseLabels init_fbase) blocks
+        forwardBlockList entries blocks
       where
         do_block b f = do (g, fb) <- block b $ lookupF pass (entryLabel b) f
                           return (g, factBaseList fb)
@@ -311,6 +314,87 @@ mkBRewrite' f = BwdRewrites (f, f, f)
 -----------------------------------------------------------------------------
 --		Backward implementation
 -----------------------------------------------------------------------------
+
+arbGraph :: forall n f e x .
+            (Edges n) => BwdPass n f -> 
+            Entries -> Graph n e x -> Fact x f -> FM (RG f n e x, Fact e f)
+arbGraph pass entries = graph
+  where
+    {- nested type synonyms would be so lovely here 
+    type ARB  thing = forall e x . thing e x -> Fact x f -> FM (RG f n e x, f)
+    type ARBX thing = forall e x . thing e x -> Fact x f -> FM (RG f n e x, Fact e f)
+    -}
+    graph :: forall e x . Graph n e x -> Fact x f -> FM (RG f n e x, Fact e f)
+    block :: forall e x . Block n e x -> Fact x f -> FM (RG f n e x, f)
+    node  :: forall e x . (ShapeLifter e x) 
+                       => n e x       -> Fact x f -> FM (RG f n e x, f)
+    body  :: Entries -> Body n -> Fact C f -> FuelMonad (RG f n C C, Fact C f)
+    cat :: forall e a x info info' info''.
+           (info' -> FuelMonad (RG f n e a, info''))
+        -> (info  -> FuelMonad (RG f n a x, info'))
+        -> (info  -> FuelMonad (RG f n e x, info''))
+
+    graph GNil                              = \f -> return (rgnil, f)
+    graph (GUnit blk)                       = block blk
+    graph (GMany NothingO bdy NothingO)     = body entries bdy
+    graph (GMany NothingO bdy (JustO exit)) = body entries bdy `cat` arbx block exit
+    graph (GMany (JustO entry) bdy NothingO)
+      = block entry `cat` body (successors entry) bdy
+    graph (GMany (JustO entry) bdy (JustO exit))
+      = (block entry `cat` body (successors entry) bdy) `cat` arbx block exit
+
+    -- Lift from nodes to blocks
+    block (BFirst  n)  = node n
+    block (BMiddle n)  = node n
+    block (BLast   n)  = node n
+    block (BCat b1 b2) = block b1 `cat` block b2
+    block (BHead h n)  = block h  `cat` node n
+    block (BTail n t)  = node  n  `cat` block t
+    block (BClosed h t)= block h  `cat` block t
+
+    node thenode f
+      = do { mb_g <- withFuel (brewrite pass thenode f)
+           ; case mb_g of
+               Nothing -> return (rgunit entry_f (unit thenode), entry_f)
+                   where entry_f  = btransfer pass thenode f
+      	       Just (BwdRes ag rw) ->
+                          do { g <- graphOfAGraph ag
+                             ; let pass' = pass { bp_rewrite = rw }
+                             ; (g, f) <- arbGraph pass' (entry thenode) g f
+                             ; return (g, elower (bp_lattice pass) thenode f)} }
+
+    -- | Compose fact transformers and concatenate the resulting
+    -- rewritten graphs.
+    {-# INLINE cat #-} 
+    cat ft1 ft2 f = do { (g2,f2) <- ft2 f
+                       ; (g1,f1) <- ft1 f2
+                       ; return (g1 `rgCat` g2, f1) }
+
+    arbx :: forall thing x .
+            Edges thing
+         => (thing C x -> Fact x f -> FM (RG f n C x, f))
+         -> (thing C x -> Fact x f -> FM (RG f n C x, Fact C f))
+
+    arbx arb thing f = do { (rg, f) <- arb thing f
+                          ; let fb = joinInFacts (bp_lattice pass) $
+                                     mkFactBase [(entryLabel thing, f)]
+                          ; return (rg, fb) }
+     -- joinInFacts adds debugging information
+
+                    -- Outgoing factbase is restricted to Labels *not* in
+    		    -- in the Body; the facts for Labels *in*
+                    -- the Body are in the 'RG f n C C'
+    body entries blocks init_fbase
+      = fixpoint False (bp_lattice pass) do_block init_fbase $
+        backwardBlockList entries blocks 
+      where
+        do_block b f = do (g, f) <- block b f
+                          return (g, [(entryLabel b, f)])
+
+{-
+
+
+
 
 type ARB' n f thing e x
   = BwdPass n f -> thing e x -> Fact x f -> FuelMonad (RG f n e x, f)
@@ -381,23 +465,14 @@ arbGraph pass (GMany (JustO entry) body (JustO exit)) =
   arbCat arbeb (arbx arbBlock) pass (entry, body) exit
  where arbeb pass = uncurry $ arbCat arbBlock arbBody pass
 
+-}
 
-backwardBlockList :: Edges n => Body n -> [Block n C C]
+backwardBlockList :: (LabelsPtr entries, Edges n) => entries -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for backward analysis,
 -- along with the list of Labels it may depend on for facts.
-backwardBlockList body = reachable ++ missing
-  where reachable = reverse $ forwardBlockList entries body
-        entries = externalEntryLabels body
-        all = bodyList body
-        missingLabels =
-            mkLabelSet (map fst all) `minusLabelSet`
-            mkLabelSet (map entryLabel reachable)
-        missing = map snd $ filter (flip elemLabelSet missingLabels . fst) all
+backwardBlockList entries body = reverse $ forwardBlockList entries body
 
 {-
-
-The forward and backward dataflow analyses now use postorder depth-first
-order for faster convergence.
 
 The forward and backward cases are not dual.  In the forward case, the
 entry points are known, and one simply traverses the body blocks from
@@ -409,44 +484,18 @@ us---a backward analysis must include reachable blocks that don't
 reach the exit, as in a procedure that loops forever and has side
 effects.)
 
-Since in the general case, no information is available about entry
-points, I have put in a horrible hack.  First, I assume that every
-label defined but not used is an entry point.  Then, because an entry
-point might also be a loop header, I add, in arbitrary order, all the
-remaining "missing" blocks.  Needless to say, I am not pleased.  
-I am not satisfied.  I am not Senator Morgan.
-
-Wait! I believe that the Right Thing here is to require that anyone
-wishing to analyze a graph closed at the entry provide a way of
-determining the entry points, if any, of that graph.  This requirement
-can apply equally to forward and backward analyses; I believe that
-using the input FactBase to determine the entry points of a closed
-graph is *also* a hack.
-
-NR
-
 -}
 
 
-analyzeAndRewriteBwd
-   :: forall n f. Edges n
-   => BwdPass n f 
-   -> Body n -> FactBase f 
-   -> FuelMonad (Body n, FactBase f)
-
-analyzeAndRewriteBwd pass body facts
-  = do { (rg, _) <- arbBody pass body facts
-       ; return (normaliseBody rg) }
-
 -- | if the graph being analyzed is open at the exit, I don't
 --   quite understand the implications of possible other exits
-analyzeAndRewriteBwd'
-   :: forall n f e x. Edges n
+analyzeAndRewriteBwd
+   :: (Edges n, LabelsPtr entries)
    => BwdPass n f
-   -> Graph n e x -> Fact x f
+   -> entries -> Graph n e x -> Fact x f
    -> FuelMonad (Graph n e x, FactBase f, MaybeO e f)
-analyzeAndRewriteBwd' pass g f =
-  do (rg, fout) <- arbGraph pass g f
+analyzeAndRewriteBwd pass entries g f =
+  do (rg, fout) <- arbGraph pass (targetLabels entries) g f
      let (g', fb) = normalizeGraph rg
      return (g', fb, distinguishedEntryFact g' fout)
 
@@ -594,14 +643,12 @@ rgCat  :: RG f n e a -> RG f n a x -> RG f n e x
 
 ---- observers
 
-type BodyWithFacts  n f     = (Body n, FactBase f)
 type GraphWithFacts n f e x = (Graph n e x, FactBase f)
   -- A Graph together with the facts for that graph
   -- The domains of the two maps should be identical
 
 normalizeGraph :: forall n f e x .
                   Edges n => RG f n e x -> GraphWithFacts n f e x
-normaliseBody  :: Edges n => RG f n C C -> BodyWithFacts n f
 
 normalizeGraph g = (graphMapBlocks dropFact g, facts g)
     where dropFact (FBlock _ b) = b
@@ -615,9 +662,6 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
           bodyFacts :: Body' (FBlock f) n -> FactBase f
           bodyFacts (BodyUnit (FBlock f b)) = mkFactBase [(entryLabel b, f)]
           bodyFacts (b1 `BodyCat` b2) = bodyFacts b1 `unionFactBase` bodyFacts b2
-
-normaliseBody rg = (body, fact_base)
-  where (GMany _ body _, fact_base) = normalizeGraph rg
 
 --- implementation of the constructors (boring)
 
@@ -653,6 +697,7 @@ class ShapeLifter e x where
   btransfer :: BwdPass n f -> n e x -> Fact x f -> f
   frewrite  :: FwdPass n f -> n e x -> f        -> Maybe (FwdRes n f e x)
   brewrite  :: BwdPass n f -> n e x -> Fact x f -> Maybe (BwdRes n f e x)
+  entry     :: Edges n => n e x -> [Label]
 
 instance ShapeLifter C O where
   unit            = BFirst
@@ -662,6 +707,7 @@ instance ShapeLifter C O where
   btransfer (BwdPass {bp_transfer = BwdTransfers (bt, _, _)}) n f = bt n f
   frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (fr, _, _)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (br, _, _)}) n f = br n f
+  entry n = [entryLabel n]
 
 instance ShapeLifter O O where
   unit         = BMiddle
@@ -671,6 +717,7 @@ instance ShapeLifter O O where
   btransfer (BwdPass {bp_transfer = BwdTransfers (_, bt, _)}) n f = bt n f
   frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (_, fr, _)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (_, br, _)}) n f = br n f
+  entry _ = []
 
 instance ShapeLifter O C where
   unit         = BLast
@@ -680,6 +727,7 @@ instance ShapeLifter O C where
   btransfer (BwdPass {bp_transfer = BwdTransfers (_, _, bt)}) n f = bt n f
   frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (_, _, fr)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (_, _, br)}) n f = br n f
+  entry _ = []
 
 -- Fact lookup: the fact `orelse` bottom
 lookupF :: FwdPass n f -> Label -> FactBase f -> f

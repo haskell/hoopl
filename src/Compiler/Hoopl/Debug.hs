@@ -6,7 +6,7 @@ module Compiler.Hoopl.Debug
   )
 where
 
-import Compiler.Hoopl.Dataflow
+import Compiler.Hoopl.DataflowNest
 import Compiler.Hoopl.Show
 
 --------------------------------------------------------------------------------

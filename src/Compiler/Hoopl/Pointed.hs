@@ -10,7 +10,7 @@ where
 
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.Label
-import Compiler.Hoopl.Dataflow
+import Compiler.Hoopl.DataflowNest
 
 -- | Adds top, bottom, or both to help form a lattice
 data Pointed t b a where

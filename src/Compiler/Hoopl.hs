@@ -1,20 +1,20 @@
 module Compiler.Hoopl
-  ( module Compiler.Hoopl.Combinators
-  , module Compiler.Hoopl.Dataflow
-  , module Compiler.Hoopl.Debug
-  , module Compiler.Hoopl.Fuel
-  , module Compiler.Hoopl.Graph
-  , module Compiler.Hoopl.Label
+  ( module Compiler.Hoopl.Graph
   , module Compiler.Hoopl.MkGraph
-  , module Compiler.Hoopl.Pointed
-  , module Compiler.Hoopl.Show
-  , module Compiler.Hoopl.Util
   , module Compiler.Hoopl.XUtil
+  , module Compiler.Hoopl.DataflowNest
+  , module Compiler.Hoopl.Label
+  , module Compiler.Hoopl.Pointed
+  , module Compiler.Hoopl.Combinators
+  , module Compiler.Hoopl.Fuel
+  , module Compiler.Hoopl.Util
+  , module Compiler.Hoopl.Debug
+  , module Compiler.Hoopl.Show
   )
 where
 
 import Compiler.Hoopl.Combinators
-import Compiler.Hoopl.Dataflow
+import Compiler.Hoopl.DataflowNest
 import Compiler.Hoopl.Debug
 import Compiler.Hoopl.Fuel hiding (withFuel, getFuel, setFuel)
 import Compiler.Hoopl.Graph hiding (BodyEmpty, BodyUnit, BodyCat)

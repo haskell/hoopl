@@ -12,7 +12,7 @@ where
 
 import Data.Function
 
-import Compiler.Hoopl.Dataflow
+import Compiler.Hoopl.DataflowNest
 import Compiler.Hoopl.Graph (C, O)
 import Compiler.Hoopl.MkGraph
 
