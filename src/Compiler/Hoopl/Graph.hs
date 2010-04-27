@@ -1,7 +1,8 @@
 {-# LANGUAGE GADTs, EmptyDataDecls #-}
 
 module Compiler.Hoopl.Graph 
-  ( O, C, Block(..), Body, Body'(..), bodyMap, Graph, Graph'(..), MaybeO(..)
+  ( O, C, Block(..), Body, Body'(..), bodyMap, Graph, Graph'(..)
+  , MaybeO(..), MaybeC(..)
   , Edges(entryLabel, successors)
   , addBlock, bodyList
   )
@@ -48,9 +49,17 @@ data MaybeO ex t where
   JustO    :: t -> MaybeO O t
   NothingO ::      MaybeO C t
 
+data MaybeC ex t where
+  JustC    :: t -> MaybeC C t
+  NothingC ::      MaybeC O t
+
 instance Functor (MaybeO ex) where
   fmap _ NothingO = NothingO
   fmap f (JustO a) = JustO (f a)
+
+instance Functor (MaybeC ex) where
+  fmap _ NothingC = NothingC
+  fmap f (JustC a) = JustC (f a)
 
 -------------------------------
 class Edges thing where
