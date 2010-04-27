@@ -7,13 +7,31 @@ module Compiler.Hoopl.XUtil
   , distributeFact, distributeFactBwd
   , successorFacts
   , foldGraphNodes, foldBlockNodes
+  , analyzeAndRewriteFwdBody
   )
 where
 
 import Data.Maybe
 
-import Compiler.Hoopl.Label
+import Compiler.Hoopl.DataflowNest
+import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
+import Compiler.Hoopl.Label
+
+analyzeAndRewriteFwdBody
+   :: forall n f. Edges n
+   => FwdPass n f
+   -> Body n -> FactBase f
+   -> FuelMonad (Body n, FactBase f)
+
+analyzeAndRewriteFwdBody pass body facts
+    = analyzeAndRewriteFwd pass g facts >>= finish
+  where
+    finish :: (Graph n C C, FactBase f, MaybeO C f) -> FuelMonad (Body n, FactBase f)
+    finish (GMany NothingO body NothingO, fb, NothingO) = return (body, fb)
+    g = GMany NothingO body NothingO
+
+
 
 -- | A utility function so that a transfer function for a first
 -- node can be given just a fact; we handle the lookup.  This
