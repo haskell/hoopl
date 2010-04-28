@@ -387,15 +387,15 @@ upper bound of a pair of facts.
 (When it does take the least upper bound, however, it needs to know if
 something changed.)
 \begin{smallcode}
-data DataflowLattice a = DataflowLattice  
- { fact_bot        :: a
- , fact_extend     :: JoinFun a
+data DataflowLattice f = DataflowLattice  
+ { fact_bot        :: f
+ , fact_extend     :: JoinFun f
  }
-type JoinFun a
-  = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
+type JoinFun f
+  = Label -> OldFact f -> NewFact f -> (ChangeFlag, f)
   -- the label argument is for debugging purposes only
-newtype OldFact a = OldFact a
-newtype NewFact a = NewFact a
+newtype OldFact f = OldFact f
+newtype NewFact f = NewFact f
 
 data ChangeFlag = NoChange | SomeChange
 \end{smallcode}
