@@ -39,8 +39,8 @@ analyzeAndRewriteBwdBody
    -> entries -> Body n -> FactBase f 
    -> FuelMonad (Body n, FactBase f)
 
-analyzeAndRewriteFwdBody pass ent = mapBodyFacts (analyzeAndRewriteFwd pass ent)
-analyzeAndRewriteBwdBody pass ent = mapBodyFacts (analyzeAndRewriteBwd pass ent)
+analyzeAndRewriteFwdBody pass en = mapBodyFacts (analyzeAndRewriteFwd pass (JustC en))
+analyzeAndRewriteBwdBody pass en = mapBodyFacts (analyzeAndRewriteBwd pass (JustC en))
 
 mapBodyFacts
     :: (Graph n C C -> Fact C f   -> FuelMonad (Graph n C C, Fact C f, MaybeO C f))

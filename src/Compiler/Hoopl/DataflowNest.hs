@@ -154,11 +154,11 @@ type instance Fact O f = f
 analyzeAndRewriteFwd
    :: forall n f e x entries. (Edges n, LabelsPtr entries)
    => FwdPass n f
-   -> entries
+   -> MaybeC e entries
    -> Graph n e x -> Fact e f
    -> FuelMonad (Graph n e x, FactBase f, MaybeO x f)
 analyzeAndRewriteFwd pass entries g f =
-  do (rg, fout) <- arfGraph pass (targetLabels entries) g f
+  do (rg, fout) <- arfGraph pass (fmap targetLabels entries) g f
      let (g', fb) = normalizeGraph rg
      return (g', fb, distinguishedExitFact g' fout)
 
@@ -176,22 +176,29 @@ distinguishedExitFact g f = maybe g
 
 type FM = FuelMonad
 
-type Entries = [Label]
+--type Entries e = [Label]
+type Entries e = MaybeC e [Label]
+
+{-
+instance LabelsPtr a => LabelsPtr (MaybeC e a) where
+  targetLabels (JustC a) = targetLabels a
+  targetLabels NothingC  = []
+-}
 
 arfGraph :: forall n f e x .
             (Edges n) => FwdPass n f -> 
-            Entries -> Graph n e x -> Fact e f -> FM (RG f n e x, Fact x f)
+            Entries e -> Graph n e x -> Fact e f -> FM (RG f n e x, Fact x f)
 arfGraph pass entries = graph
   where
     {- nested type synonyms would be so lovely here 
     type ARF  thing = forall e x . thing e x -> f        -> FM (RG f n e x, Fact x f)
     type ARFX thing = forall e x . thing e x -> Fact e f -> FM (RG f n e x, Fact x f)
     -}
-    graph :: forall e x . Graph n e x -> Fact e f -> FM (RG f n e x, Fact x f)
+    graph ::              Graph n e x -> Fact e f -> FM (RG f n e x, Fact x f)
     block :: forall e x . Block n e x -> f        -> FM (RG f n e x, Fact x f)
     node  :: forall e x . (ShapeLifter e x) 
                        => n e x       -> f        -> FM (RG f n e x, Fact x f)
-    body  :: Entries -> Body n -> Fact C f -> FuelMonad (RG f n C C, Fact C f)
+    body  :: [Label] -> Body n -> Fact C f -> FuelMonad (RG f n C C, Fact C f)
                     -- Outgoing factbase is restricted to Labels *not* in
                     -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'RG f n C C'
@@ -200,14 +207,17 @@ arfGraph pass entries = graph
         -> (info' -> FuelMonad (RG f n a x, info''))
         -> (info  -> FuelMonad (RG f n e x, info''))
 
-    graph GNil                              = \f -> return (rgnil, f)
-    graph (GUnit blk)                       = block blk
-    graph (GMany NothingO bdy NothingO)     = body entries bdy
-    graph (GMany NothingO bdy (JustO exit)) = body entries bdy `cat` arfx block exit
-    graph (GMany (JustO entry) bdy NothingO)
-      = block entry `cat` body (successors entry) bdy
-    graph (GMany (JustO entry) bdy (JustO exit))
-      = (block entry `cat` body (successors entry) bdy) `cat` arfx block exit
+    graph GNil                           = \f -> return (rgnil, f)
+    graph (GUnit blk)                    = block blk
+    graph (GMany entry bdy NothingO)     = (entry `ebcat` bdy)
+    graph (GMany entry bdy (JustO exit)) = (entry `ebcat` bdy) `cat` arfx block exit
+
+    ebcat :: MaybeO e (Block n O C) -> Body n -> Fact e f -> FM (RG f n e C, Fact C f)
+    ebcat entry bdy = c entries entry
+     where c :: MaybeC e [Label] -> MaybeO e (Block n O C)
+             -> Fact e f -> FM (RG f n e C, Fact C f)
+           c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
+           c (JustC entries) NothingO = body entries bdy
 
     -- Lift from nodes to blocks
     block (BFirst  n)  = node n
@@ -315,9 +325,13 @@ mkBRewrite' f = BwdRewrites (f, f, f)
 --		Backward implementation
 -----------------------------------------------------------------------------
 
+arbGraph = error "urk!"
+
+{-
+
 arbGraph :: forall n f e x .
             (Edges n) => BwdPass n f -> 
-            Entries -> Graph n e x -> Fact x f -> FM (RG f n e x, Fact e f)
+            Entries e -> Graph n e x -> Fact x f -> FM (RG f n e x, Fact e f)
 arbGraph pass entries = graph
   where
     {- nested type synonyms would be so lovely here 
@@ -328,7 +342,7 @@ arbGraph pass entries = graph
     block :: forall e x . Block n e x -> Fact x f -> FM (RG f n e x, f)
     node  :: forall e x . (ShapeLifter e x) 
                        => n e x       -> Fact x f -> FM (RG f n e x, f)
-    body  :: Entries -> Body n -> Fact C f -> FuelMonad (RG f n C C, Fact C f)
+    body  :: [Label] -> Body n -> Fact C f -> FuelMonad (RG f n C C, Fact C f)
     cat :: forall e a x info info' info''.
            (info' -> FuelMonad (RG f n e a, info''))
         -> (info  -> FuelMonad (RG f n a x, info'))
@@ -390,6 +404,8 @@ arbGraph pass entries = graph
       where
         do_block b f = do (g, f) <- block b f
                           return (g, [(entryLabel b, f)])
+
+-}
 
 {-
 
@@ -492,10 +508,10 @@ effects.)
 analyzeAndRewriteBwd
    :: (Edges n, LabelsPtr entries)
    => BwdPass n f
-   -> entries -> Graph n e x -> Fact x f
+   -> MaybeC e entries -> Graph n e x -> Fact x f
    -> FuelMonad (Graph n e x, FactBase f, MaybeO e f)
 analyzeAndRewriteBwd pass entries g f =
-  do (rg, fout) <- arbGraph pass (targetLabels entries) g f
+  do (rg, fout) <- arbGraph pass (fmap targetLabels entries) g f
      let (g', fb) = normalizeGraph rg
      return (g', fb, distinguishedEntryFact g' fout)
 
@@ -697,7 +713,7 @@ class ShapeLifter e x where
   btransfer :: BwdPass n f -> n e x -> Fact x f -> f
   frewrite  :: FwdPass n f -> n e x -> f        -> Maybe (FwdRes n f e x)
   brewrite  :: BwdPass n f -> n e x -> Fact x f -> Maybe (BwdRes n f e x)
-  entry     :: Edges n => n e x -> [Label]
+  entry     :: Edges n => n e x -> Entries e
 
 instance ShapeLifter C O where
   unit            = BFirst
@@ -707,7 +723,7 @@ instance ShapeLifter C O where
   btransfer (BwdPass {bp_transfer = BwdTransfers (bt, _, _)}) n f = bt n f
   frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (fr, _, _)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (br, _, _)}) n f = br n f
-  entry n = [entryLabel n]
+  entry n = JustC [entryLabel n]
 
 instance ShapeLifter O O where
   unit         = BMiddle
@@ -717,7 +733,7 @@ instance ShapeLifter O O where
   btransfer (BwdPass {bp_transfer = BwdTransfers (_, bt, _)}) n f = bt n f
   frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (_, fr, _)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (_, br, _)}) n f = br n f
-  entry _ = []
+  entry _ = NothingC
 
 instance ShapeLifter O C where
   unit         = BLast
@@ -727,7 +743,7 @@ instance ShapeLifter O C where
   btransfer (BwdPass {bp_transfer = BwdTransfers (_, _, bt)}) n f = bt n f
   frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (_, _, fr)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (_, _, br)}) n f = br n f
-  entry _ = []
+  entry _ = NothingC
 
 -- Fact lookup: the fact `orelse` bottom
 lookupF :: FwdPass n f -> Label -> FactBase f -> f
