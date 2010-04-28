@@ -67,6 +67,8 @@ height 0pt depth 8pt
 
 \newenvironment{twolist}{\itemize}{\enditemize}
 
+\input{diagrams}
+
 \begin{document}
 
 \mysection*{Background}
@@ -157,6 +159,21 @@ In other words, \emph{dataflow analysis is simply predicate
 A~``transfer function'' is a Curried function that takes program code
   as an argument and returns a \emph{fact transformer}.
 
+\newcommand\embed{\mathcal E}
+\renewcommand\approx{\mathcal A}
+
+% \newarrow{impliedBy} {<=}====
+
+\kern-2\baselineskip
+
+\begin{center}
+\begin{diagram}
+P' & \lImplies     & P              & \rTo^{\sp} & Q' & \rImplies & Q \\
+   & \luTo^{\embed} & \dTo ^ \approx &           &    &  \ruTo^\embed & \\
+   &                & f              & \rTo^{\mbox{transfer}} & f' &     & \\
+\end{diagram}
+\end{center}
+
 Because of loops, there's a little more to it than that:
 \begin{itemize}
 \item
@@ -172,7 +189,7 @@ If we use a work-list method,
 the analogy with iterative dataflow analysis is exact.
 \end{itemize}
 
-[Commutative diagram]
+
 
 This observation has two important consequences:
 \begin{enumerate} 
