@@ -1,7 +1,8 @@
 \documentclass[twocolumn]{article}
-\usepackage{vmargin,mathpartir,times,mathptm}
+\usepackage{vmargin,mathpartir,times,mathptm,graphicx}
 % l2h substitution PAL <tt>C--</tt>
 \renewcommand{\ttdefault}{aett}
+
 
 \setcounter{secnumdepth}{0}
 
@@ -554,10 +555,34 @@ The \texttt{WithBot} type comes with a lifting function that returns
 \texttt{JoinFun~Doms}.
 \end{enumerate}
 
-[Example output]
+\subsection{Example results from dominator analysis}
 
+The program is insertation sort, with two nested loops:
+\begin{smallcode}
+  a := 0
+  goto L1
+L1:
+  if (a != d) then goto L2 else goto L3
+L6:
+  c[b] := e
+  goto L1
+L2:
+  a := (a + 1)
+  b := (a - 1)
+  e := c[b]
+  goto L4
+L4:
+  if ((b != 0) && (c[(b - 1)] > e)) then goto L5 else goto L6
+L5:
+  c[b] := c[(b - 1)]
+  b := (b - 1)
+  goto L4
+L3:
+\end{smallcode}
 
-
+\centerline{%
+\includegraphics[scale=0.4]{dom.eps}%
+}
 
 
 \end{document}
