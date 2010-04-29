@@ -3,7 +3,7 @@
 module Compiler.Hoopl.Combinators
   ( SimpleFwdRewrite, noFwdRewrite, thenFwdRw
   , shallowFwdRw, shallowFwdRw', deepFwdRw, deepFwdRw', iterFwdRw
-  , SimpleBwdRewrite, noBwdRewrite, thenBwdRw
+  , SimpleBwdRewrite, SimpleBwdRewrite', noBwdRewrite, thenBwdRw
   , shallowBwdRw, shallowBwdRw', deepBwdRw, deepBwdRw', iterBwdRw
   , noRewritePoly
   , productFwd, productBwd
