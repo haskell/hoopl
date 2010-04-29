@@ -8,7 +8,7 @@ import OptSupport
 
 -- Simplification ("constant folding")
 simplify :: FwdRewrite Insn a
-simplify = deepFwdRw simp
+simplify = deepFwdRw' simp
   where
     simp insn _ = s insn >>= return . insnToA
     s :: Insn e x -> Maybe (Insn e x)

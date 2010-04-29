@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns , FlexibleInstances, MultiParamTypeClasses, TypeSynonymInstances #-}
 
 module Eval (evalProg, ErrorM) where
@@ -31,53 +31,42 @@ evalBody :: EvalTarget v => VarEnv v -> Body Insn -> Label -> EvalM v [v]
 evalBody vars bs entry =
   inNewFrame vars (map snd (bodyList bs)) $ get_block entry >>= evalB 
 
-evalB    :: EvalTarget v => Block Insn C C -> EvalM v [v]
-evalB    (BCat b1 b2) = evalB_CO b1 >> evalB_OC b2
-evalB    (BUnit _)    = gadtCheck "CC Insns"
-
-evalB_CO :: EvalTarget v => Block Insn C O -> EvalM v ()
-evalB_CO (BCat b1 b2) = evalB_CO b1 >> evalB_OO b2
-evalB_CO (BUnit n)    = evalN_CO n
-
-evalB_OO :: EvalTarget v => Block Insn O O -> EvalM v ()
-evalB_OO (BCat b1 b2) = evalB_OO b1 >> evalB_OO b2
-evalB_OO (BUnit n)    = evalN_OO n
-
-evalB_OC :: EvalTarget v => Block Insn O C -> EvalM v [v]
-evalB_OC (BCat b1 b2) = evalB_OO b1 >> evalB_OC b2
-evalB_OC (BUnit n)    = evalN_OC n
+evalB :: forall v . EvalTarget v => Block Insn C C -> EvalM v [v]
+evalB b = foldBlockNodesF (lift evalF, lift evalM, lift evalL) b $ return ()
+  where
+    lift :: forall e x y . (Insn e x -> EvalM v y) -> Insn e x -> EvalM v () -> EvalM v y
+    lift f n z = z >> f n
 
 
-evalN_CO :: EvalTarget v => Insn C O -> EvalM v ()
-evalN_CO (Label _) = return ()
+evalF :: EvalTarget v => Insn C O -> EvalM v ()
+evalF (Label _) = return ()
 
-evalN_OO :: EvalTarget v => Insn O O -> EvalM v ()
-evalN_OO (Assign var e) =
+evalM :: EvalTarget v => Insn O O -> EvalM v ()
+evalM (Assign var e) =
   do v_e <- eval e
      set_var var v_e
-evalN_OO (Store addr e) =
+evalM (Store addr e) =
   do v_addr <- eval addr >>= toAddr
      v_e    <- eval e
      -- StoreEvt recorded in set_heap
      set_heap v_addr v_e
 
-evalN_OC :: EvalTarget v => Insn O C -> EvalM v [v]
-evalN_OC (Branch bid) =
+evalL :: EvalTarget v => Insn O C -> EvalM v [v]
+evalL (Branch bid) =
   do b <- get_block bid
      evalB b
-evalN_OC (Cond e t f) =
+evalL (Cond e t f) =
   do v_e <- eval e >>= toBool
-     evalN_OC $ Branch $ if v_e then t else f
-evalN_OC (Call ress f args succ) =
+     evalL $ Branch $ if v_e then t else f
+evalL (Call ress f args succ) =
   do v_args <- mapM eval args
      -- event is recorded in evalProc
      f_ress <- evalProc f v_args
      if length ress == length f_ress then return ()
       else throwError $ "function " ++ f ++ " returned unexpected # of args"
      _ <- mapM (uncurry set_var) $ zip ress f_ress
-     evalN_OC $ Branch succ
-
-evalN_OC (Return es) =
+     evalL $ Branch succ
+evalL (Return es) =
   do vs <- mapM eval es
      event $ RetEvt vs
      return vs
@@ -180,6 +169,3 @@ instance EvalTarget Sym where
     do v1 <- eval e1
        v2 <- eval e2
        return $ BO bop v1 v2
-
-gadtCheck :: EvalTarget v => String -> EvalM v a
-gadtCheck s = throwError $ "Dynamic GADT check: We shouldn't have any " ++ s

@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -Wall -fno-warn-incomplete-patterns -XGADTs -XRankNTypes #-}
-module OptSupport (stdMapJoin, map_EE, map_EN, fold_EE, fold_EN,
-                   getFwdFact, insnToA) where
+module OptSupport (stdMapJoin, map_EE, map_EN, fold_EE, fold_EN, insnToA) where
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -26,19 +25,6 @@ stdMapJoin eltJoin l (OldFact old) (NewFact new) = M.foldWithKey add (NoChange, 
         Just old_v -> case eltJoin l (OldFact old_v) (NewFact new_v) of
                         (SomeChange, v') -> (SomeChange, M.insert k v' joinmap)
                         (NoChange,   _)  -> (ch, joinmap)
-
-----------------------------------------------
--- Common code for getting and propagating facts:
-----------------------------------------------
-
-getFwdFact :: Insn e x -> Fact e f -> f -> f
-getFwdFact (Label l)      f def = fromMaybe def $ lookupFact f l
-getFwdFact (Assign _ _)   f _   = f
-getFwdFact (Store _ _)    f _   = f
-getFwdFact (Branch _)     f _   = f
-getFwdFact (Cond _ _ _)   f _   = f
-getFwdFact (Call _ _ _ _) f _   = f
-getFwdFact (Return _)     f _   = f
 
 ----------------------------------------------
 -- Map/Fold functions for expressions/insns

@@ -6,7 +6,7 @@ module Compiler.Hoopl.XUtil
   ( firstXfer, distributeXfer
   , distributeFact, distributeFactBwd
   , successorFacts
-  , foldGraphNodes, foldBlockNodesF, foldBlockNodesB
+  , foldGraphNodes, foldBlockNodesF, foldBlockNodesB, foldBlockNodesF', foldBlockNodesB'
   , analyzeAndRewriteFwdBody
   , analyzeAndRewriteBwdBody
   )
@@ -86,34 +86,54 @@ successorFacts n fb = [ f | id <- successors n, let Just f = lookupFact fb id ]
 
 -- | Fold a function over every node in a block, forward or backward.
 -- The fold function must be polymorphic in the shape of the nodes.
-foldBlockNodesF :: forall n a .
-                   (forall e x . n e x       -> a -> a)
-                -> (forall e x . Block n e x -> a -> a)
-foldBlockNodesB :: forall n a .
-                   (forall e x . n e x       -> a -> a)
-                -> (forall e x . Block n e x -> a -> a)
+foldBlockNodesF  :: forall n a b c .
+                   ( n C O       -> a -> b
+                   , n O O       -> b -> b
+                   , n O C       -> b -> c)
+                 -> (forall e x . Block n e x -> EitherCO e a b -> EitherCO x c b)
+foldBlockNodesF' :: forall n a .
+                    (forall e x . n e x       -> a -> a)
+                 -> (forall e x . Block n e x -> EitherCO e a a -> EitherCO x a a)
+foldBlockNodesB  :: forall n a b c .
+                   ( n C O       -> b -> c
+                   , n O O       -> b -> b
+                   , n O C       -> a -> b)
+                 -> (forall e x . Block n e x -> EitherCO x a b -> EitherCO e c b)
+foldBlockNodesB' :: forall n a .
+                    (forall e x . n e x       -> a -> a)
+                 -> (forall e x . Block n e x -> EitherCO x a a -> EitherCO e a a)
 -- | Fold a function over every node in a graph.
 -- The fold function must be polymorphic in the shape of the nodes.
 
 foldGraphNodes :: forall n a .
                   (forall e x . n e x       -> a -> a)
-                -> (forall e x . Graph n e x -> a -> a)
+               -> (forall e x . Graph n e x -> a -> a)
 
-foldBlockNodes' :: forall n a .
-                   ((a -> a) -> (a -> a) -> (a -> a))
-                -> (forall e x . n e x       -> a -> a)
-                -> (forall e x . Block n e x -> a -> a)
-foldBlockNodes' cat f = block
-  where block :: forall e x . Block n e x -> a -> a
-        block (BFirst  node)    = f node
-        block (BMiddle node)    = f node
-        block (BLast   node)    = f node
+
+foldBlockNodesF (ff, fm, fl) = block
+  where block :: forall e x . Block n e x -> EitherCO e a b -> EitherCO x c b
+        block (BFirst  node)    = ff node
+        block (BMiddle node)    = fm node
+        block (BLast   node)    = fl node
         block (b1 `BCat`    b2) = block b1 `cat` block b2
         block (b1 `BClosed` b2) = block b1 `cat` block b2
-        block (b1 `BHead` n)    = block b1 `cat` f n
-        block (n `BTail` b2)    = f n `cat` block b2
-foldBlockNodesF = foldBlockNodes' (\ f f' -> f' . f)
-foldBlockNodesB = foldBlockNodes' (\ f f' -> f  . f')
+        block (b1 `BHead` n)    = block b1 `cat` fm n
+        block (n `BTail` b2)    = fm n `cat` block b2
+        cat f f' = f' . f
+foldBlockNodesF' f = foldBlockNodesF (f, f, f)
+
+foldBlockNodesB (ff, fm, fl) = block
+  where block :: forall e x . Block n e x -> EitherCO x a b -> EitherCO e c b
+        block (BFirst  node)    = ff node
+        block (BMiddle node)    = fm node
+        block (BLast   node)    = fl node
+        block (b1 `BCat`    b2) = block b1 `cat` block b2
+        block (b1 `BClosed` b2) = block b1 `cat` block b2
+        block (b1 `BHead` n)    = block b1 `cat` fm n
+        block (n `BTail` b2)    = fm n `cat` block b2
+        cat f f' = f . f'
+foldBlockNodesB' f = foldBlockNodesB (f, f, f)
+
 
 foldGraphNodes f = graph
     where graph :: forall e x . Graph n e x -> a -> a
@@ -128,6 +148,6 @@ foldGraphNodes f = graph
           lift _ NothingO         = id
           lift f (JustO thing)    = f thing
 
-          block = foldBlockNodesF f
+          block = foldBlockNodesF' f
 
                         

@@ -1,8 +1,8 @@
-{-# LANGUAGE GADTs, EmptyDataDecls #-}
+{-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies #-}
 
 module Compiler.Hoopl.Graph 
   ( O, C, Block(..), Body, Body'(..), bodyMap, Graph, Graph'(..)
-  , MaybeO(..), MaybeC(..)
+  , MaybeO(..), MaybeC(..), EitherCO
   , Edges(entryLabel, successors)
   , addBlock, bodyList
   )
@@ -68,6 +68,10 @@ data MaybeO ex t where
 data MaybeC ex t where
   JustC    :: t -> MaybeC C t
   NothingC ::      MaybeC O t
+
+type family   EitherCO e a b :: *
+type instance EitherCO C a b = a
+type instance EitherCO O a b = b
 
 instance Functor (MaybeO ex) where
   fmap _ NothingO = NothingO
