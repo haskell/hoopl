@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, LiberalTypeSynonyms #-}
+{-# LANGUAGE RankNTypes, LiberalTypeSynonyms, ScopedTypeVariables #-}
 
 module Compiler.Hoopl.Combinators
   ( SimpleFwdRewrite, noFwdRewrite, thenFwdRw
@@ -6,14 +6,17 @@ module Compiler.Hoopl.Combinators
   , SimpleBwdRewrite, noBwdRewrite, thenBwdRw
   , shallowBwdRw, shallowBwdRw', deepBwdRw, deepBwdRw', iterBwdRw
   , noRewritePoly
+  , productFwd, productBwd
   )
 
 where
 
 import Data.Function
+import Data.Maybe
 
 import Compiler.Hoopl.DataflowNest
 import Compiler.Hoopl.Graph (C, O)
+import Compiler.Hoopl.Label
 import Compiler.Hoopl.MkGraph
 
 type FR n f = FwdRewrite n f
@@ -165,22 +168,61 @@ iterBwdRw rw = wrapBRewrites' f rw
             Just (BwdRes g rw2) -> Just $ BwdRes g (rw2 `thenBwdRw` iterBwdRw rw)
             Nothing             -> Nothing
 
--- Note: The transfer is assymetric if the passes return facts for
--- different sets of successors...
-{-
-productFwd :: FwdPass n f -> FwdPass n f' -> FwdPass n (f, f')
+productFwd :: forall n f f' . FwdPass n f -> FwdPass n f' -> FwdPass n (f, f')
 productFwd pass1 pass2 = FwdPass lattice transfer rewrite
-    where -- can't tell if I have a FactBase of pairs or a pair of facts
-          lattice  = undefined
-          transfer = mkFTransfer (tf tf1 tf2) (tf tm1 tm2) (tfb tl1 tl2)
-            where
-              tf  t1 t2 n (f1, f2) = (t1 n f1, t2 n f2)
-              tfb t1 t2 n (f1, f2) = mapWithLFactBase withfb2 fb1
-                where fb1 = t1 n f1
-                      fb2 = t2 n f2
-                      withfb2 l f = (f, fromMaybe bot2 $ lookupFact fb2 l)
-                      bot2 = fact_bot (fp_lattice pass2)
-              (tf1, tm1, tl1) = getFTransfers (fp_transfer pass1)
-              (tf2, tm2, tl2) = getFTransfers (fp_transfer pass2)
-          rewrite = undefined
--}
+  where
+    lattice = productLattice (fp_lattice pass1) (fp_lattice pass2)
+    transfer = mkFTransfer (tf tf1 tf2) (tf tm1 tm2) (tfb tl1 tl2)
+      where
+        tf  t1 t2 n (f1, f2) = (t1 n f1, t2 n f2)
+        tfb t1 t2 n (f1, f2) = mapWithLFactBase withfb2 fb1
+          where fb1 = t1 n f1
+                fb2 = t2 n f2
+                withfb2 l f = (f, fromMaybe bot2 $ lookupFact fb2 l)
+                bot2 = fact_bot (fp_lattice pass2)
+        (tf1, tm1, tl1) = getFTransfers (fp_transfer pass1)
+        (tf2, tm2, tl2) = getFTransfers (fp_transfer pass2)
+    rewrite = liftRW (fp_rewrite pass1) fst `thenFwdRw` liftRW (fp_rewrite pass2) snd
+      where
+        liftRW rws proj = mkFRewrite (lift f) (lift m) (lift l)
+          where lift rw n f = case rw n (proj f) of
+                                Just (FwdRes g rws') -> Just (FwdRes g $ liftRW rws' proj)
+                                Nothing              -> Nothing
+                (f, m, l) = getFRewrites rws
+
+productBwd :: forall n f f' . BwdPass n f -> BwdPass n f' -> BwdPass n (f, f')
+productBwd pass1 pass2 = BwdPass lattice transfer rewrite
+  where
+    lattice = productLattice (bp_lattice pass1) (bp_lattice pass2)
+    transfer = mkBTransfer (tf tf1 tf2) (tf tm1 tm2) (tfb tl1 tl2)
+      where
+        tf  t1 t2 n (f1, f2) = (t1 n f1, t2 n f2)
+        tfb t1 t2 n fb = (t1 n $ mapFactBase fst fb, t2 n $ mapFactBase snd fb)
+        (tf1, tm1, tl1) = getBTransfers (bp_transfer pass1)
+        (tf2, tm2, tl2) = getBTransfers (bp_transfer pass2)
+    rewrite = liftRW (bp_rewrite pass1) fst `thenBwdRw` liftRW (bp_rewrite pass2) snd
+      where
+        liftRW :: forall f1 . BwdRewrite n f1 -> ((f, f') -> f1) -> BwdRewrite n (f, f')
+        liftRW rws proj = mkBRewrite (lift proj f) (lift proj m) (lift (mapFactBase proj) l)
+          where 
+            lift proj' rw n f =
+              case rw n (proj' f) of
+                Just (BwdRes g rws') -> Just (BwdRes g $ liftRW rws' proj)
+                Nothing              -> Nothing
+            (f, m, l) = getBRewrites rws
+
+productLattice :: forall f f' . DataflowLattice f -> DataflowLattice f' -> DataflowLattice (f, f')
+productLattice l1 l2 =
+  DataflowLattice
+    { fact_name       = fact_name l1 ++ " x " ++ fact_name l2
+    , fact_bot        = (fact_bot l1, fact_bot l2)
+    , fact_extend     = extend'
+    , fact_do_logging = fact_do_logging l1 || fact_do_logging l2
+    }
+  where
+    extend' lbl (OldFact (o1, o2)) (NewFact (n1, n2)) = (c', (f1, f2))
+      where (c1, f1) = fact_extend l1 lbl (OldFact o1) (NewFact n1)
+            (c2, f2) = fact_extend l2 lbl (OldFact o2) (NewFact n2)
+            c' = case (c1, c2) of
+                   (NoChange, NoChange) -> NoChange
+                   _                    -> SomeChange
