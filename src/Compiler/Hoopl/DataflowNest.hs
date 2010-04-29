@@ -207,17 +207,19 @@ arfGraph pass entries = graph
         -> (info' -> FuelMonad (RG f n a x, info''))
         -> (info  -> FuelMonad (RG f n e x, info''))
 
-    graph GNil                           = \f -> return (rgnil, f)
-    graph (GUnit blk)                    = block blk
-    graph (GMany entry bdy NothingO)     = (entry `ebcat` bdy)
-    graph (GMany entry bdy (JustO exit)) = (entry `ebcat` bdy) `cat` arfx block exit
-
-    ebcat :: MaybeO e (Block n O C) -> Body n -> Fact e f -> FM (RG f n e C, Fact C f)
-    ebcat entry bdy = c entries entry
-     where c :: MaybeC e [Label] -> MaybeO e (Block n O C)
-             -> Fact e f -> FM (RG f n e C, Fact C f)
-           c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
-           c (JustC entries) NothingO = body entries bdy
+    graph GNil            = \f -> return (rgnil, f)
+    graph (GUnit blk)     = block blk
+    graph (GMany e bdy x) = (e `ebcat` bdy) `cat` exit x
+     where
+      ebcat :: MaybeO e (Block n O C) -> Body n -> Fact e f -> FM (RG f n e C, Fact C f)
+      exit  :: MaybeO x (Block n C O)           -> Fact C f -> FM (RG f n C x, Fact x f)
+      exit (JustO blk) = arfx block blk
+      exit NothingO    = \fb -> return (rgnilC, fb)
+      ebcat entry bdy = c entries entry
+       where c :: MaybeC e [Label] -> MaybeO e (Block n O C)
+                -> Fact e f -> FM (RG f n e C, Fact C f)
+             c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
+             c (JustC entries) NothingO = body entries bdy
 
     -- Lift from nodes to blocks
     block (BFirst  n)  = node n
