@@ -176,14 +176,7 @@ distinguishedExitFact g f = maybe g
 
 type FM = FuelMonad
 
---type Entries e = [Label]
 type Entries e = MaybeC e [Label]
-
-{-
-instance LabelsPtr a => LabelsPtr (MaybeC e a) where
-  targetLabels (JustC a) = targetLabels a
-  targetLabels NothingC  = []
--}
 
 arfGraph :: forall n f e x .
             (Edges n) => FwdPass n f -> 
@@ -327,10 +320,6 @@ mkBRewrite' f = BwdRewrites (f, f, f)
 --		Backward implementation
 -----------------------------------------------------------------------------
 
-arbGraph = error "urk!"
-
-{-
-
 arbGraph :: forall n f e x .
             (Edges n) => BwdPass n f -> 
             Entries e -> Graph n e x -> Fact x f -> FM (RG f n e x, Fact e f)
@@ -340,7 +329,7 @@ arbGraph pass entries = graph
     type ARB  thing = forall e x . thing e x -> Fact x f -> FM (RG f n e x, f)
     type ARBX thing = forall e x . thing e x -> Fact x f -> FM (RG f n e x, Fact e f)
     -}
-    graph :: forall e x . Graph n e x -> Fact x f -> FM (RG f n e x, Fact e f)
+    graph ::              Graph n e x -> Fact x f -> FM (RG f n e x, Fact e f)
     block :: forall e x . Block n e x -> Fact x f -> FM (RG f n e x, f)
     node  :: forall e x . (ShapeLifter e x) 
                        => n e x       -> Fact x f -> FM (RG f n e x, f)
@@ -350,14 +339,19 @@ arbGraph pass entries = graph
         -> (info  -> FuelMonad (RG f n a x, info'))
         -> (info  -> FuelMonad (RG f n e x, info''))
 
-    graph GNil                              = \f -> return (rgnil, f)
-    graph (GUnit blk)                       = block blk
-    graph (GMany NothingO bdy NothingO)     = body entries bdy
-    graph (GMany NothingO bdy (JustO exit)) = body entries bdy `cat` arbx block exit
-    graph (GMany (JustO entry) bdy NothingO)
-      = block entry `cat` body (successors entry) bdy
-    graph (GMany (JustO entry) bdy (JustO exit))
-      = (block entry `cat` body (successors entry) bdy) `cat` arbx block exit
+    graph GNil            = \f -> return (rgnil, f)
+    graph (GUnit blk)     = block blk
+    graph (GMany e bdy x) = (e `ebcat` bdy) `cat` exit x
+     where
+      ebcat :: MaybeO e (Block n O C) -> Body n -> Fact C f -> FM (RG f n e C, Fact e f)
+      exit  :: MaybeO x (Block n C O)           -> Fact x f -> FM (RG f n C x, Fact C f)
+      exit (JustO blk) = arbx block blk
+      exit NothingO    = \fb -> return (rgnilC, fb)
+      ebcat entry bdy = c entries entry
+       where c :: MaybeC e [Label] -> MaybeO e (Block n O C)
+                -> Fact C f -> FM (RG f n e C, Fact e f)
+             c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
+             c (JustC entries) NothingO = body entries bdy
 
     -- Lift from nodes to blocks
     block (BFirst  n)  = node n
@@ -407,83 +401,6 @@ arbGraph pass entries = graph
         do_block b f = do (g, f) <- block b f
                           return (g, [(entryLabel b, f)])
 
--}
-
-{-
-
-
-
-
-type ARB' n f thing e x
-  = BwdPass n f -> thing e x -> Fact x f -> FuelMonad (RG f n e x, f)
-
-type ARBX' n f thing e x
-  = BwdPass n f -> thing e x -> Fact x f -> FuelMonad (RG f n e x, Fact e f)
-
-type ARB  thing n = forall f e x. ARB'  n f thing e x 
-type ARBX thing n = forall f e x. ARBX' n f thing e x 
-
-arbx :: Edges thing => ARB' n f thing C x -> ARBX' n f thing C x
-arbx arb pass thing f = do { (rg, f) <- arb pass thing f
-                           ; let fb = joinInFacts (bp_lattice pass) $
-                                      mkFactBase [(entryLabel thing, f)]
-                           ; return (rg, fb) }
-
-arbNode :: (Edges n, ShapeLifter e x) => ARB' n f n e x
--- Lifts (BwdTransfer,BwdRewrite) to ARB_Node; 
--- this time we do rewriting as well. 
--- The ARB_Graph parameters specifies what to do with the rewritten graph
-arbNode pass node f
-  = do { mb_g <- withFuel (brewrite pass node f)
-       ; case mb_g of
-           Nothing -> return (rgunit entry_f (unit node), entry_f)
-                    where entry_f  = btransfer pass node f
-      	   Just (BwdRes ag rw) -> do { g <- graphOfAGraph ag
-                                     ; let pass' = pass { bp_rewrite = rw }
-                                     ; (g, f) <- arbGraph pass' g f
-                                     ; return (g, elower (bp_lattice pass) node f)} }
-
-arbBlock :: Edges n => ARB (Block n) n
--- Lift from nodes to blocks
-arbBlock pass (BFirst  node)  = arbNode pass node
-arbBlock pass (BMiddle node)  = arbNode pass node
-arbBlock pass (BLast   node)  = arbNode pass node
-arbBlock pass (BCat b1 b2)    = arbCat arbBlock arbBlock pass b1 b2
-arbBlock pass (BHead h n)     = arbCat arbBlock arbNode  pass h n
-arbBlock pass (BTail n t)     = arbCat arbNode  arbBlock pass n t
-arbBlock pass (BClosed h t)   = arbCat arbBlock arbBlock pass h t
-
-arbCat :: (pass -> thing1 -> info1 -> FuelMonad (RG f n e a, info1'))
-       -> (pass -> thing2 -> info2 -> FuelMonad (RG f n a x, info1))
-       -> (pass -> thing1 -> thing2 -> info2 -> FuelMonad (RG f n e x, info1'))
-{-# INLINE arbCat #-}
-arbCat arb1 arb2 pass thing1 thing2 f = do { (g2,f2) <- arb2 pass thing2 f
-                                           ; (g1,f1) <- arb1 pass thing1 f2
-                                           ; return (g1 `rgCat` g2, f1) }
-
-arbBody :: Edges n
-        => BwdPass n f -> Body n -> FactBase f
-        -> FuelMonad (RG f n C C, FactBase f)
-arbBody pass blocks init_fbase
-  = fixpoint False (bp_lattice pass) do_block init_fbase $
-    backwardBlockList blocks 
-  where
-    do_block b f = do (g, f) <- arbBlock pass b f
-                      return (g, [(entryLabel b, f)])
-
-arbGraph :: Edges n => ARBX (Graph n) n
-arbGraph _    GNil        = \f -> return (rgnil, f)
-arbGraph pass (GUnit blk) = arbBlock pass blk
-arbGraph pass (GMany NothingO body NothingO) = arbBody pass body
-arbGraph pass (GMany NothingO body (JustO exit)) =
-  arbCat arbBody (arbx arbBlock) pass body exit
-arbGraph pass (GMany (JustO entry) body NothingO) =
-  arbCat arbBlock arbBody pass entry body
-arbGraph pass (GMany (JustO entry) body (JustO exit)) =
-  arbCat arbeb (arbx arbBlock) pass (entry, body) exit
- where arbeb pass = uncurry $ arbCat arbBlock arbBody pass
-
--}
 
 backwardBlockList :: (LabelsPtr entries, Edges n) => entries -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for backward analysis,
