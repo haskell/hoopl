@@ -14,7 +14,7 @@ where
 
 import Data.Maybe
 
-import Compiler.Hoopl.DataflowNest
+import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.Label

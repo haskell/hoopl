@@ -18,13 +18,13 @@ Library
   Exposed-modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Passes.Dominator,
                        Compiler.Hoopl.DataflowFold,
-                       Compiler.Hoopl.Dataflow,
+                       Compiler.Hoopl.OldDataflow,
                        Compiler.Hoopl.Pointed
   Other-modules:     Compiler.Hoopl.GraphUtil,
                      -- GraphUtil should *never* be seen by clients.
                      -- The remaining modules are hidden *provisionally*
                        Compiler.Hoopl.Combinators,
-                       Compiler.Hoopl.DataflowNest,
+                       Compiler.Hoopl.Dataflow,
                        Compiler.Hoopl.Debug,
                        Compiler.Hoopl.Graph, 
                        Compiler.Hoopl.MkGraph,

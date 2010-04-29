@@ -14,14 +14,24 @@ import Compiler.Hoopl.Label
 --		Graphs
 -----------------------------------------------------------------------------
 
-data O
-data C
+data O -- ^ Used at the type level to indicate an "open" structure with
+       --   a unique, unnamed control-flow edge flowing in or out.
+       --   "Fallthrough" and concatenation are permitted at an open point.
+data C -- ^ Used at the type level to indicate a "closed" structure which
+       --   supports control transfer only through the use of named
+       --   labels---no "fallthrough" is permitted.  The number of control-flow
+       --   edges is unconstrained.
 
+-- | A sequence of nodes.  May be any of four shapes (O/O, O/C, C/O, C/C).
+-- Open at the entry means single entry, mutatis mutandis for exit.
+-- A closed/closed block is a /basic/ block and can't be extended further.
+-- Clients should avoid manipulating blocks and should stick to either nodes
+-- or graphs.
 data Block n e x where
   -- nodes
-  BFirst  :: n C O                 -> Block n C O
-  BMiddle :: n O O                 -> Block n O O
-  BLast   :: n O C                 -> Block n O C
+  BFirst  :: n C O                 -> Block n C O -- ^ block holds a single first node
+  BMiddle :: n O O                 -> Block n O O -- ^ block holds a single middle node
+  BLast   :: n O C                 -> Block n O C -- ^ block holds a single last node
 
   -- concatenation operations
   BCat    :: Block n O O -> Block n O O -> Block n O O -- non-list-like
@@ -30,12 +40,16 @@ data Block n e x where
 
   BClosed :: Block n C O -> Block n O C -> Block n C C -- the zipper
 
+-- | A (possibly empty) collection of closed/closed blocks
 type Body = Body' Block
 data Body' block n where
   BodyEmpty :: Body' block n
   BodyUnit  :: block n C C -> Body' block n
   BodyCat   :: Body' block n -> Body' block n -> Body' block n
 
+-- | A control-flow graph, which may take any of four shapes (O/O, O/C, C/O, C/C).
+-- A graph open at the entry has a single, distinguished, anonymous entry point;
+-- if a graph is closed at the entry, its entry point(s) are supplied by a context.
 type Graph = Graph' Block
 data Graph' block n e x where
   GNil  :: Graph' block n O O
@@ -45,10 +59,12 @@ data Graph' block n e x where
         -> MaybeO x (block n C O)
         -> Graph' block n e x
 
+-- | Maybe type indexed by open/closed
 data MaybeO ex t where
   JustO    :: t -> MaybeO O t
   NothingO ::      MaybeO C t
 
+-- | Maybe type indexed by closed/open
 data MaybeC ex t where
   JustC    :: t -> MaybeC C t
   NothingC ::      MaybeC O t
@@ -67,8 +83,8 @@ instance Functor (MaybeC ex) where
 
 -------------------------------
 class Edges thing where
-  entryLabel :: thing C x -> Label
-  successors :: thing e C -> [Label]
+  entryLabel :: thing C x -> Label   -- ^ The label of a first node or block
+  successors :: thing e C -> [Label] -- ^ Gives control-flow successors
 
 instance Edges n => Edges (Block n) where
   entryLabel (BFirst n)    = entryLabel n
