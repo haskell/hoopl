@@ -2,7 +2,6 @@
 {-# LANGUAGE ScopedTypeVariables, GADTs #-}
 module ConstProp (ConstFact, constLattice, initFact, varHasLit, constProp) where
 
-import Data.Maybe
 import qualified Data.Map as M
 
 import Compiler.Hoopl
@@ -37,26 +36,29 @@ initFact vars = M.fromList $ [(v, Top) | v <- vars]
 -- Note that we don't need a case for x := y, where y holds a constant.
 -- We can write the simplest solution and rely on the interleaved optimization.
 varHasLit :: FwdTransfer Insn ConstFact
-varHasLit (Label l)              f = fromMaybe M.empty $ lookupFact f l
-varHasLit (Assign x (Lit l))     f = M.insert x (NonTop l) f
-varHasLit (Assign x _)           f = M.insert x Top f
-varHasLit (Store _ _)            f = f
-varHasLit (Branch bid)           f = mkFactBase [(bid, f)]
-varHasLit (Cond (Var x) tid fid) f = mkFactBase [(tid, tf), (fid, ff)]
-  where tf = M.insert x (bool True)  f
-        ff = M.insert x (bool False) f
-        bool b = NonTop (Bool b)
-varHasLit (Cond _  tid fid)      f = mkFactBase [(tid, f), (fid, f)]
-varHasLit (Call vs _ _ bid)      f = mkFactBase [(bid, foldl toTop f vs)]
-  where toTop f v = M.insert v Top f
-varHasLit (Return _)             _ = mkFactBase []
+varHasLit = mkFTransfer' v
+  where
+    v :: Insn e x -> ConstFact -> Fact x ConstFact
+    v (Label _)              f = f
+    v (Assign x (Lit l))     f = M.insert x (PElem l) f
+    v (Assign x _)           f = M.insert x Top f
+    v (Store _ _)            f = f
+    v (Branch bid)           f = mkFactBase [(bid, f)]
+    v (Cond (Var x) tid fid) f = mkFactBase [(tid, tf), (fid, ff)]
+      where tf = M.insert x (bool True)  f
+            ff = M.insert x (bool False) f
+            bool b = PElem (Bool b)
+    v (Cond _  tid fid)      f = mkFactBase [(tid, f), (fid, f)]
+    v (Call vs _ _ bid)      f = mkFactBase [(bid, foldl toTop f vs)]
+      where toTop f v = M.insert v Top f
+    v (Return _)             _ = mkFactBase []
 
 -- Constant propagation: rewriting
 constProp :: FwdRewrite Insn ConstFact
-constProp = shallowFwdRw cp 
+constProp = shallowFwdRw' cp 
   where
-    cp n facts = map_EN (map_EE $ rewriteE (getFwdFact n facts M.empty)) n >>= Just . insnToA
+    cp n f = map_EN (map_EE $ rewriteE f) n >>= Just . insnToA
     rewriteE facts (Var v) = case M.lookup v facts of
-                               Just (NonTop l) -> Just $ Lit l
-                               _               -> Nothing
+                               Just (PElem l) -> Just $ Lit l
+                               _              -> Nothing
     rewriteE _ _ = Nothing

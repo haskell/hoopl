@@ -51,7 +51,7 @@ optTest' file text =
      return $ procs >>= mapM optProc
   where
     optProc proc@(Proc {entry, body, args}) =
-      do { (body', _)  <- analyzeAndRewriteFwd fwd body  (mkFactBase [(entry, initFact args)])
+      do { (body', _)  <- analyzeAndRewriteFwd fwd (JustC [entry]) body (mkFactBase [(entry, initFact args)])
          ; (body'', _) <- analyzeAndRewriteBwd bwd body' (mkFactBase [])
          ; return $ proc { body = body'' } }
     -- With debugging info: 

@@ -35,7 +35,7 @@ getEntry (b : _) = labelFor $ A.first b
 
 toBody :: [A.Block] -> LabelMapM (Body I.Insn)
 toBody bs =
-  do g <- foldl (liftM2 unionBlocks) (return emptyClosedAGraph) (map toBlock bs)
+  do g <- foldl (liftM2 (|*><*|)) (return emptyClosedGraph) (map toBlock bs)
      getBody g
 
 toBlock :: A.Block -> LabelMapM (AGraph I.Insn C C)
