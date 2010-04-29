@@ -14,13 +14,17 @@ import Compiler.Hoopl.Label
 --		Graphs
 -----------------------------------------------------------------------------
 
-data O -- ^ Used at the type level to indicate an "open" structure with
-       --   a unique, unnamed control-flow edge flowing in or out.
-       --   "Fallthrough" and concatenation are permitted at an open point.
-data C -- ^ Used at the type level to indicate a "closed" structure which
-       --   supports control transfer only through the use of named
-       --   labels---no "fallthrough" is permitted.  The number of control-flow
-       --   edges is unconstrained.
+-- | Used at the type level to indicate an "open" structure with    
+-- a unique, unnamed control-flow edge flowing in or out.         
+-- "Fallthrough" and concatenation are permitted at an open point.
+data O 
+       
+       
+-- | Used at the type level to indicate a "closed" structure which
+-- supports control transfer only through the use of named
+-- labels---no "fallthrough" is permitted.  The number of control-flow
+-- edges is unconstrained.
+data C
 
 -- | A sequence of nodes.  May be any of four shapes (O/O, O/C, C/O, C/C).
 -- Open at the entry means single entry, mutatis mutandis for exit.
