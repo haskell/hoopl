@@ -1,7 +1,7 @@
 module Compiler.Hoopl.Label
   ( Label, lblOfUniq, uniqOfLbl
   , LabelMap, emptyLabelMap, mkLabelMap, lookupLabel, extendLabelMap
-            , delFromLabelMap, unionLabelMap
+            , delFromLabelMap, unionLabelMap, mapLabelMap, foldLabelMap
             , elemLabelMap, labelMapLabels, labelMapList
   , FactBase, noFacts, mkFactBase, unitFact, lookupFact, extendFactBase
             , delFromFactBase, unionFactBase, mapFactBase, mapWithLFactBase
@@ -98,6 +98,12 @@ extendLabelMap = extendFactBase
 
 unionLabelMap :: LabelMap f -> LabelMap f -> LabelMap f
 unionLabelMap = M.union
+
+mapLabelMap :: (f -> f') -> LabelMap f -> LabelMap f'
+mapLabelMap = M.map
+
+foldLabelMap :: (f -> z -> z) -> z -> LabelMap f -> z
+foldLabelMap = M.fold
 
 elemLabelMap :: Label -> LabelMap f -> Bool
 elemLabelMap = elemFactBase

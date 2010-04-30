@@ -11,11 +11,12 @@ module Compiler.Hoopl.GraphUtil
 where
 
 import Compiler.Hoopl.Graph
+import Compiler.Hoopl.Label
 
 bodyGraph :: Body n -> Graph n C C
 bodyGraph b = GMany NothingO b NothingO
 
-splice :: forall block n e a x .
+splice :: forall block n e a x . Edges (block n) =>
           (forall e x . block n e O -> block n O x -> block n e x)
        -> (Graph' block n e a -> Graph' block n a x -> Graph' block n e x)
 splice bcat = sp
@@ -31,14 +32,15 @@ splice bcat = sp
 
         sp (GMany e bs (JustO x)) (GUnit b2) = GMany e bs (JustO (x `bcat` b2))
 
-        sp (GMany e1 bs1 (JustO x1)) (GMany (JustO e2) bs2 x2)
-          = GMany e1 (addBlock (x1 `bcat` e2) bs1 `BodyCat` bs2) x2
+        sp (GMany e1 bs1 (JustO x1)) (GMany (JustO e2) (Body b2) x2)
+          = GMany e1 (Body $ unionLabelMap b1 b2) x2
+          where (Body b1) = addBlock (x1 `bcat` e2) bs1
 
-        sp (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
-           = GMany e1 (bs1 `BodyCat` bs2) x2
+        sp (GMany e1 (Body b1) NothingO) (GMany NothingO (Body b2) x2)
+           = GMany e1 (Body $ unionLabelMap b1 b2) x2
 
 
-gSplice :: Graph n e a -> Graph n a x -> Graph n e x
+gSplice :: Edges n => Graph n e a -> Graph n a x -> Graph n e x
 gSplice = splice cat
 
 cat :: Block n e O -> Block n O x -> Block n e x

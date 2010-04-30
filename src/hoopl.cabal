@@ -18,7 +18,6 @@ Library
   Exposed-modules:   Compiler.Hoopl,
                        Compiler.Hoopl.Passes.Dominator,
                        Compiler.Hoopl.DataflowFold,
-                       Compiler.Hoopl.OldDataflow,
                        Compiler.Hoopl.Pointed,
                        Compiler.Hoopl.GHC
   Other-modules:     Compiler.Hoopl.GraphUtil,

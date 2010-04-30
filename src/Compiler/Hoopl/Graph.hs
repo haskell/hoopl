@@ -1,10 +1,10 @@
 {-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies #-}
 
 module Compiler.Hoopl.Graph 
-  ( O, C, Block(..), Body, Body'(..), bodyMap, Graph, Graph'(..)
+  ( O, C, Block(..), Body, Body'(..), Graph, Graph'(..)
   , MaybeO(..), MaybeC(..), EitherCO
   , Edges(entryLabel, successors)
-  , addBlock, bodyList
+  , emptyBody, addBlock, bodyList
   )
 where
 
@@ -46,10 +46,7 @@ data Block n e x where
 
 -- | A (possibly empty) collection of closed/closed blocks
 type Body = Body' Block
-data Body' block n where
-  BodyEmpty :: Body' block n
-  BodyUnit  :: block n C C -> Body' block n
-  BodyCat   :: Body' block n -> Body' block n -> Body' block n
+newtype Body' block n = Body (LabelMap (block n C C))
 
 -- | A control-flow graph, which may take any of four shapes (O/O, O/C, C/O, C/C).
 -- A graph open at the entry has a single, distinguished, anonymous entry point;
@@ -99,16 +96,11 @@ instance Edges n => Edges (Block n) where
   successors (BClosed _ t) = successors t
 
 ------------------------------
-addBlock :: block n C C -> Body' block n -> Body' block n
-addBlock b body = BodyUnit b `BodyCat` body
+emptyBody :: Body' block n
+emptyBody = Body emptyLabelMap
+
+addBlock :: Edges (block n) => block n C C -> Body' block n -> Body' block n
+addBlock b (Body body) = Body (extendLabelMap body (entryLabel b) b)
 
 bodyList :: Edges (block n) => Body' block n -> [(Label,block n C C)]
-bodyList body = go body []
-  where
-    go BodyEmpty       bs = bs
-    go (BodyUnit b)    bs = (entryLabel b, b) : bs
-    go (BodyCat b1 b2) bs = go b1 (go b2 bs)
-
-bodyMap :: Edges (block n) => Body' block n -> LabelMap (block n C C)
-bodyMap = mkFactBase . bodyList
-
+bodyList (Body body) = labelMapList body

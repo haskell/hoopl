@@ -14,6 +14,7 @@ import Compiler.Hoopl.Label (Label, lblOfUniq)
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.Fuel
 import qualified Compiler.Hoopl.GraphUtil as U
+import Compiler.Hoopl.Label (unionLabelMap)
 import Compiler.Hoopl.Unique
 import Control.Monad (liftM2)
 
@@ -72,12 +73,12 @@ class GraphRep g where
   infixl 3 <*>
   infixl 2 |*><*| 
   -- | Concatenate two graphs; control flows from left to right.
-  (<*>)    :: g n e O -> g n O x -> g n e x
+  (<*>)    :: Edges n => g n e O -> g n O x -> g n e x
   -- | Splice together two graphs at a closed point; nothing is known
   -- about control flow.
-  (|*><*|)  :: g n e C -> g n C x -> g n e x
+  (|*><*|) :: Edges n => g n e C -> g n C x -> g n e x
   -- | Conveniently concatenate a sequence of open/open graphs using '<*>'.
-  catGraphs :: [g n O O] -> g n O O
+  catGraphs :: Edges n => [g n O O] -> g n O O
   catGraphs = foldr (<*>) emptyGraph
 
   -- | Create a graph that defines a label
@@ -87,7 +88,7 @@ class GraphRep g where
 
   -- | Conveniently concatenate a sequence of middle nodes to form
   -- an open/open graph.
-  mkMiddles :: [n O O] -> g n O O
+  mkMiddles :: Edges n => [n O O] -> g n O O
 
   mkLabel  id     = mkFirst $ mkLabelNode id
   mkBranch target = mkLast  $ mkBranchNode target
@@ -100,12 +101,12 @@ class GraphRep g where
 
 instance GraphRep Graph where
   emptyGraph  = GNil
-  emptyClosedGraph = GMany NothingO BodyEmpty NothingO
+  emptyClosedGraph = GMany NothingO emptyBody NothingO
   (<*>)       = U.gSplice
   (|*><*|)    = U.gSplice
   mkMiddle    = GUnit . BMiddle
-  mkExit   block = GMany NothingO      BodyEmpty (JustO block)
-  mkEntry  block = GMany (JustO block) BodyEmpty NothingO
+  mkExit   block = GMany NothingO      emptyBody (JustO block)
+  mkEntry  block = GMany (JustO block) emptyBody NothingO
 
 instance GraphRep AGraph where
   emptyGraph  = aGraphOfGraph emptyGraph
@@ -157,8 +158,8 @@ addBlocks      :: HooplNode n
                => AGraph n e x -> AGraph n C C -> AGraph n e x
 addBlocks (A g) (A blocks) = A $ g >>= \g -> blocks >>= add g
   where add :: HooplNode n => Graph n e x -> Graph n C C -> FuelMonad (Graph n e x)
-        add (GMany e body x) (GMany NothingO body' NothingO) =
-          return $ GMany e (body `BodyCat` body') x
+        add (GMany e (Body body) x) (GMany NothingO (Body body') NothingO) =
+          return $ GMany e (Body $ unionLabelMap body body') x
         add g@GNil      blocks = spliceOO g blocks
         add g@(GUnit _) blocks = spliceOO g blocks
         spliceOO :: HooplNode n => Graph n O O -> Graph n C C -> FuelMonad(Graph n O O)
@@ -241,9 +242,9 @@ instance (Uniques u1, Uniques u2, Uniques u3, Uniques u4) => Uniques (u1, u2, u3
 -- deprecated legacy functions
 
 {-# DEPRECATED addEntrySeq, addExitSeq, unionBlocks "use |*><*| instead" #-}
-addEntrySeq    :: AGraph n O C -> AGraph n C x -> AGraph n O x
-addExitSeq     :: AGraph n e C -> AGraph n C O -> AGraph n e O
-unionBlocks    :: AGraph n C C -> AGraph n C C -> AGraph n C C
+addEntrySeq    :: Edges n => AGraph n O C -> AGraph n C x -> AGraph n O x
+addExitSeq     :: Edges n => AGraph n e C -> AGraph n C O -> AGraph n e O
+unionBlocks    :: Edges n => AGraph n C C -> AGraph n C C -> AGraph n C C
 
 addEntrySeq = (|*><*|)
 addExitSeq  = (|*><*|)

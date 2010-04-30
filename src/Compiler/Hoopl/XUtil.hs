@@ -142,9 +142,8 @@ foldGraphNodes f = graph
           graph GNil              = id
           graph (GUnit b)         = block b
           graph (GMany e b x)     = lift block e . body b . lift block x
-          body (BodyEmpty)        = id
-          body (BodyUnit b)       = block b
-          body (b1 `BodyCat` b2)  = body b1 . body b2
+          body :: Body n -> a -> a
+          body  (Body bdy)        = \a -> foldLabelMap block a bdy
           lift _ NothingO         = id
           lift f (JustO thing)    = f thing
 

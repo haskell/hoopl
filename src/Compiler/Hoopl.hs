@@ -19,8 +19,7 @@ import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Debug
 import Compiler.Hoopl.Fuel hiding (withFuel, getFuel, setFuel)
 import Compiler.Hoopl.Graph hiding 
-   ( BodyEmpty, BodyUnit, BodyCat
-   , BCat, BHead, BTail, BClosed -- OK to expose BFirst, BMiddle, BLast
+   ( BCat, BHead, BTail, BClosed -- OK to expose BFirst, BMiddle, BLast
    )
 import Compiler.Hoopl.Label hiding (lblOfUniq, uniqOfLbl)
 import Compiler.Hoopl.MkGraph
