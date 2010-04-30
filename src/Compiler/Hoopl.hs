@@ -22,6 +22,7 @@ import Compiler.Hoopl.Graph hiding
    ( Body
    , BCat, BHead, BTail, BClosed -- OK to expose BFirst, BMiddle, BLast
    )
+import Compiler.Hoopl.Graph (Body)
 import Compiler.Hoopl.Label hiding (lblOfUniq, uniqOfLbl)
 import Compiler.Hoopl.MkGraph
 import Compiler.Hoopl.Pointed
