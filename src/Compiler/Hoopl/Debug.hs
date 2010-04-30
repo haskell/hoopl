@@ -42,8 +42,8 @@ import Compiler.Hoopl.Show
 --------------------------------------------------------------------------------
 
 
-debugFwdJoins :: forall n f . Show f => TraceFn -> ChangePred -> FwdPass n f -> FwdPass n f
-debugBwdJoins :: forall n f . Show f => TraceFn -> ChangePred -> BwdPass n f -> BwdPass n f
+debugFwdJoins :: forall m n f . Show f => TraceFn -> ChangePred -> FwdPass m n f -> FwdPass m n f
+debugBwdJoins :: forall m n f . Show f => TraceFn -> ChangePred -> BwdPass m n f -> BwdPass m n f
 
 type TraceFn    = forall a . String -> a -> a
 type ChangePred = ChangeFlag -> Bool
@@ -70,7 +70,7 @@ type ShowN n   = forall e x . n e x ->      String
 type FPred n f = forall e x . n e x -> f        -> Bool
 type BPred n f = forall e x . n e x -> Fact x f -> Bool
 debugFwdTransfers::
-  forall n f . Show f => TraceFn -> ShowN n -> FPred n f -> FwdPass n f -> FwdPass n f
+  forall m n f . Show f => TraceFn -> ShowN n -> FPred n f -> FwdPass m n f -> FwdPass m n f
 debugFwdTransfers trace showN showPred pass = pass { fp_transfer = transfers' }
   where
     (f, m, l) = getFTransfers $ fp_transfer pass
@@ -83,7 +83,7 @@ debugFwdTransfers trace showN showPred pass = pass { fp_transfer = transfers' }
     name = fact_name (fp_lattice pass)
     
 debugBwdTransfers::
-  forall n f . Show f => TraceFn -> ShowN n -> BPred n f -> BwdPass n f -> BwdPass n f
+  forall m n f . Show f => TraceFn -> ShowN n -> BPred n f -> BwdPass m n f -> BwdPass m n f
 debugBwdTransfers trace showN showPred pass = pass { bp_transfer = transfers' }
   where
     (f, m, l) = getBTransfers $ bp_transfer pass
@@ -97,7 +97,7 @@ debugBwdTransfers trace showN showPred pass = pass { bp_transfer = transfers' }
     
 
 -- debugFwdTransfers, debugFwdRewrites, debugFwdAll ::
---   forall n f . Show f => TraceFn -> ShowN n -> FwdPass n f -> FwdPass n f
+--   forall m n f . Show f => TraceFn -> ShowN n -> FwdPass m n f -> FwdPass m n f
 -- debugBwdTransfers, debugBwdRewrites, debugBwdAll ::
---   forall n f . Show f => TraceFn -> ShowN n -> BwdPass n f -> BwdPass n f
+--   forall m n f . Show f => TraceFn -> ShowN n -> BwdPass m n f -> BwdPass m n f
 

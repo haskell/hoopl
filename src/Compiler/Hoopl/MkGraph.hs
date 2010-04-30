@@ -12,7 +12,6 @@ where
 
 import Compiler.Hoopl.Label (Label, lblOfUniq)
 import Compiler.Hoopl.Graph
-import Compiler.Hoopl.Fuel
 import qualified Compiler.Hoopl.GraphUtil as U
 import Compiler.Hoopl.Label (unionLabelMap)
 import Compiler.Hoopl.Unique
@@ -22,7 +21,7 @@ import Control.Monad (liftM2)
 As noted in the paper, we can define a single, polymorphic type of 
 splicing operation with the very polymorphic type
 @
-  AGraph n e a -> AGraph n a x -> AGraph n e x
+  AGraph m n e a -> AGraph m n a x -> AGraph m n e x
 @
 However, we feel that this operation is a bit /too/ polymorphic,
 and that it's too easy for clients to use it blindly without 
@@ -108,7 +107,7 @@ instance GraphRep Graph where
   mkExit   block = GMany NothingO      emptyBody (JustO block)
   mkEntry  block = GMany (JustO block) emptyBody NothingO
 
-instance GraphRep AGraph where
+instance Monad m => GraphRep (AGraph m) where
   emptyGraph  = aGraphOfGraph emptyGraph
   emptyClosedGraph = aGraphOfGraph emptyClosedGraph
   (<*>)       = liftA2 (<*>)
@@ -120,14 +119,14 @@ instance GraphRep AGraph where
 
 -- | The type of abstract graphs.  Offers extra "smart constructors"
 -- that may consume fresh labels during construction.
-newtype AGraph n e x = 
-  A { graphOfAGraph :: FuelMonad (Graph n e x) -- ^ Take an abstract 'AGraph'
-                                               -- and make a concrete (if monadic)
-                                               -- 'Graph'.
+newtype AGraph m n e x = 
+  A { graphOfAGraph :: m (Graph n e x) -- ^ Take an abstract 'AGraph'
+                                       -- and make a concrete (if monadic)
+                                       -- 'Graph'.
     }
 
 -- | Take a graph and make it abstract.
-aGraphOfGraph :: Graph n e x -> AGraph n e x
+aGraphOfGraph :: Monad m => Graph n e x -> AGraph m n e x
 aGraphOfGraph = A . return
                 
                 
@@ -139,7 +138,7 @@ aGraphOfGraph = A . return
 -- 
 -- For example usage see implementations of 'mkIfThenElse' and 'mkWhileDo'.
 class Uniques u where
-  withFresh :: (u -> AGraph n e x) -> AGraph n e x
+  withFresh :: HooplMonad m => (u -> AGraph m n e x) -> AGraph m n e x
 
 instance Uniques Unique where
   withFresh f = A $ freshUnique >>= (graphOfAGraph . f)
@@ -148,21 +147,24 @@ instance Uniques Label where
   withFresh f = A $ freshUnique >>= (graphOfAGraph . f . lblOfUniq)
 
 -- | Lifts binary 'Graph' functions into 'AGraph' functions.
-liftA2 :: (Graph  n a b -> Graph  n c d -> Graph  n e f)
-       -> (AGraph n a b -> AGraph n c d -> AGraph n e f)
+liftA2 :: Monad m
+       => (Graph    n a b -> Graph    n c d -> Graph    n e f)
+       -> (AGraph m n a b -> AGraph m n c d -> AGraph m n e f)
 liftA2 f (A g) (A g') = A (liftM2 f g g')
 
 -- | Extend an existing 'AGraph' with extra basic blocks "out of line".
 -- No control flow is implied.  Simon PJ should give example use case.
-addBlocks      :: HooplNode n
-               => AGraph n e x -> AGraph n C C -> AGraph n e x
+addBlocks      :: (HooplNode n, HooplMonad m)
+               => AGraph m n e x -> AGraph m n C C -> AGraph m n e x
 addBlocks (A g) (A blocks) = A $ g >>= \g -> blocks >>= add g
-  where add :: HooplNode n => Graph n e x -> Graph n C C -> FuelMonad (Graph n e x)
+  where add :: (HooplMonad m, HooplNode n)
+            => Graph n e x -> Graph n C C -> m (Graph n e x)
         add (GMany e (Body body) x) (GMany NothingO (Body body') NothingO) =
           return $ GMany e (Body $ unionLabelMap body body') x
         add g@GNil      blocks = spliceOO g blocks
         add g@(GUnit _) blocks = spliceOO g blocks
-        spliceOO :: HooplNode n => Graph n O O -> Graph n C C -> FuelMonad(Graph n O O)
+        spliceOO :: (HooplNode n, HooplMonad m)
+                 => Graph n O O -> Graph n C C -> m (Graph n O O)
         spliceOO g blocks = graphOfAGraph $ withFresh $ \l ->
           A (return g) <*> mkBranch l |*><*| A (return blocks) |*><*| mkLabel l
 
@@ -184,16 +186,16 @@ class IfThenElseable x where
   -- The condition takes as arguments labels on the true-false branch
   -- and returns a single-entry, two-exit graph which exits to 
   -- the two labels.
-  mkIfThenElse :: HooplNode n
-               => (Label -> Label -> AGraph n O C) -- ^ branch condition
-               -> AGraph n O x   -- ^ code in the "then" branch
-               -> AGraph n O x   -- ^ code in the "else" branch 
-               -> AGraph n O x   -- ^ resulting if-then-else construct
+  mkIfThenElse :: (HooplNode n, HooplMonad m)
+               => (Label -> Label -> AGraph m n O C) -- ^ branch condition
+               -> AGraph m n O x   -- ^ code in the "then" branch
+               -> AGraph m n O x   -- ^ code in the "else" branch 
+               -> AGraph m n O x   -- ^ resulting if-then-else construct
 
-mkWhileDo    :: HooplNode n
-             => (Label -> Label -> AGraph n O C) -- ^ loop condition
-             -> AGraph n O O -- ^ body of the loop
-             -> AGraph n O O -- ^ the final while loop
+mkWhileDo    :: (HooplNode n, HooplMonad m)
+             => (Label -> Label -> AGraph m n O C) -- ^ loop condition
+             -> AGraph m n O O -- ^ body of the loop
+             -> AGraph m n O O -- ^ the final while loop
 
 instance IfThenElseable O where
   mkIfThenElse cbranch tbranch fbranch = withFresh $ \(endif, ltrue, lfalse) ->
@@ -242,9 +244,9 @@ instance (Uniques u1, Uniques u2, Uniques u3, Uniques u4) => Uniques (u1, u2, u3
 -- deprecated legacy functions
 
 {-# DEPRECATED addEntrySeq, addExitSeq, unionBlocks "use |*><*| instead" #-}
-addEntrySeq    :: Edges n => AGraph n O C -> AGraph n C x -> AGraph n O x
-addExitSeq     :: Edges n => AGraph n e C -> AGraph n C O -> AGraph n e O
-unionBlocks    :: Edges n => AGraph n C C -> AGraph n C C -> AGraph n C C
+addEntrySeq :: (Monad m, Edges n) => AGraph m n O C -> AGraph m n C x -> AGraph m n O x
+addExitSeq  :: (Monad m, Edges n) => AGraph m n e C -> AGraph m n C O -> AGraph m n e O
+unionBlocks :: (Monad m, Edges n) => AGraph m n C C -> AGraph m n C C -> AGraph m n C C
 
 addEntrySeq = (|*><*|)
 addExitSeq  = (|*><*|)

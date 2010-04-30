@@ -3,41 +3,82 @@
 -----------------------------------------------------------------------------
 
 module Compiler.Hoopl.Fuel
-  ( Fuel
-  , FuelMonad, withFuel, getFuel, setFuel
-  , freshUnique
-    
-  , runWithFuel, runWithFuelAndUniques
+  ( Fuel, infiniteFuel, fuelRemaining
+  , withFuel
+  , FuelMonad(..)
+  , FuelMonadT(..)
+  , CheckingFuelMonad
+  , InfiniteFuelMonad
   )
 where
 
 import Compiler.Hoopl.Unique
 
-type Fuel    = Int
+class Monad m => FuelMonad m where
+  getFuel :: m Fuel
+  setFuel :: Fuel -> m ()
 
-newtype FuelMonad a = FM { unFM :: Fuel -> [Unique] -> (a, Fuel, [Unique]) }
+-- | Find out how much fuel remains after a computation.
+-- Can be subtracted from initial fuel to get total consumption.
+fuelRemaining :: FuelMonad m => m Fuel
+fuelRemaining = getFuel
 
-instance Monad FuelMonad where
-  return x = FM (\f u -> (x,f,u))
-  m >>= k  = FM (\f u -> case unFM m f u of (r,f',u') -> unFM (k r) f' u')
+class FuelMonadT fm where
+  runWithFuel :: (Monad m, FuelMonad (fm m)) => Fuel -> fm m a -> m a
 
-withFuel :: Maybe a -> FuelMonad (Maybe a)
+
+type Fuel = Int
+
+withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
 withFuel Nothing  = return Nothing
-withFuel (Just r) = FM (\f u -> if f==0 then (Nothing, f, u)
-                                else (Just r, f-1, u))
+withFuel (Just r) = do f <- getFuel
+                       if f == 0 then return Nothing
+                        else setFuel (f-1) >> return (Just r)
 
-getFuel :: FuelMonad Fuel
-getFuel = FM (\f u -> (f,f,u))
 
-setFuel :: Fuel -> FuelMonad ()
-setFuel f = FM (\_ u -> ((), f, u))
+----------------------------------------------------------------
 
-runWithFuel :: Fuel -> FuelMonad a -> a
-runWithFuel fuel m = runWithFuelAndUniques fuel allUniques m
+newtype CheckingFuelMonad m a = FM { unFM :: Fuel -> m (a, Fuel) }
 
+instance Monad m => Monad (CheckingFuelMonad m) where
+  return a = FM (\f -> return (a, f))
+  fm >>= k = FM (\f -> do { (a, f') <- unFM fm f; unFM (k a) f' })
+
+instance HooplMonad m => HooplMonad (CheckingFuelMonad m) where
+  freshUnique = FM (\f -> do { l <- freshUnique; return (l, f) })
+
+instance Monad m => FuelMonad (CheckingFuelMonad m) where
+  getFuel   = FM (\f -> return (f,f))
+  setFuel f = FM (\_ -> return ((),f))
+
+instance FuelMonadT CheckingFuelMonad where
+  runWithFuel fuel m = do { (a, _) <- unFM m fuel; return a }
+
+----------------------------------------------------------------
+
+newtype InfiniteFuelMonad m a = IFM { unIFM :: m a }
+instance Monad m => Monad (InfiniteFuelMonad m) where
+  return a = IFM $ return a
+  m >>= k  = IFM $ do { a <- unIFM m; unIFM (k a) }
+
+instance HooplMonad m => HooplMonad (InfiniteFuelMonad m) where
+  freshUnique = IFM $ freshUnique
+
+instance Monad m => FuelMonad (InfiniteFuelMonad m) where
+  getFuel   = return infiniteFuel
+  setFuel _ = return ()
+
+instance FuelMonadT InfiniteFuelMonad where
+  runWithFuel _ = unIFM
+
+infiniteFuel :: Fuel -- effectively infinite, any, but subtractable
+infiniteFuel = maxBound
+{-
 runWithFuelAndUniques :: Fuel -> [Unique] -> FuelMonad a -> a
 runWithFuelAndUniques fuel uniques m = a
   where (a, _, _) = unFM m fuel uniques
 
 freshUnique :: FuelMonad Unique
 freshUnique = FM (\f (l:ls) -> (l, f, ls))
+-}
+

@@ -17,7 +17,7 @@ where
 import Compiler.Hoopl.Combinators
 import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Debug
-import Compiler.Hoopl.Fuel hiding (withFuel, getFuel, setFuel)
+import Compiler.Hoopl.Fuel hiding (withFuel, getFuel, setFuel, FuelMonadT)
 import Compiler.Hoopl.Graph hiding 
    ( Body
    , BCat, BHead, BTail, BClosed -- OK to expose BFirst, BMiddle, BLast
@@ -28,5 +28,5 @@ import Compiler.Hoopl.MkGraph
 import Compiler.Hoopl.Pointed
 import Compiler.Hoopl.Show
 import Compiler.Hoopl.Util
-import Compiler.Hoopl.Unique hiding (allUniques, intOfUniq)
+import Compiler.Hoopl.Unique hiding (intOfUniq, uniqOfInt)
 import Compiler.Hoopl.XUtil

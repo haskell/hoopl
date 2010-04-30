@@ -1,5 +1,7 @@
 module Compiler.Hoopl.Label
-  ( Label, lblOfUniq, uniqOfLbl
+  ( Label
+  , getLabel
+  , lblOfUniq, uniqOfLbl -- GHC use only
   , LabelMap, emptyLabelMap, mkLabelMap, lookupLabel, extendLabelMap
             , delFromLabelMap, unionLabelMap, mapLabelMap, foldLabelMap
             , elemLabelMap, labelMapLabels, labelMapList
@@ -18,17 +20,20 @@ import Compiler.Hoopl.Unique
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
 
-newtype Label = Label { unLabel :: Int }
+newtype Label = Label { unLabel :: Int } -- XXX this should be Unique
   deriving (Eq, Ord)
+
+lblOfUniq :: Unique -> Label
+lblOfUniq = Label . intOfUniq
+
+uniqOfLbl :: Label -> Unique
+uniqOfLbl = uniqOfInt . unLabel
 
 instance Show Label where
   show (Label n) = "L" ++ show n
 
-lblOfUniq :: Unique -> Label
-lblOfUniq u = Label $ intOfUniq u
-
-uniqOfLbl :: Label -> Unique
-uniqOfLbl (Label u) = uniqOfInt u
+getLabel :: HooplMonad m => m Label
+getLabel = do { u <- freshUnique; return $ Label $ intOfUniq u }
 
 -----------------------------------------------------------------------------
 --		Label, FactBase, LabelSet
