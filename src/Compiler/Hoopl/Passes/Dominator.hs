@@ -2,15 +2,16 @@
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
 
 module Compiler.Hoopl.Passes.Dominator
-  ( Doms, domPath, domEntry, domLattice, extendDom
+  ( Doms, DPath(..), domPath, domEntry, domLattice, extendDom
   , DominatorNode(..), DominatorTree(..), tree
-  , domFirst, domMiddle, domLast
+  , domPass
   )
 where
 
 import Data.Maybe
 
 import Compiler.Hoopl
+
 
 type Doms = WithBot DPath
 -- ^ List of labels, extended with a standard bottom element
@@ -59,16 +60,12 @@ extend _ (OldFact (DPath l)) (NewFact (DPath l')) =
 
 
 
--- | Dominator functions for first, middle, and last nodes.
-domFirst  :: Edges n => n C O -> FactBase Doms -> Doms
-domMiddle :: Edges n => n O O -> f -> f
-domLast   :: Edges n => n O C -> f -> FactBase f
-
-domFirst = firstXfer first
+-- | Dominator pass
+domPass :: (Edges n, Monad m) => FwdPass m n Doms
+domPass = FwdPass domLattice (mkFTransfer first (const id) distributeFact) noFwdRewrite
   where first n = fmap (extendDom $ entryLabel n)
-domMiddle _ = id
-domLast     = distributeFact
 
+----------------------------------------------------------------
 
 data DominatorNode = Entry | Labelled Label
 data DominatorTree = Dominates DominatorNode [DominatorTree]

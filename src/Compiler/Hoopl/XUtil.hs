@@ -7,8 +7,9 @@ module Compiler.Hoopl.XUtil
   , distributeFact, distributeFactBwd
   , successorFacts
   , foldGraphNodes, foldBlockNodesF, foldBlockNodesB, foldBlockNodesF', foldBlockNodesB'
-  , analyzeAndRewriteFwdBody
-  , analyzeAndRewriteBwdBody
+  , analyzeAndRewriteFwdBody, analyzeAndRewriteBwdBody
+  , analyzeAndRewriteFwdOx, analyzeAndRewriteBwdOx
+  , noEntries
   , BlockResult(..), lookupBlock
   )
 where
@@ -62,6 +63,36 @@ mapBodyFacts anal b f = anal (GMany NothingO b NothingO) f >>= bodyFacts
   because we need an explicit type signature in order to do the GADT
   pattern matches on NothingO
 -}
+
+
+
+-- | Forward dataflow analysis and rewriting for the special case of a 
+-- graph open at the entry.  This special case relieves the client
+-- from having to specify a type signature for 'NothingO', which beginners
+-- might find confusing and experts might find annoying.
+analyzeAndRewriteFwdOx
+   :: forall m n f x. (FuelMonad m, Edges n)
+   => FwdPass m n f -> Graph n O x -> f -> m (Graph n O x, FactBase f, MaybeO x f)
+
+-- | Backward dataflow analysis and rewriting for the special case of a 
+-- graph open at the entry.  This special case relieves the client
+-- from having to specify a type signature for 'NothingO', which beginners
+-- might find confusing and experts might find annoying.
+analyzeAndRewriteBwdOx
+   :: forall m n f x. (FuelMonad m, Edges n)
+   => BwdPass m n f -> Graph n O x -> Fact x f -> m (Graph n O x, FactBase f, f)
+
+-- | A value that can be used for the entry point of a graph open at the entry.
+noEntries :: MaybeC O Label
+noEntries = NothingC
+
+analyzeAndRewriteFwdOx pass g f  = analyzeAndRewriteFwd pass noEntries g f
+analyzeAndRewriteBwdOx pass g fb = analyzeAndRewriteBwd pass noEntries g fb >>= strip
+  where strip :: forall m a b c . Monad m => (a, b, MaybeO O c) -> m (a, b, c)
+        strip (a, b, JustO c) = return (a, b, c)
+
+
+
 
 
 -- | A utility function so that a transfer function for a first

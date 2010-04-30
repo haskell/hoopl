@@ -19,7 +19,6 @@ Library
                      Compiler.Hoopl.Passes.Dominator,
 --                       Compiler.Hoopl.DataflowFold,
 --                       Compiler.Hoopl.OldDataflow,
-                       Compiler.Hoopl.Pointed
                        Compiler.Hoopl.GHC
   Other-modules:     Compiler.Hoopl.GraphUtil,
                      -- GraphUtil should *never* be seen by clients.
@@ -30,6 +29,7 @@ Library
                        Compiler.Hoopl.Graph, 
                        Compiler.Hoopl.MkGraph,
                        Compiler.Hoopl.Fuel,
+                       Compiler.Hoopl.Pointed,
                        Compiler.Hoopl.Unique, Compiler.Hoopl.Label,
                        Compiler.Hoopl.Show, Compiler.Hoopl.Util
                        Compiler.Hoopl.XUtil

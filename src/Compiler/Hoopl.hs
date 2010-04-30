@@ -4,10 +4,10 @@ module Compiler.Hoopl
   , module Compiler.Hoopl.XUtil
   , module Compiler.Hoopl.Dataflow
   , module Compiler.Hoopl.Label
-  , module Compiler.Hoopl.Unique
   , module Compiler.Hoopl.Pointed
   , module Compiler.Hoopl.Combinators
   , module Compiler.Hoopl.Fuel
+  , module Compiler.Hoopl.Unique
   , module Compiler.Hoopl.Util
   , module Compiler.Hoopl.Debug
   , module Compiler.Hoopl.Show

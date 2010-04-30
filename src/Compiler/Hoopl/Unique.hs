@@ -1,9 +1,10 @@
 module Compiler.Hoopl.Unique
   ( Unique
-  , intOfUniq, uniqOfInt -- exposed through GHC module only!
   , HooplMonad(..)
   , SimpleHooplMonad, runSimpleHooplMonad
   , HooplMonadT, runHooplMonadT
+
+  , intOfUniq, uniqOfInt -- exposed through GHC module only!
   )
 
 where
