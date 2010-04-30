@@ -14,7 +14,7 @@ import Live
 import Parse (parseCode)
 import Simplify
 
-parse :: String -> String -> ErrorM (FuelMonad [Proc])
+parse :: String -> String -> ErrorM (M [Proc])
 parse file text =
   case parseCode file text of
     Left  err -> throwError $ show err
@@ -25,12 +25,12 @@ parseTest file =
   do text <- readFile file
      case parse file text of
        Left err -> putStrLn err
-       Right p  -> mapM (putStrLn . showProc) (runWithFuel 0 p) >> return ()
+       Right p  -> mapM (putStrLn . showProc) (runSimpleHooplMonad $ runWithFuel 0 p) >> return ()
 
 evalTest' :: String -> String -> ErrorM String
 evalTest' file text =
   do procs   <- parse file text
-     (_, vs) <- testProg (runWithFuel 0 procs)
+     (_, vs) <- testProg (runSimpleHooplMonad $ runWithFuel 0 procs)
      return $ "returning: " ++ show vs
   where
     testProg procs@(Proc {name, args} : _) = evalProg procs vsupply name (toV args)
@@ -45,7 +45,7 @@ evalTest file =
        Left err -> putStrLn err
        Right  s -> putStrLn s
 
-optTest' :: String -> String -> ErrorM (FuelMonad [Proc])
+optTest' :: String -> String -> ErrorM (M [Proc])
 optTest' file text =
   do procs <- parse file text
      return $ procs >>= mapM optProc
@@ -67,7 +67,7 @@ optTest file =
   do text    <- readFile file
      case optTest' file text of
        Left err -> putStrLn err
-       Right p  -> mapM_ (putStrLn . showProc) (runWithFuel fuel p)
+       Right p  -> mapM_ (putStrLn . showProc) (runSimpleHooplMonad $ runWithFuel fuel p)
   where
     fuel = 99999
 

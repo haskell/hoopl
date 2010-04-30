@@ -85,7 +85,7 @@ fold_EN f z (Return es)     = foldl f z es
 -- Lift a insn to an AGraph
 ----------------------------------------------
 
-insnToA :: Insn e x -> AGraph Insn e x
+insnToA :: Monad m => Insn e x -> AGraph m Insn e x
 insnToA n@(Label _)      = mkFirst n
 insnToA n@(Assign _ _)   = mkMiddle n
 insnToA n@(Store _ _)    = mkMiddle n
