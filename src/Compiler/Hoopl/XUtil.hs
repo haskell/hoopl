@@ -25,33 +25,42 @@ import Compiler.Hoopl.Util
 -- A set of entry points must be supplied; blocks not reachable from
 -- the set are thrown away.
 analyzeAndRewriteFwdBody
-   :: forall n f entries. (Edges n, LabelsPtr entries)
-   => FwdPass n f
+   :: forall m n f entries. (FuelMonad m, Edges n, LabelsPtr entries)
+   => FwdPass m n f
    -> entries -> Body n -> FactBase f
-   -> FuelMonad (Body n, FactBase f)
+   -> m (Body n, FactBase f)
 
 -- | Backward dataflow analysis and rewriting for the special case of a Body.
 -- A set of entry points must be supplied; blocks not reachable from
 -- the set are thrown away.
 analyzeAndRewriteBwdBody
-   :: forall n f entries. (Edges n, LabelsPtr entries)
-   => BwdPass n f 
+   :: forall m n f entries. (FuelMonad m, Edges n, LabelsPtr entries)
+   => BwdPass m n f 
    -> entries -> Body n -> FactBase f 
-   -> FuelMonad (Body n, FactBase f)
+   -> m (Body n, FactBase f)
 
 analyzeAndRewriteFwdBody pass en = mapBodyFacts (analyzeAndRewriteFwd pass (JustC en))
 analyzeAndRewriteBwdBody pass en = mapBodyFacts (analyzeAndRewriteBwd pass (JustC en))
 
-mapBodyFacts
-    :: (Graph n C C -> Fact C f   -> FuelMonad (Graph n C C, Fact C f, MaybeO C f))
-    -> (Body n      -> FactBase f -> FuelMonad (Body n, FactBase f))
+mapBodyFacts :: (Monad m)
+    => (Graph n C C -> Fact C f   -> m (Graph n C C, Fact C f, MaybeO C f))
+    -> (Body n      -> FactBase f -> m (Body n, FactBase f))
 -- ^ Internal utility; should not escape
 mapBodyFacts anal b f = anal (GMany NothingO b NothingO) f >>= bodyFacts
   where -- the type constraint is needed for the pattern match;
         -- if it were not, we would use do-notation here.
-    bodyFacts :: (Graph n C C, Fact C f, MaybeO C f) -> FuelMonad (Body n, Fact C f)
+    bodyFacts :: Monad m => (Graph n C C, Fact C f, MaybeO C f) -> m (Body n, Fact C f)
     bodyFacts (GMany NothingO body NothingO, fb, NothingO) = return (body, fb)
 
+{-
+  Can't write:
+
+     do (GMany NothingO body NothingO, fb, NothingO) <- anal (....) f
+        return (body, fb)
+
+  because we need an explicit type signature in order to do the GADT
+  pattern matches on NothingO
+-}
 
 
 -- | A utility function so that a transfer function for a first

@@ -105,10 +105,10 @@ changeIf changed = if changed then SomeChange else NoChange
 --		Analyze and rewrite forward: the interface
 -----------------------------------------------------------------------------
 
-data FwdPass n f
+data FwdPass m n f
   = FwdPass { fp_lattice  :: DataflowLattice f
             , fp_transfer :: FwdTransfer n f
-            , fp_rewrite  :: FwdRewrite n f }
+            , fp_rewrite  :: FwdRewrite m n f }
 
 newtype FwdTransfer n f 
   = FwdTransfers { getFTransfers ::
@@ -117,13 +117,13 @@ newtype FwdTransfer n f
                      , n O C -> f -> FactBase f
                      ) }
 
-newtype FwdRewrite n f 
+newtype FwdRewrite m n f 
   = FwdRewrites { getFRewrites ::
-                    ( n C O -> f -> Maybe (FwdRes n f C O)
-                    , n O O -> f -> Maybe (FwdRes n f O O)
-                    , n O C -> f -> Maybe (FwdRes n f O C)
+                    ( n C O -> f -> Maybe (FwdRes m n f C O)
+                    , n O O -> f -> Maybe (FwdRes m n f O O)
+                    , n O C -> f -> Maybe (FwdRes m n f O C)
                     ) }
-data FwdRes n f e x = FwdRes (AGraph n e x) (FwdRewrite n f)
+data FwdRes m n f e x = FwdRes (AGraph m n e x) (FwdRewrite m n f)
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
 mkFTransfer :: (n C O -> f -> f)
@@ -135,13 +135,13 @@ mkFTransfer f m l = FwdTransfers (f, m, l)
 mkFTransfer' :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
 mkFTransfer' f = FwdTransfers (f, f, f)
 
-mkFRewrite :: (n C O -> f -> Maybe (FwdRes n f C O))
-           -> (n O O -> f -> Maybe (FwdRes n f O O))
-           -> (n O C -> f -> Maybe (FwdRes n f O C))
-           -> FwdRewrite n f
+mkFRewrite :: (n C O -> f -> Maybe (FwdRes m n f C O))
+           -> (n O O -> f -> Maybe (FwdRes m n f O O))
+           -> (n O C -> f -> Maybe (FwdRes m n f O C))
+           -> FwdRewrite m n f
 mkFRewrite f m l = FwdRewrites (f, m, l)
 
-mkFRewrite' :: (forall e x . n e x -> f -> Maybe (FwdRes n f e x)) -> FwdRewrite n f
+mkFRewrite' :: (forall e x . n e x -> f -> Maybe (FwdRes m n f e x)) -> FwdRewrite m n f
 mkFRewrite' f = FwdRewrites (f, f, f)
 
 
@@ -152,11 +152,11 @@ type instance Fact O f = f
 -- | if the graph being analyzed is open at the entry, there must
 --   be no other entry point, or all goes horribly wrong...
 analyzeAndRewriteFwd
-   :: forall n f e x entries. (Edges n, LabelsPtr entries)
-   => FwdPass n f
+   :: forall m n f e x entries. (FuelMonad m, Edges n, LabelsPtr entries)
+   => FwdPass m n f
    -> MaybeC e entries
    -> Graph n e x -> Fact e f
-   -> FuelMonad (Graph n e x, FactBase f, MaybeO x f)
+   -> m (Graph n e x, FactBase f, MaybeO x f)
 analyzeAndRewriteFwd pass entries g f =
   do (rg, fout) <- arfGraph pass (fmap targetLabels entries) g f
      let (g', fb) = normalizeGraph rg
@@ -174,43 +174,41 @@ distinguishedExitFact g f = maybe g
 --       Forward Implementation
 ----------------------------------------------------------------
 
-type FM = FuelMonad
-
 type Entries e = MaybeC e [Label]
 
-arfGraph :: forall n f e x .
-            (Edges n) => FwdPass n f -> 
-            Entries e -> Graph n e x -> Fact e f -> FM (RG f n e x, Fact x f)
+arfGraph :: forall m n f e x .
+            (Edges n, FuelMonad m) => FwdPass m n f -> 
+            Entries e -> Graph n e x -> Fact e f -> m (RG f n e x, Fact x f)
 arfGraph pass entries = graph
   where
     {- nested type synonyms would be so lovely here 
-    type ARF  thing = forall e x . thing e x -> f        -> FM (RG f n e x, Fact x f)
-    type ARFX thing = forall e x . thing e x -> Fact e f -> FM (RG f n e x, Fact x f)
+    type ARF  thing = forall e x . thing e x -> f        -> m (RG f n e x, Fact x f)
+    type ARFX thing = forall e x . thing e x -> Fact e f -> m (RG f n e x, Fact x f)
     -}
-    graph ::              Graph n e x -> Fact e f -> FM (RG f n e x, Fact x f)
-    block :: forall e x . Block n e x -> f        -> FM (RG f n e x, Fact x f)
+    graph ::              Graph n e x -> Fact e f -> m (RG f n e x, Fact x f)
+    block :: forall e x . Block n e x -> f        -> m (RG f n e x, Fact x f)
     node  :: forall e x . (ShapeLifter e x) 
-                       => n e x       -> f        -> FM (RG f n e x, Fact x f)
-    body  :: [Label] -> Body n -> Fact C f -> FuelMonad (RG f n C C, Fact C f)
+                       => n e x       -> f        -> m (RG f n e x, Fact x f)
+    body  :: [Label] -> Body n -> Fact C f -> m (RG f n C C, Fact C f)
                     -- Outgoing factbase is restricted to Labels *not* in
                     -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'RG f n C C'
-    cat :: forall e a x info info' info''.
-           (info  -> FuelMonad (RG f n e a, info'))
-        -> (info' -> FuelMonad (RG f n a x, info''))
-        -> (info  -> FuelMonad (RG f n e x, info''))
+    cat :: forall m e a x info info' info''. Monad m =>
+           (info  -> m (RG f n e a, info'))
+        -> (info' -> m (RG f n a x, info''))
+        -> (info  -> m (RG f n e x, info''))
 
     graph GNil            = \f -> return (rgnil, f)
     graph (GUnit blk)     = block blk
     graph (GMany e bdy x) = (e `ebcat` bdy) `cat` exit x
      where
-      ebcat :: MaybeO e (Block n O C) -> Body n -> Fact e f -> FM (RG f n e C, Fact C f)
-      exit  :: MaybeO x (Block n C O)           -> Fact C f -> FM (RG f n C x, Fact x f)
+      ebcat :: MaybeO e (Block n O C) -> Body n -> Fact e f -> m (RG f n e C, Fact C f)
+      exit  :: MaybeO x (Block n C O)           -> Fact C f -> m (RG f n C x, Fact x f)
       exit (JustO blk) = arfx block blk
       exit NothingO    = \fb -> return (rgnilC, fb)
       ebcat entry bdy = c entries entry
        where c :: MaybeC e [Label] -> MaybeO e (Block n O C)
-                -> Fact e f -> FM (RG f n e C, Fact C f)
+                -> Fact e f -> m (RG f n e C, Fact C f)
              c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
              c (JustC entries) NothingO = body entries bdy
 
@@ -242,8 +240,8 @@ arfGraph pass entries = graph
 
     arfx :: forall thing x .
             Edges thing
-         => (thing C x ->        f -> FM (RG f n C x, Fact x f))
-         -> (thing C x -> Fact C f -> FM (RG f n C x, Fact x f))
+         => (thing C x ->        f -> m (RG f n C x, Fact x f))
+         -> (thing C x -> Fact C f -> m (RG f n C x, Fact x f))
     arfx arf thing fb = 
       arf thing $ fromJust $ lookupFact (joinInFacts lattice fb) $ entryLabel thing
      where lattice = fp_lattice pass
@@ -280,10 +278,10 @@ forwardBlockList entries blks = postorder_dfs_from (bodyMap blks) entries
 --		Backward analysis and rewriting: the interface
 -----------------------------------------------------------------------------
 
-data BwdPass n f
+data BwdPass m n f
   = BwdPass { bp_lattice  :: DataflowLattice f
             , bp_transfer :: BwdTransfer n f
-            , bp_rewrite  :: BwdRewrite n f }
+            , bp_rewrite  :: BwdRewrite m n f }
 
 newtype BwdTransfer n f 
   = BwdTransfers { getBTransfers ::
@@ -291,13 +289,13 @@ newtype BwdTransfer n f
                      , n O O -> f          -> f
                      , n O C -> FactBase f -> f
                      ) }
-newtype BwdRewrite n f 
+newtype BwdRewrite m n f 
   = BwdRewrites { getBRewrites ::
-                    ( n C O -> f          -> Maybe (BwdRes n f C O)
-                    , n O O -> f          -> Maybe (BwdRes n f O O)
-                    , n O C -> FactBase f -> Maybe (BwdRes n f O C)
+                    ( n C O -> f          -> Maybe (BwdRes m n f C O)
+                    , n O O -> f          -> Maybe (BwdRes m n f O O)
+                    , n O C -> FactBase f -> Maybe (BwdRes m n f O C)
                     ) }
-data BwdRes n f e x = BwdRes (AGraph n e x) (BwdRewrite n f)
+data BwdRes m n f e x = BwdRes (AGraph m n e x) (BwdRewrite m n f)
 
 mkBTransfer :: (n C O -> f -> f) -> (n O O -> f -> f) ->
                (n O C -> FactBase f -> f) -> BwdTransfer n f
@@ -306,13 +304,14 @@ mkBTransfer f m l = BwdTransfers (f, m, l)
 mkBTransfer' :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
 mkBTransfer' f = BwdTransfers (f, f, f)
 
-mkBRewrite :: (n C O -> f          -> Maybe (BwdRes n f C O))
-           -> (n O O -> f          -> Maybe (BwdRes n f O O))
-           -> (n O C -> FactBase f -> Maybe (BwdRes n f O C))
-           -> BwdRewrite n f
+mkBRewrite :: (n C O -> f          -> Maybe (BwdRes m n f C O))
+           -> (n O O -> f          -> Maybe (BwdRes m n f O O))
+           -> (n O C -> FactBase f -> Maybe (BwdRes m n f O C))
+           -> BwdRewrite m n f
 mkBRewrite f m l = BwdRewrites (f, m, l)
 
-mkBRewrite' :: (forall e x . n e x -> Fact x f -> Maybe (BwdRes n f e x)) -> BwdRewrite n f
+mkBRewrite' :: (forall e x . n e x -> Fact x f -> Maybe (BwdRes m n f e x))
+            -> BwdRewrite m n f
 mkBRewrite' f = BwdRewrites (f, f, f)
 
 
@@ -320,36 +319,36 @@ mkBRewrite' f = BwdRewrites (f, f, f)
 --		Backward implementation
 -----------------------------------------------------------------------------
 
-arbGraph :: forall n f e x .
-            (Edges n) => BwdPass n f -> 
-            Entries e -> Graph n e x -> Fact x f -> FM (RG f n e x, Fact e f)
+arbGraph :: forall m n f e x .
+            (Edges n, FuelMonad m) => BwdPass m n f -> 
+            Entries e -> Graph n e x -> Fact x f -> m (RG f n e x, Fact e f)
 arbGraph pass entries = graph
   where
     {- nested type synonyms would be so lovely here 
-    type ARB  thing = forall e x . thing e x -> Fact x f -> FM (RG f n e x, f)
-    type ARBX thing = forall e x . thing e x -> Fact x f -> FM (RG f n e x, Fact e f)
+    type ARB  thing = forall e x . thing e x -> Fact x f -> m (RG f n e x, f)
+    type ARBX thing = forall e x . thing e x -> Fact x f -> m (RG f n e x, Fact e f)
     -}
-    graph ::              Graph n e x -> Fact x f -> FM (RG f n e x, Fact e f)
-    block :: forall e x . Block n e x -> Fact x f -> FM (RG f n e x, f)
+    graph ::              Graph n e x -> Fact x f -> m (RG f n e x, Fact e f)
+    block :: forall e x . Block n e x -> Fact x f -> m (RG f n e x, f)
     node  :: forall e x . (ShapeLifter e x) 
-                       => n e x       -> Fact x f -> FM (RG f n e x, f)
-    body  :: [Label] -> Body n -> Fact C f -> FuelMonad (RG f n C C, Fact C f)
+                       => n e x       -> Fact x f -> m (RG f n e x, f)
+    body  :: [Label] -> Body n -> Fact C f -> m (RG f n C C, Fact C f)
     cat :: forall e a x info info' info''.
-           (info' -> FuelMonad (RG f n e a, info''))
-        -> (info  -> FuelMonad (RG f n a x, info'))
-        -> (info  -> FuelMonad (RG f n e x, info''))
+           (info' -> m (RG f n e a, info''))
+        -> (info  -> m (RG f n a x, info'))
+        -> (info  -> m (RG f n e x, info''))
 
     graph GNil            = \f -> return (rgnil, f)
     graph (GUnit blk)     = block blk
     graph (GMany e bdy x) = (e `ebcat` bdy) `cat` exit x
      where
-      ebcat :: MaybeO e (Block n O C) -> Body n -> Fact C f -> FM (RG f n e C, Fact e f)
-      exit  :: MaybeO x (Block n C O)           -> Fact x f -> FM (RG f n C x, Fact C f)
+      ebcat :: MaybeO e (Block n O C) -> Body n -> Fact C f -> m (RG f n e C, Fact e f)
+      exit  :: MaybeO x (Block n C O)           -> Fact x f -> m (RG f n C x, Fact C f)
       exit (JustO blk) = arbx block blk
       exit NothingO    = \fb -> return (rgnilC, fb)
       ebcat entry bdy = c entries entry
        where c :: MaybeC e [Label] -> MaybeO e (Block n O C)
-                -> Fact C f -> FM (RG f n e C, Fact e f)
+                -> Fact C f -> m (RG f n e C, Fact e f)
              c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
              c (JustC entries) NothingO = body entries bdy
 
@@ -382,8 +381,8 @@ arbGraph pass entries = graph
 
     arbx :: forall thing x .
             Edges thing
-         => (thing C x -> Fact x f -> FM (RG f n C x, f))
-         -> (thing C x -> Fact x f -> FM (RG f n C x, Fact C f))
+         => (thing C x -> Fact x f -> m (RG f n C x, f))
+         -> (thing C x -> Fact x f -> m (RG f n C x, Fact C f))
 
     arbx arb thing f = do { (rg, f) <- arb thing f
                           ; let fb = joinInFacts (bp_lattice pass) $
@@ -425,10 +424,10 @@ effects.)
 -- | if the graph being analyzed is open at the exit, I don't
 --   quite understand the implications of possible other exits
 analyzeAndRewriteBwd
-   :: (Edges n, LabelsPtr entries)
-   => BwdPass n f
+   :: (FuelMonad m, Edges n, LabelsPtr entries)
+   => BwdPass m n f
    -> MaybeC e entries -> Graph n e x -> Fact x f
-   -> FuelMonad (Graph n e x, FactBase f, MaybeO e f)
+   -> m (Graph n e x, FactBase f, MaybeO e f)
 analyzeAndRewriteBwd pass entries g f =
   do (rg, fout) <- arbGraph pass (fmap targetLabels entries) g f
      let (g', fb) = normalizeGraph rg
@@ -475,14 +474,13 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
          where join old_fact = fact_extend lat lbl (OldFact old_fact) (NewFact new_fact)
     new_fbase = extendFactBase fbase lbl res_fact
 
-fixpoint :: forall block n f. Edges (block n)
+fixpoint :: forall m block n f. (FuelMonad m, Edges (block n))
          => Bool	-- Going forwards?
          -> DataflowLattice f
-         -> (block n C C -> FactBase f
-              -> FuelMonad (RG f n C C, [(Label, f)]))
+         -> (block n C C -> FactBase f -> m (RG f n C C, [(Label, f)]))
          -> FactBase f 
          -> [block n C C]
-         -> FuelMonad (RG f n C C, FactBase f)
+         -> m (RG f n C C, FactBase f)
 fixpoint is_fwd lat do_block init_fbase untagged_blocks
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
@@ -495,13 +493,13 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
      where tag b = ((entryLabel b, b), if is_fwd then [entryLabel b] else successors b)
 
     tx_blocks :: [((Label, block n C C), [Label])]   -- I do not understand this type
-              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+              -> TxFactBase n f -> m (TxFactBase n f)
     tx_blocks []              tx_fb = return tx_fb
     tx_blocks (((lbl,blk), deps):bs) tx_fb = tx_block lbl blk deps tx_fb >>= tx_blocks bs
      -- "deps" == Labels the block may _depend_ upon for facts
 
     tx_block :: Label -> block n C C -> [Label]
-             -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+             -> TxFactBase n f -> m (TxFactBase n f)
     tx_block lbl blk deps tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                                       , tfb_rg = blks, tfb_cha = cha })
       | is_fwd && not (lbl `elemFactBase` fbase)
@@ -515,7 +513,7 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
                           , tfb_rg    = rg `rgCat` blks
                           , tfb_fbase = fbase', tfb_cha = cha' }) }
 
-    loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
+    loop :: Fuel -> FactBase f -> m (TxFactBase n f)
     loop fuel fbase 
       = do { let init_tx_fb = TxFB { tfb_fbase = fbase
                                    , tfb_cha   = NoChange
@@ -628,10 +626,10 @@ class ShapeLifter e x where
   unit      :: n e x -> Block n e x
   elift     :: Edges n =>                      n e x -> f -> Fact e f
   elower    :: Edges n => DataflowLattice f -> n e x -> Fact e f -> f
-  ftransfer :: FwdPass n f -> n e x -> f        -> Fact x f
-  btransfer :: BwdPass n f -> n e x -> Fact x f -> f
-  frewrite  :: FwdPass n f -> n e x -> f        -> Maybe (FwdRes n f e x)
-  brewrite  :: BwdPass n f -> n e x -> Fact x f -> Maybe (BwdRes n f e x)
+  ftransfer :: FwdPass m n f -> n e x -> f        -> Fact x f
+  btransfer :: BwdPass m n f -> n e x -> Fact x f -> f
+  frewrite  :: FwdPass m n f -> n e x -> f        -> Maybe (FwdRes m n f e x)
+  brewrite  :: BwdPass m n f -> n e x -> Fact x f -> Maybe (BwdRes m n f e x)
   entry     :: Edges n => n e x -> Entries e
 
 instance ShapeLifter C O where
@@ -665,7 +663,7 @@ instance ShapeLifter O C where
   entry _ = NothingC
 
 -- Fact lookup: the fact `orelse` bottom
-lookupF :: FwdPass n f -> Label -> FactBase f -> f
+lookupF :: FwdPass m n f -> Label -> FactBase f -> f
 lookupF = getFact . fp_lattice
 
 getFact  :: DataflowLattice f -> Label -> FactBase f -> f

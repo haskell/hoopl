@@ -3,38 +3,77 @@
 -----------------------------------------------------------------------------
 
 module Compiler.Hoopl.Fuel
-  ( Fuel
-  , FuelMonad, withFuel, getFuel, setFuel
-  , freshLabel
-    
-  , runWithFuel
+  ( Fuel, infiniteFuel
+  , withFuel
+  , HooplMonad(..), freshLabel -- these belong somewhere else
+  , FuelMonad(..)
+  , FuelMonadT(..)
+  , CheckingFuelMonad
+  , InfiniteFuelMonad
   )
 where
 
 import Compiler.Hoopl.Label
 
-type Fuel    = Int
+class Monad m => HooplMonad m where
+  getLabel :: m Label
 
-newtype FuelMonad a = FM { unFM :: Fuel -> [Label] -> (a, Fuel, [Label]) }
+{-# DEPRECATED getLabel "will be replaced with something based on getUnique" #-}
 
-instance Monad FuelMonad where
-  return x = FM (\f u -> (x,f,u))
-  m >>= k  = FM (\f u -> case unFM m f u of (r,f',u') -> unFM (k r) f' u')
+freshLabel :: HooplMonad m => m Label
+freshLabel = getLabel
 
-withFuel :: Maybe a -> FuelMonad (Maybe a)
+class Monad m => FuelMonad m where
+  getFuel :: m Fuel
+  setFuel :: Fuel -> m ()
+
+class FuelMonadT fm where
+  runWithFuel :: (Monad m, FuelMonad (fm m)) => Fuel -> fm m a -> m a
+
+
+type Fuel = Int
+
+withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
 withFuel Nothing  = return Nothing
-withFuel (Just r) = FM (\f u -> if f==0 then (Nothing, f, u)
-                                else (Just r, f-1, u))
+withFuel (Just r) = do f <- getFuel
+                       if f == 0 then return Nothing
+                        else setFuel (f-1) >> return (Just r)
 
-getFuel :: FuelMonad Fuel
-getFuel = FM (\f u -> (f,f,u))
 
-setFuel :: Fuel -> FuelMonad ()
-setFuel f = FM (\_ u -> ((), f, u))
+----------------------------------------------------------------
 
-runWithFuel :: Fuel -> FuelMonad a -> a
-runWithFuel fuel m = a
-  where (a, _, _) = unFM m fuel allLabels
+newtype CheckingFuelMonad m a = FM { unFM :: Fuel -> m (a, Fuel) }
 
-freshLabel :: FuelMonad Label
-freshLabel = FM (\f (l:ls) -> (l, f, ls))
+instance Monad m => Monad (CheckingFuelMonad m) where
+  return a = FM (\f -> return (a, f))
+  fm >>= k = FM (\f -> do { (a, f') <- unFM fm f; unFM (k a) f' })
+
+instance HooplMonad m => HooplMonad (CheckingFuelMonad m) where
+  getLabel = FM (\f -> do { l <- getLabel; return (l, f) })
+
+instance Monad m => FuelMonad (CheckingFuelMonad m) where
+  getFuel   = FM (\f -> return (f,f))
+  setFuel f = FM (\_ -> return ((),f))
+
+instance FuelMonadT CheckingFuelMonad where
+  runWithFuel fuel m = do { (a, _) <- unFM m fuel; return a }
+
+----------------------------------------------------------------
+
+newtype InfiniteFuelMonad m a = IFM { unIFM :: m a }
+instance Monad m => Monad (InfiniteFuelMonad m) where
+  return a = IFM $ return a
+  m >>= k  = IFM $ do { a <- unIFM m; unIFM (k a) }
+
+instance HooplMonad m => HooplMonad (InfiniteFuelMonad m) where
+  getLabel = IFM $ getLabel
+
+instance Monad m => FuelMonad (InfiniteFuelMonad m) where
+  getFuel   = return infiniteFuel
+  setFuel _ = return ()
+
+instance FuelMonadT InfiniteFuelMonad where
+  runWithFuel _ = unIFM
+
+infiniteFuel :: Fuel -- effectively infinite, any, but subtractable
+infiniteFuel = maxBound

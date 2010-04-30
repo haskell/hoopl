@@ -17,8 +17,8 @@ Library
   Build-Depends:     base >= 3 && < 5, containers
   Exposed-modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Passes.Dominator,
-                       Compiler.Hoopl.DataflowFold,
-                       Compiler.Hoopl.OldDataflow,
+--                       Compiler.Hoopl.DataflowFold,
+--                       Compiler.Hoopl.OldDataflow,
                        Compiler.Hoopl.Pointed
   Other-modules:     Compiler.Hoopl.GraphUtil,
                      -- GraphUtil should *never* be seen by clients.
