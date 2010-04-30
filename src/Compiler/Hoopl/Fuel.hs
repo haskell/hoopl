@@ -9,6 +9,7 @@ module Compiler.Hoopl.Fuel
   , FuelMonadT(..)
   , CheckingFuelMonad
   , InfiniteFuelMonad
+  , SimpleFuelMonad
   )
 where
 
@@ -48,7 +49,7 @@ instance HooplMonad m => HooplMonad (CheckingFuelMonad m) where
   freshUnique = FM (\f -> do { l <- freshUnique; return (l, f) })
 
 instance Monad m => FuelMonad (CheckingFuelMonad m) where
-  getFuel   = FM (\f -> return (f,f))
+  getFuel   = FM (\f -> return (f, f))
   setFuel f = FM (\_ -> return ((),f))
 
 instance FuelMonadT CheckingFuelMonad where
@@ -73,6 +74,9 @@ instance FuelMonadT InfiniteFuelMonad where
 
 infiniteFuel :: Fuel -- effectively infinite, any, but subtractable
 infiniteFuel = maxBound
+
+type SimpleFuelMonad = CheckingFuelMonad SimpleHooplMonad
+
 {-
 runWithFuelAndUniques :: Fuel -> [Unique] -> FuelMonad a -> a
 runWithFuelAndUniques fuel uniques m = a
