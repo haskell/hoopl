@@ -33,9 +33,9 @@ data C
 -- or graphs.
 data Block n e x where
   -- nodes
-  BFirst  :: n C O                 -> Block n C O -- ^ block holds a single first node
-  BMiddle :: n O O                 -> Block n O O -- ^ block holds a single middle node
-  BLast   :: n O C                 -> Block n O C -- ^ block holds a single last node
+  BFirst  :: n C O                 -> Block n C O -- x^ block holds a single first node
+  BMiddle :: n O O                 -> Block n O O -- x^ block holds a single middle node
+  BLast   :: n O C                 -> Block n O C -- x^ block holds a single last node
 
   -- concatenation operations
   BCat    :: Block n O O -> Block n O O -> Block n O O -- non-list-like
