@@ -1,5 +1,4 @@
 {-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables #-}
-{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-} -- bug in GHC
 
 -- N.B. addBasicBlocks won't work on OO without a Node (branch/label) constraint
 
@@ -39,6 +38,7 @@ splice bcat = sp
         sp (GMany e1 (Body b1) NothingO) (GMany NothingO (Body b2) x2)
            = GMany e1 (Body $ unionLabelMap b1 b2) x2
 
+        sp _ _ = error "bogus GADT match failure"
 
 gSplice :: Edges n => Graph n e a -> Graph n a x -> Graph n e x
 gSplice = splice cat

@@ -1,5 +1,4 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, MultiParamTypeClasses #-}
-{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-} -- bug in GHC
 
 {- Notes about the genesis of Hoopl7
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

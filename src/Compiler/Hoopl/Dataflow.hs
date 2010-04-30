@@ -1,5 +1,4 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, MultiParamTypeClasses #-}
-{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-} -- bug in GHC
 
 {- Notes about the genesis of Hoopl7
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -211,6 +210,7 @@ arfGraph pass entries = graph
                 -> Fact e f -> m (RG f n e C, Fact C f)
              c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
              c (JustC entries) NothingO = body entries bdy
+             c _ _ = error "bogus GADT pattern match failure"
 
     -- Lift from nodes to blocks
     block (BFirst  n)  = node n
@@ -351,6 +351,7 @@ arbGraph pass entries = graph
                 -> Fact C f -> m (RG f n e C, Fact e f)
              c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
              c (JustC entries) NothingO = body entries bdy
+             c _ _ = error "bogus GADT pattern match failure"
 
     -- Lift from nodes to blocks
     block (BFirst  n)  = node n
