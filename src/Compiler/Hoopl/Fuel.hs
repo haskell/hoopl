@@ -5,17 +5,17 @@
 module Compiler.Hoopl.Fuel
   ( Fuel
   , FuelMonad, withFuel, getFuel, setFuel
-  , freshLabel
+  , freshUnique
     
-  , runWithFuel
+  , runWithFuel, runWithFuelAndUniques
   )
 where
 
-import Compiler.Hoopl.Label
+import Compiler.Hoopl.Unique
 
 type Fuel    = Int
 
-newtype FuelMonad a = FM { unFM :: Fuel -> [Label] -> (a, Fuel, [Label]) }
+newtype FuelMonad a = FM { unFM :: Fuel -> [Unique] -> (a, Fuel, [Unique]) }
 
 instance Monad FuelMonad where
   return x = FM (\f u -> (x,f,u))
@@ -33,8 +33,11 @@ setFuel :: Fuel -> FuelMonad ()
 setFuel f = FM (\_ u -> ((), f, u))
 
 runWithFuel :: Fuel -> FuelMonad a -> a
-runWithFuel fuel m = a
-  where (a, _, _) = unFM m fuel allLabels
+runWithFuel fuel m = runWithFuelAndUniques fuel allUniques m
 
-freshLabel :: FuelMonad Label
-freshLabel = FM (\f (l:ls) -> (l, f, ls))
+runWithFuelAndUniques :: Fuel -> [Unique] -> FuelMonad a -> a
+runWithFuelAndUniques fuel uniques m = a
+  where (a, _, _) = unFM m fuel uniques
+
+freshUnique :: FuelMonad Unique
+freshUnique = FM (\f (l:ls) -> (l, f, ls))

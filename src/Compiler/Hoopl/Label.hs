@@ -1,6 +1,5 @@
 module Compiler.Hoopl.Label
-  ( Label
-  , allLabels -- to be used only by the Fuel monad
+  ( Label, lblOfUniq, uniqOfLbl
   , LabelMap, emptyLabelMap, mkLabelMap, lookupLabel, extendLabelMap
             , delFromLabelMap, unionLabelMap
             , elemLabelMap, labelMapLabels, labelMapList
@@ -14,6 +13,8 @@ module Compiler.Hoopl.Label
 
 where
 
+import Compiler.Hoopl.Unique
+
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
 
@@ -23,10 +24,11 @@ newtype Label = Label { unLabel :: Int }
 instance Show Label where
   show (Label n) = "L" ++ show n
 
+lblOfUniq :: Unique -> Label
+lblOfUniq u = Label $ intOfUniq u
 
-allLabels :: [Label]
-allLabels = map Label [1..]
-
+uniqOfLbl :: Label -> Unique
+uniqOfLbl (Label u) = uniqOfInt u
 
 -----------------------------------------------------------------------------
 --		Label, FactBase, LabelSet

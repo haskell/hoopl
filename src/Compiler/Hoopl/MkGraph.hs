@@ -2,7 +2,7 @@
 module Compiler.Hoopl.MkGraph
     ( AGraph, graphOfAGraph, aGraphOfGraph
     , (<*>), (|*><*|), catGraphs, addEntrySeq, addExitSeq, addBlocks, unionBlocks
-    , emptyGraph, emptyClosedGraph, withFreshLabels
+    , emptyGraph, emptyClosedGraph, withFresh
     , mkFirst, mkMiddle, mkMiddles, mkLast, mkBranch, mkLabel, mkWhileDo
     , IfThenElseable(mkIfThenElse)
     , mkEntry, mkExit
@@ -10,10 +10,11 @@ module Compiler.Hoopl.MkGraph
     )
 where
 
-import Compiler.Hoopl.Label (Label)
+import Compiler.Hoopl.Label (Label, lblOfUniq)
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.Fuel
 import qualified Compiler.Hoopl.GraphUtil as U
+import Compiler.Hoopl.Unique
 import Control.Monad (liftM2)
 
 {-|
@@ -136,11 +137,14 @@ aGraphOfGraph = A . return
 -- fresh labels can be acquired in a single call.
 -- 
 -- For example usage see implementations of 'mkIfThenElse' and 'mkWhileDo'.
-class Labels l where
-  withFreshLabels :: (l -> AGraph n e x) -> AGraph n e x
+class Uniques u where
+  withFresh :: (u -> AGraph n e x) -> AGraph n e x
 
-instance Labels Label where
-  withFreshLabels f = A $ freshLabel >>= (graphOfAGraph . f)
+instance Uniques Unique where
+  withFresh f = A $ freshUnique >>= (graphOfAGraph . f)
+
+instance Uniques Label where
+  withFresh f = A $ freshUnique >>= (graphOfAGraph . f . lblOfUniq)
 
 -- | Lifts binary 'Graph' functions into 'AGraph' functions.
 liftA2 :: (Graph  n a b -> Graph  n c d -> Graph  n e f)
@@ -158,7 +162,7 @@ addBlocks (A g) (A blocks) = A $ g >>= \g -> blocks >>= add g
         add g@GNil      blocks = spliceOO g blocks
         add g@(GUnit _) blocks = spliceOO g blocks
         spliceOO :: HooplNode n => Graph n O O -> Graph n C C -> FuelMonad(Graph n O O)
-        spliceOO g blocks = graphOfAGraph $ withFreshLabels $ \l ->
+        spliceOO g blocks = graphOfAGraph $ withFresh $ \l ->
           A (return g) <*> mkBranch l |*><*| A (return blocks) |*><*| mkLabel l
 
 -- | For some graph-construction operations and some optimizations,
@@ -191,19 +195,19 @@ mkWhileDo    :: HooplNode n
              -> AGraph n O O -- ^ the final while loop
 
 instance IfThenElseable O where
-  mkIfThenElse cbranch tbranch fbranch = withFreshLabels $ \(endif, ltrue, lfalse) ->
+  mkIfThenElse cbranch tbranch fbranch = withFresh $ \(endif, ltrue, lfalse) ->
     cbranch ltrue lfalse |*><*|
       mkLabel ltrue  <*> tbranch <*> mkBranch endif |*><*|
       mkLabel lfalse <*> fbranch <*> mkBranch endif |*><*|
       mkLabel endif
 
 instance IfThenElseable C where
-  mkIfThenElse cbranch tbranch fbranch = withFreshLabels $ \(ltrue, lfalse) ->
+  mkIfThenElse cbranch tbranch fbranch = withFresh $ \(ltrue, lfalse) ->
     cbranch ltrue lfalse |*><*|
        mkLabel ltrue  <*> tbranch |*><*|
        mkLabel lfalse <*> fbranch
 
-mkWhileDo cbranch body = withFreshLabels $ \(test, head, endwhile) ->
+mkWhileDo cbranch body = withFresh $ \(test, head, endwhile) ->
      -- Forrest Baskett's while-loop layout
   mkBranch test |*><*|
     mkLabel head <*> body <*> mkBranch test |*><*|
@@ -215,23 +219,23 @@ mkWhileDo cbranch body = withFreshLabels $ \(test, head, endwhile) ->
 --------------------------------------------------------------
 
 
-instance (Labels l1, Labels l2) => Labels (l1, l2) where
-  withFreshLabels f = withFreshLabels $ \l1 ->
-                      withFreshLabels $ \l2 ->
-                      f (l1, l2)
+instance (Uniques u1, Uniques u2) => Uniques (u1, u2) where
+  withFresh f = withFresh $ \u1 ->
+                withFresh $ \u2 ->
+                f (u1, u2)
 
-instance (Labels l1, Labels l2, Labels l3) => Labels (l1, l2, l3) where
-  withFreshLabels f = withFreshLabels $ \l1 ->
-                      withFreshLabels $ \l2 ->
-                      withFreshLabels $ \l3 ->
-                      f (l1, l2, l3)
+instance (Uniques u1, Uniques u2, Uniques u3) => Uniques (u1, u2, u3) where
+  withFresh f = withFresh $ \u1 ->
+                withFresh $ \u2 ->
+                withFresh $ \u3 ->
+                f (u1, u2, u3)
 
-instance (Labels l1, Labels l2, Labels l3, Labels l4) => Labels (l1, l2, l3, l4) where
-  withFreshLabels f = withFreshLabels $ \l1 ->
-                      withFreshLabels $ \l2 ->
-                      withFreshLabels $ \l3 ->
-                      withFreshLabels $ \l4 ->
-                      f (l1, l2, l3, l4)
+instance (Uniques u1, Uniques u2, Uniques u3, Uniques u4) => Uniques (u1, u2, u3, u4) where
+  withFresh f = withFresh $ \u1 ->
+                withFresh $ \u2 ->
+                withFresh $ \u3 ->
+                withFresh $ \u4 ->
+                f (u1, u2, u3, u4)
 
 ---------------------------------------------
 -- deprecated legacy functions
