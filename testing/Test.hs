@@ -51,8 +51,8 @@ optTest' file text =
      return $ procs >>= mapM optProc
   where
     optProc proc@(Proc {entry, body, args}) =
-      do { (body', _)  <- analyzeAndRewriteFwd fwd (JustC [entry]) body (mkFactBase [(entry, initFact args)])
-         ; (body'', _) <- analyzeAndRewriteBwd bwd body' (mkFactBase [])
+      do { (body',  _, _) <- analyzeAndRewriteFwd fwd (JustC [entry]) body  (mkFactBase [(entry, initFact args)])
+         ; (body'', _, _) <- analyzeAndRewriteBwd bwd (JustC [entry]) body' (mkFactBase [])
          ; return $ proc { body = body'' } }
     -- With debugging info: 
     -- fwd  = debugFwdJoins trace (const True) $ FwdPass { fp_lattice = constLattice, fp_transfer = varHasLit

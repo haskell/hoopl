@@ -10,6 +10,7 @@ module Compiler.Hoopl.XUtil
   , analyzeAndRewriteFwdBody, analyzeAndRewriteBwdBody
   , analyzeAndRewriteFwdOx, analyzeAndRewriteBwdOx
   , noEntries
+  , BlockResult(..), lookupBlock
   )
 where
 
@@ -189,4 +190,18 @@ foldGraphNodes f = graph
 
           block = foldBlockNodesF' f
 
-                        
+
+data BlockResult n x where
+  NoBlock   :: BlockResult n x
+  BodyBlock :: Block n C C -> BlockResult n x
+  ExitBlock :: Block n C O -> BlockResult n O
+
+lookupBlock :: Edges n => Graph n e x -> Label -> BlockResult n x
+lookupBlock (GMany _ _ (JustO exit)) lbl
+  | entryLabel exit == lbl = ExitBlock exit
+lookupBlock (GMany _ (Body body)  _) lbl =
+  case lookupLabel body lbl of
+    Just b  -> BodyBlock b
+    Nothing -> NoBlock
+lookupBlock GNil      _ = NoBlock
+lookupBlock (GUnit _) _ = NoBlock

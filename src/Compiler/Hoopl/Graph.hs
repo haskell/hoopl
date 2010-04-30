@@ -70,6 +70,7 @@ data MaybeC ex t where
   JustC    :: t -> MaybeC C t
   NothingC ::      MaybeC O t
 
+-- | Either type indexed by closed/open using type families
 type family   EitherCO e a b :: *
 type instance EitherCO C a b = a
 type instance EitherCO O a b = b
