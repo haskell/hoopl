@@ -52,12 +52,14 @@ cat b1@(BHead {})      (BCat b2 b3) = (b1 `cat` b2) `cat` b3
 cat b1@(BHead {})      (BMiddle n)  = BHead   b1 n
 cat b1@(BHead {})   b2@(BLast{})    = BClosed b1 b2
 cat b1@(BHead {})   b2@(BTail{})    = BClosed b1 b2
+cat b1@(BMiddle {}) b2@(BMiddle{})  = BCat    b1 b2
 cat    (BMiddle n)  b2@(BLast{})    = BTail    n b2
 cat b1@(BMiddle {}) b2@(BCat{})     = BCat    b1 b2
 cat    (BMiddle n)  b2@(BTail{})    = BTail    n b2
 cat    (BCat b1 b2) b3@(BLast{})    = b1 `cat` (b2 `cat` b3)
 cat    (BCat b1 b2) b3@(BTail{})    = b1 `cat` (b2 `cat` b3)
 cat b1@(BCat {})    b2@(BCat{})     = BCat    b1 b2
+cat b1@(BCat {})    b2@(BMiddle{})  = BCat    b1 b2
 
 
 ----------------------------------------------------------------
