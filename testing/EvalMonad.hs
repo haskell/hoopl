@@ -37,9 +37,9 @@ instance MonadError String (EvalM v) where
 type VarEnv  v = M.Map Var  v
 type HeapEnv v = M.Map Addr v -- word addressed heap
 type Addr      = Integer
-type BEnv      = FactBase B
 type B         = Block Insn C C
 type PEnv      = M.Map String Proc
+type G         = Graph Insn C C
 
 runProg :: [Proc] -> [v] -> EvalM v x -> ErrorM (State v, x)
 runProg procs vs (EvalM f) = 
@@ -63,7 +63,7 @@ event e = upd_state (\s -> s {events = e : events s})
 
 ----------------------------------
 -- State of the machine
-data State v = State { frames  :: [(VarEnv v, BEnv)]
+data State v = State { frames  :: [(VarEnv v, G)]
                      , heap    :: HeapEnv v
                      , procs   :: PEnv
                      , vsupply :: [v]
@@ -103,36 +103,35 @@ set_heap addr val =
 
 get_block :: Label -> EvalM v B
 get_block lbl = get_state >>= k
-  where k (State {frames = (_, blocks):_}) = flookup "block" lbl blocks
+  where k (State {frames = (_, graph):_}) = blookup "block" graph lbl
         k _ = error "can't get blocks from empty stack"
 
 get_proc :: String -> EvalM v Proc
 get_proc name = get_state >>= mlookup "proc" name . procs
 
-newFrame :: VarEnv v -> [B] -> EvalM v ()
-newFrame vars blocks = upd_state $ \s -> s { frames = (vars, blockEnv) : frames s}
-  where blockEnv = mkFactBase (zip (map entryLabel blocks) blocks)
+newFrame :: VarEnv v -> G -> EvalM v ()
+newFrame vars graph = upd_state $ \s -> s { frames = (vars, graph) : frames s}
 
 popFrame :: EvalM v ()
 popFrame = upd_state f
   where f s@(State {frames = _:fs}) = s { frames = fs }
         f _ = error "popFrame: no frame to pop..." -- implementation error
 
-inNewFrame :: VarEnv v -> [B] -> EvalM v x -> EvalM v x
-inNewFrame vars blocks body =
-  do newFrame vars blocks
-     x <- body
+inNewFrame :: VarEnv v -> G -> EvalM v x -> EvalM v x
+inNewFrame vars graph runFrame =
+  do newFrame vars graph
+     x <- runFrame
      popFrame
      return x
         
-generic_lookup :: String -> (k -> m -> Maybe v) -> k -> m -> EvalM v' v
-generic_lookup blame lookupf k m =
-  case lookupf k m of
+mlookup :: Ord k => String -> k -> M.Map k v -> EvalM v' v
+mlookup blame k m =
+  case M.lookup k m of
     Just v  -> return v
     Nothing -> throwError ("unknown lookup for " ++ blame)
 
-mlookup :: Ord k => String -> k -> M.Map k v -> EvalM v' v
-mlookup blame = generic_lookup blame M.lookup
-
-flookup :: String -> Label -> FactBase a -> EvalM v a
-flookup blame = generic_lookup blame $ flip lookupFact
+blookup :: String -> G -> Label -> EvalM v B
+blookup blame g lbl = 
+  case lookupBlock g lbl of
+    BodyBlock b -> return b
+    NoBlock     -> throwError ("unknown lookup for " ++ blame)

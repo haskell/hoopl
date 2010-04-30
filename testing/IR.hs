@@ -11,7 +11,7 @@ import PP
 
 data Value = B Bool | I Integer deriving Eq
 
-data Proc = Proc { name :: String, args :: [Var], entry :: Label, body :: Body Insn }
+data Proc = Proc { name :: String, args :: [Var], entry :: Label, body :: Graph Insn C C }
 
 data Insn e x where
   Label  :: Label  ->                               Insn C O
@@ -36,7 +36,7 @@ instance Edges Insn where
 showProc :: Proc -> String
 showProc proc = name proc ++ tuple (args proc) ++ graph
   where
-    graph  = " {\n" ++ showGraph show (GMany NothingO (body proc) NothingO) ++ "}\n"
+    graph  = " {\n" ++ showGraph show (body proc) ++ "}\n"
 
 instance Show (Insn e x) where
   show (Label lbl)        = show lbl ++ ":"

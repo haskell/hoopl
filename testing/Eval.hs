@@ -27,9 +27,8 @@ evalProc' (Proc {name=_, args, body, entry}) actuals =
   else throwError $ "Param/actual mismatch: " ++ show args ++ " = " ++ show actuals
 
 -- Responsible for allocating and deallocating its own stack frame.
-evalBody :: EvalTarget v => VarEnv v -> Body Insn -> Label -> EvalM v [v]
-evalBody vars bs entry =
-  inNewFrame vars (map snd (bodyList bs)) $ get_block entry >>= evalB 
+evalBody :: EvalTarget v => VarEnv v -> Graph Insn C C -> Label -> EvalM v [v]
+evalBody vars graph entry = inNewFrame vars graph $ get_block entry >>= evalB 
 
 evalB :: forall v . EvalTarget v => Block Insn C C -> EvalM v [v]
 evalB b = foldBlockNodesF (lift evalF, lift evalM, lift evalL) b $ return ()

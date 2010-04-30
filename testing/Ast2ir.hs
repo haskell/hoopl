@@ -15,10 +15,9 @@ import qualified IR  as I
 -- labels (Label).
 -- To keep the mapping from (String -> Label) consistent, we use a LabelMapM monad with
 -- the following operation:
-labelFor :: String         -> LabelMapM Label
-getBody  :: forall n.
-            AGraph n C C   -> LabelMapM (Body n)
-run      :: LabelMapM a    -> FuelMonad a
+labelFor :: String -> LabelMapM Label
+getBody  :: forall n. AGraph n C C   -> LabelMapM (Graph n C C)
+run      :: LabelMapM a -> FuelMonad a
 
 -- We proceed with the translation from AST to IR; the implementation of the monad
 -- is at the end of this file.
@@ -33,7 +32,7 @@ getEntry :: [A.Block] -> LabelMapM Label
 getEntry [] = error "Parsed procedures should not be empty"
 getEntry (b : _) = labelFor $ A.first b
 
-toBody :: [A.Block] -> LabelMapM (Body I.Insn)
+toBody :: [A.Block] -> LabelMapM (Graph I.Insn C C)
 toBody bs =
   do g <- foldl (liftM2 (|*><*|)) (return emptyClosedGraph) (map toBlock bs)
      getBody g
@@ -74,11 +73,11 @@ instance Monad LabelMapM where
 labelFor l = LabelMapM f
   where f m = case M.lookup l m of
                 Just l' -> return (m, l')
-                Nothing -> do l' <- freshLabel
+                Nothing -> do l' <- undefined -- freshLabel
                               let m' = M.insert l l' m
                               return (m', l')
 
-getBody agraph = LabelMapM $ \m ->
-       (do GMany NothingO body NothingO <- graphOfAGraph agraph
-           return (m, body)) :: FuelMonad (IdLabelMap, Body n)
+getBody agraph = LabelMapM f
+  where f m = do g <- graphOfAGraph agraph
+                 return (m, g)
 run (LabelMapM f) = f M.empty >>=  return . snd
