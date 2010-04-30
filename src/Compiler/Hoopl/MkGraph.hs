@@ -2,7 +2,7 @@
 module Compiler.Hoopl.MkGraph
     ( AGraph, graphOfAGraph, aGraphOfGraph
     , (<*>), (|*><*|), catGraphs, addEntrySeq, addExitSeq, addBlocks, unionBlocks
-    , emptyGraph, emptyClosedGraph, withFreshLabels
+    , emptyGraph, emptyClosedGraph, withFresh
     , mkFirst, mkMiddle, mkMiddles, mkLast, mkBranch, mkLabel, mkWhileDo
     , IfThenElseable(mkIfThenElse)
     , mkEntry, mkExit
@@ -10,10 +10,11 @@ module Compiler.Hoopl.MkGraph
     )
 where
 
-import Compiler.Hoopl.Label (Label)
+import Compiler.Hoopl.Label (Label, lblOfUniq)
 import Compiler.Hoopl.Graph
-import Compiler.Hoopl.Fuel
 import qualified Compiler.Hoopl.GraphUtil as U
+import Compiler.Hoopl.Label (unionLabelMap)
+import Compiler.Hoopl.Unique
 import Control.Monad (liftM2)
 
 {-|
@@ -71,12 +72,12 @@ class GraphRep g where
   infixl 3 <*>
   infixl 2 |*><*| 
   -- | Concatenate two graphs; control flows from left to right.
-  (<*>)    :: g n e O -> g n O x -> g n e x
+  (<*>)    :: Edges n => g n e O -> g n O x -> g n e x
   -- | Splice together two graphs at a closed point; nothing is known
   -- about control flow.
-  (|*><*|)  :: g n e C -> g n C x -> g n e x
+  (|*><*|) :: Edges n => g n e C -> g n C x -> g n e x
   -- | Conveniently concatenate a sequence of open/open graphs using '<*>'.
-  catGraphs :: [g n O O] -> g n O O
+  catGraphs :: Edges n => [g n O O] -> g n O O
   catGraphs = foldr (<*>) emptyGraph
 
   -- | Create a graph that defines a label
@@ -86,7 +87,7 @@ class GraphRep g where
 
   -- | Conveniently concatenate a sequence of middle nodes to form
   -- an open/open graph.
-  mkMiddles :: [n O O] -> g n O O
+  mkMiddles :: Edges n => [n O O] -> g n O O
 
   mkLabel  id     = mkFirst $ mkLabelNode id
   mkBranch target = mkLast  $ mkBranchNode target
@@ -99,12 +100,12 @@ class GraphRep g where
 
 instance GraphRep Graph where
   emptyGraph  = GNil
-  emptyClosedGraph = GMany NothingO BodyEmpty NothingO
+  emptyClosedGraph = GMany NothingO emptyBody NothingO
   (<*>)       = U.gSplice
   (|*><*|)    = U.gSplice
   mkMiddle    = GUnit . BMiddle
-  mkExit   block = GMany NothingO      BodyEmpty (JustO block)
-  mkEntry  block = GMany (JustO block) BodyEmpty NothingO
+  mkExit   block = GMany NothingO      emptyBody (JustO block)
+  mkEntry  block = GMany (JustO block) emptyBody NothingO
 
 instance Monad m => GraphRep (AGraph m) where
   emptyGraph  = aGraphOfGraph emptyGraph
@@ -136,11 +137,14 @@ aGraphOfGraph = A . return
 -- fresh labels can be acquired in a single call.
 -- 
 -- For example usage see implementations of 'mkIfThenElse' and 'mkWhileDo'.
-class Labels l where
-  withFreshLabels :: HooplMonad m => (l -> AGraph m n e x) -> AGraph m n e x
+class Uniques u where
+  withFresh :: HooplMonad m => (u -> AGraph m n e x) -> AGraph m n e x
 
-instance Labels Label where
-  withFreshLabels f = A $ freshLabel >>= (graphOfAGraph . f)
+instance Uniques Unique where
+  withFresh f = A $ freshUnique >>= (graphOfAGraph . f)
+
+instance Uniques Label where
+  withFresh f = A $ freshUnique >>= (graphOfAGraph . f . lblOfUniq)
 
 -- | Lifts binary 'Graph' functions into 'AGraph' functions.
 liftA2 :: Monad m
@@ -155,13 +159,13 @@ addBlocks      :: (HooplNode n, HooplMonad m)
 addBlocks (A g) (A blocks) = A $ g >>= \g -> blocks >>= add g
   where add :: (HooplMonad m, HooplNode n)
             => Graph n e x -> Graph n C C -> m (Graph n e x)
-        add (GMany e body x) (GMany NothingO body' NothingO) =
-          return $ GMany e (body `BodyCat` body') x
+        add (GMany e (Body body) x) (GMany NothingO (Body body') NothingO) =
+          return $ GMany e (Body $ unionLabelMap body body') x
         add g@GNil      blocks = spliceOO g blocks
         add g@(GUnit _) blocks = spliceOO g blocks
         spliceOO :: (HooplNode n, HooplMonad m)
                  => Graph n O O -> Graph n C C -> m (Graph n O O)
-        spliceOO g blocks = graphOfAGraph $ withFreshLabels $ \l ->
+        spliceOO g blocks = graphOfAGraph $ withFresh $ \l ->
           A (return g) <*> mkBranch l |*><*| A (return blocks) |*><*| mkLabel l
 
 -- | For some graph-construction operations and some optimizations,
@@ -194,19 +198,19 @@ mkWhileDo    :: (HooplNode n, HooplMonad m)
              -> AGraph m n O O -- ^ the final while loop
 
 instance IfThenElseable O where
-  mkIfThenElse cbranch tbranch fbranch = withFreshLabels $ \(endif, ltrue, lfalse) ->
+  mkIfThenElse cbranch tbranch fbranch = withFresh $ \(endif, ltrue, lfalse) ->
     cbranch ltrue lfalse |*><*|
       mkLabel ltrue  <*> tbranch <*> mkBranch endif |*><*|
       mkLabel lfalse <*> fbranch <*> mkBranch endif |*><*|
       mkLabel endif
 
 instance IfThenElseable C where
-  mkIfThenElse cbranch tbranch fbranch = withFreshLabels $ \(ltrue, lfalse) ->
+  mkIfThenElse cbranch tbranch fbranch = withFresh $ \(ltrue, lfalse) ->
     cbranch ltrue lfalse |*><*|
        mkLabel ltrue  <*> tbranch |*><*|
        mkLabel lfalse <*> fbranch
 
-mkWhileDo cbranch body = withFreshLabels $ \(test, head, endwhile) ->
+mkWhileDo cbranch body = withFresh $ \(test, head, endwhile) ->
      -- Forrest Baskett's while-loop layout
   mkBranch test |*><*|
     mkLabel head <*> body <*> mkBranch test |*><*|
@@ -218,31 +222,31 @@ mkWhileDo cbranch body = withFreshLabels $ \(test, head, endwhile) ->
 --------------------------------------------------------------
 
 
-instance (Labels l1, Labels l2) => Labels (l1, l2) where
-  withFreshLabels f = withFreshLabels $ \l1 ->
-                      withFreshLabels $ \l2 ->
-                      f (l1, l2)
+instance (Uniques u1, Uniques u2) => Uniques (u1, u2) where
+  withFresh f = withFresh $ \u1 ->
+                withFresh $ \u2 ->
+                f (u1, u2)
 
-instance (Labels l1, Labels l2, Labels l3) => Labels (l1, l2, l3) where
-  withFreshLabels f = withFreshLabels $ \l1 ->
-                      withFreshLabels $ \l2 ->
-                      withFreshLabels $ \l3 ->
-                      f (l1, l2, l3)
+instance (Uniques u1, Uniques u2, Uniques u3) => Uniques (u1, u2, u3) where
+  withFresh f = withFresh $ \u1 ->
+                withFresh $ \u2 ->
+                withFresh $ \u3 ->
+                f (u1, u2, u3)
 
-instance (Labels l1, Labels l2, Labels l3, Labels l4) => Labels (l1, l2, l3, l4) where
-  withFreshLabels f = withFreshLabels $ \l1 ->
-                      withFreshLabels $ \l2 ->
-                      withFreshLabels $ \l3 ->
-                      withFreshLabels $ \l4 ->
-                      f (l1, l2, l3, l4)
+instance (Uniques u1, Uniques u2, Uniques u3, Uniques u4) => Uniques (u1, u2, u3, u4) where
+  withFresh f = withFresh $ \u1 ->
+                withFresh $ \u2 ->
+                withFresh $ \u3 ->
+                withFresh $ \u4 ->
+                f (u1, u2, u3, u4)
 
 ---------------------------------------------
 -- deprecated legacy functions
 
 {-# DEPRECATED addEntrySeq, addExitSeq, unionBlocks "use |*><*| instead" #-}
-addEntrySeq    :: Monad m => AGraph m n O C -> AGraph m n C x -> AGraph m n O x
-addExitSeq     :: Monad m => AGraph m n e C -> AGraph m n C O -> AGraph m n e O
-unionBlocks    :: Monad m => AGraph m n C C -> AGraph m n C C -> AGraph m n C C
+addEntrySeq :: (Monad m, Edges n) => AGraph m n O C -> AGraph m n C x -> AGraph m n O x
+addExitSeq  :: (Monad m, Edges n) => AGraph m n e C -> AGraph m n C O -> AGraph m n e O
+unionBlocks :: (Monad m, Edges n) => AGraph m n C C -> AGraph m n C C -> AGraph m n C C
 
 addEntrySeq = (|*><*|)
 addExitSeq  = (|*><*|)

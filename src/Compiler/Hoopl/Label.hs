@@ -1,8 +1,9 @@
 module Compiler.Hoopl.Label
   ( Label
-  , allLabels -- to be used only by the Fuel monad
+  , getLabel
+  , lblOfUniq, uniqOfLbl -- GHC use only
   , LabelMap, emptyLabelMap, mkLabelMap, lookupLabel, extendLabelMap
-            , delFromLabelMap, unionLabelMap
+            , delFromLabelMap, unionLabelMap, mapLabelMap, foldLabelMap
             , elemLabelMap, labelMapLabels, labelMapList
   , FactBase, noFacts, mkFactBase, unitFact, lookupFact, extendFactBase
             , delFromFactBase, unionFactBase, mapFactBase, mapWithLFactBase
@@ -14,19 +15,25 @@ module Compiler.Hoopl.Label
 
 where
 
+import Compiler.Hoopl.Unique
+
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
 
-newtype Label = Label { unLabel :: Int }
+newtype Label = Label { unLabel :: Int } -- XXX this should be Unique
   deriving (Eq, Ord)
+
+lblOfUniq :: Unique -> Label
+lblOfUniq = Label . intOfUniq
+
+uniqOfLbl :: Label -> Unique
+uniqOfLbl = uniqOfInt . unLabel
 
 instance Show Label where
   show (Label n) = "L" ++ show n
 
-
-allLabels :: [Label]
-allLabels = map Label [1..]
-
+getLabel :: HooplMonad m => m Label
+getLabel = do { u <- freshUnique; return $ Label $ intOfUniq u }
 
 -----------------------------------------------------------------------------
 --		Label, FactBase, LabelSet
@@ -96,6 +103,12 @@ extendLabelMap = extendFactBase
 
 unionLabelMap :: LabelMap f -> LabelMap f -> LabelMap f
 unionLabelMap = M.union
+
+mapLabelMap :: (f -> f') -> LabelMap f -> LabelMap f'
+mapLabelMap = M.map
+
+foldLabelMap :: (f -> z -> z) -> z -> LabelMap f -> z
+foldLabelMap = M.fold
 
 elemLabelMap :: Label -> LabelMap f -> Bool
 elemLabelMap = elemFactBase

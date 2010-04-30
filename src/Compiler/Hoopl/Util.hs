@@ -24,17 +24,17 @@ import Compiler.Hoopl.Label
 gUnitOO :: block n O O -> Graph' block n O O
 gUnitOC :: block n O C -> Graph' block n O C
 gUnitCO :: block n C O -> Graph' block n C O
-gUnitCC :: block n C C -> Graph' block n C C
+gUnitCC :: Edges (block n) => block n C C -> Graph' block n C C
 gUnitOO b = GUnit b
-gUnitOC b = GMany (JustO b) BodyEmpty   NothingO
-gUnitCO b = GMany NothingO  BodyEmpty   (JustO b)
-gUnitCC b = GMany NothingO  (BodyUnit b) NothingO
+gUnitOC b = GMany (JustO b) emptyBody  NothingO
+gUnitCO b = GMany NothingO  emptyBody (JustO b)
+gUnitCC b = GMany NothingO  (addBlock b $ emptyBody) NothingO
 
 
-catGraphNodeOO :: Graph n e O -> n O O -> Graph n e O
-catGraphNodeOC :: Graph n e O -> n O C -> Graph n e C
-catNodeOOGraph :: n O O -> Graph n O x -> Graph n O x
-catNodeCOGraph :: n C O -> Graph n O x -> Graph n C x
+catGraphNodeOO ::            Graph n e O -> n O O -> Graph n e O
+catGraphNodeOC :: Edges n => Graph n e O -> n O C -> Graph n e C
+catNodeOOGraph ::            n O O -> Graph n O x -> Graph n O x
+catNodeCOGraph :: Edges n => n C O -> Graph n O x -> Graph n C x
 
 catGraphNodeOO GNil                     n = gUnitOO $ BMiddle n
 catGraphNodeOO (GUnit b)                n = gUnitOO $ b `BCat` BMiddle n
@@ -46,7 +46,7 @@ catGraphNodeOC (GUnit b)                n = gUnitOC $ addToLeft b $ BLast n
         addToLeft (BMiddle m)    g = m `BTail` g
         addToLeft (b1 `BCat` b2) g = addToLeft b1 $ addToLeft b2 g
 catGraphNodeOC (GMany e body (JustO x)) n = GMany e body' NothingO
-  where body' = body `BodyCat` BodyUnit (x `BClosed` BLast n)
+  where body' = addBlock (x `BClosed` BLast n) body
 
 catNodeOOGraph n GNil                     = gUnitOO $ BMiddle n
 catNodeOOGraph n (GUnit b)                = gUnitOO $ BMiddle n `BCat` b
@@ -58,13 +58,13 @@ catNodeCOGraph n (GUnit b)                = gUnitCO $ addToRight (BFirst n) b
         addToRight g (BMiddle m)    = g `BHead` m
         addToRight g (b1 `BCat` b2) = addToRight (addToRight g b1) b2
 catNodeCOGraph n (GMany (JustO e) body x) = GMany NothingO body' x
-  where body' = BodyUnit (BFirst n `BClosed` e) `BodyCat` body
+  where body' = addBlock (BFirst n `BClosed` e) body
 
 
 
 
 
-blockGraph :: Block n e x -> Graph n e x
+blockGraph :: Edges n => Block n e x -> Graph n e x
 blockGraph b@(BFirst  {}) = gUnitCO b
 blockGraph b@(BMiddle {}) = gUnitOO b
 blockGraph b@(BLast   {}) = gUnitOC b
@@ -91,10 +91,7 @@ graphMapBlocks f = map
         map (GUnit b) = GUnit (f b)
         map (GMany e b x) = GMany (fmap f e) (bodyMapBlocks f b) (fmap f x)
 
-bodyMapBlocks f = map
-  where map BodyEmpty = BodyEmpty
-        map (BodyUnit b) = BodyUnit (f b)
-        map (BodyCat b1 b2) = BodyCat (map b1) (map b2)
+bodyMapBlocks f (Body body) = Body $ mapLabelMap f body
 
 
 ----------------------------------------------------------------
@@ -161,8 +158,7 @@ graphDfs :: (Edges (block n))
          -> (Graph' block n O x -> [block n C C])
 graphDfs _     (GNil)    = []
 graphDfs _     (GUnit{}) = []
-graphDfs order (GMany (JustO entry) body _) = order blockenv entry emptyLabelSet
-  where blockenv = bodyMap body
+graphDfs order (GMany (JustO entry) (Body body) _) = order body entry emptyLabelSet
 
 postorder_dfs = graphDfs postorder_dfs_from_except
 preorder_dfs  = graphDfs preorder_dfs_from_except
@@ -247,9 +243,7 @@ labelsUsed (GMany e body _) = foldBodyBlocks addTargets body $ entryTargets e
         entryTargets (JustO b) = addTargets b emptyLabelSet
 
 foldBodyBlocks :: (block n C C -> a -> a) -> Body' block n -> a -> a
-foldBodyBlocks _ BodyEmpty      = id
-foldBodyBlocks f (BodyUnit b)   = f b
-foldBodyBlocks f (BodyCat b b') = foldBodyBlocks f b . foldBodyBlocks f b'
+foldBodyBlocks f (Body body) z = foldLabelMap f z body
 
 externalEntryLabels :: Edges (block n) => Body' block n -> LabelSet
 externalEntryLabels body = defined `minusLabelSet` used

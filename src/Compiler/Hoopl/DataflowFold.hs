@@ -282,7 +282,7 @@ forwardBlockList :: (Edges n, LabelsPtr entry)
                  => entry -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for forward analysis,
 -- along with the list of Labels it may depend on for facts.
-forwardBlockList entries blks = postorder_dfs_from (bodyMap blks) entries
+forwardBlockList entries (Body blks) = postorder_dfs_from blks entries
 
 -----------------------------------------------------------------------------
 --		Backward analysis and rewriting: the interface
@@ -497,7 +497,7 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
          where join old_fact = fact_extend lat lbl (OldFact old_fact) (NewFact new_fact)
     new_fbase = extendFactBase fbase lbl res_fact
 
-fixpoint :: forall block n f. Edges (block n)
+fixpoint :: forall block n f. (Edges n, Edges (block n))
          => Bool	-- Going forwards?
          -> DataflowLattice f
          -> (block n C C -> FactBase f
@@ -590,13 +590,16 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 
 type RG      f n e x = Graph' (FBlock f) n e x
 data FBlock f n e x = FBlock f (Block n e x)
+instance Edges n => Edges (FBlock f n) where
+  entryLabel (FBlock _ b) = entryLabel b
+  successors (FBlock _ b) = successors b
 
 --- constructors
 
 rgnil  :: RG f n O O
 rgnilC :: RG f n C C
-rgunit :: f -> Block n e x -> RG f n e x
-rgCat  :: RG f n e a -> RG f n a x -> RG f n e x
+rgunit :: Edges n => f -> Block n e x -> RG f n e x
+rgCat  :: Edges n => RG f n e a -> RG f n a x -> RG f n e x
 
 ---- observers
 
@@ -617,13 +620,13 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
           exitFacts NothingO = noFacts
           exitFacts (JustO (FBlock f b)) = mkFactBase [(entryLabel b, f)]
           bodyFacts :: Body' (FBlock f) n -> FactBase f
-          bodyFacts (BodyUnit (FBlock f b)) = mkFactBase [(entryLabel b, f)]
-          bodyFacts (b1 `BodyCat` b2) = bodyFacts b1 `unionFactBase` bodyFacts b2
+          bodyFacts (Body body) = foldLabelMap f noFacts body
+            where f (FBlock f b) fb = extendFactBase fb (entryLabel b) f
 
 --- implementation of the constructors (boring)
 
 rgnil  = GNil
-rgnilC = GMany NothingO BodyEmpty NothingO
+rgnilC = GMany NothingO emptyBody NothingO
 
 rgunit f b@(BFirst  {}) = gUnitCO (FBlock f b)
 rgunit f b@(BMiddle {}) = gUnitOO (FBlock f b)
@@ -654,7 +657,7 @@ class ShapeLifter e x where
   btransfer :: BwdPass n f -> n e x -> Fact x f -> f
   frewrite  :: FwdPass n f -> n e x -> f        -> Maybe (FwdRes n f e x)
   brewrite  :: BwdPass n f -> n e x -> Fact x f -> Maybe (BwdRes n f e x)
-  spliceRgNode :: RG f n a e -> f -> n e x -> RG f n a x
+  spliceRgNode :: Edges n => RG f n a e -> f -> n e x -> RG f n a x
   entry     :: Edges n => n e x -> Entries e
 
 instance ShapeLifter C O where
@@ -691,11 +694,12 @@ instance ShapeLifter O C where
   btransfer (BwdPass {bp_transfer = BwdTransfers (_, _, bt)}) n f = bt n f
   frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (_, _, fr)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (_, _, br)}) n f = br n f
-  spliceRgNode (GMany e body (JustO (FBlock f x))) _ n = GMany e body' NothingO
-     where body' = body `BodyCat` (BodyUnit $ FBlock f $ BClosed x $ BLast n)
-  spliceRgNode (GNil) f n = GMany e BodyEmpty NothingO
+  spliceRgNode (GMany e (Body b1) (JustO (FBlock f x))) _ n = GMany e body' NothingO
+     where body'     = Body $ unionLabelMap b1 b2
+           (Body b2) = addBlock (FBlock f $ BClosed x $ BLast n) emptyBody
+  spliceRgNode (GNil) f n = GMany e emptyBody NothingO
      where e = JustO $ FBlock f $ BLast n
-  spliceRgNode (GUnit (FBlock f b)) _ n = GMany e BodyEmpty NothingO
+  spliceRgNode (GUnit (FBlock f b)) _ n = GMany e emptyBody NothingO
      where e = JustO $ FBlock f (b `U.cat` BLast n)
   entry _ = NothingC
 

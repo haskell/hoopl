@@ -3,9 +3,8 @@
 -----------------------------------------------------------------------------
 
 module Compiler.Hoopl.Fuel
-  ( Fuel, infiniteFuel
+  ( Fuel, infiniteFuel, fuelRemaining
   , withFuel
-  , HooplMonad(..), freshLabel -- these belong somewhere else
   , FuelMonad(..)
   , FuelMonadT(..)
   , CheckingFuelMonad
@@ -13,19 +12,16 @@ module Compiler.Hoopl.Fuel
   )
 where
 
-import Compiler.Hoopl.Label
-
-class Monad m => HooplMonad m where
-  getLabel :: m Label
-
-{-# DEPRECATED getLabel "will be replaced with something based on getUnique" #-}
-
-freshLabel :: HooplMonad m => m Label
-freshLabel = getLabel
+import Compiler.Hoopl.Unique
 
 class Monad m => FuelMonad m where
   getFuel :: m Fuel
   setFuel :: Fuel -> m ()
+
+-- | Find out how much fuel remains after a computation.
+-- Can be subtracted from initial fuel to get total consumption.
+fuelRemaining :: FuelMonad m => m Fuel
+fuelRemaining = getFuel
 
 class FuelMonadT fm where
   runWithFuel :: (Monad m, FuelMonad (fm m)) => Fuel -> fm m a -> m a
@@ -49,7 +45,7 @@ instance Monad m => Monad (CheckingFuelMonad m) where
   fm >>= k = FM (\f -> do { (a, f') <- unFM fm f; unFM (k a) f' })
 
 instance HooplMonad m => HooplMonad (CheckingFuelMonad m) where
-  getLabel = FM (\f -> do { l <- getLabel; return (l, f) })
+  freshUnique = FM (\f -> do { l <- freshUnique; return (l, f) })
 
 instance Monad m => FuelMonad (CheckingFuelMonad m) where
   getFuel   = FM (\f -> return (f,f))
@@ -66,7 +62,7 @@ instance Monad m => Monad (InfiniteFuelMonad m) where
   m >>= k  = IFM $ do { a <- unIFM m; unIFM (k a) }
 
 instance HooplMonad m => HooplMonad (InfiniteFuelMonad m) where
-  getLabel = IFM $ getLabel
+  freshUnique = IFM $ freshUnique
 
 instance Monad m => FuelMonad (InfiniteFuelMonad m) where
   getFuel   = return infiniteFuel
@@ -77,3 +73,12 @@ instance FuelMonadT InfiniteFuelMonad where
 
 infiniteFuel :: Fuel -- effectively infinite, any, but subtractable
 infiniteFuel = maxBound
+{-
+runWithFuelAndUniques :: Fuel -> [Unique] -> FuelMonad a -> a
+runWithFuelAndUniques fuel uniques m = a
+  where (a, _, _) = unFM m fuel uniques
+
+freshUnique :: FuelMonad Unique
+freshUnique = FM (\f (l:ls) -> (l, f, ls))
+-}
+

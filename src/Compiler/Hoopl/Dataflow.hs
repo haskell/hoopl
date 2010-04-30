@@ -272,7 +272,7 @@ forwardBlockList :: (Edges n, LabelsPtr entry)
                  => entry -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for forward analysis,
 -- along with the list of Labels it may depend on for facts.
-forwardBlockList entries blks = postorder_dfs_from (bodyMap blks) entries
+forwardBlockList entries (Body blks) = postorder_dfs_from blks entries
 
 -----------------------------------------------------------------------------
 --		Backward analysis and rewriting: the interface
@@ -474,7 +474,7 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
          where join old_fact = fact_extend lat lbl (OldFact old_fact) (NewFact new_fact)
     new_fbase = extendFactBase fbase lbl res_fact
 
-fixpoint :: forall m block n f. (FuelMonad m, Edges (block n))
+fixpoint :: forall m block n f. (FuelMonad m, Edges n, Edges (block n))
          => Bool	-- Going forwards?
          -> DataflowLattice f
          -> (block n C C -> FactBase f -> m (RG f n C C, [(Label, f)]))
@@ -564,15 +564,18 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 --          TOTALLY internal to Hoopl; each block carries its fact
 -----------------------------------------------------------------------------
 
-type RG      f n e x = Graph' (FBlock f) n e x
+type RG     f n e x = Graph'   (FBlock f) n e x
 data FBlock f n e x = FBlock f (Block n e x)
+instance Edges n => Edges (FBlock f n) where
+  entryLabel (FBlock _ b) = entryLabel b
+  successors (FBlock _ b) = successors b
 
 --- constructors
 
 rgnil  :: RG f n O O
 rgnilC :: RG f n C C
-rgunit :: f -> Block n e x -> RG f n e x
-rgCat  :: RG f n e a -> RG f n a x -> RG f n e x
+rgunit :: Edges n => f -> Block n e x -> RG f n e x
+rgCat  :: Edges n => RG f n e a -> RG f n a x -> RG f n e x
 
 ---- observers
 
@@ -593,13 +596,13 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
           exitFacts NothingO = noFacts
           exitFacts (JustO (FBlock f b)) = mkFactBase [(entryLabel b, f)]
           bodyFacts :: Body' (FBlock f) n -> FactBase f
-          bodyFacts (BodyUnit (FBlock f b)) = mkFactBase [(entryLabel b, f)]
-          bodyFacts (b1 `BodyCat` b2) = bodyFacts b1 `unionFactBase` bodyFacts b2
+          bodyFacts (Body body) = foldLabelMap f noFacts body
+            where f (FBlock f b) fb = extendFactBase fb (entryLabel b) f
 
 --- implementation of the constructors (boring)
 
 rgnil  = GNil
-rgnilC = GMany NothingO BodyEmpty NothingO
+rgnilC = GMany NothingO emptyBody NothingO
 
 rgunit f b@(BFirst  {}) = gUnitCO (FBlock f b)
 rgunit f b@(BMiddle {}) = gUnitOO (FBlock f b)
