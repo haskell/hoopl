@@ -14,6 +14,7 @@ where
 import Data.Function
 import Data.Maybe
 
+import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Graph (C, O)
 import Compiler.Hoopl.Label
@@ -175,10 +176,10 @@ productFwd pass1 pass2 = FwdPass lattice transfer rewrite
     transfer = mkFTransfer (tf tf1 tf2) (tf tm1 tm2) (tfb tl1 tl2)
       where
         tf  t1 t2 n (f1, f2) = (t1 n f1, t2 n f2)
-        tfb t1 t2 n (f1, f2) = mapWithLFactBase withfb2 fb1
+        tfb t1 t2 n (f1, f2) = mapWithKeyMap withfb2 fb1
           where fb1 = t1 n f1
                 fb2 = t2 n f2
-                withfb2 l f = (f, fromMaybe bot2 $ lookupFact fb2 l)
+                withfb2 l f = (f, fromMaybe bot2 $ lookupFact l fb2)
                 bot2 = fact_bot (fp_lattice pass2)
         (tf1, tm1, tl1) = getFTransfers (fp_transfer pass1)
         (tf2, tm2, tl2) = getFTransfers (fp_transfer pass2)
@@ -197,13 +198,13 @@ productBwd pass1 pass2 = BwdPass lattice transfer rewrite
     transfer = mkBTransfer (tf tf1 tf2) (tf tm1 tm2) (tfb tl1 tl2)
       where
         tf  t1 t2 n (f1, f2) = (t1 n f1, t2 n f2)
-        tfb t1 t2 n fb = (t1 n $ mapFactBase fst fb, t2 n $ mapFactBase snd fb)
+        tfb t1 t2 n fb = (t1 n $ mapMap fst fb, t2 n $ mapMap snd fb)
         (tf1, tm1, tl1) = getBTransfers (bp_transfer pass1)
         (tf2, tm2, tl2) = getBTransfers (bp_transfer pass2)
     rewrite = liftRW (bp_rewrite pass1) fst `thenBwdRw` liftRW (bp_rewrite pass2) snd
       where
         liftRW :: forall f1 . BwdRewrite m n f1 -> ((f, f') -> f1) -> BwdRewrite m n (f, f')
-        liftRW rws proj = mkBRewrite (lift proj f) (lift proj m) (lift (mapFactBase proj) l)
+        liftRW rws proj = mkBRewrite (lift proj f) (lift proj m) (lift (mapMap proj) l)
           where 
             lift proj' rw n f =
               case rw n (proj' f) of

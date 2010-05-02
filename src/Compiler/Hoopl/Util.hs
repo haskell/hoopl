@@ -15,6 +15,7 @@ where
 
 import Control.Monad
 
+import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.Label
 
@@ -91,7 +92,7 @@ graphMapBlocks f = map
         map (GUnit b) = GUnit (f b)
         map (GMany e b x) = GMany (fmap f e) (bodyMapBlocks f b) (fmap f x)
 
-bodyMapBlocks f (Body body) = Body $ mapLabelMap f body
+bodyMapBlocks f (Body body) = Body $ mapMap f body
 
 
 ----------------------------------------------------------------
@@ -106,7 +107,7 @@ instance LabelsPtr Label where
   targetLabels l = [l]
 
 instance LabelsPtr LabelSet where
-  targetLabels = labelSetElems
+  targetLabels = elemsSet
 
 instance LabelsPtr l => LabelsPtr [l] where
   targetLabels = concatMap targetLabels
@@ -158,7 +159,7 @@ graphDfs :: (Edges (block n))
          -> (Graph' block n O x -> [block n C C])
 graphDfs _     (GNil)    = []
 graphDfs _     (GUnit{}) = []
-graphDfs order (GMany (JustO entry) (Body body) _) = order body entry emptyLabelSet
+graphDfs order (GMany (JustO entry) (Body body) _) = order body entry emptySet
 
 postorder_dfs = graphDfs postorder_dfs_from_except
 preorder_dfs  = graphDfs preorder_dfs_from_except
@@ -170,24 +171,24 @@ postorder_dfs_from_except blocks b visited =
  where
    vnode :: block C C -> ([block C C] -> LabelSet -> a) -> [block C C] -> LabelSet -> a
    vnode block cont acc visited =
-        if elemLabelSet id visited then
+        if memberSet id visited then
             cont acc visited
         else
             let cont' acc visited = cont (block:acc) visited in
-            vchildren (get_children block) cont' acc (extendLabelSet visited id)
+            vchildren (get_children block) cont' acc (insertSet id visited)
       where id = entryLabel block
    vchildren bs cont acc visited = next bs acc visited
       where next children acc visited =
                 case children of []     -> cont acc visited
                                  (b:bs) -> vnode b (next bs) acc visited
    get_children block = foldr add_id [] $ targetLabels block
-   add_id id rst = case lookupFact blocks id of
+   add_id id rst = case lookupFact id blocks of
                       Just b -> b : rst
                       Nothing -> rst
 
 postorder_dfs_from
     :: (Edges block, LabelsPtr b) => LabelMap (block C C) -> b -> [block C C]
-postorder_dfs_from blocks b = postorder_dfs_from_except blocks b emptyLabelSet
+postorder_dfs_from blocks b = postorder_dfs_from_except blocks b emptySet
 
 
 ----------------------------------------------------------------
@@ -198,8 +199,8 @@ mark   :: Label -> VM ()
 instance Monad VM where
   return a = VM $ \visited -> (a, visited)
   m >>= k  = VM $ \visited -> let (a, v') = unVM m visited in unVM (k a) v'
-marked l = VM $ \v -> (elemLabelSet l v, v)
-mark   l = VM $ \v -> ((), extendLabelSet v l)
+marked l = VM $ \v -> (memberSet l v, v)
+mark   l = VM $ \v -> ((), insertSet l v)
 
 preorder_dfs_from_except :: forall block e . (Edges block, LabelsPtr e)
                          => LabelMap (block C C) -> e -> LabelSet -> [block C C]
@@ -214,7 +215,7 @@ preorder_dfs_from_except blocks b visited =
                               bs <- children $ get_children b
                               return $ b `cons` bs
         get_children block = foldr add_id [] $ targetLabels block
-        add_id id rst = case lookupFact blocks id of
+        add_id id rst = case lookupFact id blocks of
                           Just b -> b : rst
                           Nothing -> rst
 
@@ -225,28 +226,28 @@ cons a as tail = a : as tail
 ----------------------------------------------------------------
 
 labelsDefined :: forall block n e x . Edges (block n) => Graph' block n e x -> LabelSet
-labelsDefined GNil      = emptyLabelSet
-labelsDefined (GUnit{}) = emptyLabelSet
+labelsDefined GNil      = emptySet
+labelsDefined (GUnit{}) = emptySet
 labelsDefined (GMany _ body x) = foldBodyBlocks addEntry body $ exitLabel x
-  where addEntry block labels = extendLabelSet labels (entryLabel block)
+  where addEntry block labels = insertSet (entryLabel block) labels
         exitLabel :: MaybeO x (block n C O) -> LabelSet
-        exitLabel NothingO = emptyLabelSet
-        exitLabel (JustO b) = mkLabelSet [entryLabel b]
+        exitLabel NothingO = emptySet
+        exitLabel (JustO b) = fromListSet [entryLabel b]
 
 labelsUsed :: forall block n e x. Edges (block n) => Graph' block n e x -> LabelSet
-labelsUsed GNil      = emptyLabelSet
-labelsUsed (GUnit{}) = emptyLabelSet
+labelsUsed GNil      = emptySet
+labelsUsed (GUnit{}) = emptySet
 labelsUsed (GMany e body _) = foldBodyBlocks addTargets body $ entryTargets e
-  where addTargets block labels = foldl extendLabelSet labels (successors block)
+  where addTargets block labels = insertListSet (successors block) labels
         entryTargets :: MaybeO e (block n O C) -> LabelSet
-        entryTargets NothingO = emptyLabelSet
-        entryTargets (JustO b) = addTargets b emptyLabelSet
+        entryTargets NothingO = emptySet
+        entryTargets (JustO b) = addTargets b emptySet
 
 foldBodyBlocks :: (block n C C -> a -> a) -> Body' block n -> a -> a
-foldBodyBlocks f (Body body) z = foldLabelMap f z body
+foldBodyBlocks f (Body body) z = foldMap f z body
 
 externalEntryLabels :: Edges (block n) => Body' block n -> LabelSet
-externalEntryLabels body = defined `minusLabelSet` used
+externalEntryLabels body = defined `differenceSet` used
   where defined = labelsDefined g
         used = labelsUsed g
         g = GMany NothingO body NothingO

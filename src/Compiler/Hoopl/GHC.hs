@@ -1,7 +1,7 @@
 {- Exposing some internals to GHC -}
 module Compiler.Hoopl.GHC
-  ( lblOfUniq, uniqOfLbl
-  , intOfUniq
+  ( uniqueToInt
+  , uniqueToLbl, lblToUnique
   )
 where
 

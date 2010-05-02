@@ -5,6 +5,7 @@ module Compiler.Hoopl.Show
   )
 where
 
+import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.Label
 
@@ -37,4 +38,4 @@ open _ NothingO  = ""
 open p (JustO n) = p n
 
 showFactBase :: Show f => FactBase f -> String
-showFactBase = show . factBaseList
+showFactBase = show . toListMap

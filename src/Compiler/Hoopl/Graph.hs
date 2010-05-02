@@ -8,6 +8,7 @@ module Compiler.Hoopl.Graph
   )
 where
 
+import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Label
 
 -----------------------------------------------------------------------------
@@ -98,10 +99,10 @@ instance Edges n => Edges (Block n) where
 
 ------------------------------
 emptyBody :: Body' block n
-emptyBody = Body emptyLabelMap
+emptyBody = Body emptyMap
 
 addBlock :: Edges (block n) => block n C C -> Body' block n -> Body' block n
-addBlock b (Body body) = Body (extendLabelMap body (entryLabel b) b)
+addBlock b (Body body) = Body (insertMap (entryLabel b) b body)
 
 bodyList :: Edges (block n) => Body' block n -> [(Label,block n C C)]
-bodyList (Body body) = labelMapList body
+bodyList (Body body) = toListMap body

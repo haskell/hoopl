@@ -67,6 +67,7 @@ where
 
 import Data.Maybe
 
+import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.MkGraph
@@ -243,7 +244,7 @@ arfGraph pass entries = graph
          => (thing C x ->        f -> m (RG f n C x, Fact x f))
          -> (thing C x -> Fact C f -> m (RG f n C x, Fact x f))
     arfx arf thing fb = 
-      arf thing $ fromJust $ lookupFact (joinInFacts lattice fb) $ entryLabel thing
+      arf thing $ fromJust $ lookupFact (entryLabel thing) $ joinInFacts lattice fb
      where lattice = fp_lattice pass
      -- joinInFacts adds debugging information
 
@@ -256,7 +257,7 @@ arfGraph pass entries = graph
         forwardBlockList entries blocks
       where
         do_block b f = do (g, fb) <- block b $ lookupF pass (entryLabel b) f
-                          return (g, factBaseList fb)
+                          return (g, toListMap fb)
 
 
 
@@ -265,7 +266,7 @@ arfGraph pass entries = graph
 -- functions might, for example, generate some debugging traces.
 joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
 joinInFacts (DataflowLattice {fact_bot = bot, fact_extend = fe}) fb =
-  mkFactBase $ map botJoin $ factBaseList fb
+  mkFactBase $ map botJoin $ toListMap fb
     where botJoin (l, f) = (l, snd $ fe l (OldFact bot) (NewFact f))
 
 forwardBlockList :: (Edges n, LabelsPtr entry)
@@ -464,16 +465,16 @@ updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
            -> (ChangeFlag, FactBase f)
 -- See Note [TxFactBase change flag]
 updateFact lat lbls (lbl, new_fact) (cha, fbase)
-  | NoChange <- cha2        = (cha,        fbase)
-  | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
-  | otherwise               = (cha,        new_fbase)
+  | NoChange <- cha2     = (cha,        fbase)
+  | lbl `memberSet` lbls = (SomeChange, new_fbase)
+  | otherwise            = (cha,        new_fbase)
   where
     (cha2, res_fact) -- Note [Unreachable blocks]
-       = case lookupFact fbase lbl of
+       = case lookupFact lbl fbase of
            Nothing -> (SomeChange, snd $ join $ fact_bot lat)  -- Note [Unreachable blocks]
            Just old_fact -> join old_fact
          where join old_fact = fact_extend lat lbl (OldFact old_fact) (NewFact new_fact)
-    new_fbase = extendFactBase fbase lbl res_fact
+    new_fbase = insertMap lbl res_fact fbase
 
 fixpoint :: forall m block n f. (FuelMonad m, Edges n, Edges (block n))
          => Bool	-- Going forwards?
@@ -486,7 +487,7 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
-                 tfb_fbase tx_fb `delFromFactBase` map fst blocks) }
+                 map (fst . fst) blocks `deleteListMap` tfb_fbase tx_fb ) }
 	     -- The successors of the Graph are the the Labels for which
 	     -- we have facts, that are *not* in the blocks of the graph
   where
@@ -503,13 +504,13 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
              -> TxFactBase n f -> m (TxFactBase n f)
     tx_block lbl blk deps tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                                       , tfb_rg = blks, tfb_cha = cha })
-      | is_fwd && not (lbl `elemFactBase` fbase)
-      = return tx_fb {tfb_lbls = lbls `unionLabelSet` mkLabelSet deps}	-- Note [Unreachable blocks]
+      | is_fwd && not (lbl `memberMap` fbase)
+      = return tx_fb {tfb_lbls = lbls `unionSet` fromListSet deps}	-- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
                    = foldr (updateFact lat lbls) (cha,fbase) out_facts
-                 lbls' = lbls `unionLabelSet` mkLabelSet deps
+                 lbls' = lbls `unionSet` fromListSet deps
            ; return (TxFB { tfb_lbls  = lbls'
                           , tfb_rg    = rg `rgCat` blks
                           , tfb_fbase = fbase', tfb_cha = cha' }) }
@@ -519,7 +520,7 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
       = do { let init_tx_fb = TxFB { tfb_fbase = fbase
                                    , tfb_cha   = NoChange
                                    , tfb_rg    = rgnilC
-                                   , tfb_lbls  = emptyLabelSet }
+                                   , tfb_lbls  = emptySet }
            ; tx_fb <- tx_blocks blocks init_tx_fb
            ; case tfb_cha tx_fb of
                NoChange   -> return tx_fb
@@ -592,13 +593,13 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
           facts :: RG f n e x -> FactBase f
           facts GNil = noFacts
           facts (GUnit _) = noFacts
-          facts (GMany _ body exit) = bodyFacts body `unionFactBase` exitFacts exit
+          facts (GMany _ body exit) = bodyFacts body `unionMap` exitFacts exit
           exitFacts :: MaybeO x (FBlock f n C O) -> FactBase f
           exitFacts NothingO = noFacts
           exitFacts (JustO (FBlock f b)) = mkFactBase [(entryLabel b, f)]
           bodyFacts :: Body' (FBlock f) n -> FactBase f
-          bodyFacts (Body body) = foldLabelMap f noFacts body
-            where f (FBlock f b) fb = extendFactBase fb (entryLabel b) f
+          bodyFacts (Body body) = foldMap f noFacts body
+            where f (FBlock f b) fb = insertMap (entryLabel b) f fb
 
 --- implementation of the constructors (boring)
 
@@ -671,5 +672,5 @@ lookupF :: FwdPass m n f -> Label -> FactBase f -> f
 lookupF = getFact . fp_lattice
 
 getFact  :: DataflowLattice f -> Label -> FactBase f -> f
-getFact lat l fb = case lookupFact fb l of Just  f -> f
+getFact lat l fb = case lookupFact l fb of Just  f -> f
                                            Nothing -> fact_bot lat

@@ -1,162 +1,107 @@
+{-# LANGUAGE TypeFamilies #-}
 module Compiler.Hoopl.Label
   ( Label
   , getLabel
-  , lblOfUniq, uniqOfLbl -- GHC use only
-  , LabelMap, emptyLabelMap, mkLabelMap, lookupLabel, extendLabelMap
-            , delFromLabelMap, unionLabelMap, mapLabelMap, foldLabelMap
-            , elemLabelMap, labelMapLabels, labelMapList
-  , FactBase, noFacts, mkFactBase, unitFact, lookupFact, extendFactBase
-            , delFromFactBase, unionFactBase, mapFactBase, mapWithLFactBase
-            , elemFactBase, factBaseLabels, factBaseList
-  , LabelSet, emptyLabelSet, extendLabelSet, reduceLabelSet
-            , mkLabelSet, elemLabelSet, labelSetElems
-            , minusLabelSet, unionLabelSet, interLabelSet, sizeLabelSet, 
+  , LabelSet, LabelMap
+  , FactBase, noFacts, mkFactBase, lookupFact
+
+  , uniqueToLbl -- MkGraph and GHC use only
+  , lblToUnique -- GHC use only
   )
 
 where
 
+import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Unique
 
-import qualified Data.IntMap as M
-import qualified Data.IntSet as S
+-----------------------------------------------------------------------------
+--		Label
+-----------------------------------------------------------------------------
 
-newtype Label = Label { unLabel :: Int } -- XXX this should be Unique
+newtype Label = Label { lblToUnique :: Unique }
   deriving (Eq, Ord)
 
-lblOfUniq :: Unique -> Label
-lblOfUniq = Label . intOfUniq
-
-uniqOfLbl :: Label -> Unique
-uniqOfLbl = uniqOfInt . unLabel
+uniqueToLbl :: Unique -> Label
+uniqueToLbl = Label
 
 instance Show Label where
   show (Label n) = "L" ++ show n
 
 getLabel :: HooplMonad m => m Label
-getLabel = do { u <- freshUnique; return $ Label $ intOfUniq u }
+getLabel = freshUnique >>= return . uniqueToLbl
 
 -----------------------------------------------------------------------------
---		Label, FactBase, LabelSet
+-- LabelSet
+
+newtype LabelSet = LS UniqueSet deriving (Eq, Ord, Show)
+
+instance IsSet LabelSet where
+  type KeySet LabelSet = Label
+
+  nullSet (LS s) = nullSet s
+  sizeSet (LS s) = sizeSet s
+  memberSet (Label k) (LS s) = memberSet k s
+
+  emptySet = LS emptySet
+  singletonSet (Label k) = LS (singletonSet k)
+  insertSet (Label k) (LS s) = LS (insertSet k s)
+  deleteSet (Label k) (LS s) = LS (deleteSet k s)
+
+  unionSet (LS x) (LS y) = LS (unionSet x y)
+  differenceSet (LS x) (LS y) = LS (differenceSet x y)
+  intersectionSet (LS x) (LS y) = LS (intersectionSet x y)
+  isSubsetOfSet (LS x) (LS y) = isSubsetOfSet x y
+
+  foldSet k z (LS s) = foldSet (k . uniqueToLbl) z s
+
+  elemsSet (LS s) = map uniqueToLbl (elemsSet s)
+  fromListSet ks = LS (fromListSet (map lblToUnique ks))
+
 -----------------------------------------------------------------------------
+-- LabelMap
 
+newtype LabelMap v = LM (UniqueMap v) deriving (Eq, Ord, Show)
 
-----------------------
-type FactBase a = M.IntMap a
+instance IsMap LabelMap where
+  type KeyMap LabelMap = Label
 
-mapFst :: (a->b) -> (a, c) -> (b, c)
-mapFst f (a, c) = (f a, c)
+  nullMap (LM m) = nullMap m
+  sizeMap (LM m) = sizeMap m
+  memberMap (Label k) (LM m) = memberMap k m
+  lookupMap (Label k) (LM m) = lookupMap k m
+  findWithDefaultMap def (Label k) (LM m) = findWithDefaultMap def k m
+
+  emptyMap = LM emptyMap
+  singletonMap (Label k) v = LM (singletonMap k v)
+  insertMap (Label k) v (LM m) = LM (insertMap k v m)
+  deleteMap (Label k) (LM m) = LM (deleteMap k m)
+
+  unionMap (LM x) (LM y) = LM (unionMap x y)
+  unionWithKeyMap f (LM x) (LM y) = LM (unionWithKeyMap (f . uniqueToLbl) x y)
+  differenceMap (LM x) (LM y) = LM (differenceMap x y)
+  intersectionMap (LM x) (LM y) = LM (intersectionMap x y)
+  isSubmapOfMap (LM x) (LM y) = isSubmapOfMap x y
+
+  mapMap f (LM m) = LM (mapMap f m)
+  mapWithKeyMap f (LM m) = LM (mapWithKeyMap (f . uniqueToLbl) m)
+  foldMap k z (LM m) = foldMap k z m
+  foldWithKeyMap k z (LM m) = foldWithKeyMap (k . uniqueToLbl) z m
+
+  elemsMap (LM m) = elemsMap m
+  keysMap (LM m) = map uniqueToLbl (keysMap m)
+  toListMap (LM m) = [(uniqueToLbl k, v) | (k, v) <- toListMap m]
+  fromListMap assocs = LM (fromListMap [(lblToUnique k, v) | (k, v) <- assocs])
+
+-----------------------------------------------------------------------------
+-- FactBase
+
+type FactBase f = LabelMap f
 
 noFacts :: FactBase f
-noFacts = M.empty
+noFacts = emptyMap
 
 mkFactBase :: [(Label, f)] -> FactBase f
-mkFactBase prs = M.fromList $ map (mapFst unLabel) prs
+mkFactBase = fromListMap
 
-unitFact :: Label -> FactBase f -> FactBase f
--- Restrict a fact base to a single fact
-unitFact (Label l) fb = case M.lookup l fb of
-                  Just f  -> M.singleton l f
-                  Nothing -> M.empty
-
-lookupFact :: FactBase f -> Label -> Maybe f
-lookupFact env (Label blk_id) = M.lookup blk_id env
-
-extendFactBase :: FactBase f -> Label -> f -> FactBase f
-extendFactBase env (Label blk_id) f = M.insert blk_id f env
-
-unionFactBase :: FactBase f -> FactBase f -> FactBase f
-unionFactBase = M.union
-
-mapFactBase :: (f -> f') -> FactBase f -> FactBase f'
-mapFactBase = M.map
-
-mapWithLFactBase :: (Label -> f -> f') -> FactBase f -> FactBase f'
-mapWithLFactBase f = M.mapWithKey f'
-  where f' l = f (Label l)
-
-elemFactBase :: Label -> FactBase f -> Bool
-elemFactBase (Label l) = M.member l
-
-factBaseLabels :: FactBase f -> [Label]
-factBaseLabels = map Label . M.keys
-
-factBaseList :: FactBase f -> [(Label, f)]
-factBaseList = map (mapFst Label) . M.toList 
-
-delFromFactBase :: FactBase f -> [(Label,a)] -> FactBase f
-delFromFactBase fb blks = foldr (M.delete . unLabel . fst) fb blks
-
-----------------------------------------------------------------
-type LabelMap a = M.IntMap a
-
-emptyLabelMap :: LabelMap f
-emptyLabelMap = M.empty
-
-mkLabelMap :: [(Label, f)] -> LabelMap f
-mkLabelMap = mkFactBase
-
-lookupLabel :: LabelMap f -> Label -> Maybe f
-lookupLabel = lookupFact
-
-extendLabelMap :: LabelMap f -> Label -> f -> LabelMap f
-extendLabelMap = extendFactBase
-
-unionLabelMap :: LabelMap f -> LabelMap f -> LabelMap f
-unionLabelMap = M.union
-
-mapLabelMap :: (f -> f') -> LabelMap f -> LabelMap f'
-mapLabelMap = M.map
-
-foldLabelMap :: (f -> z -> z) -> z -> LabelMap f -> z
-foldLabelMap = M.fold
-
-elemLabelMap :: Label -> LabelMap f -> Bool
-elemLabelMap = elemFactBase
-
-labelMapLabels :: LabelMap f -> [Label]
-labelMapLabels = factBaseLabels
-
-labelMapList :: LabelMap f -> [(Label, f)]
-labelMapList = factBaseList
-
-delFromLabelMap :: LabelMap f -> [(Label,a)] -> LabelMap f
-delFromLabelMap = delFromFactBase
-
-----------------------
-newtype LabelSet = LS { unLS :: S.IntSet }
-
-emptyLabelSet :: LabelSet
-emptyLabelSet = LS S.empty
-
-extendLabelSet :: LabelSet -> Label -> LabelSet
-extendLabelSet lbls (Label bid) = LS $ S.insert bid $ unLS lbls
-
-reduceLabelSet :: LabelSet -> Label -> LabelSet
-reduceLabelSet lbls (Label bid) = LS $ S.delete bid $ unLS lbls
-
-elemLabelSet :: Label -> LabelSet -> Bool
-elemLabelSet (Label bid) lbls = S.member bid (unLS lbls)
-
-labelSetElems :: LabelSet -> [Label]
-labelSetElems = map Label . S.toList . unLS
-
-set2 :: (S.IntSet -> S.IntSet -> S.IntSet)
-     -> (LabelSet -> LabelSet -> LabelSet)
-set2 f (LS ls) (LS ls') = LS (f ls ls')
-
-minusLabelSet :: LabelSet -> LabelSet -> LabelSet
-minusLabelSet = set2 S.difference
-
-unionLabelSet :: LabelSet -> LabelSet -> LabelSet
-unionLabelSet = set2 S.union
-
-interLabelSet :: LabelSet -> LabelSet -> LabelSet
-interLabelSet = set2 S.intersection
-
-sizeLabelSet :: LabelSet -> Int
-sizeLabelSet = S.size . unLS
-
-mkLabelSet :: [Label] -> LabelSet
-mkLabelSet = LS . S.fromList . map unLabel
-
-
+lookupFact :: Label -> FactBase f -> Maybe f
+lookupFact = lookupMap

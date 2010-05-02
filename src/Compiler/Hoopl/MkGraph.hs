@@ -10,10 +10,10 @@ module Compiler.Hoopl.MkGraph
     )
 where
 
-import Compiler.Hoopl.Label (Label, lblOfUniq)
+import Compiler.Hoopl.Collections
+import Compiler.Hoopl.Label (Label, uniqueToLbl)
 import Compiler.Hoopl.Graph
 import qualified Compiler.Hoopl.GraphUtil as U
-import Compiler.Hoopl.Label (unionLabelMap)
 import Compiler.Hoopl.Unique
 import Control.Monad (liftM2)
 
@@ -144,7 +144,7 @@ instance Uniques Unique where
   withFresh f = A $ freshUnique >>= (graphOfAGraph . f)
 
 instance Uniques Label where
-  withFresh f = A $ freshUnique >>= (graphOfAGraph . f . lblOfUniq)
+  withFresh f = A $ freshUnique >>= (graphOfAGraph . f . uniqueToLbl)
 
 -- | Lifts binary 'Graph' functions into 'AGraph' functions.
 liftA2 :: Monad m
@@ -160,7 +160,7 @@ addBlocks (A g) (A blocks) = A $ g >>= \g -> blocks >>= add g
   where add :: (HooplMonad m, HooplNode n)
             => Graph n e x -> Graph n C C -> m (Graph n e x)
         add (GMany e (Body body) x) (GMany NothingO (Body body') NothingO) =
-          return $ GMany e (Body $ unionLabelMap body body') x
+          return $ GMany e (Body $ unionMap body body') x
         add g@GNil      blocks = spliceOO g blocks
         add g@(GUnit _) blocks = spliceOO g blocks
         spliceOO :: (HooplNode n, HooplMonad m)

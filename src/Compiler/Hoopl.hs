@@ -2,6 +2,7 @@ module Compiler.Hoopl
   ( module Compiler.Hoopl.Graph
   , module Compiler.Hoopl.MkGraph
   , module Compiler.Hoopl.XUtil
+  , module Compiler.Hoopl.Collections
   , module Compiler.Hoopl.Dataflow
   , module Compiler.Hoopl.Label
   , module Compiler.Hoopl.Pointed
@@ -14,6 +15,7 @@ module Compiler.Hoopl
   )
 where
 
+import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Combinators
 import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Debug
@@ -23,10 +25,10 @@ import Compiler.Hoopl.Graph hiding
    , BCat, BHead, BTail, BClosed -- OK to expose BFirst, BMiddle, BLast
    )
 import Compiler.Hoopl.Graph (Body)
-import Compiler.Hoopl.Label hiding (lblOfUniq, uniqOfLbl)
+import Compiler.Hoopl.Label hiding (uniqueToLbl, lblToUnique)
 import Compiler.Hoopl.MkGraph
 import Compiler.Hoopl.Pointed
 import Compiler.Hoopl.Show
 import Compiler.Hoopl.Util
-import Compiler.Hoopl.Unique hiding (intOfUniq, uniqOfInt)
+import Compiler.Hoopl.Unique hiding (uniqueToInt)
 import Compiler.Hoopl.XUtil
