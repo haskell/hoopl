@@ -73,7 +73,7 @@ instance Monad LabelMapM where
 labelFor l = LabelMapM f
   where f m = case M.lookup l m of
                 Just l' -> return (m, l')
-                Nothing -> do l' <- getLabel
+                Nothing -> do l' <- freshLabel
                               let m' = M.insert l l' m
                               return (m', l')
 

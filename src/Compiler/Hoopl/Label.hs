@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Compiler.Hoopl.Label
   ( Label
-  , getLabel
+  , freshLabel
   , LabelSet, LabelMap
   , FactBase, noFacts, mkFactBase, lookupFact
 
@@ -27,8 +27,8 @@ uniqueToLbl = Label
 instance Show Label where
   show (Label n) = "L" ++ show n
 
-getLabel :: HooplMonad m => m Label
-getLabel = freshUnique >>= return . uniqueToLbl
+freshLabel :: HooplMonad m => m Label
+freshLabel = freshUnique >>= return . uniqueToLbl
 
 -----------------------------------------------------------------------------
 -- LabelSet
