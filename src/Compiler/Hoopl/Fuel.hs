@@ -45,7 +45,7 @@ instance Monad m => Monad (CheckingFuelMonad m) where
   return a = FM (\f -> return (a, f))
   fm >>= k = FM (\f -> do { (a, f') <- unFM fm f; unFM (k a) f' })
 
-instance HooplMonad m => HooplMonad (CheckingFuelMonad m) where
+instance UniqueMonad m => UniqueMonad (CheckingFuelMonad m) where
   freshUnique = FM (\f -> do { l <- freshUnique; return (l, f) })
 
 instance Monad m => FuelMonad (CheckingFuelMonad m) where
@@ -62,7 +62,7 @@ instance Monad m => Monad (InfiniteFuelMonad m) where
   return a = IFM $ return a
   m >>= k  = IFM $ do { a <- unIFM m; unIFM (k a) }
 
-instance HooplMonad m => HooplMonad (InfiniteFuelMonad m) where
+instance UniqueMonad m => UniqueMonad (InfiniteFuelMonad m) where
   freshUnique = IFM $ freshUnique
 
 instance Monad m => FuelMonad (InfiniteFuelMonad m) where
@@ -75,7 +75,7 @@ instance FuelMonadT InfiniteFuelMonad where
 infiniteFuel :: Fuel -- effectively infinite, any, but subtractable
 infiniteFuel = maxBound
 
-type SimpleFuelMonad = CheckingFuelMonad SimpleHooplMonad
+type SimpleFuelMonad = CheckingFuelMonad SimpleUniqueMonad
 
 {-
 runWithFuelAndUniques :: Fuel -> [Unique] -> FuelMonad a -> a

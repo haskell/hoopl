@@ -27,7 +27,7 @@ uniqueToLbl = Label
 instance Show Label where
   show (Label n) = "L" ++ show n
 
-freshLabel :: HooplMonad m => m Label
+freshLabel :: UniqueMonad m => m Label
 freshLabel = freshUnique >>= return . uniqueToLbl
 
 -----------------------------------------------------------------------------

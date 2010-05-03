@@ -138,7 +138,7 @@ aGraphOfGraph = A . return
 -- 
 -- For example usage see implementations of 'mkIfThenElse' and 'mkWhileDo'.
 class Uniques u where
-  withFresh :: HooplMonad m => (u -> AGraph m n e x) -> AGraph m n e x
+  withFresh :: UniqueMonad m => (u -> AGraph m n e x) -> AGraph m n e x
 
 instance Uniques Unique where
   withFresh f = A $ freshUnique >>= (graphOfAGraph . f)
@@ -154,16 +154,16 @@ liftA2 f (A g) (A g') = A (liftM2 f g g')
 
 -- | Extend an existing 'AGraph' with extra basic blocks "out of line".
 -- No control flow is implied.  Simon PJ should give example use case.
-addBlocks      :: (HooplNode n, HooplMonad m)
+addBlocks      :: (HooplNode n, UniqueMonad m)
                => AGraph m n e x -> AGraph m n C C -> AGraph m n e x
 addBlocks (A g) (A blocks) = A $ g >>= \g -> blocks >>= add g
-  where add :: (HooplMonad m, HooplNode n)
+  where add :: (UniqueMonad m, HooplNode n)
             => Graph n e x -> Graph n C C -> m (Graph n e x)
         add (GMany e (Body body) x) (GMany NothingO (Body body') NothingO) =
           return $ GMany e (Body $ unionMap body body') x
         add g@GNil      blocks = spliceOO g blocks
         add g@(GUnit _) blocks = spliceOO g blocks
-        spliceOO :: (HooplNode n, HooplMonad m)
+        spliceOO :: (HooplNode n, UniqueMonad m)
                  => Graph n O O -> Graph n C C -> m (Graph n O O)
         spliceOO g blocks = graphOfAGraph $ withFresh $ \l ->
           A (return g) <*> mkBranch l |*><*| A (return blocks) |*><*| mkLabel l
@@ -186,13 +186,13 @@ class IfThenElseable x where
   -- The condition takes as arguments labels on the true-false branch
   -- and returns a single-entry, two-exit graph which exits to 
   -- the two labels.
-  mkIfThenElse :: (HooplNode n, HooplMonad m)
+  mkIfThenElse :: (HooplNode n, UniqueMonad m)
                => (Label -> Label -> AGraph m n O C) -- ^ branch condition
                -> AGraph m n O x   -- ^ code in the "then" branch
                -> AGraph m n O x   -- ^ code in the "else" branch 
                -> AGraph m n O x   -- ^ resulting if-then-else construct
 
-mkWhileDo    :: (HooplNode n, HooplMonad m)
+mkWhileDo    :: (HooplNode n, UniqueMonad m)
              => (Label -> Label -> AGraph m n O C) -- ^ loop condition
              -> AGraph m n O O -- ^ body of the loop
              -> AGraph m n O O -- ^ the final while loop

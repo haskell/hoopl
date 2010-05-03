@@ -2,9 +2,9 @@
 module Compiler.Hoopl.Unique
   ( Unique, mkUnique
   , UniqueSet, UniqueMap
-  , HooplMonad(..)
-  , SimpleHooplMonad, runSimpleHooplMonad
-  , HooplMonadT, runHooplMonadT
+  , UniqueMonad(..)
+  , SimpleUniqueMonad, runSimpleUniqueMonad
+  , UniqueMonadT, runUniqueMonadT
 
   , uniqueToInt -- exposed through GHC module only!
   )
@@ -94,35 +94,35 @@ instance IsMap UniqueMap where
 ----------------------------------------------------------------
 -- Monads
 
-class Monad m => HooplMonad m where
+class Monad m => UniqueMonad m where
   freshUnique :: m Unique
 
-newtype SimpleHooplMonad a = SHM { unSHM :: [Unique] -> (a, [Unique]) }
+newtype SimpleUniqueMonad a = SUM { unSUM :: [Unique] -> (a, [Unique]) }
 
-instance Monad SimpleHooplMonad where
-  return a = SHM $ \us -> (a, us)
-  m >>= k  = SHM $ \us -> let (a, us') = unSHM m us in
-                              unSHM (k a) us'
+instance Monad SimpleUniqueMonad where
+  return a = SUM $ \us -> (a, us)
+  m >>= k  = SUM $ \us -> let (a, us') = unSUM m us in
+                              unSUM (k a) us'
 
-instance HooplMonad SimpleHooplMonad where
-  freshUnique = SHM $ \(u:us) -> (u, us)
+instance UniqueMonad SimpleUniqueMonad where
+  freshUnique = SUM $ \(u:us) -> (u, us)
 
-runSimpleHooplMonad :: SimpleHooplMonad a -> a
-runSimpleHooplMonad m = fst (unSHM m allUniques)
+runSimpleUniqueMonad :: SimpleUniqueMonad a -> a
+runSimpleUniqueMonad m = fst (unSUM m allUniques)
 
 ----------------------------------------------------------------
 
-newtype HooplMonadT m a = HM { unHM :: [Unique] -> m (a, [Unique]) }
+newtype UniqueMonadT m a = UMT { unUMT :: [Unique] -> m (a, [Unique]) }
 
-instance Monad m => Monad (HooplMonadT m) where
-  return a = HM $ \us -> return (a, us)
-  m >>= k  = HM $ \us -> do { (a, us') <- unHM m us; unHM (k a) us' }
+instance Monad m => Monad (UniqueMonadT m) where
+  return a = UMT $ \us -> return (a, us)
+  m >>= k  = UMT $ \us -> do { (a, us') <- unUMT m us; unUMT (k a) us' }
 
-instance Monad m => HooplMonad (HooplMonadT m) where
-  freshUnique = HM $ \(u:us) -> return (u, us)
+instance Monad m => UniqueMonad (UniqueMonadT m) where
+  freshUnique = UMT $ \(u:us) -> return (u, us)
 
-runHooplMonadT :: Monad m => HooplMonadT m a -> m a
-runHooplMonadT m = do { (a, _) <- unHM m allUniques; return a }
+runUniqueMonadT :: Monad m => UniqueMonadT m a -> m a
+runUniqueMonadT m = do { (a, _) <- unUMT m allUniques; return a }
 
 allUniques :: [Unique]
 allUniques = map Unique [1..]
