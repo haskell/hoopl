@@ -2,82 +2,84 @@
 
 {-# LANGUAGE TypeFamilies #-}
 module Compiler.Hoopl.Collections ( IsSet(..)
+                                  , setInsertList, setDeleteList, setUnions
                                   , IsMap(..)
+                                  , mapInsertList, mapDeleteList, mapUnions
                                   ) where
 
 import Data.List (foldl', foldl1')
 
 class IsSet set where
-  type KeySet set
+  type ElemOf set
 
-  nullSet :: set -> Bool
-  sizeSet :: set -> Int
-  memberSet :: KeySet set -> set -> Bool
+  setNull :: set -> Bool
+  setSize :: set -> Int
+  setMember :: ElemOf set -> set -> Bool
 
-  emptySet :: set
-  singletonSet :: KeySet set -> set
-  insertSet :: KeySet set -> set -> set
-  deleteSet :: KeySet set -> set -> set
+  setEmpty :: set
+  setSingleton :: ElemOf set -> set
+  setInsert :: ElemOf set -> set -> set
+  setDelete :: ElemOf set -> set -> set
 
-  unionSet :: set -> set -> set
-  differenceSet :: set -> set -> set
-  intersectionSet :: set -> set -> set
-  isSubsetOfSet :: set -> set -> Bool
+  setUnion :: set -> set -> set
+  setDifference :: set -> set -> set
+  setIntersection :: set -> set -> set
+  setIsSubsetOf :: set -> set -> Bool
 
-  foldSet :: (KeySet set -> b -> b) -> b -> set -> b
+  setFold :: (ElemOf set -> b -> b) -> b -> set -> b
 
-  elemsSet :: set -> [KeySet set]
-  fromListSet :: [KeySet set] -> set
+  setElems :: set -> [ElemOf set]
+  setFromList :: [ElemOf set] -> set
 
-  -- and some derived functions
-  insertListSet :: [KeySet set] -> set -> set
-  insertListSet keys set = foldl' (flip insertSet) set keys
+-- Helper functions for IsSet class
+setInsertList :: IsSet set => [ElemOf set] -> set -> set
+setInsertList keys set = foldl' (flip setInsert) set keys
 
-  deleteListSet :: [KeySet set] -> set -> set
-  deleteListSet keys set = foldl' (flip deleteSet) set keys
+setDeleteList :: IsSet set => [ElemOf set] -> set -> set
+setDeleteList keys set = foldl' (flip setDelete) set keys
 
-  unionsSet :: [set] -> set
-  unionsSet [] = emptySet
-  unionsSet sets = foldl1' unionSet sets
+setUnions :: IsSet set => [set] -> set
+setUnions [] = setEmpty
+setUnions sets = foldl1' setUnion sets
 
 
 class IsMap map where
-  type KeyMap map
+  type KeyOf map
 
-  nullMap :: map a -> Bool
-  sizeMap :: map a -> Int
-  memberMap :: KeyMap map -> map a -> Bool
-  lookupMap :: KeyMap map -> map a -> Maybe a
-  findWithDefaultMap :: a -> KeyMap map -> map a -> a
+  mapNull :: map a -> Bool
+  mapSize :: map a -> Int
+  mapMember :: KeyOf map -> map a -> Bool
+  mapLookup :: KeyOf map -> map a -> Maybe a
+  mapFindWithDefault :: a -> KeyOf map -> map a -> a
 
-  emptyMap :: map a
-  singletonMap :: KeyMap map -> a -> map a
-  insertMap :: KeyMap map -> a -> map a -> map a
-  deleteMap :: KeyMap map -> map a -> map a
+  mapEmpty :: map a
+  mapSingleton :: KeyOf map -> a -> map a
+  mapInsert :: KeyOf map -> a -> map a -> map a
+  mapDelete :: KeyOf map -> map a -> map a
 
-  unionMap :: map a -> map a -> map a
-  unionWithKeyMap :: (KeyMap map -> a -> a -> a) -> map a -> map a -> map a
-  differenceMap :: map a -> map a -> map a
-  intersectionMap :: map a -> map a -> map a
-  isSubmapOfMap :: Eq a => map a -> map a -> Bool
+  mapUnion :: map a -> map a -> map a
+  mapUnionWithKey :: (KeyOf map -> a -> a -> a) -> map a -> map a -> map a
+  mapDifference :: map a -> map a -> map a
+  mapIntersection :: map a -> map a -> map a
+  mapIsSubmapOf :: Eq a => map a -> map a -> Bool
 
   mapMap :: (a -> b) -> map a -> map b
-  mapWithKeyMap :: (KeyMap map -> a -> b) -> map a -> map b
-  foldMap :: (a -> b -> b) -> b -> map a -> b
-  foldWithKeyMap :: (KeyMap map -> a -> b -> b) -> b -> map a -> b
+  mapMapWithKey :: (KeyOf map -> a -> b) -> map a -> map b
+  mapFold :: (a -> b -> b) -> b -> map a -> b
+  mapFoldWithKey :: (KeyOf map -> a -> b -> b) -> b -> map a -> b
 
-  elemsMap :: map a -> [a]
-  keysMap :: map a -> [KeyMap map]
-  toListMap :: map a -> [(KeyMap map, a)]
-  fromListMap :: [(KeyMap map, a)] -> map a
+  mapElems :: map a -> [a]
+  mapKeys :: map a -> [KeyOf map]
+  mapToList :: map a -> [(KeyOf map, a)]
+  mapFromList :: [(KeyOf map, a)] -> map a
 
-  -- and some derived functions
-  insertListMap :: [(KeyMap map, a)] -> map a -> map a
-  insertListMap assocs map = foldl' (flip (uncurry insertMap)) map assocs
+-- Helper functions for IsMap class
+mapInsertList :: IsMap map => [(KeyOf map, a)] -> map a -> map a
+mapInsertList assocs map = foldl' (flip (uncurry mapInsert)) map assocs
 
-  deleteListMap :: [KeyMap map] -> map a -> map a
-  deleteListMap keys map = foldl' (flip deleteMap) map keys
+mapDeleteList :: IsMap map => [KeyOf map] -> map a -> map a
+mapDeleteList keys map = foldl' (flip mapDelete) map keys
 
-  unionsMap :: [map a] -> map a
-  unionsMap [] = emptyMap
-  unionsMap maps = foldl1' unionMap maps
+mapUnions :: IsMap map => [map a] -> map a
+mapUnions [] = mapEmpty
+mapUnions maps = foldl1' mapUnion maps

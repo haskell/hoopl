@@ -107,7 +107,7 @@ instance LabelsPtr Label where
   targetLabels l = [l]
 
 instance LabelsPtr LabelSet where
-  targetLabels = elemsSet
+  targetLabels = setElems
 
 instance LabelsPtr l => LabelsPtr [l] where
   targetLabels = concatMap targetLabels
@@ -159,7 +159,7 @@ graphDfs :: (Edges (block n))
          -> (Graph' block n O x -> [block n C C])
 graphDfs _     (GNil)    = []
 graphDfs _     (GUnit{}) = []
-graphDfs order (GMany (JustO entry) (Body body) _) = order body entry emptySet
+graphDfs order (GMany (JustO entry) (Body body) _) = order body entry setEmpty
 
 postorder_dfs = graphDfs postorder_dfs_from_except
 preorder_dfs  = graphDfs preorder_dfs_from_except
@@ -171,11 +171,11 @@ postorder_dfs_from_except blocks b visited =
  where
    vnode :: block C C -> ([block C C] -> LabelSet -> a) -> [block C C] -> LabelSet -> a
    vnode block cont acc visited =
-        if memberSet id visited then
+        if setMember id visited then
             cont acc visited
         else
             let cont' acc visited = cont (block:acc) visited in
-            vchildren (get_children block) cont' acc (insertSet id visited)
+            vchildren (get_children block) cont' acc (setInsert id visited)
       where id = entryLabel block
    vchildren bs cont acc visited = next bs acc visited
       where next children acc visited =
@@ -188,7 +188,7 @@ postorder_dfs_from_except blocks b visited =
 
 postorder_dfs_from
     :: (Edges block, LabelsPtr b) => LabelMap (block C C) -> b -> [block C C]
-postorder_dfs_from blocks b = postorder_dfs_from_except blocks b emptySet
+postorder_dfs_from blocks b = postorder_dfs_from_except blocks b setEmpty
 
 
 ----------------------------------------------------------------
@@ -199,8 +199,8 @@ mark   :: Label -> VM ()
 instance Monad VM where
   return a = VM $ \visited -> (a, visited)
   m >>= k  = VM $ \visited -> let (a, v') = unVM m visited in unVM (k a) v'
-marked l = VM $ \v -> (memberSet l v, v)
-mark   l = VM $ \v -> ((), insertSet l v)
+marked l = VM $ \v -> (setMember l v, v)
+mark   l = VM $ \v -> ((), setInsert l v)
 
 preorder_dfs_from_except :: forall block e . (Edges block, LabelsPtr e)
                          => LabelMap (block C C) -> e -> LabelSet -> [block C C]
@@ -226,28 +226,28 @@ cons a as tail = a : as tail
 ----------------------------------------------------------------
 
 labelsDefined :: forall block n e x . Edges (block n) => Graph' block n e x -> LabelSet
-labelsDefined GNil      = emptySet
-labelsDefined (GUnit{}) = emptySet
+labelsDefined GNil      = setEmpty
+labelsDefined (GUnit{}) = setEmpty
 labelsDefined (GMany _ body x) = foldBodyBlocks addEntry body $ exitLabel x
-  where addEntry block labels = insertSet (entryLabel block) labels
+  where addEntry block labels = setInsert (entryLabel block) labels
         exitLabel :: MaybeO x (block n C O) -> LabelSet
-        exitLabel NothingO = emptySet
-        exitLabel (JustO b) = fromListSet [entryLabel b]
+        exitLabel NothingO = setEmpty
+        exitLabel (JustO b) = setFromList [entryLabel b]
 
 labelsUsed :: forall block n e x. Edges (block n) => Graph' block n e x -> LabelSet
-labelsUsed GNil      = emptySet
-labelsUsed (GUnit{}) = emptySet
+labelsUsed GNil      = setEmpty
+labelsUsed (GUnit{}) = setEmpty
 labelsUsed (GMany e body _) = foldBodyBlocks addTargets body $ entryTargets e
-  where addTargets block labels = insertListSet (successors block) labels
+  where addTargets block labels = setInsertList (successors block) labels
         entryTargets :: MaybeO e (block n O C) -> LabelSet
-        entryTargets NothingO = emptySet
-        entryTargets (JustO b) = addTargets b emptySet
+        entryTargets NothingO = setEmpty
+        entryTargets (JustO b) = addTargets b setEmpty
 
 foldBodyBlocks :: (block n C C -> a -> a) -> Body' block n -> a -> a
-foldBodyBlocks f (Body body) z = foldMap f z body
+foldBodyBlocks f (Body body) z = mapFold f z body
 
 externalEntryLabels :: Edges (block n) => Body' block n -> LabelSet
-externalEntryLabels body = defined `differenceSet` used
+externalEntryLabels body = defined `setDifference` used
   where defined = labelsDefined g
         used = labelsUsed g
         g = GMany NothingO body NothingO

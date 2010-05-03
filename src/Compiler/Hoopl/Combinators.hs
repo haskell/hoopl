@@ -175,7 +175,7 @@ productFwd pass1 pass2 = FwdPass lattice transfer rewrite
     transfer = mkFTransfer (tf tf1 tf2) (tf tm1 tm2) (tfb tl1 tl2)
       where
         tf  t1 t2 n (f1, f2) = (t1 n f1, t2 n f2)
-        tfb t1 t2 n (f1, f2) = mapWithKeyMap withfb2 fb1
+        tfb t1 t2 n (f1, f2) = mapMapWithKey withfb2 fb1
           where fb1 = t1 n f1
                 fb2 = t2 n f2
                 withfb2 l f = (f, fromMaybe bot2 $ lookupFact l fb2)

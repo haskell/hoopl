@@ -99,10 +99,10 @@ instance Edges n => Edges (Block n) where
 
 ------------------------------
 emptyBody :: Body' block n
-emptyBody = Body emptyMap
+emptyBody = Body mapEmpty
 
 addBlock :: Edges (block n) => block n C C -> Body' block n -> Body' block n
-addBlock b (Body body) = Body (insertMap (entryLabel b) b body)
+addBlock b (Body body) = Body (mapInsert (entryLabel b) b body)
 
 bodyList :: Edges (block n) => Body' block n -> [(Label,block n C C)]
-bodyList (Body body) = toListMap body
+bodyList (Body body) = mapToList body

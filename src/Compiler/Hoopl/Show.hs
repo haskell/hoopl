@@ -38,4 +38,4 @@ open _ NothingO  = ""
 open p (JustO n) = p n
 
 showFactBase :: Show f => FactBase f -> String
-showFactBase = show . toListMap
+showFactBase = show . mapToList

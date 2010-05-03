@@ -84,12 +84,12 @@ tree facts = Dominates Entry $ merge $ map reverse $ map mkList facts
   where merge lists = mapTree $ children $ filter (not . null) lists
         children = foldl addList noFacts
         addList :: FactBase [[Label]] -> [Label] -> FactBase [[Label]]
-        addList map (x:xs) = insertMap x (xs:existing) map
+        addList map (x:xs) = mapInsert x (xs:existing) map
             where existing = fromMaybe [] $ lookupFact x map
         addList _ [] = error "this can't happen"
         mapTree :: FactBase [[Label]] -> [DominatorTree]
         mapTree map = [Dominates (Labelled x) (merge lists) |
-                                                    (x, lists) <- toListMap map]
+                                                    (x, lists) <- mapToList map]
         mkList (l, doms) = l : domPath doms
 
 

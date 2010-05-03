@@ -160,7 +160,7 @@ addBlocks (A g) (A blocks) = A $ g >>= \g -> blocks >>= add g
   where add :: (UniqueMonad m, HooplNode n)
             => Graph n e x -> Graph n C C -> m (Graph n e x)
         add (GMany e (Body body) x) (GMany NothingO (Body body') NothingO) =
-          return $ GMany e (Body $ unionMap body body') x
+          return $ GMany e (Body $ mapUnion body body') x
         add g@GNil      blocks = spliceOO g blocks
         add g@(GUnit _) blocks = spliceOO g blocks
         spliceOO :: (HooplNode n, UniqueMonad m)
