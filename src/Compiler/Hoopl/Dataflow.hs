@@ -70,7 +70,6 @@ import Data.Maybe
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
-import Compiler.Hoopl.MkGraph
 import qualified Compiler.Hoopl.GraphUtil as U
 import Compiler.Hoopl.Label
 import Compiler.Hoopl.Util
@@ -123,7 +122,7 @@ newtype FwdRewrite m n f
                     , n O O -> f -> Maybe (FwdRes m n f O O)
                     , n O C -> f -> Maybe (FwdRes m n f O C)
                     ) }
-data FwdRes m n f e x = FwdRes (AGraph m n e x) (FwdRewrite m n f)
+data FwdRes m n f e x = FwdRes (m (Graph n e x)) (FwdRewrite m n f)
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
 mkFTransfer :: (n C O -> f -> f)
@@ -227,8 +226,8 @@ arfGraph pass entries = graph
            ; case mb_g of
                Nothing -> return (rgunit f (unit thenode),
                                   ftransfer pass thenode f)
-               Just (FwdRes ag rw) ->
-                   do { g <- graphOfAGraph ag
+               Just (FwdRes mg rw) ->
+                   do { g <- mg
                       ; let pass' = pass { fp_rewrite = rw }
                       ; arfGraph pass' (entry thenode) g (elift thenode f) } }
 
@@ -296,7 +295,7 @@ newtype BwdRewrite m n f
                     , n O O -> f          -> Maybe (BwdRes m n f O O)
                     , n O C -> FactBase f -> Maybe (BwdRes m n f O C)
                     ) }
-data BwdRes m n f e x = BwdRes (AGraph m n e x) (BwdRewrite m n f)
+data BwdRes m n f e x = BwdRes (m (Graph n e x)) (BwdRewrite m n f)
 
 mkBTransfer :: (n C O -> f -> f) -> (n O O -> f -> f) ->
                (n O C -> FactBase f -> f) -> BwdTransfer n f
@@ -368,8 +367,8 @@ arbGraph pass entries = graph
            ; case mb_g of
                Nothing -> return (rgunit entry_f (unit thenode), entry_f)
                    where entry_f  = btransfer pass thenode f
-      	       Just (BwdRes ag rw) ->
-                          do { g <- graphOfAGraph ag
+      	       Just (BwdRes mg rw) ->
+                          do { g <- mg
                              ; let pass' = pass { bp_rewrite = rw }
                              ; (g, f) <- arbGraph pass' (entry thenode) g f
                              ; return (g, elower (bp_lattice pass) thenode f)} }

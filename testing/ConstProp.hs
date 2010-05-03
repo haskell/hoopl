@@ -57,7 +57,7 @@ varHasLit = mkFTransfer' v
 constProp :: forall m . Monad m => FwdRewrite m Insn ConstFact
 constProp = shallowFwdRw' cp 
   where
-    cp n f = map_EN (map_EE $ rewriteE f) n >>= Just . insnToA
+    cp n f = map_EN (map_EE $ rewriteE f) n >>= Just . return . insnToG
     rewriteE facts (Var v) = case M.lookup v facts of
                                Just (PElem l) -> Just $ Lit l
                                _              -> Nothing

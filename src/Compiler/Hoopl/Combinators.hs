@@ -16,14 +16,13 @@ import Data.Maybe
 
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Dataflow
-import Compiler.Hoopl.Graph (C, O)
+import Compiler.Hoopl.Graph (Graph, C, O)
 import Compiler.Hoopl.Label
-import Compiler.Hoopl.MkGraph
 
 type FR m n f = FwdRewrite m n f
 type BR m n f = BwdRewrite m n f
 
-type SFRW m n f e x = n e x -> f -> Maybe (AGraph m n e x)
+type SFRW m n f e x = n e x -> f -> Maybe (m (Graph n e x))
 type FRW  m n f e x = n e x -> f -> Maybe (FwdRes m n f e x)
 type SimpleFwdRewrite  m n f = ExTriple (SFRW m n f)
 type ExTriple a = (a C O, a O O, a O C) -- ^ entry/exit triple
@@ -106,7 +105,7 @@ iterFwdRw rw = wrapFRewrites' f rw
 
 ----------------------------------------------------------------
 
-type SBRW m n f e x = n e x -> Fact x f -> Maybe (AGraph m n e x)
+type SBRW m n f e x = n e x -> Fact x f -> Maybe (m (Graph n e x))
 type BRW  m n f e x = n e x -> Fact x f -> Maybe (BwdRes m n f e x)
 type SimpleBwdRewrite  m n f = ExTriple ( SBRW m n f)
 type SimpleBwdRewrite' m n f = forall e x . SBRW m n f e x

@@ -16,7 +16,7 @@ import qualified IR  as I
 -- To keep the mapping from (String -> Label) consistent, we use a LabelMapM monad with
 -- the following operation:
 labelFor :: String -> LabelMapM Label
-getBody  :: forall n. AGraph I.M n C C   -> LabelMapM (Graph n C C)
+getBody  :: forall n. Graph n C C   -> LabelMapM (Graph n C C)
 run      :: LabelMapM a -> I.M a
 
 -- We proceed with the translation from AST to IR; the implementation of the monad
@@ -37,7 +37,7 @@ toBody bs =
   do g <- foldl (liftM2 (|*><*|)) (return emptyClosedGraph) (map toBlock bs)
      getBody g
 
-toBlock :: A.Block -> LabelMapM (AGraph I.M I.Insn C C)
+toBlock :: A.Block -> LabelMapM (Graph I.Insn C C)
 toBlock (A.Block { A.first = f, A.mids = ms, A.last = l }) =
   do f'  <- toFirst f
      ms' <- mapM toMid ms
@@ -77,7 +77,7 @@ labelFor l = LabelMapM f
                               let m' = M.insert l l' m
                               return (m', l')
 
-getBody agraph = LabelMapM f
-  where f m = do g <- graphOfAGraph agraph
-                 return (m, g)
+getBody graph = LabelMapM f
+  where f m = return (m, graph)
+
 run (LabelMapM f) = f M.empty >>=  return . snd
