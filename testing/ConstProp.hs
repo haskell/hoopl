@@ -18,14 +18,12 @@ constLattice :: DataflowLattice ConstFact
 constLattice = DataflowLattice
   { fact_name   = "Const var value"
   , fact_bot    = M.empty
-  , fact_extend = stdMapJoin constFactAdd
+  , fact_extend = stdMapJoin (joinWithTop' constFactAdd)
   , fact_do_logging = False
   }
   where
-    constFactAdd :: JoinFun (WithTop Lit)
-    constFactAdd _ (OldFact old) (NewFact new) = (ch, joined)
-      where joined = if new == old then new else Top
-            ch = if joined == old then NoChange else SomeChange
+    constFactAdd _ (OldFact old) (NewFact new) = (changeIf (new /= old), joined)
+      where joined = if new == old then PElem new else Top
 
 -- Initially, we assume that all variable values are unknown.
 initFact :: [Var] -> ConstFact

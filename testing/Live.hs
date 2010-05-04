@@ -20,7 +20,7 @@ liveLattice = DataflowLattice
     where add _ (OldFact old) (NewFact new) = (ch, j)
             where
               j = new `S.union` old
-              ch = if S.size j > S.size old then SomeChange else NoChange
+              ch = changeIf (S.size j > S.size old)
 
 liveness :: BwdTransfer Insn Live
 liveness = mkBTransfer' live
