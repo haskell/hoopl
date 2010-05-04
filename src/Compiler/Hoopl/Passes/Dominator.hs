@@ -4,6 +4,7 @@
 module Compiler.Hoopl.Passes.Dominator
   ( Doms, DPath(..), domPath, domEntry, domLattice, extendDom
   , DominatorNode(..), DominatorTree(..), tree
+  , immediateDominators
   , domPass
   )
 where
@@ -117,3 +118,13 @@ tree2dot t = concat $ "digraph {\n" : dot t ["}\n"]
 instance Show DominatorNode where
   show Entry = "entryNode"
   show (Labelled l) = show l
+
+----------------------------------------------------------------
+
+-- | Takes FactBase from dominator analysis and returns a map from each 
+-- label to its immediate dominator, if any
+immediateDominators :: FactBase Doms -> LabelMap Label
+immediateDominators fb = foldr add emptyLabelMap $ factBaseList fb
+    where add (l, PElem (DPath (idom:_))) m = extendLabelMap m l idom
+          add _ m = m
+
