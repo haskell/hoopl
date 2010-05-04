@@ -64,7 +64,7 @@ toLast (A.Return es)      = return $ I.Return es
 --------------------------------------------------------------------------------
 
 type IdLabelMap = M.Map String Label
-data LabelMapM a = LabelMapM (IdLabelMap -> FuelMonad (IdLabelMap, a))
+data LabelMapM a = LabelMapM (IdLabelMap -> SimpleFuelMonad (IdLabelMap, a))
 instance Monad LabelMapM where
   return x = LabelMapM (\m -> return (m, x))
   LabelMapM f1 >>= k = LabelMapM (\m -> do (m', x) <- f1 m

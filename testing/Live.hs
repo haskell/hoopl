@@ -38,9 +38,9 @@ liveness = mkBTransfer' live
     addVar s (Var v) = S.insert v s
     addVar s _       = s
      
-deadAsstElim :: BwdRewrite Insn Live
+deadAsstElim :: FuelMonad m => BwdRewrite m Insn Live
 deadAsstElim = shallowBwdRw' d
   where
-    d :: SimpleBwdRewrite' Insn Live
+    d :: FuelMonad m => SimpleBwdRewrite' m Insn Live
     d (Assign x _) live = if x `S.member` live then Nothing else Just emptyGraph
     d _ _ = Nothing

@@ -54,7 +54,7 @@ varHasLit = mkFTransfer' v
     v (Return _)             _ = mkFactBase []
 
 -- Constant propagation: rewriting
-constProp :: FwdRewrite Insn ConstFact
+constProp :: HooplMonad m => FwdRewrite m Insn ConstFact
 constProp = shallowFwdRw' cp 
   where
     cp n f = map_EN (map_EE $ rewriteE f) n >>= Just . insnToA

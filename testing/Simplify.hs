@@ -7,7 +7,7 @@ import IR
 import OptSupport
 
 -- Simplification ("constant folding")
-simplify :: FwdRewrite Insn a
+simplify :: HooplMonad m => FwdRewrite m Insn a
 simplify = deepFwdRw' simp
   where
     simp insn _ = s insn >>= return . insnToA
