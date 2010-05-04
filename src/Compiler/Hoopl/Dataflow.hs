@@ -118,11 +118,12 @@ newtype FwdTransfer n f
 
 newtype FwdRewrite m n f 
   = FwdRewrites { getFRewrites ::
-                    ( n C O -> f -> Maybe (FwdRes m n f C O)
-                    , n O O -> f -> Maybe (FwdRes m n f O O)
-                    , n O C -> f -> Maybe (FwdRes m n f O C)
+                    ( n C O -> f -> m (FwdRes m n f C O)
+                    , n O O -> f -> m (FwdRes m n f O O)
+                    , n O C -> f -> m (FwdRes m n f O C)
                     ) }
-data FwdRes m n f e x = FwdRes (m (Graph n e x)) (FwdRewrite m n f)
+data FwdRes m n f e x = FwdRes (Graph n e x) (FwdRewrite m n f)
+                      | NoFwdRes
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
 mkFTransfer :: (n C O -> f -> f)
@@ -134,13 +135,13 @@ mkFTransfer f m l = FwdTransfers (f, m, l)
 mkFTransfer' :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
 mkFTransfer' f = FwdTransfers (f, f, f)
 
-mkFRewrite :: (n C O -> f -> Maybe (FwdRes m n f C O))
-           -> (n O O -> f -> Maybe (FwdRes m n f O O))
-           -> (n O C -> f -> Maybe (FwdRes m n f O C))
+mkFRewrite :: (n C O -> f -> m (FwdRes m n f C O))
+           -> (n O O -> f -> m (FwdRes m n f O O))
+           -> (n O C -> f -> m (FwdRes m n f O C))
            -> FwdRewrite m n f
 mkFRewrite f m l = FwdRewrites (f, m, l)
 
-mkFRewrite' :: (forall e x . n e x -> f -> Maybe (FwdRes m n f e x)) -> FwdRewrite m n f
+mkFRewrite' :: (forall e x . n e x -> f -> m (FwdRes m n f e x)) -> FwdRewrite m n f
 mkFRewrite' f = FwdRewrites (f, f, f)
 
 
@@ -222,14 +223,14 @@ arfGraph pass entries = graph
     block (BClosed h t)= block h  `cat` block t
 
     node thenode f
-      = do { mb_g <- withFuel (frewrite pass thenode f)
-           ; case mb_g of
-               Nothing -> return (rgunit f (unit thenode),
-                                  ftransfer pass thenode f)
-               Just (FwdRes mg rw) ->
-                   do { g <- mg
-                      ; let pass' = pass { fp_rewrite = rw }
-                      ; arfGraph pass' (entry thenode) g (elift thenode f) } }
+      = do { mb_mfwdres <- withFuel (frewrite pass thenode f)
+           ; fwdres <- fromMaybe (return NoFwdRes) mb_mfwdres
+           ; case fwdres of
+               NoFwdRes -> return (rgunit f (unit thenode),
+                                   ftransfer pass thenode f)
+               (FwdRes g rw) ->
+                   let pass' = pass { fp_rewrite = rw }
+                   in  arfGraph pass' (entry thenode) g (elift thenode f) }
 
     -- | Compose fact transformers and concatenate the resulting
     -- rewritten graphs.
@@ -291,11 +292,12 @@ newtype BwdTransfer n f
                      ) }
 newtype BwdRewrite m n f 
   = BwdRewrites { getBRewrites ::
-                    ( n C O -> f          -> Maybe (BwdRes m n f C O)
-                    , n O O -> f          -> Maybe (BwdRes m n f O O)
-                    , n O C -> FactBase f -> Maybe (BwdRes m n f O C)
+                    ( n C O -> f          -> m (BwdRes m n f C O)
+                    , n O O -> f          -> m (BwdRes m n f O O)
+                    , n O C -> FactBase f -> m (BwdRes m n f O C)
                     ) }
-data BwdRes m n f e x = BwdRes (m (Graph n e x)) (BwdRewrite m n f)
+data BwdRes m n f e x = BwdRes (Graph n e x) (BwdRewrite m n f)
+                      | NoBwdRes
 
 mkBTransfer :: (n C O -> f -> f) -> (n O O -> f -> f) ->
                (n O C -> FactBase f -> f) -> BwdTransfer n f
@@ -304,13 +306,13 @@ mkBTransfer f m l = BwdTransfers (f, m, l)
 mkBTransfer' :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
 mkBTransfer' f = BwdTransfers (f, f, f)
 
-mkBRewrite :: (n C O -> f          -> Maybe (BwdRes m n f C O))
-           -> (n O O -> f          -> Maybe (BwdRes m n f O O))
-           -> (n O C -> FactBase f -> Maybe (BwdRes m n f O C))
+mkBRewrite :: (n C O -> f          -> m (BwdRes m n f C O))
+           -> (n O O -> f          -> m (BwdRes m n f O O))
+           -> (n O C -> FactBase f -> m (BwdRes m n f O C))
            -> BwdRewrite m n f
 mkBRewrite f m l = BwdRewrites (f, m, l)
 
-mkBRewrite' :: (forall e x . n e x -> Fact x f -> Maybe (BwdRes m n f e x))
+mkBRewrite' :: (forall e x . n e x -> Fact x f -> m (BwdRes m n f e x))
             -> BwdRewrite m n f
 mkBRewrite' f = BwdRewrites (f, f, f)
 
@@ -363,13 +365,13 @@ arbGraph pass entries = graph
     block (BClosed h t)= block h  `cat` block t
 
     node thenode f
-      = do { mb_g <- withFuel (brewrite pass thenode f)
-           ; case mb_g of
-               Nothing -> return (rgunit entry_f (unit thenode), entry_f)
+      = do { mb_mbwdres <- withFuel (brewrite pass thenode f)
+           ; bwdres <- fromMaybe (return NoBwdRes) mb_mbwdres
+           ; case bwdres of
+               NoBwdRes -> return (rgunit entry_f (unit thenode), entry_f)
                    where entry_f  = btransfer pass thenode f
-      	       Just (BwdRes mg rw) ->
-                          do { g <- mg
-                             ; let pass' = pass { bp_rewrite = rw }
+               (BwdRes g rw) ->
+                          do { let pass' = pass { bp_rewrite = rw }
                              ; (g, f) <- arbGraph pass' (entry thenode) g f
                              ; return (g, elower (bp_lattice pass) thenode f)} }
 
@@ -632,8 +634,8 @@ class ShapeLifter e x where
   elower    :: Edges n => DataflowLattice f -> n e x -> Fact e f -> f
   ftransfer :: FwdPass m n f -> n e x -> f        -> Fact x f
   btransfer :: BwdPass m n f -> n e x -> Fact x f -> f
-  frewrite  :: FwdPass m n f -> n e x -> f        -> Maybe (FwdRes m n f e x)
-  brewrite  :: BwdPass m n f -> n e x -> Fact x f -> Maybe (BwdRes m n f e x)
+  frewrite  :: FwdPass m n f -> n e x -> f        -> m (FwdRes m n f e x)
+  brewrite  :: BwdPass m n f -> n e x -> Fact x f -> m (BwdRes m n f e x)
   entry     :: Edges n => n e x -> Entries e
 
 instance ShapeLifter C O where
