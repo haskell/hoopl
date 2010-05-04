@@ -17,6 +17,7 @@ Library
   Build-Depends:     base >= 3 && < 5, containers
   Exposed-modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Passes.Dominator,
+                     Compiler.Hoopl.Passes.DList,
 --                       Compiler.Hoopl.DataflowFold,
 --                       Compiler.Hoopl.OldDataflow,
                        Compiler.Hoopl.GHC
