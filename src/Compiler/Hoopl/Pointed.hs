@@ -4,6 +4,7 @@
 
 module Compiler.Hoopl.Pointed
   ( Pointed(..), addPoints, addPoints', addTop, addTop'
+  , joinWithTop, joinWithTop'
   , WithTop, WithBot, WithTopAndBot
   )
 where
@@ -80,6 +81,21 @@ addPoints' name joinx = DataflowLattice name Bot join False
         join l (OldFact (PElem old)) (NewFact (PElem new))
            = joinx l (OldFact old) (NewFact new)
 
+
+joinWithTop  :: JoinFun a -> JoinFun (WithTop a)
+joinWithTop' :: forall a
+              . (Label -> OldFact a -> NewFact a -> (ChangeFlag, WithTop a))
+             -> JoinFun (WithTop a)
+
+joinWithTop' joinx = join
+ where join :: JoinFun (WithTop a)
+       join _ (OldFact Top)          (NewFact _)   = (NoChange, Top)
+       join _ (OldFact _)            (NewFact Top) = (SomeChange, Top)
+       join l (OldFact (PElem old)) (NewFact (PElem new))
+           = joinx l (OldFact old) (NewFact new)
+
+joinWithTop joinx = joinWithTop' (\l old new -> liftPair $ joinx l old new)
+  where liftPair (c, a) = (c, PElem a)
 
 -- | Given a join function and a name, creates a semi lattice by
 -- adding a top element but no bottom element.  Caller must supply the bottom 
