@@ -16,6 +16,7 @@ where
 
 import Data.Maybe
 
+import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
@@ -101,7 +102,7 @@ analyzeAndRewriteBwdOx pass g fb = analyzeAndRewriteBwd pass noEntries g fb >>= 
 -- interface.
 
 firstXfer :: Edges n => (n C O -> f -> f) -> (n C O -> FactBase f -> f)
-firstXfer xfer n fb = xfer n $ fromJust $ lookupFact fb $ entryLabel n
+firstXfer xfer n fb = xfer n $ fromJust $ lookupFact (entryLabel n) fb
 
 -- | This utility function handles a common case in which a transfer function
 -- produces a single fact out of a last node, which is then distributed
@@ -122,7 +123,7 @@ distributeFactBwd n f = mkFactBase [ (entryLabel n, f) ]
 
 -- | List of (unlabelled) facts from the successors of a last node
 successorFacts :: Edges n => n O C -> FactBase f -> [f]
-successorFacts n fb = [ f | id <- successors n, let Just f = lookupFact fb id ]
+successorFacts n fb = [ f | id <- successors n, let Just f = lookupFact id fb ]
 
 
 -- | Fold a function over every node in a block, forward or backward.
@@ -184,7 +185,7 @@ foldGraphNodes f = graph
           graph (GUnit b)         = block b
           graph (GMany e b x)     = lift block e . body b . lift block x
           body :: Body n -> a -> a
-          body  (Body bdy)        = \a -> foldLabelMap block a bdy
+          body  (Body bdy)        = \a -> mapFold block a bdy
           lift _ NothingO         = id
           lift f (JustO thing)    = f thing
 
@@ -200,7 +201,7 @@ lookupBlock :: Edges n => Graph n e x -> Label -> BlockResult n x
 lookupBlock (GMany _ _ (JustO exit)) lbl
   | entryLabel exit == lbl = ExitBlock exit
 lookupBlock (GMany _ (Body body)  _) lbl =
-  case lookupLabel body lbl of
+  case mapLookup lbl body of
     Just b  -> BodyBlock b
     Nothing -> NoBlock
 lookupBlock GNil      _ = NoBlock

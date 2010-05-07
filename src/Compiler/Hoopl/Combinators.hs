@@ -1,29 +1,29 @@
 {-# LANGUAGE RankNTypes, LiberalTypeSynonyms, ScopedTypeVariables #-}
 
 module Compiler.Hoopl.Combinators
-  ( SimpleFwdRewrite, noFwdRewrite, thenFwdRw
+  ( SimpleFwdRewrite, SimpleFwdRewrite', noFwdRewrite, thenFwdRw
   , shallowFwdRw, shallowFwdRw', deepFwdRw, deepFwdRw', iterFwdRw
   , SimpleBwdRewrite, SimpleBwdRewrite', noBwdRewrite, thenBwdRw
   , shallowBwdRw, shallowBwdRw', deepBwdRw, deepBwdRw', iterBwdRw
-  , noRewritePoly
   , productFwd, productBwd
   )
 
 where
 
+import Control.Monad
 import Data.Function
 import Data.Maybe
 
+import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Dataflow
-import Compiler.Hoopl.Graph (C, O)
+import Compiler.Hoopl.Graph (Graph, C, O)
 import Compiler.Hoopl.Label
-import Compiler.Hoopl.MkGraph
 
 type FR m n f = FwdRewrite m n f
 type BR m n f = BwdRewrite m n f
 
-type SFRW m n f e x = n e x -> f -> Maybe (AGraph m n e x)
-type FRW  m n f e x = n e x -> f -> Maybe (FwdRes m n f e x)
+type SFRW m n f e x = n e x -> f -> m (Maybe (Graph n e x))
+type FRW  m n f e x = n e x -> f -> m (FwdRes m n f e x)
 type SimpleFwdRewrite  m n f = ExTriple (SFRW m n f)
 type ExTriple a = (a C O, a O O, a O C) -- ^ entry/exit triple
 type SimpleFwdRewrite' m n f = forall e x . SFRW m n f e x
@@ -70,43 +70,41 @@ wrapFRewrites2' map = wrapFRewrites2 (map, map, map)
 
 ----------------------------------------------------------------
 
-noFwdRewrite :: FwdRewrite m n f
-noFwdRewrite = mkFRewrite' noRewritePoly
+noFwdRewrite :: Monad m => FwdRewrite m n f
+noFwdRewrite = mkFRewrite' $ \ _ _ -> return NoFwdRes
 
-noRewritePoly :: a -> b -> Maybe c
-noRewritePoly _ _ = Nothing
-
-shallowFwdRw :: forall m n f . SimpleFwdRewrite m n f -> FwdRewrite m n f
+shallowFwdRw :: forall m n f . Monad m => SimpleFwdRewrite m n f -> FwdRewrite m n f
 shallowFwdRw rw = wrapSFRewrites' lift rw
-  where lift rw n f = fmap withoutRewrite (rw n f) 
-        withoutRewrite ag = FwdRes ag noFwdRewrite
+  where lift rw n f = liftM withoutRewrite (rw n f) 
+        withoutRewrite Nothing = NoFwdRes
+        withoutRewrite (Just g) = FwdRes g noFwdRewrite
 
-shallowFwdRw' :: SimpleFwdRewrite' m n f -> FwdRewrite m n f
+shallowFwdRw' :: Monad m => SimpleFwdRewrite' m n f -> FwdRewrite m n f
 shallowFwdRw' f = shallowFwdRw (f, f, f)
 
-deepFwdRw  :: SimpleFwdRewrite  m n f -> FwdRewrite m n f
-deepFwdRw' :: SimpleFwdRewrite' m n f -> FwdRewrite m n f
+deepFwdRw  :: Monad m => SimpleFwdRewrite  m n f -> FwdRewrite m n f
+deepFwdRw' :: Monad m => SimpleFwdRewrite' m n f -> FwdRewrite m n f
 deepFwdRw  r = iterFwdRw (shallowFwdRw r)
 deepFwdRw' f = deepFwdRw (f, f, f)
 
-thenFwdRw :: FwdRewrite m n f -> FwdRewrite m n f -> FwdRewrite m n f
+thenFwdRw :: Monad m => FwdRewrite m n f -> FwdRewrite m n f -> FwdRewrite m n f
 thenFwdRw rw1 rw2 = wrapFRewrites2' f rw1 rw2
-  where f rw1 rw2' n f =
-          case rw1 n f of
-            Nothing               -> rw2' n f
-            Just (FwdRes ag rw1a) -> Just (FwdRes ag (rw1a `thenFwdRw` rw2))
+  where f rw1 rw2' n f = do
+          res1 <- rw1 n f
+          case res1 of
+            NoFwdRes        -> rw2' n f
+            (FwdRes g rw1a) -> return $ FwdRes g (rw1a `thenFwdRw` rw2)
 
-iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
+iterFwdRw :: Monad m => FwdRewrite m n f -> FwdRewrite m n f
 iterFwdRw rw = wrapFRewrites' f rw
-  where f rw' n f =
-          case rw' n f of
-            Just (FwdRes g rw2) -> Just $ FwdRes g (rw2 `thenFwdRw` iterFwdRw rw)
-            Nothing             -> Nothing
+  where f rw' n f = liftM iterRewrite (rw' n f)
+        iterRewrite NoFwdRes = NoFwdRes
+        iterRewrite (FwdRes g rw2) = FwdRes g (rw2 `thenFwdRw` iterFwdRw rw)
 
 ----------------------------------------------------------------
 
-type SBRW m n f e x = n e x -> Fact x f -> Maybe (AGraph m n e x)
-type BRW  m n f e x = n e x -> Fact x f -> Maybe (BwdRes m n f e x)
+type SBRW m n f e x = n e x -> Fact x f -> m (Maybe (Graph n e x))
+type BRW  m n f e x = n e x -> Fact x f -> m (BwdRes m n f e x)
 type SimpleBwdRewrite  m n f = ExTriple ( SBRW m n f)
 type SimpleBwdRewrite' m n f = forall e x . SBRW m n f e x
 type LiftBRW m n f e x = SBRW m n f e x -> BRW m n f e x
@@ -137,79 +135,78 @@ wrapBRewrites2' map = wrapBRewrites2 (map, map, map)
 
 ----------------------------------------------------------------
 
-noBwdRewrite :: BwdRewrite m n f
-noBwdRewrite = mkBRewrite' $ \ _ _ -> Nothing
+noBwdRewrite :: Monad m => BwdRewrite m n f
+noBwdRewrite = mkBRewrite' $ \ _ _ -> return NoBwdRes
 
-shallowBwdRw :: SimpleBwdRewrite m n f -> BwdRewrite m n f
+shallowBwdRw :: Monad m => SimpleBwdRewrite m n f -> BwdRewrite m n f
 shallowBwdRw rw = wrapSBRewrites' lift rw
-  where lift rw n f = fmap withoutRewrite (rw n f)
-        withoutRewrite ag = BwdRes ag noBwdRewrite
+  where lift rw n f = liftM withoutRewrite (rw n f)
+        withoutRewrite Nothing = NoBwdRes
+        withoutRewrite (Just g) = BwdRes g noBwdRewrite
 
-shallowBwdRw' :: SimpleBwdRewrite' m n f -> BwdRewrite m n f
+shallowBwdRw' :: Monad m => SimpleBwdRewrite' m n f -> BwdRewrite m n f
 shallowBwdRw' f = shallowBwdRw (f, f, f)
 
-deepBwdRw  :: SimpleBwdRewrite  m n f -> BwdRewrite m n f
-deepBwdRw' :: SimpleBwdRewrite' m n f -> BwdRewrite m n f
+deepBwdRw  :: Monad m => SimpleBwdRewrite  m n f -> BwdRewrite m n f
+deepBwdRw' :: Monad m => SimpleBwdRewrite' m n f -> BwdRewrite m n f
 deepBwdRw  r = iterBwdRw (shallowBwdRw r)
 deepBwdRw' f = deepBwdRw (f, f, f)
 
 
-thenBwdRw :: BwdRewrite m n f -> BwdRewrite m n f -> BwdRewrite m n f
+thenBwdRw :: Monad m => BwdRewrite m n f -> BwdRewrite m n f -> BwdRewrite m n f
 thenBwdRw rw1 rw2 = wrapBRewrites2' f rw1 rw2
-  where f rw1 rw2' n f =
-          case rw1 n f of
-            Nothing               -> rw2' n f
-            Just (BwdRes ag rw1a) -> Just (BwdRes ag (rw1a `thenBwdRw` rw2))
+  where f rw1 rw2' n f = do
+          res1 <- rw1 n f
+          case res1 of
+            NoBwdRes        -> rw2' n f
+            (BwdRes g rw1a) -> return $ BwdRes g (rw1a `thenBwdRw` rw2)
 
-iterBwdRw :: BwdRewrite m n f -> BwdRewrite m n f
+iterBwdRw :: Monad m => BwdRewrite m n f -> BwdRewrite m n f
 iterBwdRw rw = wrapBRewrites' f rw
-  where f rw' n f =
-          case rw' n f of
-            Just (BwdRes g rw2) -> Just $ BwdRes g (rw2 `thenBwdRw` iterBwdRw rw)
-            Nothing             -> Nothing
+  where f rw' n f = liftM iterRewrite (rw' n f)
+        iterRewrite NoBwdRes = NoBwdRes
+        iterRewrite (BwdRes g rw2) = BwdRes g (rw2 `thenBwdRw` iterBwdRw rw)
 
-productFwd :: forall m n f f' . FwdPass m n f -> FwdPass m n f' -> FwdPass m n (f, f')
+productFwd :: forall m n f f' . Monad m => FwdPass m n f -> FwdPass m n f' -> FwdPass m n (f, f')
 productFwd pass1 pass2 = FwdPass lattice transfer rewrite
   where
     lattice = productLattice (fp_lattice pass1) (fp_lattice pass2)
     transfer = mkFTransfer (tf tf1 tf2) (tf tm1 tm2) (tfb tl1 tl2)
       where
         tf  t1 t2 n (f1, f2) = (t1 n f1, t2 n f2)
-        tfb t1 t2 n (f1, f2) = mapWithLFactBase withfb2 fb1
+        tfb t1 t2 n (f1, f2) = mapMapWithKey withfb2 fb1
           where fb1 = t1 n f1
                 fb2 = t2 n f2
-                withfb2 l f = (f, fromMaybe bot2 $ lookupFact fb2 l)
+                withfb2 l f = (f, fromMaybe bot2 $ lookupFact l fb2)
                 bot2 = fact_bot (fp_lattice pass2)
         (tf1, tm1, tl1) = getFTransfers (fp_transfer pass1)
         (tf2, tm2, tl2) = getFTransfers (fp_transfer pass2)
     rewrite = liftRW (fp_rewrite pass1) fst `thenFwdRw` liftRW (fp_rewrite pass2) snd
       where
         liftRW rws proj = mkFRewrite (lift f) (lift m) (lift l)
-          where lift rw n f = case rw n (proj f) of
-                                Just (FwdRes g rws') -> Just (FwdRes g $ liftRW rws' proj)
-                                Nothing              -> Nothing
+          where lift rw n f = liftM projRewrite $ rw n (proj f)
+                projRewrite NoFwdRes = NoFwdRes
+                projRewrite (FwdRes g rws') = FwdRes g $ liftRW rws' proj
                 (f, m, l) = getFRewrites rws
 
-productBwd :: forall m n f f' . BwdPass m n f -> BwdPass m n f' -> BwdPass m n (f, f')
+productBwd :: forall m n f f' . Monad m => BwdPass m n f -> BwdPass m n f' -> BwdPass m n (f, f')
 productBwd pass1 pass2 = BwdPass lattice transfer rewrite
   where
     lattice = productLattice (bp_lattice pass1) (bp_lattice pass2)
     transfer = mkBTransfer (tf tf1 tf2) (tf tm1 tm2) (tfb tl1 tl2)
       where
         tf  t1 t2 n (f1, f2) = (t1 n f1, t2 n f2)
-        tfb t1 t2 n fb = (t1 n $ mapFactBase fst fb, t2 n $ mapFactBase snd fb)
+        tfb t1 t2 n fb = (t1 n $ mapMap fst fb, t2 n $ mapMap snd fb)
         (tf1, tm1, tl1) = getBTransfers (bp_transfer pass1)
         (tf2, tm2, tl2) = getBTransfers (bp_transfer pass2)
     rewrite = liftRW (bp_rewrite pass1) fst `thenBwdRw` liftRW (bp_rewrite pass2) snd
       where
         liftRW :: forall f1 . BwdRewrite m n f1 -> ((f, f') -> f1) -> BwdRewrite m n (f, f')
-        liftRW rws proj = mkBRewrite (lift proj f) (lift proj m) (lift (mapFactBase proj) l)
-          where 
-            lift proj' rw n f =
-              case rw n (proj' f) of
-                Just (BwdRes g rws') -> Just (BwdRes g $ liftRW rws' proj)
-                Nothing              -> Nothing
-            (f, m, l) = getBRewrites rws
+        liftRW rws proj = mkBRewrite (lift proj f) (lift proj m) (lift (mapMap proj) l)
+          where lift proj' rw n f = liftM projRewrite $ rw n (proj' f)
+                projRewrite NoBwdRes = NoBwdRes
+                projRewrite (BwdRes g rws') = BwdRes g $ liftRW rws' proj
+                (f, m, l) = getBRewrites rws
 
 productLattice :: forall f f' . DataflowLattice f -> DataflowLattice f' -> DataflowLattice (f, f')
 productLattice l1 l2 =

@@ -33,14 +33,15 @@ liveness = mkBTransfer' live
     live n@(Cond _ tl fl)  f = addUses (fact f tl `S.union` fact f fl) n
     live n@(Call vs _ _ l) f = addUses (fact f l `S.difference` S.fromList vs) n
     live n@(Return _)      _ = addUses (fact_bot liveLattice) n
-    fact f l = fromMaybe S.empty $ lookupFact f l
+    fact f l = fromMaybe S.empty $ lookupFact l f
     addUses = fold_EN (fold_EE addVar)
     addVar s (Var v) = S.insert v s
     addVar s _       = s
      
-deadAsstElim :: FuelMonad m => BwdRewrite m Insn Live
+deadAsstElim :: forall m . Monad m => BwdRewrite m Insn Live
 deadAsstElim = shallowBwdRw' d
   where
-    d :: FuelMonad m => SimpleBwdRewrite' m Insn Live
-    d (Assign x _) live = if x `S.member` live then Nothing else Just emptyGraph
-    d _ _ = Nothing
+    d :: SimpleBwdRewrite' m Insn Live
+    d (Assign x _) live = if x `S.member` live then return Nothing
+                                               else return $ Just emptyGraph
+    d _ _ = return Nothing

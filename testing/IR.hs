@@ -1,13 +1,16 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
 module IR (Proc (..), Insn (..), Expr (..), Lit (..), Value (..), BinOp(..), Var
-          , showProc) where
+          , showProc
+          , M) where
 
 import Prelude hiding (succ)
 
 import Compiler.Hoopl
 import Expr
 import PP
+
+type M = CheckingFuelMonad (SimpleUniqueMonad)
 
 data Value = B Bool | I Integer deriving Eq
 

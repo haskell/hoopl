@@ -16,13 +16,13 @@ import qualified IR  as I
 -- To keep the mapping from (String -> Label) consistent, we use a LabelMapM monad with
 -- the following operation:
 labelFor :: String -> LabelMapM Label
-getBody  :: forall n. AGraph n C C   -> LabelMapM (Graph n C C)
-run      :: LabelMapM a -> FuelMonad a
+getBody  :: forall n. Graph n C C   -> LabelMapM (Graph n C C)
+run      :: LabelMapM a -> I.M a
 
 -- We proceed with the translation from AST to IR; the implementation of the monad
 -- is at the end of this file.
 
-astToIR :: A.Proc -> FuelMonad I.Proc
+astToIR :: A.Proc -> I.M I.Proc
 astToIR (A.Proc {A.name = n, A.args = as, A.body = b}) = run $
   do entry <- getEntry b
      body  <- toBody   b
@@ -37,7 +37,7 @@ toBody bs =
   do g <- foldl (liftM2 (|*><*|)) (return emptyClosedGraph) (map toBlock bs)
      getBody g
 
-toBlock :: A.Block -> LabelMapM (AGraph I.Insn C C)
+toBlock :: A.Block -> LabelMapM (Graph I.Insn C C)
 toBlock (A.Block { A.first = f, A.mids = ms, A.last = l }) =
   do f'  <- toFirst f
      ms' <- mapM toMid ms
@@ -64,7 +64,7 @@ toLast (A.Return es)      = return $ I.Return es
 --------------------------------------------------------------------------------
 
 type IdLabelMap = M.Map String Label
-data LabelMapM a = LabelMapM (IdLabelMap -> SimpleFuelMonad (IdLabelMap, a))
+data LabelMapM a = LabelMapM (IdLabelMap -> I.M (IdLabelMap, a))
 instance Monad LabelMapM where
   return x = LabelMapM (\m -> return (m, x))
   LabelMapM f1 >>= k = LabelMapM (\m -> do (m', x) <- f1 m
@@ -73,11 +73,11 @@ instance Monad LabelMapM where
 labelFor l = LabelMapM f
   where f m = case M.lookup l m of
                 Just l' -> return (m, l')
-                Nothing -> do l' <- undefined -- freshLabel
+                Nothing -> do l' <- freshLabel
                               let m' = M.insert l l' m
                               return (m', l')
 
-getBody agraph = LabelMapM f
-  where f m = do g <- graphOfAGraph agraph
-                 return (m, g)
+getBody graph = LabelMapM f
+  where f m = return (m, graph)
+
 run (LabelMapM f) = f M.empty >>=  return . snd

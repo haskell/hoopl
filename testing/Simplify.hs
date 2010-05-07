@@ -7,10 +7,10 @@ import IR
 import OptSupport
 
 -- Simplification ("constant folding")
-simplify :: HooplMonad m => FwdRewrite m Insn a
+simplify :: forall m a . Monad m => FwdRewrite m Insn a
 simplify = deepFwdRw' simp
   where
-    simp insn _ = s insn >>= return . insnToA
+    simp insn _ = return $ s insn >>= Just . insnToG
     s :: Insn e x -> Maybe (Insn e x)
     s (Cond (Lit (Bool True))  t _) = Just $ Branch t
     s (Cond (Lit (Bool False)) _ f) = Just $ Branch f

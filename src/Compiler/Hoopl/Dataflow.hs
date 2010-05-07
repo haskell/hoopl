@@ -67,9 +67,9 @@ where
 
 import Data.Maybe
 
+import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
-import Compiler.Hoopl.MkGraph
 import qualified Compiler.Hoopl.GraphUtil as U
 import Compiler.Hoopl.Label
 import Compiler.Hoopl.Util
@@ -118,11 +118,12 @@ newtype FwdTransfer n f
 
 newtype FwdRewrite m n f 
   = FwdRewrites { getFRewrites ::
-                    ( n C O -> f -> Maybe (FwdRes m n f C O)
-                    , n O O -> f -> Maybe (FwdRes m n f O O)
-                    , n O C -> f -> Maybe (FwdRes m n f O C)
+                    ( n C O -> f -> m (FwdRes m n f C O)
+                    , n O O -> f -> m (FwdRes m n f O O)
+                    , n O C -> f -> m (FwdRes m n f O C)
                     ) }
-data FwdRes m n f e x = FwdRes (AGraph m n e x) (FwdRewrite m n f)
+data FwdRes m n f e x = FwdRes (Graph n e x) (FwdRewrite m n f)
+                      | NoFwdRes
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
 mkFTransfer :: (n C O -> f -> f)
@@ -134,13 +135,13 @@ mkFTransfer f m l = FwdTransfers (f, m, l)
 mkFTransfer' :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
 mkFTransfer' f = FwdTransfers (f, f, f)
 
-mkFRewrite :: (n C O -> f -> Maybe (FwdRes m n f C O))
-           -> (n O O -> f -> Maybe (FwdRes m n f O O))
-           -> (n O C -> f -> Maybe (FwdRes m n f O C))
+mkFRewrite :: (n C O -> f -> m (FwdRes m n f C O))
+           -> (n O O -> f -> m (FwdRes m n f O O))
+           -> (n O C -> f -> m (FwdRes m n f O C))
            -> FwdRewrite m n f
 mkFRewrite f m l = FwdRewrites (f, m, l)
 
-mkFRewrite' :: (forall e x . n e x -> f -> Maybe (FwdRes m n f e x)) -> FwdRewrite m n f
+mkFRewrite' :: (forall e x . n e x -> f -> m (FwdRes m n f e x)) -> FwdRewrite m n f
 mkFRewrite' f = FwdRewrites (f, f, f)
 
 
@@ -222,14 +223,14 @@ arfGraph pass entries = graph
     block (BClosed h t)= block h  `cat` block t
 
     node thenode f
-      = do { mb_g <- withFuel (frewrite pass thenode f)
-           ; case mb_g of
-               Nothing -> return (rgunit f (unit thenode),
-                                  ftransfer pass thenode f)
-               Just (FwdRes ag rw) ->
-                   do { g <- graphOfAGraph ag
-                      ; let pass' = pass { fp_rewrite = rw }
-                      ; arfGraph pass' (entry thenode) g (elift thenode f) } }
+      = do { mb_mfwdres <- withFuel (frewrite pass thenode f)
+           ; fwdres <- fromMaybe (return NoFwdRes) mb_mfwdres
+           ; case fwdres of
+               NoFwdRes -> return (rgunit f (unit thenode),
+                                   ftransfer pass thenode f)
+               (FwdRes g rw) ->
+                   let pass' = pass { fp_rewrite = rw }
+                   in  arfGraph pass' (entry thenode) g (elift thenode f) }
 
     -- | Compose fact transformers and concatenate the resulting
     -- rewritten graphs.
@@ -243,7 +244,7 @@ arfGraph pass entries = graph
          => (thing C x ->        f -> m (RG f n C x, Fact x f))
          -> (thing C x -> Fact C f -> m (RG f n C x, Fact x f))
     arfx arf thing fb = 
-      arf thing $ fromJust $ lookupFact (joinInFacts lattice fb) $ entryLabel thing
+      arf thing $ fromJust $ lookupFact (entryLabel thing) $ joinInFacts lattice fb
      where lattice = fp_lattice pass
      -- joinInFacts adds debugging information
 
@@ -256,7 +257,7 @@ arfGraph pass entries = graph
         forwardBlockList entries blocks
       where
         do_block b f = do (g, fb) <- block b $ lookupF pass (entryLabel b) f
-                          return (g, factBaseList fb)
+                          return (g, mapToList fb)
 
 
 
@@ -265,7 +266,7 @@ arfGraph pass entries = graph
 -- functions might, for example, generate some debugging traces.
 joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
 joinInFacts (DataflowLattice {fact_bot = bot, fact_extend = fe}) fb =
-  mkFactBase $ map botJoin $ factBaseList fb
+  mkFactBase $ map botJoin $ mapToList fb
     where botJoin (l, f) = (l, snd $ fe l (OldFact bot) (NewFact f))
 
 forwardBlockList :: (Edges n, LabelsPtr entry)
@@ -291,11 +292,12 @@ newtype BwdTransfer n f
                      ) }
 newtype BwdRewrite m n f 
   = BwdRewrites { getBRewrites ::
-                    ( n C O -> f          -> Maybe (BwdRes m n f C O)
-                    , n O O -> f          -> Maybe (BwdRes m n f O O)
-                    , n O C -> FactBase f -> Maybe (BwdRes m n f O C)
+                    ( n C O -> f          -> m (BwdRes m n f C O)
+                    , n O O -> f          -> m (BwdRes m n f O O)
+                    , n O C -> FactBase f -> m (BwdRes m n f O C)
                     ) }
-data BwdRes m n f e x = BwdRes (AGraph m n e x) (BwdRewrite m n f)
+data BwdRes m n f e x = BwdRes (Graph n e x) (BwdRewrite m n f)
+                      | NoBwdRes
 
 mkBTransfer :: (n C O -> f -> f) -> (n O O -> f -> f) ->
                (n O C -> FactBase f -> f) -> BwdTransfer n f
@@ -304,13 +306,13 @@ mkBTransfer f m l = BwdTransfers (f, m, l)
 mkBTransfer' :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
 mkBTransfer' f = BwdTransfers (f, f, f)
 
-mkBRewrite :: (n C O -> f          -> Maybe (BwdRes m n f C O))
-           -> (n O O -> f          -> Maybe (BwdRes m n f O O))
-           -> (n O C -> FactBase f -> Maybe (BwdRes m n f O C))
+mkBRewrite :: (n C O -> f          -> m (BwdRes m n f C O))
+           -> (n O O -> f          -> m (BwdRes m n f O O))
+           -> (n O C -> FactBase f -> m (BwdRes m n f O C))
            -> BwdRewrite m n f
 mkBRewrite f m l = BwdRewrites (f, m, l)
 
-mkBRewrite' :: (forall e x . n e x -> Fact x f -> Maybe (BwdRes m n f e x))
+mkBRewrite' :: (forall e x . n e x -> Fact x f -> m (BwdRes m n f e x))
             -> BwdRewrite m n f
 mkBRewrite' f = BwdRewrites (f, f, f)
 
@@ -363,13 +365,13 @@ arbGraph pass entries = graph
     block (BClosed h t)= block h  `cat` block t
 
     node thenode f
-      = do { mb_g <- withFuel (brewrite pass thenode f)
-           ; case mb_g of
-               Nothing -> return (rgunit entry_f (unit thenode), entry_f)
+      = do { mb_mbwdres <- withFuel (brewrite pass thenode f)
+           ; bwdres <- fromMaybe (return NoBwdRes) mb_mbwdres
+           ; case bwdres of
+               NoBwdRes -> return (rgunit entry_f (unit thenode), entry_f)
                    where entry_f  = btransfer pass thenode f
-      	       Just (BwdRes ag rw) ->
-                          do { g <- graphOfAGraph ag
-                             ; let pass' = pass { bp_rewrite = rw }
+               (BwdRes g rw) ->
+                          do { let pass' = pass { bp_rewrite = rw }
                              ; (g, f) <- arbGraph pass' (entry thenode) g f
                              ; return (g, elower (bp_lattice pass) thenode f)} }
 
@@ -464,16 +466,16 @@ updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
            -> (ChangeFlag, FactBase f)
 -- See Note [TxFactBase change flag]
 updateFact lat lbls (lbl, new_fact) (cha, fbase)
-  | NoChange <- cha2        = (cha,        fbase)
-  | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
-  | otherwise               = (cha,        new_fbase)
+  | NoChange <- cha2     = (cha,        fbase)
+  | lbl `setMember` lbls = (SomeChange, new_fbase)
+  | otherwise            = (cha,        new_fbase)
   where
     (cha2, res_fact) -- Note [Unreachable blocks]
-       = case lookupFact fbase lbl of
+       = case lookupFact lbl fbase of
            Nothing -> (SomeChange, snd $ join $ fact_bot lat)  -- Note [Unreachable blocks]
            Just old_fact -> join old_fact
          where join old_fact = fact_extend lat lbl (OldFact old_fact) (NewFact new_fact)
-    new_fbase = extendFactBase fbase lbl res_fact
+    new_fbase = mapInsert lbl res_fact fbase
 
 fixpoint :: forall m block n f. (FuelMonad m, Edges n, Edges (block n))
          => Bool	-- Going forwards?
@@ -486,7 +488,7 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
-                 tfb_fbase tx_fb `delFromFactBase` map fst blocks) }
+                 map (fst . fst) blocks `mapDeleteList` tfb_fbase tx_fb ) }
 	     -- The successors of the Graph are the the Labels for which
 	     -- we have facts, that are *not* in the blocks of the graph
   where
@@ -503,13 +505,13 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
              -> TxFactBase n f -> m (TxFactBase n f)
     tx_block lbl blk deps tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                                       , tfb_rg = blks, tfb_cha = cha })
-      | is_fwd && not (lbl `elemFactBase` fbase)
-      = return tx_fb {tfb_lbls = lbls `unionLabelSet` mkLabelSet deps}	-- Note [Unreachable blocks]
+      | is_fwd && not (lbl `mapMember` fbase)
+      = return tx_fb {tfb_lbls = lbls `setUnion` setFromList deps}	-- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
                    = foldr (updateFact lat lbls) (cha,fbase) out_facts
-                 lbls' = lbls `unionLabelSet` mkLabelSet deps
+                 lbls' = lbls `setUnion` setFromList deps
            ; return (TxFB { tfb_lbls  = lbls'
                           , tfb_rg    = rg `rgCat` blks
                           , tfb_fbase = fbase', tfb_cha = cha' }) }
@@ -519,7 +521,7 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
       = do { let init_tx_fb = TxFB { tfb_fbase = fbase
                                    , tfb_cha   = NoChange
                                    , tfb_rg    = rgnilC
-                                   , tfb_lbls  = emptyLabelSet }
+                                   , tfb_lbls  = setEmpty }
            ; tx_fb <- tx_blocks blocks init_tx_fb
            ; case tfb_cha tx_fb of
                NoChange   -> return tx_fb
@@ -592,13 +594,13 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
           facts :: RG f n e x -> FactBase f
           facts GNil = noFacts
           facts (GUnit _) = noFacts
-          facts (GMany _ body exit) = bodyFacts body `unionFactBase` exitFacts exit
+          facts (GMany _ body exit) = bodyFacts body `mapUnion` exitFacts exit
           exitFacts :: MaybeO x (FBlock f n C O) -> FactBase f
           exitFacts NothingO = noFacts
           exitFacts (JustO (FBlock f b)) = mkFactBase [(entryLabel b, f)]
           bodyFacts :: Body' (FBlock f) n -> FactBase f
-          bodyFacts (Body body) = foldLabelMap f noFacts body
-            where f (FBlock f b) fb = extendFactBase fb (entryLabel b) f
+          bodyFacts (Body body) = mapFold f noFacts body
+            where f (FBlock f b) fb = mapInsert (entryLabel b) f fb
 
 --- implementation of the constructors (boring)
 
@@ -632,8 +634,8 @@ class ShapeLifter e x where
   elower    :: Edges n => DataflowLattice f -> n e x -> Fact e f -> f
   ftransfer :: FwdPass m n f -> n e x -> f        -> Fact x f
   btransfer :: BwdPass m n f -> n e x -> Fact x f -> f
-  frewrite  :: FwdPass m n f -> n e x -> f        -> Maybe (FwdRes m n f e x)
-  brewrite  :: BwdPass m n f -> n e x -> Fact x f -> Maybe (BwdRes m n f e x)
+  frewrite  :: FwdPass m n f -> n e x -> f        -> m (FwdRes m n f e x)
+  brewrite  :: BwdPass m n f -> n e x -> Fact x f -> m (BwdRes m n f e x)
   entry     :: Edges n => n e x -> Entries e
 
 instance ShapeLifter C O where
@@ -671,5 +673,5 @@ lookupF :: FwdPass m n f -> Label -> FactBase f -> f
 lookupF = getFact . fp_lattice
 
 getFact  :: DataflowLattice f -> Label -> FactBase f -> f
-getFact lat l fb = case lookupFact fb l of Just  f -> f
+getFact lat l fb = case lookupFact l fb of Just  f -> f
                                            Nothing -> fact_bot lat

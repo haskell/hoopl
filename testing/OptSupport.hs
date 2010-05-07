@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall -fno-warn-incomplete-patterns -XGADTs -XRankNTypes #-}
-module OptSupport (stdMapJoin, map_EE, map_EN, fold_EE, fold_EN, insnToA) where
+module OptSupport (stdMapJoin, map_EE, map_EN, fold_EE, fold_EN, insnToG) where
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -82,14 +82,14 @@ fold_EN f z (Call _ _ es _) = foldl f z es
 fold_EN f z (Return es)     = foldl f z es
 
 ----------------------------------------------
--- Lift a insn to an AGraph
+-- Lift a insn to a Graph
 ----------------------------------------------
 
-insnToA :: HooplMonad m => Insn e x -> AGraph m Insn e x
-insnToA n@(Label _)      = mkFirst n
-insnToA n@(Assign _ _)   = mkMiddle n
-insnToA n@(Store _ _)    = mkMiddle n
-insnToA n@(Branch _)     = mkLast n
-insnToA n@(Cond _ _ _)   = mkLast n
-insnToA n@(Call _ _ _ _) = mkLast n
-insnToA n@(Return _)     = mkLast n
+insnToG :: Insn e x -> Graph Insn e x
+insnToG n@(Label _)      = mkFirst n
+insnToG n@(Assign _ _)   = mkMiddle n
+insnToG n@(Store _ _)    = mkMiddle n
+insnToG n@(Branch _)     = mkLast n
+insnToG n@(Cond _ _ _)   = mkLast n
+insnToG n@(Call _ _ _ _) = mkLast n
+insnToG n@(Return _)     = mkLast n

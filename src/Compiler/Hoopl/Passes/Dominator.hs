@@ -85,12 +85,12 @@ tree facts = Dominates Entry $ merge $ map reverse $ map mkList facts
   where merge lists = mapTree $ children $ filter (not . null) lists
         children = foldl addList noFacts
         addList :: FactBase [[Label]] -> [Label] -> FactBase [[Label]]
-        addList map (x:xs) = extendFactBase map x (xs:existing)
-            where existing = fromMaybe [] $ lookupFact map x
+        addList map (x:xs) = mapInsert x (xs:existing) map
+            where existing = fromMaybe [] $ lookupFact x map
         addList _ [] = error "this can't happen"
         mapTree :: FactBase [[Label]] -> [DominatorTree]
         mapTree map = [Dominates (Labelled x) (merge lists) |
-                                                    (x, lists) <- factBaseList map]
+                                                    (x, lists) <- mapToList map]
         mkList (l, doms) = l : domPath doms
 
 
@@ -124,7 +124,7 @@ instance Show DominatorNode where
 -- | Takes FactBase from dominator analysis and returns a map from each 
 -- label to its immediate dominator, if any
 immediateDominators :: FactBase Doms -> LabelMap Label
-immediateDominators fb = foldr add emptyLabelMap $ factBaseList fb
-    where add (l, PElem (DPath (idom:_))) m = extendLabelMap m l idom
-          add _ m = m
+immediateDominators = mapFoldWithKey add mapEmpty
+    where add l (PElem (DPath (idom:_))) = mapInsert l idom 
+          add _ _ = id
 
