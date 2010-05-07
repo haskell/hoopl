@@ -10,8 +10,8 @@ import OptSupport
 
 -- ConstFact:
 --   Not present in map => bottom
---   Elt v => variable has value v
---   Top   => variable's value is not constant
+--   PElem v => variable has value v
+--   Top     => variable's value is not constant
 type ConstFact = M.Map Var (WithTop Lit)
 
 constLattice :: DataflowLattice ConstFact
