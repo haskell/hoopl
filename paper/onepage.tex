@@ -556,6 +556,10 @@ transfer for a last node distributes the fact to its successors:
 domFirst n  = (entryLabel n :)
 domMiddle _ = id
 domLast     = distributeFact
+
+distributeFact :: Edges n => n O C -> f -> FactBase f
+distributeFact n f
+  = mkFactBase [ (l, f) | l <- successors n ]
 \end{code}
 \item
 The interesting part is the join function:
