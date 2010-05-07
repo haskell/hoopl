@@ -476,15 +476,17 @@ hard; we have been through over a dozen significantly different
 iterations, and we offer our API as a contribution.
 % ``in its own right''  -- there's an echo in here...
 
-\item Analyses and transformations built on \ourlib\ 
-are small, simple, and easy to get right because the client
-only has to perform local reasoning (``@y@ is live before
+\item
+Because the client
+can perform very local reasoning (``@y@ is live before
 @x:=y+2@'').%
 \footnote
 {Using \hoopl, it is not necessary to have the more complex rule
 ``if @x@~is live after @x:=y+2@ then @y@ is live before~it,''
 because if @x@~is \emph{not} live after @x:=y+2@, the assignment
-@x:=y+2@ will be eliminated.}
+@x:=y+2@ will be eliminated.},
+ analyses and transformations built on \ourlib\ 
+are small, simple, and easy to get right.
 Moreover, \ourlib\ helps you write correct optimizations:
 it~statically rules out transformations that violate invariants
 of the control-flow graph (Sections \ref{sec:graph-rep} and \ref{sec:rewrites}),
@@ -524,7 +526,7 @@ we emphasize the implementation as an object of interest in
 its own right.
 \end{itemize}
 A working prototype of \ourlib{} is available from
-\burl{http://ghc.cs.tufts.edu/hoopl}.
+\burl{http://ghc.cs.tufts.edu/hoopl} and also from Hackage.
 It is no toy: an ancestor of this library is
 part of the Glasgow Haskell Compiler, where it optimizes the
 imperative {\PAL} code in GHC's back end.  The new design is far
@@ -674,7 +676,7 @@ In particular, each can be \emph{open or closed at entry}
 and \emph{open or closed at exit}.  
 An \emph{open} point is one at which control may implicitly ``fall through;''
 to transfer control at a \emph{closed} point requires an explicit
-control-transfer instruction.
+control-transfer instruction to a named label.
 For example,
 \begin{itemize}
 \item A shift-left instruction is open on entry (because control can fall into it
@@ -746,7 +748,7 @@ whatever.
 \begin{figure}
 \begin{fuzzcode}{0.98pt}
 data `Node e x where
-  `LabelNode  :: Label -> Node C O
+  Label      :: Label -> Node C O
   `Assign     :: Var   -> Expr -> Node O O
   `Store      :: Expr  -> Expr -> Node O O
   `Branch     :: Label -> Node O C
@@ -771,7 +773,7 @@ entry and exit respectively.
 The type is a generalized algebraic data type;
 the syntax gives the type of each constructor.  
 %%% \cite{peyton-jones:unification-based-gadts}.
-For example, constructor @LabelNode@
+For example, constructor @Label@
 takes a @Label@ and returns a node of type @Node C O@, where
 the~``@C@'' says ``closed at entry'' and the~``@O@'' says ``open at exit''.  
 The types @Label@, @O@, and~@C@ are 
@@ -810,8 +812,10 @@ data `O   -- Open
 data `C   -- Closed
 
 data `Block n e x where
- `BUnit :: n e x       -> Block n e x
- `BCat  :: Block n e O -> Block n O x -> Block n e x
+ `BFirst  :: n C O                      -> Block n C O
+ `BMiddle :: n O O                      -> Block n O O
+ `BLast   :: n O C                      -> Block n O C
+ `BCat    :: Block n e O -> Block n O x -> Block n e x
 
 data `Graph n e x where
   `GNil  :: Graph n O O
@@ -847,8 +851,21 @@ A~@Block@ is parameterized over the node type~@n@
 as well as over the same flag types that make it open or closed at
 entry and exit.
 
-The @BUnit@ constructor lifts a node to become a block; @BCat@
-concatenates blocks in sequence. 
+The @BFirst@, @BMiddle@, and @BLast@ constructors create one-node
+blocks.  
+Each of these constructors is polymorphic in the node's \emph{representation}
+but monomorphic in its \emph{shape}.
+An~earlier representation of blocks used a single constructor 
+of type \mbox{@n e x -> Block n e x@}, polymorphic in a node's representation and
+shape.
+The representation of blocks in \figref{graph} has more constructors, but it
+uses the power of GADTs to ensure that the shape of every node is
+known statically.
+This property makes no difference to clients, but it significantly
+simplifies the implementation of analysis and transformation in
+\secref{monomorphic-shape-outcome}. 
+
+The @BCat@ constructor concatenates blocks in sequence. 
 It~makes sense to concatenate blocks only when control can fall
 through from the first to the second; therefore, 
 two blocks may be concatenated {only} if each block is open at
@@ -1053,7 +1070,7 @@ In~\figref{cmm-node},
 the client's instance declaration for @Node@ would be
 \begin{code}
 instance Edges Node where
-  entryLabel (LabelNode l) = l
+  entryLabel (Label l) = l
   successors (Branch b) = [b]
   successors (CondBranch e b1 b2) = [b1,b2]
 \end{code}
@@ -1370,7 +1387,7 @@ mkIfThenElse p t e
     mkLabel l2 `gSplice` e `gSplice` mkBranch l3 `gSplice`
     mkLabel l3
 
-`mkLabel  l = gUnitCO (BUnit (LabelNode l))          
+`mkLabel  l = gUnitCO (BUnit (Label l))          
 `mkBranch l = gUnitOC (BUnit (Branch l))
 `gUnitOC  b = GMany (JustO b) BodyEmpty   NothingO
 `gUnitCO  b = GMany NothingO  BodyEmpty   (JustO b)
@@ -1568,7 +1585,7 @@ type `ConstFact = Map.Map Var HasConst
 -------------------------------------------------------
 -- Analysis: variable has constant value
 `varHasConst :: FwdTransfer Node ConstFact
-varHasConst (LabelNode l)       f = lookupFact f l
+varHasConst (Label l)       f = lookupFact f l
 varHasConst (Store _ _)         f = f
 varHasConst (Assign x (Bool b)) f = Map.insert x (B b) f
 varHasConst (Assign x (Int  i)) f = Map.insert x (I i) f
@@ -1607,7 +1624,7 @@ simplify node _ = fmap toAGraph (mapE s_exp node)
 -- Rewriting expressions
 `mapE :: (Expr    -> Maybe Expr) 
       -> Node e x -> Maybe (Node e x)
-mapE f (LabelNode _) = Nothing
+mapE f (Label _) = Nothing
 mapE f (Assign x e)  = fmap (Assign x) $ f e
  ...  -- more cases for rewriting expressions
 
