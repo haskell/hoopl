@@ -64,6 +64,10 @@ wrapSFRewrites' lift = wrapSFRewrites (lift, lift, lift)
 
 wrapFRewrites' :: (forall e x . MapFRW m n f e x) -> FR m n f -> FR m n f
 wrapFRewrites' map = wrapFRewrites (map, map, map)
+-- It's ugly that we can't use
+--    wrapFRewrites' = mkFRewrite'
+-- Would be nice to refactor here XXX  ---NR
+
 
 wrapFRewrites2' :: (forall e x . MapFRW2 m n f e x) -> FR m n f -> FR m n f -> FR m n f
 wrapFRewrites2' map = wrapFRewrites2 (map, map, map)
@@ -88,8 +92,8 @@ deepFwdRw  r = iterFwdRw (shallowFwdRw r)
 deepFwdRw' f = deepFwdRw (f, f, f)
 
 thenFwdRw :: Monad m => FwdRewrite m n f -> FwdRewrite m n f -> FwdRewrite m n f
-thenFwdRw rw1 rw2 = wrapFRewrites2' f rw1 rw2
-  where f rw1 rw2' n f = do
+thenFwdRw rw1 rw2 = wrapFRewrites2' tfr rw1 rw2
+  where tfr rw1 rw2' n f = do  -- Gross!! Isn't rw2 == rw2' always? XXX ---NR
           res1 <- rw1 n f
           case res1 of
             NoFwdRes        -> rw2' n f
