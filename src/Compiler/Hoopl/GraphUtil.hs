@@ -32,8 +32,9 @@ splice bcat = sp
         sp (GMany e bs (JustO x)) (GUnit b2) = GMany e bs (JustO (x `bcat` b2))
 
         sp (GMany e1 bs1 (JustO x1)) (GMany (JustO e2) (Body b2) x2)
-          = GMany e1 (Body $ mapUnion b1 b2) x2
+          = GMany e1 (Body $ mapUnionWithKey nodups b1 b2) x2
           where (Body b1) = addBlock (x1 `bcat` e2) bs1
+                nodups l _ _ = error $ "duplicate blocks with label " ++ show l
 
         sp (GMany e1 (Body b1) NothingO) (GMany NothingO (Body b2) x2)
            = GMany e1 (Body $ mapUnion b1 b2) x2

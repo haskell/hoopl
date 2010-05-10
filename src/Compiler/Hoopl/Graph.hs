@@ -102,7 +102,11 @@ emptyBody :: Body' block n
 emptyBody = Body mapEmpty
 
 addBlock :: Edges (block n) => block n C C -> Body' block n -> Body' block n
-addBlock b (Body body) = Body (mapInsert (entryLabel b) b body)
+addBlock b (Body body) = Body $ nodupsInsert (entryLabel b) b body
+  where nodupsInsert l b body = if mapMember l body then
+                                    error $ "duplicate label " ++ show l ++ " in graph"
+                                else
+                                    mapInsert l b body
 
 bodyList :: Edges (block n) => Body' block n -> [(Label,block n C C)]
 bodyList (Body body) = mapToList body
