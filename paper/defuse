@@ -142,8 +142,8 @@ local word = wordclass .. '*' .. wordclass:gsub('%%%.', '')
 local symbacktick = sym:gsub('^%[', '[%`%^')
 local wordbacktick = word:gsub('%[', '[%`%^')
 
-io.stderr:write(word, '\n')
-io.stderr:write(wordbacktick, '\n')
+--io.stderr:write(word, '\n')
+--io.stderr:write(wordbacktick, '\n')
 
 local function is_literal(id)
   return id:find '^%d+$'
@@ -343,7 +343,7 @@ while line do
     local def      = line:match '^%%%s*defn%s+(%S+)%s*$'
     local omit, ty = line:match '^%%%s*omit%s+(%S+)%s+::%s+(.-)%s*$'
 if line:match 'fuzzcode' then
-  fprintf(io.stderr, "%s: env = %s, endenv = %s\n", line, env or '<nil>', endenv or '<nil>')
+--  fprintf(io.stderr, "%s: env = %s, endenv = %s\n", line, env or '<nil>', endenv or '<nil>')
 end
     if env and special[env] then
       special[env](line, env)
