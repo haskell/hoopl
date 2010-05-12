@@ -943,7 +943,7 @@ gSplice (GMany e ^bs (JustO x)) (GUnit b2)
   = GMany e bs (JustO (x `BCat` b2))
 
 gSplice (GMany e1 ^bs1 (JustO x1)) (GMany (JustO e2) ^bs2 x2)
-  = GMany e1 (bs1 `mapUnion` (b `addBlock` bs2) x2
+  = GMany e1 (bs1 `mapUnion` (b `addBlock` bs2)) x2
   where b = x1 `BCat` e2
 
 gSplice (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
