@@ -11,6 +11,7 @@ where
 
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Graph
+import Compiler.Hoopl.Label
 
 bodyGraph :: Body n -> Graph n C C
 bodyGraph b = GMany NothingO b NothingO
@@ -32,14 +33,17 @@ splice bcat = sp
         sp (GMany e bs (JustO x)) (GUnit b2) = GMany e bs (JustO (x `bcat` b2))
 
         sp (GMany e1 bs1 (JustO x1)) (GMany (JustO e2) (Body b2) x2)
-          = GMany e1 (Body $ mapUnionWithKey nodups b1 b2) x2
+          = GMany e1 (Body $ bodyUnion b1 b2) x2
           where (Body b1) = addBlock (x1 `bcat` e2) bs1
-                nodups l _ _ = error $ "duplicate blocks with label " ++ show l
 
         sp (GMany e1 (Body b1) NothingO) (GMany NothingO (Body b2) x2)
-           = GMany e1 (Body $ mapUnion b1 b2) x2
+          = GMany e1 (Body $ bodyUnion b1 b2) x2
 
         sp _ _ = error "bogus GADT match failure"
+
+        bodyUnion :: forall a . LabelMap a -> LabelMap a -> LabelMap a
+        bodyUnion = mapUnionWithKey nodups
+         where nodups l _ _ = error $ "duplicate blocks with label " ++ show l
 
 gSplice :: Edges n => Graph n e a -> Graph n a x -> Graph n e x
 gSplice = splice cat
