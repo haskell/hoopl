@@ -5,7 +5,7 @@ module Compiler.Hoopl.Combinators
   , shallowFwdRw3, shallowFwdRw, deepFwdRw3, deepFwdRw, iterFwdRw
   , SimpleBwdRewrite, SimpleBwdRewrite3, noBwdRewrite, thenBwdRw
   , shallowBwdRw3, shallowBwdRw, deepBwdRw3, deepBwdRw, iterBwdRw
-  , productFwd, productBwd
+  , pairFwd, pairBwd, pairLattice
   )
 
 where
@@ -62,8 +62,8 @@ wrapFRewrites23 map frw1 frw2 =
 wrapSFRewrites' :: (forall e x . LiftFRW m n f e x) -> SimpleFwdRewrite3 m n f -> FR m n f
 wrapSFRewrites' lift = wrapSFRewrite3 (lift, lift, lift)
 
-wrapFRewrites' :: (forall e x . MapFRW m n f e x) -> FR m n f -> FR m n f
-wrapFRewrites' map = wrapFRewrite3 (map, map, map)
+wrapFRewrites :: (forall e x . MapFRW m n f e x) -> FR m n f -> FR m n f
+wrapFRewrites map = wrapFRewrite3 (map, map, map)
 -- It's ugly that we can't use
 --    wrapFRewrites' = mkFRewrite'
 -- Would be nice to refactor here XXX  ---NR
@@ -96,23 +96,28 @@ thenFwdRw :: Monad m
           => FwdRewrite m n f 
           -> FwdRewrite m n f 
           -> FwdRewrite m n f
-thenFwdRw rw3 rw3' = wrapFRewrites2 tfr rw3 rw3'
- where tfr rw rw' n f = do
-         res1 <- rw n f
-         case res1 of
-           NoFwdRes      -> rw' n f
-           FwdRes g rw3a -> 
-             return $ FwdRes g (rw3a `thenFwdRw` rw3')
+thenFwdRw rw3 rw3' = wrapFRewrites2 thenrw rw3 rw3'
+ where
+  thenrw rw rw' n f = rw n f >>= fwdRes
+     where fwdRes NoFwdRes = rw' n f
+           fwdRes (FwdRes g rw3a)
+            = return $ FwdRes g (rw3a `thenFwdRw` rw3')
 
 noFwdRewrite :: Monad m => FwdRewrite m n f
 noFwdRewrite = mkFRewrite $ \ _ _ -> return NoFwdRes
 -- @ end comb1.tex
 
-iterFwdRw :: Monad m => FwdRewrite m n f -> FwdRewrite m n f
-iterFwdRw rw = wrapFRewrites' f rw
-  where f rw' n f = liftM iterRewrite (rw' n f)
-        iterRewrite NoFwdRes = NoFwdRes
-        iterRewrite (FwdRes g rw2) = FwdRes g (rw2 `thenFwdRw` iterFwdRw rw)
+-- @ start iterf.tex
+iterFwdRw :: Monad m 
+          => FwdRewrite m n f 
+          -> FwdRewrite m n f
+iterFwdRw rw3 = wrapFRewrites iter rw3
+ where
+    iter rw n f = rw n f >>= fwdRes
+    fwdRes NoFwdRes = return NoFwdRes
+    fwdRes (FwdRes g rw3a)
+      = return $ FwdRes g (rw3a `thenFwdRw` iterFwdRw rw3)
+-- @ end iterf.tex
 
 ----------------------------------------------------------------
 
@@ -180,10 +185,10 @@ iterBwdRw rw = wrapBRewrites' f rw
         iterRewrite NoBwdRes = NoBwdRes
         iterRewrite (BwdRes g rw2) = BwdRes g (rw2 `thenBwdRw` iterBwdRw rw)
 
-productFwd :: forall m n f f' . Monad m => FwdPass m n f -> FwdPass m n f' -> FwdPass m n (f, f')
-productFwd pass1 pass2 = FwdPass lattice transfer rewrite
+pairFwd :: forall m n f f' . Monad m => FwdPass m n f -> FwdPass m n f' -> FwdPass m n (f, f')
+pairFwd pass1 pass2 = FwdPass lattice transfer rewrite
   where
-    lattice = productLattice (fp_lattice pass1) (fp_lattice pass2)
+    lattice = pairLattice (fp_lattice pass1) (fp_lattice pass2)
     transfer = mkFTransfer3 (tf tf1 tf2) (tf tm1 tm2) (tfb tl1 tl2)
       where
         tf  t1 t2 n (f1, f2) = (t1 n f1, t2 n f2)
@@ -202,10 +207,10 @@ productFwd pass1 pass2 = FwdPass lattice transfer rewrite
                 projRewrite (FwdRes g rws') = FwdRes g $ liftRW rws' proj
                 (f, m, l) = getFRewrite3 rws
 
-productBwd :: forall m n f f' . Monad m => BwdPass m n f -> BwdPass m n f' -> BwdPass m n (f, f')
-productBwd pass1 pass2 = BwdPass lattice transfer rewrite
+pairBwd :: forall m n f f' . Monad m => BwdPass m n f -> BwdPass m n f' -> BwdPass m n (f, f')
+pairBwd pass1 pass2 = BwdPass lattice transfer rewrite
   where
-    lattice = productLattice (bp_lattice pass1) (bp_lattice pass2)
+    lattice = pairLattice (bp_lattice pass1) (bp_lattice pass2)
     transfer = mkBTransfer3 (tf tf1 tf2) (tf tm1 tm2) (tfb tl1 tl2)
       where
         tf  t1 t2 n (f1, f2) = (t1 n f1, t2 n f2)
@@ -221,8 +226,8 @@ productBwd pass1 pass2 = BwdPass lattice transfer rewrite
                 projRewrite (BwdRes g rws') = BwdRes g $ liftRW rws' proj
                 (f, m, l) = getBRewrite3 rws
 
-productLattice :: forall f f' . DataflowLattice f -> DataflowLattice f' -> DataflowLattice (f, f')
-productLattice l1 l2 =
+pairLattice :: forall f f' . DataflowLattice f -> DataflowLattice f' -> DataflowLattice (f, f')
+pairLattice l1 l2 =
   DataflowLattice
     { fact_name       = fact_name l1 ++ " x " ++ fact_name l2
     , fact_bot        = (fact_bot l1, fact_bot l2)

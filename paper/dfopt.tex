@@ -148,6 +148,8 @@ higher-rank any longer).
 \newenvironment{fuzzcode}[1]{\par\unskip\hfuzz=#1 \verbatim}{\endverbatim}
 \newenvironment{smallfuzzcode}[1]{\par\unskip\small\hfuzz=#1 \verbatim}{\endverbatim}
 
+\newcommand\smallverbatiminput[1]{{\small\verbatiminput{#1}}}
+
 \newcommand\lineref[1]{line~\ref{line:#1}}
 \newcommand\linepairref[2]{lines \ref{line:#1}~and~\ref{line:#2}}
 \newcommand\linerangeref[2]{\mbox{lines~\ref{line:#1}--\ref{line:#2}}}
@@ -1552,10 +1554,10 @@ rewrite functions.
 For example, here is a function
 that combines two rewriting functions in sequence:
 \remark{This code must be improved}
-{\small
-\verbatiminput{comb1}
-}
-What a beautiful type @thenFwdRw@ has! It tries @rw1@, and if @rw1@
+\smallverbatiminput{comb1}
+What a beautiful type @thenFwdRw@ has! 
+\remark{And what an ugly implementation!  Implementations must go.}
+It tries @rw1@, and if @rw1@
 declines to rewrite, it behaves like @rw2@.  But if
 @rw1@ rewrites, returning a new rewriter @rw1a@, then the overall call also
 succeeds, returning a new rewrite function obtained by combining @rw1a@
@@ -1573,19 +1575,17 @@ to produce a rewriting function that is a combination of deep and shallow.
 
 A shallow rewriting function can be made deep by iterating
 it:\remark{Algebraic law wanted!}
-\begin{smallfuzzcode}{6.6pt}
-iterFwdRw 
-  :: Monad m => FwdRewrite m n f -> FwdRewrite m n f
-`iterFwdRw rw = wrapFRewrites' f rw
-  where f rw' n f = liftM iter (rw' n f)
-        iter NoFwdRes = NoFwdRes
-        iter (FwdRes g rw2) =
-          FwdRes g (rw2 `thenFwdRw` iterFwdRw rw)
-\end{smallfuzzcode}
+\smallverbatiminput{iterf}
 If we have shallow rewrites $A$~and~$B$ then we can build $AB$,
 $A^*B$, $(AB)^*$, 
 and so on: sequential composition is @thenFwdRw@ and the Kleene star
 is @iterFwdRw@.\remark{Do we still believe this claim?}
+\remark{We can't define @iterFwdRew@ in terms of @thenFwdRew@ because
+the second argument to @thenFwdRew@ would have to be the constant
+nothing function when applied but would have to be the original triple
+when passed to @thenFwdRew@ as the second argument (in the recursive
+call).}
+
 
 The combinators above operate on rewrite functions that share a common
 fact type and transfer function.
@@ -1593,7 +1593,7 @@ It~can also be useful to combine entire dataflow passes that use
 different facts.
 We~invite you to write one such combinator, with type
 \begin{code}
-  `thenFwd :: Monad m
+  `pairFwd :: Monad m
           => FwdPass m n f1 
           -> FwdPass m n f2
           -> FwdPass m n (f1,f2)
@@ -1683,9 +1683,7 @@ yielding better results than running $A$~and then~$B$ or $B$~and then~$A$
 %%  \caption{The client for constant propagation and constant folding} \figlabel{old-const-prop}
 %%  \end{figure}
 \begin{figure}
-{\small
-\verbatiminput{cprop}
-}
+\smallverbatiminput{cprop}
 \caption{The client for constant propagation and constant folding\break (extracted automatically from code distributed with Hoopl)}
 \figlabel{const-prop}
 \end{figure}
