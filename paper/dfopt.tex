@@ -1397,7 +1397,7 @@ value constructors to shape is different for each node type~@n@, such
  functions cannot be polymorphic in both
 the representation and the shape of nodes.
 We~therefore, in our implementation, sacrifice polymorphism in shape:
-a @FwdTransfer n f@ is represented by a \emph{triple} of functions,
+a~@FwdTransfer n f@ is represented by a \emph{triple} of functions,
 each polymorphic in the node type but monomorphic in shape:
 \begin{code}
 newtype FwdTransfer n f 
@@ -1410,8 +1410,10 @@ Such triples can easily be composed and wrapped without requiring a
 pattern match on the value constructor of an unknown node
 type.\remark{Need to refer to this junk in the conclusion}
 Working with triples is tedious, but only \hoopl\ itself is forced to
-work with triples; each client, which knows the node type, may supply either a triple
-or a single function polymorphic in the shape of the node. 
+work with triples; each client, which knows the node type, may supply
+a triple,
+but it typically supplies a single function polymorphic in the shape
+of the (known) node.  
 
 
 
