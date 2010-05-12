@@ -1552,22 +1552,9 @@ rewrite functions.
 For example, here is a function
 that combines two rewriting functions in sequence:
 \remark{This code must be improved}
-\begin{smallcode}
-  thenFwdRw :: Monad m 
-            => FwdRewrite m n f 
-            -> FwdRewrite m n f 
-            -> FwdRewrite m n f
-  `thenFwdRw rw1 rw2 = wrapFRewrites2' f rw1 rw2
-   where f rw1 rw2' n f = do
-           res1 <- rw1 n f
-           case res1 of
-             NoFwdRes      -> rw2' n f
-             FwdRes g rw1a -> 
-               return $ FwdRes g (rw1a `thenFwdRw` rw2)
-
-  `noFwdRw :: FwdRewrite n f
-  noFwdRw = mkFRewrite' $ \ n f -> NoFwdRes
-\end{smallcode}
+{\small
+\verbatiminput{comb1}
+}
 What a beautiful type @thenFwdRw@ has! It tries @rw1@, and if @rw1@
 declines to rewrite, it behaves like @rw2@.  But if
 @rw1@ rewrites, returning a new rewriter @rw1a@, then the overall call also

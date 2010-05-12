@@ -53,8 +53,8 @@ wrapSFRewrite3 lift rw = uncurry3 mkFRewrite3 $ apply lift rw
 wrapFRewrite3 :: ExTriple (MapFRW m n f) -> FR m n f -> FR m n f
 wrapFRewrite3 map frw = uncurry3 mkFRewrite3 $ apply map $ getFRewrite3 frw
 
-wrapFRewrites2 :: ExTriple (MapFRW2 m n f) -> FR m n f -> FR m n f -> FR m n f
-wrapFRewrites2 map frw1 frw2 =
+wrapFRewrites23 :: ExTriple (MapFRW2 m n f) -> FR m n f -> FR m n f -> FR m n f
+wrapFRewrites23 map frw1 frw2 =
   uncurry3 mkFRewrite3 $ (applyBinary map `on` getFRewrite3) frw1 frw2
 
 
@@ -69,13 +69,11 @@ wrapFRewrites' map = wrapFRewrite3 (map, map, map)
 -- Would be nice to refactor here XXX  ---NR
 
 
-wrapFRewrites2' :: (forall e x . MapFRW2 m n f e x) -> FR m n f -> FR m n f -> FR m n f
-wrapFRewrites2' map = wrapFRewrites2 (map, map, map)
+wrapFRewrites2 :: (forall e x . MapFRW2 m n f e x) -> FR m n f -> FR m n f -> FR m n f
+wrapFRewrites2 map = wrapFRewrites23 (map, map, map)
 
 ----------------------------------------------------------------
 
-noFwdRewrite :: Monad m => FwdRewrite m n f
-noFwdRewrite = mkFRewrite $ \ _ _ -> return NoFwdRes
 
 shallowFwdRw3 :: forall m n f . Monad m => SimpleFwdRewrite3 m n f -> FwdRewrite m n f
 shallowFwdRw3 rw = wrapSFRewrites' lift rw
@@ -91,13 +89,24 @@ deepFwdRw :: Monad m => SimpleFwdRewrite m n f -> FwdRewrite m n f
 deepFwdRw3    r = iterFwdRw (shallowFwdRw3 r)
 deepFwdRw f = deepFwdRw3 (f, f, f)
 
-thenFwdRw :: Monad m => FwdRewrite m n f -> FwdRewrite m n f -> FwdRewrite m n f
-thenFwdRw rw1 rw2 = wrapFRewrites2' tfr rw1 rw2
-  where tfr rw1 rw2' n f = do  -- Gross!! Isn't rw2 == rw2' always? XXX ---NR
-          res1 <- rw1 n f
-          case res1 of
-            NoFwdRes        -> rw2' n f
-            (FwdRes g rw1a) -> return $ FwdRes g (rw1a `thenFwdRw` rw2)
+-- N.B. rw3, rw3', and rw3a are triples of functions.
+-- But rw and rw' are single functions.
+-- @ start comb1.tex
+thenFwdRw :: Monad m 
+          => FwdRewrite m n f 
+          -> FwdRewrite m n f 
+          -> FwdRewrite m n f
+thenFwdRw rw3 rw3' = wrapFRewrites2 tfr rw3 rw3'
+ where tfr rw rw' n f = do
+         res1 <- rw n f
+         case res1 of
+           NoFwdRes      -> rw' n f
+           FwdRes g rw3a -> 
+             return $ FwdRes g (rw3a `thenFwdRw` rw3')
+
+noFwdRewrite :: Monad m => FwdRewrite m n f
+noFwdRewrite = mkFRewrite $ \ _ _ -> return NoFwdRes
+-- @ end comb1.tex
 
 iterFwdRw :: Monad m => FwdRewrite m n f -> FwdRewrite m n f
 iterFwdRw rw = wrapFRewrites' f rw

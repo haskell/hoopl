@@ -21,7 +21,7 @@ tag:VQ: $TGT.tex
 	echo git tag $tag
 	git tag $tag
 
-dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex cprop.tex
+dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex cprop.tex comb1.tex
 
 $TGT.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-$LASTPAGE $prereq
@@ -55,4 +55,9 @@ CLIENT=../testing
 CPROPS=ConstProp Simplify Test
 
 cprop.tex:D: ./xsource ${CPROPS:%=$CLIENT/%.hs}
+	lua $prereq > $target
+
+HOOPL=../src/Compiler/Hoopl
+
+comb1.tex:D: ./xsource $HOOPL/Combinators.hs
 	lua $prereq > $target
