@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall -fno-warn-incomplete-patterns -XGADTs -XRankNTypes #-}
-module OptSupport (stdMapJoin, map_EE, map_EN, fold_EE, fold_EN, insnToG) where
+module OptSupport (stdMapJoin, map_VE, map_EE, map_EN, fold_EE, fold_EN, insnToG) where
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -30,8 +30,14 @@ stdMapJoin eltJoin l (OldFact old) (NewFact new) = M.foldWithKey add (NoChange, 
 -- Map/Fold functions for expressions/insns
 ----------------------------------------------
 
-map_EE :: (Expr -> Maybe Expr) -> Expr      -> Maybe Expr
-map_EN :: (Expr -> Maybe Expr) -> Insn e x -> Maybe (Insn e x)
+map_VE :: (Var  -> Maybe Expr) -> (Expr     -> Maybe Expr)
+map_EE :: (Expr -> Maybe Expr) -> (Expr     -> Maybe Expr)
+map_EN :: (Expr -> Maybe Expr) -> (Insn e x -> Maybe (Insn e x))
+
+map_VE f (Var v) = f v
+map_VE _ _       = Nothing
+                  
+
 
 map_EE f e@(Lit _)     = f e
 map_EE f e@(Var _)     = f e
