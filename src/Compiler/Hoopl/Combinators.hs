@@ -2,7 +2,7 @@
 
 module Compiler.Hoopl.Combinators
   ( SimpleFwdRewrite, SimpleFwdRewrite', noFwdRewrite, thenFwdRw
-  , shallowFwdRw, shallowFwdRw', deepFwdRw, deepFwdRw', iterFwdRw
+  , shallowFwdRw3, shallowFwdRwPoly, deepFwdRw3, deepFwdRwPoly, iterFwdRw
   , SimpleBwdRewrite, SimpleBwdRewrite', noBwdRewrite, thenBwdRw
   , shallowBwdRw, shallowBwdRw', deepBwdRw, deepBwdRw', iterBwdRw
   , productFwd, productBwd
@@ -77,19 +77,19 @@ wrapFRewrites2' map = wrapFRewrites2 (map, map, map)
 noFwdRewrite :: Monad m => FwdRewrite m n f
 noFwdRewrite = mkFRewrite' $ \ _ _ -> return NoFwdRes
 
-shallowFwdRw :: forall m n f . Monad m => SimpleFwdRewrite m n f -> FwdRewrite m n f
-shallowFwdRw rw = wrapSFRewrites' lift rw
+shallowFwdRw3 :: forall m n f . Monad m => SimpleFwdRewrite m n f -> FwdRewrite m n f
+shallowFwdRw3 rw = wrapSFRewrites' lift rw
   where lift rw n f = liftM withoutRewrite (rw n f) 
         withoutRewrite Nothing = NoFwdRes
         withoutRewrite (Just g) = FwdRes g noFwdRewrite
 
-shallowFwdRw' :: Monad m => SimpleFwdRewrite' m n f -> FwdRewrite m n f
-shallowFwdRw' f = shallowFwdRw (f, f, f)
+shallowFwdRwPoly :: Monad m => SimpleFwdRewrite' m n f -> FwdRewrite m n f
+shallowFwdRwPoly f = shallowFwdRw3 (f, f, f)
 
-deepFwdRw  :: Monad m => SimpleFwdRewrite  m n f -> FwdRewrite m n f
-deepFwdRw' :: Monad m => SimpleFwdRewrite' m n f -> FwdRewrite m n f
-deepFwdRw  r = iterFwdRw (shallowFwdRw r)
-deepFwdRw' f = deepFwdRw (f, f, f)
+deepFwdRw3    :: Monad m => SimpleFwdRewrite  m n f -> FwdRewrite m n f
+deepFwdRwPoly :: Monad m => SimpleFwdRewrite' m n f -> FwdRewrite m n f
+deepFwdRw3    r = iterFwdRw (shallowFwdRw3 r)
+deepFwdRwPoly f = deepFwdRw3 (f, f, f)
 
 thenFwdRw :: Monad m => FwdRewrite m n f -> FwdRewrite m n f -> FwdRewrite m n f
 thenFwdRw rw1 rw2 = wrapFRewrites2' tfr rw1 rw2
