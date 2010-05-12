@@ -73,8 +73,8 @@ debugFwdTransfers::
   forall m n f . Show f => TraceFn -> ShowN n -> FPred n f -> FwdPass m n f -> FwdPass m n f
 debugFwdTransfers trace showN showPred pass = pass { fp_transfer = transfers' }
   where
-    (f, m, l) = getFTransfers $ fp_transfer pass
-    transfers' = mkFTransfer (wrap show f) (wrap show m) (wrap showFactBase l)
+    (f, m, l) = getFTransfer3 $ fp_transfer pass
+    transfers' = mkFTransfer3 (wrap show f) (wrap show m) (wrap showFactBase l)
     wrap :: forall e x . (Fact x f -> String) -> (n e x -> f -> Fact x f) -> n e x -> f -> Fact x f
     wrap showOutF ft n f = if showPred n f then trace output res else res
       where
@@ -86,8 +86,8 @@ debugBwdTransfers::
   forall m n f . Show f => TraceFn -> ShowN n -> BPred n f -> BwdPass m n f -> BwdPass m n f
 debugBwdTransfers trace showN showPred pass = pass { bp_transfer = transfers' }
   where
-    (f, m, l) = getBTransfers $ bp_transfer pass
-    transfers' = mkBTransfer (wrap show f) (wrap show m) (wrap showFactBase l)
+    (f, m, l) = getBTransfer3 $ bp_transfer pass
+    transfers' = mkBTransfer3 (wrap show f) (wrap show m) (wrap showFactBase l)
     wrap :: forall e x . (Fact x f -> String) -> (n e x -> Fact x f -> f) -> n e x -> Fact x f -> f
     wrap showInF ft n f = if showPred n f then trace output res else res
       where

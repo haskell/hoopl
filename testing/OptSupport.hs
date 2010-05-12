@@ -1,5 +1,6 @@
-{-# OPTIONS_GHC -Wall -fno-warn-incomplete-patterns -XGADTs -XRankNTypes #-}
-module OptSupport (stdMapJoin, map_VE, map_EE, map_EN, fold_EE, fold_EN, insnToG) where
+{-# LANGUAGE GADTs, RankNTypes #-}
+{-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
+module OptSupport (stdMapJoin, map_VE, map_EE, map_EN, map_VN, fold_EE, fold_EN, insnToG) where
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -34,9 +35,46 @@ map_VE :: (Var  -> Maybe Expr) -> (Expr     -> Maybe Expr)
 map_EE :: (Expr -> Maybe Expr) -> (Expr     -> Maybe Expr)
 map_EN :: (Expr -> Maybe Expr) -> (Insn e x -> Maybe (Insn e x))
 
+map_VN :: (Var  -> Maybe Expr) -> (Insn e x -> Maybe (Insn e x))
+map_VN = map_EN . map_EE . map_VE
+
 map_VE f (Var v) = f v
 map_VE _ _       = Nothing
                   
+
+data Mapped a = Old a | New a
+instance Monad Mapped where
+  return = Old
+  Old a >>= k = k a
+  New a >>= k = asNew (k a)
+    where asNew (Old a)   = New a
+          asNew m@(New _) = m
+
+makeTotal :: (a -> Maybe a) -> (a -> Mapped a)
+makeTotal f a = case f a of Just a' -> New a'
+                            Nothing -> Old a
+makeTotalDefault :: b -> (a -> Maybe b) -> (a -> Mapped b)
+makeTotalDefault b f a = case f a of Just b' -> New b'
+                                     Nothing -> Old b
+ifNew :: Mapped a -> Maybe a
+ifNew (New a) = Just a
+ifNew (Old _) = Nothing
+
+type Mapping a b = a -> Mapped b
+
+(/@/) :: Mapping b c -> Mapping a b -> Mapping a c
+f /@/ g = \x -> g x >>= f
+
+
+class HasExpressions a where
+  mapAllSubexpressions :: Mapping Expr Expr -> Mapping a a
+
+instance HasExpressions (Insn e x) where
+  mapAllSubexpressions = error "urk!" (mapVars, (/@/), makeTotal, ifNew)
+                           
+mapVars :: (Var -> Maybe Expr) -> Mapping Expr Expr
+mapVars f e@(Var x) = makeTotalDefault e f x
+mapVars _ e         = return e
 
 
 map_EE f e@(Lit _)     = f e

@@ -9,6 +9,8 @@ import Compiler.Hoopl
 import IR
 import OptSupport
 
+type Node = Insn -- for paper
+
 -- ConstFact:
 --   Not present in map => bottom
 --   PElem v => variable has value v
@@ -21,8 +23,7 @@ constLattice = DataflowLattice
   { fact_name   = "Const var value"
   , fact_bot    = Map.empty
   , fact_extend = stdMapJoin (joinWithTop' constFactAdd)
-  , fact_do_logging = False
-  }
+  , fact_do_logging = False }
   where
     constFactAdd _ (OldFact old) (NewFact new) 
         = (changeIf (new /= old), joined)
@@ -38,36 +39,39 @@ initFact vars = M.fromList $ [(v, Top) | v <- vars]
 -- Note that we don't need a case for x := y, where y holds a constant.
 -- We can write the simplest solution and rely on the interleaved optimization.
 -- @ start cprop.tex
-----------------------------------------------------------------
+--------------------------------------------------
 -- Analysis: variable equals a literal constant
-varHasLit :: FwdTransfer Insn ConstFact
-varHasLit = mkFTransfer' v
-  where
-    v :: Insn e x -> ConstFact -> Fact x ConstFact
-    v (Label _)              f = f
-    v (Assign x (Lit l))     f = M.insert x (PElem l) f
-    v (Assign x _)           f = M.insert x Top f
-    v (Store _ _)            f = f
-    v (Branch bid)           f = mkFactBase [(bid, f)]
-    v (Cond (Var x) tid fid) f 
-      = mkFactBase [(tid, Map.insert x (b True)  f),
-                    (fid, Map.insert x (b False) f)]
+varHasLit :: FwdTransfer Node ConstFact
+varHasLit = mkFTransfer lt
+ where
+  lt :: Node e x -> ConstFact -> Fact x ConstFact
+  lt (Label _)            f = f
+  lt (Assign x (Lit v))   f = M.insert x (PElem v) f
+  lt (Assign x _)         f = M.insert x Top f
+  lt (Store _ _)          f = f
+  lt (Branch l)           f = mkFactBase [(l, f)]
+  lt (Cond (Var x) tl fl) f 
+      = mkFactBase [(tl, Map.insert x (b True)  f),
+                    (fl, Map.insert x (b False) f)]
           where b = PElem . Bool
-    v (Cond _  tid fid)      f 
-      = mkFactBase [(tid, f), (fid, f)]
+  lt (Cond _ tl fl) f = mkFactBase [(tl, f), (fl, f)]
 
 -- @ end cprop.tex
-    v (Call vs _ _ bid)      f = mkFactBase [(bid, foldl toTop f vs)]
+  lt (Call vs _ _ bid)      f = mkFactBase [(bid, foldl toTop f vs)]
       where toTop f v = M.insert v Top f
-    v (Return _)             _ = mkFactBase []
+  lt (Return _)             _ = mkFactBase []
 
 -- @ start cprop.tex
-----------------------------------------------------------------
+--------------------------------------------------
 -- Rewriting: propagate and fold constants
-constProp :: Monad m => FwdRewrite m Insn ConstFact
-constProp = shallowFwdRwPoly cp
-  where
-    cp node facts = return $ fmap insnToG $ (map_EN . map_EE . map_VE) lookup node
-      where lookup v = case M.lookup v facts of
-                               Just (PElem l) -> Just $ Lit l
-                               _              -> Nothing
+constProp :: Monad m => FwdRewrite m Node ConstFact
+constProp = shallowFwdRw cp
+ where
+   cp node f
+     = return $ fmap insnToG $ mapVN (lookup f) node
+   lookup f x
+     = case M.lookup x f of
+         Just (PElem v) -> Just $ Lit v
+         _              -> Nothing
+-- @ end cprop.tex
+   mapVN = map_VN

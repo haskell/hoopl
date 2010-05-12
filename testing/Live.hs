@@ -23,7 +23,7 @@ liveLattice = DataflowLattice
               ch = changeIf (S.size j > S.size old)
 
 liveness :: BwdTransfer Insn Live
-liveness = mkBTransfer' live
+liveness = mkBTransfer live
   where
     live :: Insn e x -> Fact x Live -> Live
     live   (Label _)       f = f
@@ -39,9 +39,9 @@ liveness = mkBTransfer' live
     addVar s _       = s
      
 deadAsstElim :: forall m . Monad m => BwdRewrite m Insn Live
-deadAsstElim = shallowBwdRw' d
+deadAsstElim = shallowBwdRw d
   where
-    d :: SimpleBwdRewrite' m Insn Live
+    d :: SimpleBwdRewrite m Insn Live
     d (Assign x _) live = if x `S.member` live then return Nothing
                                                else return $ Just emptyGraph
     d _ _ = return Nothing

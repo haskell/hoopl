@@ -56,10 +56,20 @@ optTest' file text =
     -- With debugging info: 
     -- fwd  = debugFwdJoins trace (const True) $ FwdPass { fp_lattice = constLattice, fp_transfer = varHasLit
     --                                      , fp_rewrite = constProp `thenFwdRw` simplify }
-    fwd  = FwdPass { fp_lattice = constLattice, fp_transfer = varHasLit
-                   , fp_rewrite = constProp `thenFwdRw` simplify }
+    fwd  = constPropPass
     bwd  = BwdPass { bp_lattice = liveLattice, bp_transfer = liveness
                    , bp_rewrite = deadAsstElim }
+
+constPropPass :: Monad m => FwdPass m Insn ConstFact
+-- @ start cprop.tex
+
+----------------------------------------
+-- Defining the forward dataflow pass
+constPropPass = FwdPass
+  { fp_lattice = constLattice
+  , fp_transfer = varHasLit
+  , fp_rewrite = constProp `thenFwdRw` simplify }
+-- @ end cprop.tex
 
 optTest :: String -> IO ()
 optTest file =
