@@ -1396,13 +1396,25 @@ A function that takes a @FwdTransfer@ and wraps it in logging code, so
 an analysis can be debugged by watching the facts flow through the
 nodes
 \end{itemize}
+Such functions may also be useful in \hoopl's \emph{clients}:
+% may need
+%functions that are polymorphic in the node type~@n@:
+\begin{itemize}
+\item
+A dominator analysis in the style of
+\citet{cooper-harvey-kennedy:simple-dominance} requires only the
+functions in the \texttt{Edges} type class; 
+we have written such an analysis using transfer functions that are 
+polymorphic in~@n@.
+\end{itemize}
 Because the mapping from
-value constructors to shape is different for each node type~@n@, such
+value constructors to shape is different for each node type~@n@, transfer
  functions cannot be polymorphic in both
 the representation and the shape of nodes.
-We~therefore, in our implementation, sacrifice polymorphism in shape:
-a~@FwdTransfer n f@ is represented by a \emph{triple} of functions,
-each polymorphic in the node type but monomorphic in shape:
+ Our implementation therefore sacrifices polymorphism in shape:
+internally, \hoopl\ represents
+a~@FwdTransfer n f@ as a \emph{triple} of functions,
+each polymorphic in~@n@ but monomorphic in shape:
 \begin{code}
 newtype FwdTransfer n f 
   = FwdTransfers ( n C O -> f -> f
