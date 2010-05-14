@@ -9,7 +9,8 @@ LASTPAGE=
 
 TGT=dfopt
 
-all:V: $TGT.pdf supplement.pdf $TGT.ps popl-index.bitly
+all:V: $TGT.pdf supplement.pdf $TGT.ps 
+old:V: popl-index.bitly
 bib:V: $TGT.bbl
 bibfile:V: $TGT.bib
 dvi:V: $TGT.dvi
