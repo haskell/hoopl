@@ -11,7 +11,7 @@ Cabal-Version:       >=1.6
 Stability:           alpha
 Synopsis:            A library to support dataflow analysis and optimization
 Category:            Compilers/Interpreters
-Extra-source-files:  README, hoopl.pdf, CHANGES
+Extra-source-files:  README, hoopl.pdf, CHANGES, FAQ
 
 Library
   Build-Depends:     base >= 3 && < 5, containers

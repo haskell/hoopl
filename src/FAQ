@@ -1,0 +1,20 @@
+ > in GHC we quite often we want to get the entry or the last node of a block.
+ > Currently that can take up to linear time in the length of a block, right?
+ > Are there any plans to improve it, perhaps by changing the representation
+ > of a block?
+
+Milan,
+
+The current representation can be either 'front-biased' or
+'back-biased' to make one of those operations constant time.
+The previous representation was always front-biased and we never noted
+any performance problems.
+
+If, and only if, you find a situation where you have measured a
+significant performance problem, I suggest that you wrap the existing
+block in a new block type that caches the information you need.
+The representation Graph' is polymorphic precisely to enable this sort
+of trickery; you'll see a different application in the dataflow
+module, where a fact is stored with every block.
+
+
