@@ -6,7 +6,7 @@ module Compiler.Hoopl.XUtil
   ( firstXfer, distributeXfer
   , distributeFact, distributeFactBwd
   , successorFacts
-  , foldGraphNodes, foldBlockNodesF, foldBlockNodesB, foldBlockNodesF', foldBlockNodesB'
+  , foldGraphNodes, foldBlockNodesF, foldBlockNodesB, foldBlockNodesF3, foldBlockNodesB3
   , analyzeAndRewriteFwdBody, analyzeAndRewriteBwdBody
   , analyzeAndRewriteFwdOx, analyzeAndRewriteBwdOx
   , noEntries
@@ -128,20 +128,20 @@ successorFacts n fb = [ f | id <- successors n, let Just f = lookupFact id fb ]
 
 -- | Fold a function over every node in a block, forward or backward.
 -- The fold function must be polymorphic in the shape of the nodes.
-foldBlockNodesF  :: forall n a b c .
+foldBlockNodesF3 :: forall n a b c .
                    ( n C O       -> a -> b
                    , n O O       -> b -> b
                    , n O C       -> b -> c)
                  -> (forall e x . Block n e x -> EitherCO e a b -> EitherCO x c b)
-foldBlockNodesF' :: forall n a .
+foldBlockNodesF  :: forall n a .
                     (forall e x . n e x       -> a -> a)
                  -> (forall e x . Block n e x -> EitherCO e a a -> EitherCO x a a)
-foldBlockNodesB  :: forall n a b c .
+foldBlockNodesB3 :: forall n a b c .
                    ( n C O       -> b -> c
                    , n O O       -> b -> b
                    , n O C       -> a -> b)
                  -> (forall e x . Block n e x -> EitherCO x a b -> EitherCO e c b)
-foldBlockNodesB' :: forall n a .
+foldBlockNodesB  :: forall n a .
                     (forall e x . n e x       -> a -> a)
                  -> (forall e x . Block n e x -> EitherCO x a a -> EitherCO e a a)
 -- | Fold a function over every node in a graph.
@@ -152,7 +152,7 @@ foldGraphNodes :: forall n a .
                -> (forall e x . Graph n e x -> a -> a)
 
 
-foldBlockNodesF (ff, fm, fl) = block
+foldBlockNodesF3 (ff, fm, fl) = block
   where block :: forall e x . Block n e x -> EitherCO e a b -> EitherCO x c b
         block (BFirst  node)    = ff node
         block (BMiddle node)    = fm node
@@ -162,9 +162,9 @@ foldBlockNodesF (ff, fm, fl) = block
         block (b1 `BHead` n)    = block b1 `cat` fm n
         block (n `BTail` b2)    = fm n `cat` block b2
         cat f f' = f' . f
-foldBlockNodesF' f = foldBlockNodesF (f, f, f)
+foldBlockNodesF f = foldBlockNodesF3 (f, f, f)
 
-foldBlockNodesB (ff, fm, fl) = block
+foldBlockNodesB3 (ff, fm, fl) = block
   where block :: forall e x . Block n e x -> EitherCO x a b -> EitherCO e c b
         block (BFirst  node)    = ff node
         block (BMiddle node)    = fm node
@@ -174,7 +174,7 @@ foldBlockNodesB (ff, fm, fl) = block
         block (b1 `BHead` n)    = block b1 `cat` fm n
         block (n `BTail` b2)    = fm n `cat` block b2
         cat f f' = f . f'
-foldBlockNodesB' f = foldBlockNodesB (f, f, f)
+foldBlockNodesB f = foldBlockNodesB3 (f, f, f)
 
 
 foldGraphNodes f = graph
@@ -189,7 +189,7 @@ foldGraphNodes f = graph
           lift _ NothingO         = id
           lift f (JustO thing)    = f thing
 
-          block = foldBlockNodesF' f
+          block = foldBlockNodesF f
 
 
 data BlockResult n x where
