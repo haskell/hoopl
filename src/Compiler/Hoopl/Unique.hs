@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 module Compiler.Hoopl.Unique
-  ( Unique, mkUnique
+  ( Unique, intToUnique
   , UniqueSet, UniqueMap
   , UniqueMonad(..)
   , SimpleUniqueMonad, runSimpleUniqueMonad
@@ -23,8 +23,8 @@ import qualified Data.IntSet as S
 data Unique = Unique { uniqueToInt ::  {-# UNPACK #-} !Int }
   deriving (Eq, Ord)
 
-mkUnique :: Int -> Unique
-mkUnique = Unique
+intToUnique :: Int -> Unique
+intToUnique = Unique
 
 instance Show Unique where
   show (Unique n) = show n
@@ -51,9 +51,9 @@ instance IsSet UniqueSet where
   setIntersection (US x) (US y) = US (S.intersection x y)
   setIsSubsetOf (US x) (US y) = S.isSubsetOf x y
 
-  setFold k z (US s) = S.fold (k . mkUnique) z s
+  setFold k z (US s) = S.fold (k . intToUnique) z s
 
-  setElems (US s) = map mkUnique (S.elems s)
+  setElems (US s) = map intToUnique (S.elems s)
   setFromList ks = US (S.fromList (map uniqueToInt ks))
 
 -----------------------------------------------------------------------------
@@ -76,19 +76,19 @@ instance IsMap UniqueMap where
   mapDelete (Unique k) (UM m) = UM (M.delete k m)
 
   mapUnion (UM x) (UM y) = UM (M.union x y)
-  mapUnionWithKey f (UM x) (UM y) = UM (M.unionWithKey (f . mkUnique) x y)
+  mapUnionWithKey f (UM x) (UM y) = UM (M.unionWithKey (f . intToUnique) x y)
   mapDifference (UM x) (UM y) = UM (M.difference x y)
   mapIntersection (UM x) (UM y) = UM (M.intersection x y)
   mapIsSubmapOf (UM x) (UM y) = M.isSubmapOf x y
 
   mapMap f (UM m) = UM (M.map f m)
-  mapMapWithKey f (UM m) = UM (M.mapWithKey (f . mkUnique) m)
+  mapMapWithKey f (UM m) = UM (M.mapWithKey (f . intToUnique) m)
   mapFold k z (UM m) = M.fold k z m
-  mapFoldWithKey k z (UM m) = M.foldWithKey (k . mkUnique) z m
+  mapFoldWithKey k z (UM m) = M.foldWithKey (k . intToUnique) z m
 
   mapElems (UM m) = M.elems m
-  mapKeys (UM m) = map mkUnique (M.keys m)
-  mapToList (UM m) = [(mkUnique k, v) | (k, v) <- M.toList m]
+  mapKeys (UM m) = map intToUnique (M.keys m)
+  mapToList (UM m) = [(intToUnique k, v) | (k, v) <- M.toList m]
   mapFromList assocs = UM (M.fromList [(uniqueToInt k, v) | (k, v) <- assocs])
 
 ----------------------------------------------------------------
