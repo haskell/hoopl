@@ -7,6 +7,7 @@ module Compiler.Hoopl.XUtil
   , distributeFact, distributeFactBwd
   , successorFacts
   , foldGraphNodes, foldBlockNodesF, foldBlockNodesB, foldBlockNodesF3, foldBlockNodesB3
+  , blockToNodeList, blockOfNodeList
   , analyzeAndRewriteFwdBody, analyzeAndRewriteBwdBody
   , analyzeAndRewriteFwdOx, analyzeAndRewriteBwdOx
   , noEntries
@@ -191,6 +192,38 @@ foldGraphNodes f = graph
 
           block = foldBlockNodesF f
 
+
+-- | Convert a block to a list of nodes. The entry and exit node
+-- is or is not present depending on the shape of the block.
+blockToNodeList :: Block n e x -> (MaybeC e (n C O), [n O O], MaybeC x (n O C))
+blockToNodeList block = case block of
+  BFirst n    -> (JustC n, [], NothingC)
+  BMiddle n   -> (NothingC, [n], NothingC)
+  BLast n     -> (NothingC, [], JustC n)
+  BCat {}     -> (NothingC, foldOO block [], NothingC)
+  BHead x n   -> case foldCO x [n] of (f, m) -> (f, m, NothingC)
+  BTail n x   -> case foldOC x of (m, l) -> (NothingC, n : m, l)
+  BClosed x y -> case foldOC y of (m, l) -> case foldCO x m of (f, m') -> (f, m', l)
+  where foldCO :: Block n C O -> [n O O] -> (MaybeC C (n C O), [n O O])
+        foldCO (BFirst n) m  = (JustC n, m)
+        foldCO (BHead x n) m = foldCO x (n : m)
+
+        foldOO :: Block n O O -> [n O O] -> [n O O]
+        foldOO (BMiddle n) acc = n : acc
+        foldOO (BCat x y) acc  = foldOO x $ foldOO y acc
+
+        foldOC :: Block n O C -> ([n O O], MaybeC C (n O C))
+        foldOC (BLast n)   = ([], JustC n)
+        foldOC (BTail n x) = case foldOC x of (m, l) -> (n : m, l)
+
+-- | Convert a list of nodes to a block. The entry and exit node
+-- must or must not be present depending on the shape of the block.
+blockOfNodeList :: (MaybeC e (n C O), [n O O], MaybeC x (n O C)) -> Block n e x
+blockOfNodeList (NothingC, [], NothingC) = error "No nodes to created block from in blockOfNodeList"
+blockOfNodeList (NothingC, m, NothingC)  = foldr1 BCat (map BMiddle m)
+blockOfNodeList (NothingC, m, JustC l)   = foldr BTail (BLast l) m
+blockOfNodeList (JustC f, m, NothingC)   = foldl BHead (BFirst f) m
+blockOfNodeList (JustC f, m, JustC l)    = BClosed (BFirst f) $ foldr BTail (BLast l) m
 
 data BlockResult n x where
   NoBlock   :: BlockResult n x
