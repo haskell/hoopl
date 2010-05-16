@@ -2,7 +2,7 @@
 
 module Compiler.Hoopl.Dataflow
   ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..), Fact
-  , ChangeFlag(..), changeIf
+  , ChangeFlag(..), changeIf, joinOutFacts
   , FwdPass(..), FwdTransfer, mkFTransfer, mkFTransfer3, getFTransfer3
   , FwdRes(..),  FwdRewrite,  mkFRewrite,  mkFRewrite3,  getFRewrite3
   , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer3, getBTransfer3
@@ -45,6 +45,12 @@ data ChangeFlag = NoChange | SomeChange deriving (Eq, Ord)
 changeIf :: Bool -> ChangeFlag
 changeIf changed = if changed then SomeChange else NoChange
 
+-- | Function which joins facts of all successors of the given block.
+-- Usefull when writing backward transfers.
+joinOutFacts :: (Edges node) => DataflowLattice f -> node O C -> FactBase f -> f
+joinOutFacts lat n f = foldr extend (fact_bot lat) facts
+  where extend (lbl, new) old = snd $ fact_extend lat lbl (OldFact old) (NewFact new)
+        facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
 
 -----------------------------------------------------------------------------
 --		Analyze and rewrite forward: the interface
