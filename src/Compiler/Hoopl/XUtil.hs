@@ -6,6 +6,8 @@ module Compiler.Hoopl.XUtil
   ( firstXfer, distributeXfer
   , distributeFact, distributeFactBwd
   , successorFacts
+  , joinFacts
+  , joinOutFacts -- deprecated
   , foldGraphNodes, foldBlockNodesF, foldBlockNodesB, foldBlockNodesF3, foldBlockNodesB3
   , blockToNodeList, blockOfNodeList
   , analyzeAndRewriteFwdBody, analyzeAndRewriteBwdBody
@@ -125,6 +127,21 @@ distributeFactBwd n f = mkFactBase [ (entryLabel n, f) ]
 -- | List of (unlabelled) facts from the successors of a last node
 successorFacts :: Edges n => n O C -> FactBase f -> [f]
 successorFacts n fb = [ f | id <- successors n, let Just f = lookupFact id fb ]
+
+-- | Join a list of facts.
+joinFacts :: DataflowLattice f -> Label -> [f] -> f
+joinFacts lat inBlock = foldr extend (fact_bot lat)
+  where extend new old = snd $ fact_extend lat inBlock (OldFact old) (NewFact new)
+
+{-# DEPRECATED joinOutFacts
+    "should be replaced by 'joinFacts lat l (successorFacts n f)'; as is, it uses the wrong Label" #-}
+
+joinOutFacts :: (Edges node) => DataflowLattice f -> node O C -> FactBase f -> f
+joinOutFacts lat n f = foldr extend (fact_bot lat) facts
+  where extend (lbl, new) old = snd $ fact_extend lat lbl (OldFact old) (NewFact new)
+        facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
+
+
 
 
 -- | Fold a function over every node in a block, forward or backward.
