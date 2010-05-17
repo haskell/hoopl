@@ -96,10 +96,10 @@ graphMapBlocks f = map
 bodyMapBlocks f (Body body) = Body $ mapMap f body
 
 -- | Function 'blockMapNodes' enables a change of nodes in a block.
-blockMapNodes3 :: ( n C O -> n C O
-                  , n O O -> n O O
-                  , n O C -> n O C)
-               -> Block n e x -> Block n e x
+blockMapNodes3 :: ( n C O -> n' C O
+                  , n O O -> n' O O
+                  , n O C -> n' O C)
+               -> Block n e x -> Block n' e x
 blockMapNodes3 (f, _, _) (BFirst n)     = BFirst (f n)
 blockMapNodes3 (_, m, _) (BMiddle n)    = BMiddle (m n)
 blockMapNodes3 (_, _, l) (BLast n)      = BLast (l n)
@@ -108,8 +108,8 @@ blockMapNodes3 fs@(_, m, _) (BHead x n) = BHead (blockMapNodes3 fs x) (m n)
 blockMapNodes3 fs@(_, m, _) (BTail n x) = BTail (m n) (blockMapNodes3 fs x)
 blockMapNodes3 fs (BClosed x y)         = BClosed (blockMapNodes3 fs x) (blockMapNodes3 fs y)
 
-blockMapNodes :: (forall e x. n e x -> n e x)
-              -> Block n e x -> Block n e x
+blockMapNodes :: (forall e x. n e x -> n' e x)
+              -> (Block n e x -> Block n' e x)
 blockMapNodes f = blockMapNodes3 (f, f, f)
 
 ----------------------------------------------------------------
