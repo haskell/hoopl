@@ -209,6 +209,10 @@ foldGraphNodes f = graph
 
           block = foldBlockNodesF f
 
+{-# DEPRECATED blockToNodeList, blockOfNodeList 
+  "What justifies these functions?  Can they be eliminated?  Replaced with folds?" #-}
+
+
 
 -- | Convert a block to a list of nodes. The entry and exit node
 -- is or is not present depending on the shape of the block.
