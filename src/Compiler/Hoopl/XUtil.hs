@@ -216,6 +216,12 @@ foldGraphNodes f = graph
 
 -- | Convert a block to a list of nodes. The entry and exit node
 -- is or is not present depending on the shape of the block.
+--
+-- The blockToNodeList function cannot be currently expressed using
+-- foldBlockNodesB, because it returns EitherCO e a b, which means
+-- two different types depending on the shape of the block entry.
+-- But blockToNodeList returns one of four possible types, depending
+-- on the shape of the block entry *and* exit.
 blockToNodeList :: Block n e x -> (MaybeC e (n C O), [n O O], MaybeC x (n O C))
 blockToNodeList block = case block of
   BFirst n    -> (JustC n, [], NothingC)
