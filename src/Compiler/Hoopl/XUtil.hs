@@ -8,8 +8,10 @@ module Compiler.Hoopl.XUtil
   , successorFacts
   , joinFacts
   , joinOutFacts -- deprecated
-  , foldGraphNodes, foldBlockNodesF, foldBlockNodesB, foldBlockNodesF3, foldBlockNodesB3
+  , foldGraphNodes
+  , foldBlockNodesF, foldBlockNodesB, foldBlockNodesF3, foldBlockNodesB3
   , blockToNodeList, blockOfNodeList
+  , blockToNodeList'  -- alternate version using fold
   , analyzeAndRewriteFwdBody, analyzeAndRewriteBwdBody
   , analyzeAndRewriteFwdOx, analyzeAndRewriteBwdOx
   , noEntries
@@ -142,7 +144,114 @@ joinOutFacts lat n f = foldr extend (fact_bot lat) facts
         facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
 
 
+{-
+data EitherCO' ex a b where
+  LeftCO  :: a -> EitherCO' C a b
+  RightCO :: b -> EitherCO' O a b
+-}
 
+  -- should be done with a *backward* fold
+
+-- | More general fold
+
+data Trips n a b c = Trips { ff :: forall e . MaybeC e (n C O) -> a -> b
+                           , fm :: n O O            -> b -> b
+                           , fl :: forall x . MaybeC x (n O C) -> b -> c
+                           }
+
+foldBlockNodesF3'' :: forall n a b c .
+                      Trips n a b c -> (forall e x . Block n e x -> a -> c)
+foldBlockNodesF3'' trips = block
+  where block :: Block n e x -> a -> c
+        block (b1 `BClosed` b2) = foldCO b1 `cat` foldOC b2
+        block (BFirst  node)    = ff trips (JustC node)  `cat` missingLast
+        block (b @ BHead {})    = foldCO b `cat` missingLast
+        block (BMiddle node)    = missingFirst `cat` fm trips node  `cat` missingLast
+        block (b @ BCat {})     = missingFirst `cat` foldOO b `cat` missingLast
+        block (BLast   node)    = missingFirst `cat` fl trips (JustC node)
+        block (b @ BTail {})    = missingFirst `cat` foldOC b
+        missingLast = fl trips NothingC
+        missingFirst = ff trips NothingC
+        foldCO :: Block n C O -> a -> b
+        foldOO :: Block n O O -> b -> b
+        foldOC :: Block n O C -> b -> c
+        foldCO (BFirst n)   = ff trips (JustC n)
+        foldCO (BHead b n)  = foldCO b `cat` fm trips n
+        foldOO (BMiddle n)  = fm trips n
+        foldOO (BCat b1 b2) = foldOO b1 `cat` foldOO b2
+        foldOC (BLast n)    = fl trips (JustC n)
+        foldOC (BTail n b)  = fm trips n `cat` foldOC b
+        f `cat` g = g . f 
+
+
+
+blockToNodeList' :: Block n e x -> (MaybeC e (n C O), [n O O], MaybeC x (n O C))
+blockToNodeList' b = unFNL $ foldBlockNodesF3''' listTrips' b ()
+  where ff n () = PNL (n, [])
+        fm n (PNL (first, mids')) = PNL (first, n : mids')
+        fl n (PNL (first, mids')) = FNL (first, reverse mids', n)
+        listTrips' = Trips' ff fm fl
+
+newtype PNL n e   = PNL (MaybeC e (n C O), [n O O])
+newtype FNL n e x = FNL {unFNL :: (MaybeC e (n C O), [n O O], MaybeC x (n O C))}
+
+data Trips' n a b c = Trips' { ff' :: forall e   . MaybeC e (n C O) -> a   -> b e
+                             , fm' :: forall e   . n O O            -> b e -> b e
+                             , fl' :: forall e x . MaybeC x (n O C) -> b e -> c e x
+                             }
+
+foldBlockNodesF3''' :: forall n a b c .
+                       Trips' n a b c -> (forall e x . Block n e x -> a -> c e x)
+foldBlockNodesF3''' trips = block
+  where block :: Block n e x -> a -> c e x
+        block (b1 `BClosed` b2) = foldCO b1 `cat` foldOC b2
+        block (BFirst  node)    = ff' trips (JustC node)  `cat` missingLast
+        block (b @ BHead {})    = foldCO b `cat` missingLast
+        block (BMiddle node)    = missingFirst `cat` fm' trips node  `cat` missingLast
+        block (b @ BCat {})     = missingFirst `cat` foldOO b `cat` missingLast
+        block (BLast   node)    = missingFirst `cat` fl' trips (JustC node)
+        block (b @ BTail {})    = missingFirst `cat` foldOC b
+        missingLast = fl' trips NothingC
+        missingFirst = ff' trips NothingC
+        foldCO :: Block n C O -> a -> b C
+        foldOO :: forall e . Block n O O -> b e -> b e
+        foldOC :: forall e . Block n O C -> b e -> c e C
+        foldCO (BFirst n)   = ff' trips (JustC n)
+        foldCO (BHead b n)  = foldCO b `cat` fm' trips n
+        foldOO (BMiddle n)  = fm' trips n
+        foldOO (BCat b1 b2) = foldOO b1 `cat` foldOO b2
+        foldOC (BLast n)    = fl' trips (JustC n)
+        foldOC (BTail n b)  = fm' trips n `cat` foldOC b
+        f `cat` g = g . f 
+
+
+-- | The following function is easy enough to define but maybe not so useful
+foldBlockNodesF3' :: forall n a b c .
+                   ( n C O -> a -> b
+                   , n O O -> b -> b
+                   , n O C -> b -> c)
+                   -> (a -> b) -- called iff there is no first node
+                   -> (b -> c) -- called iff there is no last node
+                   -> (forall e x . Block n e x -> a -> c)
+foldBlockNodesF3' (ff, fm, fl) missingFirst missingLast = block
+  where block :: forall e x . Block n e x -> a -> c
+        block (b1 `BClosed` b2) = foldCO b1 `cat` foldOC b2
+        block (BFirst  node)    = ff node  `cat` missingLast
+        block (b @ BHead {})    = foldCO b `cat` missingLast
+        block (BMiddle node)    = missingFirst `cat` fm node  `cat` missingLast
+        block (b @ BCat {})     = missingFirst `cat` foldOO b `cat` missingLast
+        block (BLast   node)    = missingFirst `cat` fl node
+        block (b @ BTail {})    = missingFirst `cat` foldOC b
+        foldCO :: Block n C O -> a -> b
+        foldOO :: forall e . Block n O O -> b -> b
+        foldOC :: forall e x . Block n O C -> b -> c
+        foldCO (BFirst n)   = ff n
+        foldCO (BHead b n)  = foldCO b `cat` fm n
+        foldOO (BMiddle n)  = fm n
+        foldOO (BCat b1 b2) = foldOO b1 `cat` foldOO b2
+        foldOC (BLast n)    = fl n
+        foldOC (BTail n b)  = fm n `cat` foldOC b
+        f `cat` g = g . f 
 
 -- | Fold a function over every node in a block, forward or backward.
 -- The fold function must be polymorphic in the shape of the nodes.
