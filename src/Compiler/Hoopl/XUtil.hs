@@ -191,6 +191,7 @@ blockToNodeList' b = unFNL $ foldBlockNodesF3''' ff fm fl b ()
         fm n (PNL (first, mids')) = PNL (first, n : mids')
         fl n (PNL (first, mids')) = FNL (first, reverse mids', n)
 
+   -- newtypes for 'partial node list' and 'final node list'
 newtype PNL n e   = PNL (MaybeC e (n C O), [n O O])
 newtype FNL n e x = FNL {unFNL :: (MaybeC e (n C O), [n O O], MaybeC x (n O C))}
 
