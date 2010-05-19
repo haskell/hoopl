@@ -10,8 +10,10 @@ module Compiler.Hoopl.XUtil
   , joinOutFacts -- deprecated
   , foldGraphNodes
   , foldBlockNodesF, foldBlockNodesB, foldBlockNodesF3, foldBlockNodesB3
+  , ScottBlock(ScottBlock), scottFoldBlock
   , blockToNodeList, blockOfNodeList
-  , blockToNodeList'  -- alternate version using fold
+  , blockToNodeList'   -- alternate version using fold
+  , blockToNodeList''  -- alternate version using scottFoldBlock
   , analyzeAndRewriteFwdBody, analyzeAndRewriteBwdBody
   , analyzeAndRewriteFwdOx, analyzeAndRewriteBwdOx
   , noEntries
@@ -154,6 +156,11 @@ data EitherCO' ex a b where
 
 -- | More general fold
 
+_unused :: Int
+_unused = 3
+  where _a = foldBlockNodesF3'' (Trips undefined undefined undefined)
+        _b = foldBlockNodesF3'
+
 data Trips n a b c = Trips { ff :: forall e . MaybeC e (n C O) -> a -> b
                            , fm :: n O O            -> b -> b
                            , fl :: forall x . MaybeC x (n O C) -> b -> c
@@ -182,6 +189,37 @@ foldBlockNodesF3'' trips = block
         foldOC (BLast n)    = fl trips (JustC n)
         foldOC (BTail n b)  = fm trips n `cat` foldOC b
         f `cat` g = g . f 
+
+data ScottBlock n a = ScottBlock
+   { sb_first :: n C O -> a C O
+   , sb_mid   :: n O O -> a O O
+   , sb_last  :: n O C -> a O C
+   , sb_cat   :: forall e x . a e O -> a O x -> a e x
+   }
+
+scottFoldBlock :: forall n a e x . ScottBlock n a -> Block n e x -> a e x
+scottFoldBlock funs = block
+  where block :: forall e x . Block n e x -> a e x
+        block (BFirst n)  = sb_first  funs n
+        block (BMiddle n) = sb_mid    funs n
+        block (BLast   n) = sb_last   funs n
+        block (BClosed b1 b2) = block b1 `cat` block b2
+        block (BCat    b1 b2) = block b1 `cat` block b2
+        block (BHead   b  n)  = block b  `cat` sb_mid funs n
+        block (BTail   n  b)  = sb_mid funs n `cat` block b
+        cat = sb_cat funs
+
+newtype NodeList n e x
+    = NL { unList :: (MaybeC e (n C O), [n O O] -> [n O O], MaybeC x (n O C)) }
+
+blockToNodeList'' :: Block n e x -> (MaybeC e (n C O), [n O O], MaybeC x (n O C))
+blockToNodeList'' = finish . unList . scottFoldBlock (ScottBlock f m l cat)
+    where f n = NL (JustC n, id, NothingC)
+          m n = NL (NothingC, (n:), NothingC)
+          l n = NL (NothingC, id, JustC n)
+          cat :: NodeList n e O -> NodeList n O x -> NodeList n e x
+          NL (e, ms, NothingC) `cat` NL (NothingC, ms', x) = NL (e, ms . ms', x)
+          finish (e, ms, x) = (e, ms [], x)
 
 
 
@@ -232,8 +270,8 @@ foldBlockNodesF3' :: forall n a b c .
 foldBlockNodesF3' (ff, fm, fl) missingFirst missingLast = block
   where block   :: forall e x . Block n e x -> a -> c
         blockCO ::              Block n C O -> a -> b
-        blockOO :: forall e .   Block n O O -> b -> b
-        blockOC :: forall e x . Block n O C -> b -> c
+        blockOO ::              Block n O O -> b -> b
+        blockOC ::              Block n O C -> b -> c
         block (b1 `BClosed` b2) = blockCO b1 `cat` blockOC b2
         block (BFirst  node)    = ff node  `cat` missingLast
         block (b @ BHead {})    = blockCO b `cat` missingLast
