@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables, TypeFamilies  #-}
 
 -- | Utilities for clients of Hoopl, not used internally.
 
@@ -11,6 +11,7 @@ module Compiler.Hoopl.XUtil
   , foldGraphNodes
   , foldBlockNodesF, foldBlockNodesB, foldBlockNodesF3, foldBlockNodesB3
   , ScottBlock(ScottBlock), scottFoldBlock
+  , fbnf3
   , blockToNodeList, blockOfNodeList
   , blockToNodeList'   -- alternate version using fold
   , blockToNodeList''  -- alternate version using scottFoldBlock
@@ -211,6 +212,19 @@ scottFoldBlock funs = block
 
 newtype NodeList n e x
     = NL { unList :: (MaybeC e (n C O), [n O O] -> [n O O], MaybeC x (n O C)) }
+
+fbnf3 :: forall n a b c .
+         ( n C O       -> a -> b
+         , n O O       -> b -> b
+         , n O C       -> b -> c)
+      -> (forall e x . Block n e x -> EitherCO e a b -> EitherCO x c b)
+fbnf3 (ff, fm, fl) block = unFF3 $ scottFoldBlock (ScottBlock f m l cat) block
+    where f n = FF3 $ ff n
+          m n = FF3 $ fm n
+          l n = FF3 $ fl n
+          FF3 f `cat` FF3 f' = FF3 $ f' . f
+
+newtype FF3 a b c e x = FF3 { unFF3 :: EitherCO e a b -> EitherCO x c b }
 
 blockToNodeList'' :: Block n e x -> (MaybeC e (n C O), [n O O], MaybeC x (n O C))
 blockToNodeList'' = finish . unList . scottFoldBlock (ScottBlock f m l cat)
