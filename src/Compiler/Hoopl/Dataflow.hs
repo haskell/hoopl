@@ -395,16 +395,10 @@ distinguishedEntryFact g f = maybe g
 
 data TxFactBase n f
   = TxFB { tfb_fbase :: FactBase f
-         , tfb_rg  :: RG f n C C -- Transformed blocks
-         , tfb_cha   :: ChangeFlag
+         , tfb_rg    :: RG f n C C   -- Transformed blocks
+         , tfb_cha   :: ChangeFlag   
          , tfb_lbls  :: LabelSet }
- -- Note [TxFactBase change flag]
- -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- -- Set the tfb_cha flag iff 
- --   (a) the fact in tfb_fbase for or a block L changes
- --   (b) L is in tfb_lbls.
- -- The tfb_lbls are all Labels of the *original* 
- -- (not transformed) blocks
+     -- See Note [TxFactBase invariants]
 
 updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
            -> (ChangeFlag, FactBase f) 
@@ -439,24 +433,25 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
   where
     blocks = map tag untagged_blocks
      where tag b = ((entryLabel b, b), if is_fwd then [entryLabel b] else successors b)
+     -- 'tag' adds the in-labels of the block; see Note [TxFactBase invairants]
 
     tx_blocks :: [((Label, block n C C), [Label])]   -- I do not understand this type
               -> TxFactBase n f -> m (TxFactBase n f)
     tx_blocks []              tx_fb = return tx_fb
-    tx_blocks (((lbl,blk), deps):bs) tx_fb = tx_block lbl blk deps tx_fb >>= tx_blocks bs
-     -- "deps" == Labels the block may _depend_ upon for facts
+    tx_blocks (((lbl,blk), in_lbls):bs) tx_fb = tx_block lbl blk in_lbls tx_fb >>= tx_blocks bs
+     -- "in_lbls" == Labels the block may _depend_ upon for facts
 
     tx_block :: Label -> block n C C -> [Label]
              -> TxFactBase n f -> m (TxFactBase n f)
-    tx_block lbl blk deps tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
+    tx_block lbl blk in_lbls tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                                       , tfb_rg = blks, tfb_cha = cha })
       | is_fwd && not (lbl `mapMember` fbase)
-      = return tx_fb {tfb_lbls = lbls `setUnion` setFromList deps}	-- Note [Unreachable blocks]
+      = return tx_fb {tfb_lbls = lbls `setUnion` setFromList in_lbls}	-- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
                    = foldr (updateFact lat lbls) (cha,fbase) out_facts
-                 lbls' = lbls `setUnion` setFromList deps
+                 lbls' = lbls `setUnion` setFromList in_lbls
            ; return (TxFB { tfb_lbls  = lbls'
                           , tfb_rg    = rg `rgCat` blks
                           , tfb_fbase = fbase', tfb_cha = cha' }) }
@@ -473,8 +468,43 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
                SomeChange -> do { setFuel fuel
                                 ; loop fuel (tfb_fbase tx_fb) } }
 
-{- Note [Unreachable blocks]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{-  Note [TxFactBase invariants]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The TxFactBase is used only during a fixpoint iteration (or "sweep"),
+and accumulates facts (and the transformed code) during the fixpoint
+iteration.
+
+* tfb_fbase increases monotonically, across all sweeps
+
+* At the beginning of each sweep
+      tfb_cha  = NoChange
+      tfb_lbls = {}
+
+* During each sweep we process each block in turn.  Processing a block
+  is done thus:
+    1.  Read from tfb_fbase the facts for its entry label (forward)
+        or successors labels (backward)
+    2.  Transform those facts into new facts for its successors (forward)
+        or entry label (backward)
+    3.  Augment tfb_fbase with that info
+  We call the labels read in step (1) the "in-labels" of the sweep
+
+* The field tfb_lbls is the set of in-labels of all blocks that have
+  been processed so far this sweep, including the block that is
+  currently being processed.  tfb_lbls is initialised to {}.  It is a
+  subset of the Labels of the *original* (not transformed) blocks.
+
+* The tfb_cha field is set to SomeChange iff we decide we need to
+  perform another iteration of the fixpoint loop. It is initialsed to NoChange.
+
+  Specifically, we set tfb_cha to SomeChange in step (3) iff
+    (a) The fact in tfb_fbase for a block L changes
+    (b) L is in tfb_lbls
+  Reason: until a label enters the in-labels its accumuated fact in tfb_fbase
+  has not been read, hence cannot affect the outcome
+
+Note [Unreachable blocks]
+~~~~~~~~~~~~~~~~~~~~~~~~~
 A block that is not in the domain of tfb_fbase is "currently unreachable".
 A currently-unreachable block is not even analyzed.  Reason: consider 
 constant prop and this graph, with entry point L1:
