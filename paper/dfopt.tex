@@ -1251,7 +1251,7 @@ with parameters $x,y,z$, we would map the entry @Label@ to a fact
 $@x=@\top \land @y=@\top \land @z=@\top$, to specify that the procedure's
 parameters are not known to be constants.
 
-The client's model of how @analyzeAndRewriteFwd@ works is as follows:
+The client's model of how @analyzeAndRewriteFwdBody@ works is as follows:
 \ourlib\ walks forward over each block in the graph.
 At each node, \ourlib\ applies the
 rewrite function to the node and the incoming fact.  If the rewrite
@@ -1267,7 +1267,7 @@ A~node following a rewritten node sees
 analyzing the replacement graph.
 
 In this section we flesh out the
-\emph{interface} to @analyzeAndRewriteFwd@, leaving the implementation for
+\emph{interface} to @analyzeAndRewriteFwdBody@, leaving the implementation for
 \secref{engine}.  
 {\hfuzz=7.2pt\par}
 
@@ -1575,7 +1575,7 @@ rewritten to an empty graph.
 Once the rewrite has been performed, what then?  
 The rewrite returns a replacement graph, 
 which must itself be analyzed, and its nodes may be further rewritten.
-We~call @analyzeAndRewriteFwd@ to process the replacement
+We~call @analyzeAndRewriteFwdBody@ to process the replacement
 graph---but what @FwdPass@ should we use?
 There are two common situations:
 \begin{itemize}
@@ -1850,7 +1850,7 @@ goes into @constPropPass@ (bottom of \figref{const-prop}).
 Given @constPropPass@, we can
 improve a graph~@g@ by passing @constPropPass@ and~@g@
 to
-@analyzeAndRewriteFwd@.
+@analyzeAndRewriteFwdBody@.
 
 
 \subsection{Throttling the dataflow engine using ``optimization fuel''}
@@ -1880,15 +1880,13 @@ it finds that the program works correctly after $n-1$ rewrites but fails
 after $n$~rewrites.
 The $n$th rewrite is faulty.
 
+\seclabel{fuel-monad}
 
-You may have noticed that @analyzeAndRewriteFwd@
-returns a value in the @FuelMonad@ (\secref{using-hoopl}).
-The @`FuelMonad@ is a simple state monad maintaining the supply of unused
-fuel.  It also holds a supply of fresh labels, which are used by the rewriter
-for making new blocks; more precisely, 
-\hoopl\ uses these labels to
-take the @AGraph@ returned by a pass's rewrite
-function (\figref{rewrites}) and convert it to a~@Graph@.
+\hoopl\ ensures it can keep track of fuel by imposing the constraint
+@FuelMonad m@ on the monad of any rewrite function used with
+@analyzeAndRewriteFwdBody@.
+This constraint ensures that \hoopl\ can get and set the amount of
+fuel remaining.
 
 
 \subsection{Fixed points and speculative rewrites} \seclabel{fixpoints}
@@ -1935,7 +1933,7 @@ of each fixed-point iteration.
 
 \subsection{Correctness} \seclabel{correctness}
 
-Facts computed by @analyzeAndRewriteFwd@ depend on graphs produced by the rewrite
+Facts computed by @analyzeAndRewriteFwdBody@ depend on graphs produced by the rewrite
 function, which in turn depend on facts computed by the transfer function.
 How~do we know this algorithm is sound, or if it terminates?
 A~proof requires a POPL paper
@@ -2062,7 +2060,7 @@ exactly analogous and are included in \hoopl.
 \subsection{Overview}
 
 {\hfuzz=0.6pt
-We concentrate on implementing @analyzeAndRewriteFwd@, whose
+We concentrate on implementing @analyzeAndRewriteFwdBody@, whose
 type is in \secref{using-hoopl}.
 Its implementation is built on the hierarchy of nodes, blocks, and graphs
 described in \secref{graph-rep}.  For each thing in the hierarchy,
@@ -2177,12 +2175,12 @@ Based on @arfBody@ it is easy to write @arfGraph@ (\secref{arf-graph}).
 Given these functions, writing the main analyzer is a simple
 matter of matching the external API to the internal functions:
 \begin{code}
-  `analyzeAndRewriteFwd
+  `analyzeAndRewriteFwdBody
      :: forall n f. Edges n
      => FwdPass n f -> Body n -> FactBase f
      -> FuelMonad (Body n, FactBase f)
 
-  analyzeAndRewriteFwd pass ^body facts
+  analyzeAndRewriteFwdBody pass ^body facts
     = do { (^rg, _) <- arfBody pass body facts
          ; return (normalizeBody rg) }
 \end{code}
