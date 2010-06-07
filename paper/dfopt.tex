@@ -1328,6 +1328,8 @@ The @ChangeFlag@ should be @NoChange@ if
 the result is the same as the old fact, and
 @SomeChange@ if the result differs.  
 
+\seclabel{WithTop}
+
 To help clients create lattices and join functions,
 \hoopl\ includes functions and constructors that extend a type~@a@
 with top and bottom elements.
@@ -1353,8 +1355,6 @@ elements not only obey the appropriate algebraic laws but also set the
 
 
 
-
-\remark{Notes about @changeIf@?}
 
 % A~possible representation of the facts needed to implement
 % constant propagation is shown in \figref{const-prop}.
@@ -1764,8 +1764,9 @@ the variable holds a constant value (Boolean or integer),
 the variable might hold a non-constant value,
 or nothing is known about what the variable holds.
 We~represent these facts using a finite map from a variable to a
-fact of type (@WithTop Lit@).
-A variable with a constant value maps to @Just k@, where @k@ is the constant value;
+fact of type @WithTop Lit@ (\secref{WithTop}).
+A~variable with a constant value maps to @Just (PElem k)@, where
+@k@~is the constant value; 
 a variable with a non-constant value maps to @Just Top@;
 and a variable with an unknown value maps to @Nothing@ (it is not
 in the domain of the finite map).
@@ -1777,21 +1778,25 @@ The bottom element is an empty map (nothing is known about the contents of any v
 We~use the @stdMapJoin@ function to lift the join operation
 for a single variable (@constFactAdd@) up to the map containing facts
 for all variables.
+The utility function @`changeIf :: Bool -> ChangeFlag@ is exported by \hoopl.
 
 % omit stdMapJoin :: Ord k => JoinFun v -> JoinFun (Map.Map k v)
 
-For the transfer function, @varHasConst@, 
-there are two interesting kinds of nodes:
+The forward transfer function @varHasLit@ is defined using the
+shape-polymorphic auxiliary function~@ft@.
+There are two interesting kinds of nodes:
 assignment and conditional branch.
 In the first two cases for assignment, a variable gets a constant value,
 so we produce a dataflow fact mapping the variable to its value.
 In the third case for assignment, the variable gets a non-constant value,
 so we produce a dataflow fact mapping the variable to @Top@.
-The last interesting case is a conditional branch where the condition
+The~last interesting case is a conditional branch where the condition
 is a variable.
 If the conditional branch flows to the true successor,
 the variable holds @True@, and similarly for the false successor.
-We update the fact flowing to each successor accordingly.
+We~update the fact flowing to each successor accordingly.
+(Because function @lt@ scrutinizes a GADT, it cannot
+default the uninteresting cases.)
 
 We do not need to consider complicated cases such as
 an assignment @x:=y@ where @y@ holds a constant value @k@.
@@ -1803,19 +1808,26 @@ interleaving makes it possible to write
 the simplest imaginable transfer functions, without missing
 opportunities to improve the code.
 
-The rewrite function for constant propagation, @constProp@,
-simply rewrites each use of a variable to its constant value.
-We use the auxiliary function @mapE@
-to apply @rewriteE@ to each use of a variable in each kind of node;
-in turn, the @rewriteE@ function checks if the variable has a constant
-value and makes the substitution.  We assume an auxiliary function
-\begin{code}
-  `toAGraph :: Node e x -> AGraph Node e x
-\end{code}
+\figref{const-prop}'s rewrite function for constant propagation, @constProp@,
+rewrites each use of a variable to its constant value.
+The client has defined auxiliary functions
+\begin{smallcode}
+`mapVE :: (Var  -> Maybe Expr) -> (Expr     -> Maybe Expr)
+`mapEE :: (Expr -> Maybe Expr) -> (Expr     -> Maybe Expr)
+`mapEN :: (Expr -> Maybe Expr) -> (Node e x -> Maybe (Node e x))
+`mapVN :: (Var  -> Maybe Expr) -> (Node e x -> Maybe (Node e x))
+`nodeToG :: Node e x -> Graph Node e x
+\end{smallcode}
+The client composes @mapXX@ functions
+to apply @lookup@ to each use of a variable in each kind of node;
+@lookup@ substitutes for each variable that has a constant value.
+Applying @fmap nodeToG@ lifts the final node, if present, into a~@Graph@.
 
-\figref{const-prop} also gives a completely separate rewrite function 
-to perform constant
-folding, called @simplify@.  It rewrites a conditional branch on a
+
+\figref{const-prop} also gives another, distinct function 
+for constant
+folding: @simplify@.
+This function rewrites a conditional branch on a
 boolean constant to an unconditional branch, and
 to find constant subexpressions, 
 it runs @s_exp@
@@ -1824,18 +1836,19 @@ Function @simplify@ does not need to check whether a variable holds a
 constant value; it relies on @constProp@ to have replaced the
 variable by the constant.
 Indeed, @simplify@ does not consult the
-incoming fact at all, and hence is polymorphic in~@f@.
+incoming fact, so it is polymorphic in~@f@.
 
 
-
-We have written two @FwdRewrite@ functions 
-because they are independently useful.  But in this case we
-want to apply \emph{both} of them,
+The @FwdRewrite@ functions @constProp@ and @simplify@
+are useful independently.
+In this case, however, we
+want \emph{both} of them,
 so we compose them with @thenFwdRw@.
-The composed rewrite functions, along with the lattice and the
+The composition, along with the lattice and the
 transfer function,
-go into @constPropPass@ (bottom of \figref{const-prop}).
-To improve a particular graph, we pass @constPropPass@ and the graph
+goes into @constPropPass@ (bottom of \figref{const-prop}).
+Given @constPropPass@, we can
+improve a graph~@g@ by passing @constPropPass@ and~@g@
 to
 @analyzeAndRewriteFwd@.
 

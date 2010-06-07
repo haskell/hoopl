@@ -20,7 +20,7 @@ simplify = deepFwdRw simp
   s_node :: Node e x -> Maybe (Node e x)
   s_node (Cond (Lit (Bool b)) t f)
     = Just $ Branch (if b then t else f)
-  s_node n = mapE s_exp n
+  s_node n = (mapEN . mapEE) s_exp n
   s_exp (Binop Add (Lit (Int n1)) (Lit (Int n2)))
     = Just $ Lit $ Int $ n1 + n2
     -- ... more cases for constant folding
@@ -44,14 +44,5 @@ simplify = deepFwdRw simp
   cmpOp Lte = Just (<=)
   cmpOp _   = Nothing
   nodeToG = insnToG
-
--- @ start cprop.tex
-
--- Rewriting expressions
-mapE :: (Expr     -> Maybe Expr) 
-     -> (Node e x -> Maybe (Node e x))
-mapE _ (Label _)    = Nothing
-mapE f (Assign x e) = fmap (Assign x) $ f e
- -- ... more cases for rewriting expressions
--- @ end cprop.tex
-mapE f n = (map_EN . map_EE) f n
+  mapEN = map_EN
+  mapEE = map_EE
