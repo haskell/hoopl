@@ -62,4 +62,4 @@ cprop.tex:D: ./xsource ${CPROPS:%=$CLIENT/%.hs}
 HOOPL=../src/Compiler/Hoopl
 
 comb1.tex iterf.tex:D: ./xsource $HOOPL/Combinators.hs
-	lua $prereq > $target
+	lua $prereq

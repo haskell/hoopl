@@ -1328,7 +1328,33 @@ The @ChangeFlag@ should be @NoChange@ if
 the result is the same as the old fact, and
 @SomeChange@ if the result differs.  
 
-\remark{Notes about @changeIf@, @PElem@, @WithTop@?}
+To help clients create lattices and join functions,
+\hoopl\ includes functions and constructors that extend a type~@a@
+with top and bottom elements.
+In this paper, we use only type @`WithTop@, which has value
+constructors with these types:
+\begin{code}
+  `PElem :: a -> WithTop a
+  `Top   ::      WithTop a
+\end{code}
+\hoopl\ also provides a @`Bot@ constructor and types @WithTop@,
+@`WithBot@, and @`WithTopAndBot@.
+All are defined using a single GADT,
+so that value constructors @Top@ and @Bot@ may be used with any of the
+types.
+
+The real convenience of @WithTop@, @WithBot@, and @WithTopAndBot@ is
+that \hoopl\ provides a combinator that lifts
+a join function on~@a@ to a join function on
+@WithTop a@, and similarly for the other types.
+The lifting combinator ensures that joins involving top and bottom
+elements not only obey the appropriate algebraic laws but also set the
+@ChangeFlag@ properly.
+
+
+
+
+\remark{Notes about @changeIf@?}
 
 % A~possible representation of the facts needed to implement
 % constant propagation is shown in \figref{const-prop}.
