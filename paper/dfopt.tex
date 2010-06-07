@@ -1,8 +1,36 @@
 \iffalse
 
+Payload: alternatives for functions polymorphic in node type
+
+  (n C O -> a, n C O -> b, n C O -> c)
+
+vs
+
+  (forall e x . n e x -> ShapeTag e x, forall e x . n e x -> result e x)
+
+where 
+
+  result C O = a
+  result O O = b
+  result O C = c
+
+The function returning ShapeTag can be passed in a type-class
+dictionary. 
+
+
+
+
 Say something about the proliferation of heavyweight type signatures
 required for GADT pattern matches.  When the signature is three times
 the size of the function, something is wrong...
+
+
+I'm going to leave this point out, because in all the client code
+we've written, we are (a) matching only on a node, and (b) matching on
+all cases.  In this scenario the GADT exhaustiveness checker provides
+no additional benefits.  Indeed, GADTs can be an irritant to the
+client: in many pattern matches, GADTs make it impossible to default
+cases.
 
 
 I was thinking again about unwrapped nodes, cons-lists, snoc-lists,
@@ -330,13 +358,14 @@ higher-rank any longer).
 %\title{\ourlib: Dataflow Optimization Made Simple}
 \title{\ourlib: A Modular, Reusable Library for\\ Dataflow Analysis and Transformation}
 %\title{Implementing Dataflow Analysis and Optimization by Lifting Node Functions to Basic Blocks and Control-Flow Graphs}
-\subtitle{Programming pearl}
+%\subtitle{Programming pearl}
 
-\titlebanner{\textsf{\mdseries\itshape
-This paper is a revised version of a submission to ICFP'10. Comments
-are welcome; please identify this version by the words
-\textbf{\mdfivewords}.
-}}
+%%  \titlebanner{\textsf{\mdseries\itshape
+%%  Under consideration for publication in the ACM Haskell Symposium.
+%%  Comments
+%%  are welcome; please identify this version by the words
+%%  \textbf{\mdfivewords}.
+%%  }}
 
 \ifnoauthornotes
 \makeatletter
@@ -481,12 +510,12 @@ iterations, and we offer our API as a contribution.
 \item
 Because the client
 can perform very local reasoning (``@y@ is live before
-@x:=y+2@'').%
+@x:=y+2@''),%
 \footnote
 {Using \hoopl, it is not necessary to have the more complex rule
 ``if @x@~is live after @x:=y+2@ then @y@ is live before~it,''
 because if @x@~is \emph{not} live after @x:=y+2@, the assignment
-@x:=y+2@ will be eliminated.},
+@x:=y+2@ will be eliminated.}
  analyses and transformations built on \ourlib\ 
 are small, simple, and easy to get right.
 Moreover, \ourlib\ helps you write correct optimizations:
@@ -1163,10 +1192,13 @@ data `FwdPass m n f
 
 ------- Lattice ----------
 data `DataflowLattice a = DataflowLattice
- { `fact_bot    :: a
- , `fact_extend :: a -> a -> (ChangeFlag, a) }
+ { `fact_bot  :: a
+ , `fact_join :: OldFact a -> NewFact a 
+             -> (ChangeFlag, a) }
 
 data `ChangeFlag = `NoChange | `SomeChange
+newtype `OldFact a = OldFact a
+newtype `NewFact a = NewFact a
 
 ------- Transfers ----------
 newtype `FwdTransfer n f      -- abstract type
@@ -1268,14 +1300,14 @@ distinct facts above it, so that repeated joins
 eventually reach a fixed point.
 
 In practice, joins are computed at labels.
-If~$f_{\mathit{id}}$ is the fact currently associated with the
-label~$\mathit{id}$, 
+If~$f_{\mathit{old}}$ is the fact currently associated with the
+label~$L$, 
 and if a transfer function propagates a new fact~$f_{\mathit{new}}$
-into the label~$\mathit{id}$, 
-the dataflow engine replaces $f_{\mathit{id}}$ with
-the join  $f_{\mathit{new}} \join f_{\mathit{id}}$.
+into the label~$L$, 
+the dataflow engine replaces $f_{\mathit{old}}$ with
+the join  $f_{\mathit{old}} \join f_{\mathit{new}}$.
 Furthermore, the dataflow engine wants to know if
-  $f_{\mathit{new}} \join f_{\mathit{id}} = f_{\mathit{id}}$,
+  $f_{\mathit{new}} \join f_{\mathit{old}} = f_{\mathit{old}}$,
 because if not, the analysis has not reached a fixed point.
 
 The bottom element and join operation of a lattice of facts of
@@ -1286,17 +1318,15 @@ type~@f@ are stored in a value of type @DataflowLattice f@
 As noted in the previous paragraph, 
 \ourlib{} needs to know when the result of a join is equal
 to one of the arguments joined.  
-Because this information is often available very cheaply at the time
-when the join is computed, \ourlib\ does not
+Because this information can often be computed cheaply together
+when the join, \ourlib\ does not
  require a separate equality test on facts (which might be
 expensive).
-Instead, \ourlib\ requires that @fact_extend@ return a @ChangeFlag@ as
+Instead, \ourlib\ requires that @fact_join@ return a @ChangeFlag@ as
 well as the least upper bound.
 The @ChangeFlag@ should be @NoChange@ if
-the result is the same as the first argument (the old fact), and
+the result is the same as the old fact, and
 @SomeChange@ if the result differs.  
-(Function @fact_extend@ is \emph{not} symmetric in
-its arguments.)
 
 \remark{Notes about @changeIf@, @PElem@, @WithTop@?}
 
@@ -1708,10 +1738,10 @@ the variable holds a constant value (Boolean or integer),
 the variable might hold a non-constant value,
 or nothing is known about what the variable holds.
 We~represent these facts using a finite map from a variable to a
-fact of type (@Maybe HasConst@).
+fact of type (@WithTop Lit@).
 A variable with a constant value maps to @Just k@, where @k@ is the constant value;
 a variable with a non-constant value maps to @Just Top@;
-and a variable with an unknown value maps to @Nothing@ (i.e., it is not
+and a variable with an unknown value maps to @Nothing@ (it is not
 in the domain of the finite map).
 
 % \afterpage{\clearpage}
@@ -2514,6 +2544,23 @@ as the previous version, which is part of GHC, version 6.12.
 
 
 \section{What we learned}
+
+> Some numbers, I have used it nine times, and would need the general fold
+ > once to define blockToNodeList (or CB* equivalent suggested by you).
+ > (We are using it in GHC to
+ >   - computing hash of the blocks from the nodes
+ >   - finding the last node of a block
+ >   - converting block to the old representation (2x)
+ >   - computing interference graph
+ >   - counting Area used by a block (2x)
+ >   - counting stack high-water mark for a block
+ >   - prettyprinting block)
+
+
+type-parameter hell, newtype hell, typechekcing hell, instance hell,
+triple hell
+
+
 
 We have spent six years implementing and reimplementing frameworks for
 dataflow analysis and transformation.

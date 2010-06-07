@@ -20,10 +20,9 @@ type Node = Insn -- for paper
 type ConstFact = Map.Map Var (WithTop Lit)
 constLattice :: DataflowLattice ConstFact
 constLattice = DataflowLattice
-  { fact_name   = "Const var value"
-  , fact_bot    = Map.empty
-  , fact_extend = stdMapJoin (joinWithTop' constFactAdd)
-  , fact_do_logging = False }
+  { fact_name = "Const var value"
+  , fact_bot  = Map.empty
+  , fact_join = stdMapJoin (joinWithTop' constFactAdd) }
   where
     constFactAdd _ (OldFact old) (NewFact new) 
         = (changeIf (new /= old), joined)

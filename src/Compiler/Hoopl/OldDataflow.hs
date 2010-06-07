@@ -85,7 +85,6 @@ data DataflowLattice a = DataflowLattice
  , fact_bot        :: a               -- Lattice bottom element
  , fact_extend     :: JoinFun a       -- Lattice join plus change flag
                                       -- (changes iff result > old fact)
- , fact_do_logging :: Bool            -- log changes
  }
 -- ^ A transfer function might want to use the logging flag
 -- to control debugging, as in for example, it updates just one element

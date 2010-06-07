@@ -229,15 +229,14 @@ pairBwd pass1 pass2 = BwdPass lattice transfer rewrite
 pairLattice :: forall f f' . DataflowLattice f -> DataflowLattice f' -> DataflowLattice (f, f')
 pairLattice l1 l2 =
   DataflowLattice
-    { fact_name       = fact_name l1 ++ " x " ++ fact_name l2
-    , fact_bot        = (fact_bot l1, fact_bot l2)
-    , fact_extend     = extend'
-    , fact_do_logging = fact_do_logging l1 || fact_do_logging l2
+    { fact_name = fact_name l1 ++ " x " ++ fact_name l2
+    , fact_bot  = (fact_bot l1, fact_bot l2)
+    , fact_join = join
     }
   where
-    extend' lbl (OldFact (o1, o2)) (NewFact (n1, n2)) = (c', (f1, f2))
-      where (c1, f1) = fact_extend l1 lbl (OldFact o1) (NewFact n1)
-            (c2, f2) = fact_extend l2 lbl (OldFact o2) (NewFact n2)
+    join lbl (OldFact (o1, o2)) (NewFact (n1, n2)) = (c', (f1, f2))
+      where (c1, f1) = fact_join l1 lbl (OldFact o1) (NewFact n1)
+            (c2, f2) = fact_join l2 lbl (OldFact o2) (NewFact n2)
             c' = case (c1, c2) of
                    (NoChange, NoChange) -> NoChange
                    _                    -> SomeChange

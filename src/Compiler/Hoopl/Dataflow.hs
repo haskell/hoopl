@@ -27,9 +27,8 @@ import Compiler.Hoopl.Util
 data DataflowLattice a = DataflowLattice  
  { fact_name       :: String          -- Documentation
  , fact_bot        :: a               -- Lattice bottom element
- , fact_extend     :: JoinFun a       -- Lattice join plus change flag
+ , fact_join       :: JoinFun a       -- Lattice join plus change flag
                                       -- (changes iff result > old fact)
- , fact_do_logging :: Bool            -- log changes
  }
 -- ^ A transfer function might want to use the logging flag
 -- to control debugging, as in for example, it updates just one element
@@ -210,9 +209,9 @@ arfGraph pass entries = graph
 -- We know the results _shouldn't change_, but the transfer
 -- functions might, for example, generate some debugging traces.
 joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
-joinInFacts (DataflowLattice {fact_bot = bot, fact_extend = fe}) fb =
+joinInFacts (DataflowLattice {fact_bot = bot, fact_join = fj}) fb =
   mkFactBase $ map botJoin $ mapToList fb
-    where botJoin (l, f) = (l, snd $ fe l (OldFact bot) (NewFact f))
+    where botJoin (l, f) = (l, snd $ fj l (OldFact bot) (NewFact f))
 
 forwardBlockList :: (Edges n, LabelsPtr entry)
                  => entry -> Body n -> [Block n C C]
@@ -419,7 +418,7 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
        = case lookupFact lbl fbase of
            Nothing -> (SomeChange, snd $ join $ fact_bot lat)  -- Note [Unreachable blocks]
            Just old_fact -> join old_fact
-         where join old_fact = fact_extend lat lbl (OldFact old_fact) (NewFact new_fact)
+         where join old_fact = fact_join lat lbl (OldFact old_fact) (NewFact new_fact)
     new_fbase = mapInsert lbl res_fact fbase
 
 fixpoint :: forall m block n f. (FuelMonad m, Edges n, Edges (block n))
@@ -499,7 +498,7 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
        the points above bottom
 
 * Even if the fact is going from UNR to bottom, we still call the
-  client's fact_extend function because it might give the client
+  client's fact_join function because it might give the client
   some useful debugging information.
 
 * All of this only applies for *forward* fixpoints.  For the backward

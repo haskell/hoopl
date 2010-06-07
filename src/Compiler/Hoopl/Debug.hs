@@ -52,11 +52,11 @@ debugFwdJoins trace pred p = p { fp_lattice = debugJoins trace pred $ fp_lattice
 debugBwdJoins trace pred p = p { bp_lattice = debugJoins trace pred $ bp_lattice p }
 
 debugJoins :: Show f => TraceFn -> ChangePred -> DataflowLattice f -> DataflowLattice f
-debugJoins trace showPred l@(DataflowLattice {fact_extend = extend}) = l {fact_extend = extend'}
+debugJoins trace showPred l@(DataflowLattice {fact_join = join}) = l {fact_join = join'}
   where
-   extend' l f1@(OldFact of1) f2@(NewFact nf2) =
+   join' l f1@(OldFact of1) f2@(NewFact nf2) =
      if showPred c then trace output res else res
-       where res@(c, f') = extend l f1 f2
+       where res@(c, f') = join l f1 f2
              output = case c of
                         SomeChange -> "+ Join@" ++ show l ++ ": " ++ show of1 ++ " `join` "
                                                                   ++ show nf2 ++ " = " ++ show f'

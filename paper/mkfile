@@ -15,6 +15,7 @@ bib:V: $TGT.bbl
 bibfile:V: $TGT.bib
 dvi:V: $TGT.dvi
 pdf:V: $TGT.pdf
+ps:V: $TGT.ps
 bbl:V: bib
 
 tag:VQ: $TGT.tex

@@ -6,11 +6,9 @@ setmetatable(outputs, { __index = function(t, k) local u = {}; t[k] = u; return 
 local function add_modified_line(lines, l)
   if l:find '%{ fact_name%s+=' then
     return
-  elseif l:find '%, fact_do_logging%s+=' then
-    return
   end
   l = l:gsub('^(%s*),( fact_bot)', '%1{%2')
-  l = l:gsub('^(%s*, fact_extend = .*)$', '%1 }')
+--  l = l:gsub('^(%s*, fact_join = .*)$', '%1 }')
   return table.insert(lines, l)
 end
 

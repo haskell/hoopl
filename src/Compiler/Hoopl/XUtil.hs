@@ -136,14 +136,14 @@ successorFacts n fb = [ f | id <- successors n, let Just f = lookupFact id fb ]
 -- | Join a list of facts.
 joinFacts :: DataflowLattice f -> Label -> [f] -> f
 joinFacts lat inBlock = foldr extend (fact_bot lat)
-  where extend new old = snd $ fact_extend lat inBlock (OldFact old) (NewFact new)
+  where extend new old = snd $ fact_join lat inBlock (OldFact old) (NewFact new)
 
 {-# DEPRECATED joinOutFacts
     "should be replaced by 'joinFacts lat l (successorFacts n f)'; as is, it uses the wrong Label" #-}
 
 joinOutFacts :: (Edges node) => DataflowLattice f -> node O C -> FactBase f -> f
-joinOutFacts lat n f = foldr extend (fact_bot lat) facts
-  where extend (lbl, new) old = snd $ fact_extend lat lbl (OldFact old) (NewFact new)
+joinOutFacts lat n f = foldr join (fact_bot lat) facts
+  where join (lbl, new) old = snd $ fact_join lat lbl (OldFact old) (NewFact new)
         facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
 
 
