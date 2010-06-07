@@ -959,6 +959,8 @@ The exit sequence is dual to the entry sequence, and like the entry
 sequence, its presence or absence is deducible from the static type of the graph.
 \end{itemize}
 
+\seclabel{gSplice}
+
 We can splice graphs together nicely; the cost is logarithmic in the
 number of closed/closed blocks.
 Unlike blocks, two graphs may be spliced together
@@ -2053,9 +2055,8 @@ We are not confident that any of these implementations are correct.
 
 In this paper we describe our new implementation.  It is short
 (about a third of the size of our last attempt), elegant, and offers
-strong static shape guarantees.  The whole thing is about 300~lines of
-code, excluding comments; this count includes both forward and backward
-dataflow analysis and transformation.
+strong static shape guarantees.  
+\remark{Wanted: enumerate the critical components and give each one's size}
 
 We describe the implementation of \emph{forward} 
 analysis and transformation.
@@ -2066,91 +2067,155 @@ exactly analogous and are included in \hoopl.
 
 \subsection{Overview}
 
-{\hfuzz=0.6pt
-We concentrate on implementing @analyzeAndRewriteFwdBody@, whose
-type is in \secref{using-hoopl}.
-Its implementation is built on the hierarchy of nodes, blocks, and graphs
-described in \secref{graph-rep}.  For each thing in the hierarchy,
-we develop a function of this type:
+
+%%  We  on @analyzeAndRewriteFwd@, whose type is more general
+%%  than that of  @analyzeAndRewriteFwdBody@:
+%%  \begin{smallcode}
+%%  `analyzeAndRewriteFwd
+%%   :: forall m n f e x. (FuelMonad m, NonLocal n)
+%%   => FwdPass m n f    -- lattice, transfers, rewrites
+%%   -> MaybeC e [Label] -- entry points for a closed graph
+%%   -> Graph n e x      -- the original graph
+%%   -> Fact e f         -- fact(s) flowing into the entry/entries
+%%   -> m (Graph n e x, FactBase f, MaybeO x f)
+%%  \end{smallcode}
+%%  We analyze graphs of all shapes; a single @FwdPass@ may be used with
+%%  multiple shapes.
+%%  If a graph is closed at the entry, a list of entry points must be
+%%  provided;
+%%  if the graph is open at the entry, it must be the case that the
+%%  implicit entry point is the only entry point.
+%%  The fact or set of facts flowing into the entries is similarly
+%%  determined by the shape of the entry point.
+%%  Finally, the result is a rewritten graph, a @FactBase@ that gives a
+%%  fixed point of the analysis on the rewritten graph, and if the graph
+%%  is open at the exit, an ``exit  fact'' flowing out.
+
+Instead of the interface function @analyzeAndRewriteBody@, we present
+the internal function @arfGraph@ (short for ``analyze and rewrite
+forward graph''):
+\begin{smallcode}
+`arfGraph
+ :: forall m n f e x. (FuelMonad m, NonLocal n)
+ => FwdPass m n f    -- lattice, transfers, rewrites
+ -> MaybeC e [Label] -- entry points for a closed graph
+ -> Graph n e x      -- the original graph
+ -> Fact e f         -- fact(s) flowing into the entry/entries
+ -> m (RG f n e x, Fact x f)
+\end{smallcode}
+We analyze graphs of all shapes; a single @FwdPass@ may be used with
+multiple shapes.
+If a graph is closed at the entry, a list of entry points must be
+provided;
+if the graph is open at the entry, it must be the case that the
+implicit entry point is the only entry point.
+The fact or set of facts flowing into the entries is similarly
+determined by the shape of the entry point.
+Finally, the result is a rewritten graph decorated with facts
+(@RG f n e x@),
+and if the graph
+is open at the exit, an ``exit  fact'' flowing out.
+
+To explain~@RG@, we have to reveal that the definition of
+@Graph@ in \figref{graph} contains a white lie: @Graph@~is a type
+synonym for an underlying type @`Graph'@, which takes the type of block
+as an additional parameter.
+(Similarly, function @gSplice@ in \secref{gSplice} is actually a
+higher-order function that takes a block-concatenation function as a
+parameter.) 
+The truth about @Graph@ and @RG@ is as follows:
 \begin{code}
-type `ARF ^thing n
- = forall f e x. FwdPass n f
-              -> thing e x -> Fact e f 
-              -> FuelMonad (RG n e x, Fact x f)
+  type Graph = Graph' Block
+  type RG     f n e x = Graph'   (FBlock f) n e x
+  data FBlock f n e x = FBlock f (Block n e x)
 \end{code}
-An @ARF@ (short for ``analyze and rewrite forward'') is a combination of
-a rewrite and transfer function.
-}%
-An @ARF@ takes a @FwdPass@, a @thing@ (a node, block, or graph),
-and an input fact,
-and it returns a rewritten graph of type @(RG n e x)@ of the same shape
-as the @thing@, plus a suitably shaped output fact.
-%
-%Regardless of whether @thing@ is a node, block, or graph, the result
-%is always a graph.
-% 
-% point is made adequately in the client section ---NR
-The type~@RG@ is internal to \hoopl; it is not seen by any client.
-We use it, not @Graph@, for two reasons:
-\begin{itemize}
-\item The client is often interested not only in the facts flowing
-out of the graph (which are returned in the @Fact x f@), 
-but also in the facts on the \emph{internal} blocks
-of the graph. A~replacement graph of type @(RG n e x)@ is decorated with
-these internal facts.
-\item A @Graph@ has deliberately restrictive invariants; for example,
-a @GMany@ with a @JustO@ is always open at exit (\figref{graph}).  It turns
-out to be awkward to maintain these invariants \emph{during} rewriting,
-but easy to restore them \emph{after} rewriting by ``normalizing'' an @RG@.
-\end{itemize}
-The information in an @RG@ is returned to the client by
-the normalization function @normalizeBody@, which
-splits an @RG@ into a @Body@ and its corresponding @FactBase@:
+@RG@~differs from @Graph@ simply by having the beginning of each block
+decorated with a fact.
+Extracting a @Graph@ and a @FactBase@ for @analyzeAndRewriteFwdBody@
+requires a 12-line function.
+ Type~@RG@ is internal to \hoopl; it is not seen by any client.
+%%  We use it, not @Graph@, for two reasons:
+%%  \begin{itemize}
+%%  \item The client is often interested not only in the facts flowing
+%%  out of the graph (which are returned in the @Fact x f@), 
+%%  but also in the facts on the \emph{internal} blocks
+%%  of the graph. A~replacement graph of type @(RG n e x)@ is decorated with
+%%  these internal facts.
+%%  \item A @Graph@ has deliberately restrictive invariants; for example,
+%%  a @GMany@ with a @JustO@ is always open at exit (\figref{graph}).  It turns
+%%  out to be awkward to maintain these invariants \emph{during} rewriting,
+%%  but easy to restore them \emph{after} rewriting by ``normalizing'' an @RG@.
+%%  \end{itemize}
+%%  The information in an @RG@ is returned to the client by
+%%  the normalization function @normalizeBody@, which
+%%  splits an @RG@ into a @Body@ and its corresponding @FactBase@:
+%%  \begin{code}
+%%  `normalizeBody :: NonLocal n => RG n f C C 
+%%                -> (Body n, FactBase f)
+%%  
+
+The implementation of @arfGraph@ is built up in layers:
+we analyze nodes, blocks, graph bodies, and full graphs.
+This layering enables us to separate concerns: for example, only the
+analysis of a node has to worry about rewrite functions;
+and only the analysis of a body has to worry about fixed points.
+All four layers typically share the @FwdPass@ and any entry points,
+which are captured in closures.
+The types of the inner functions are therefore
+\begin{smallcode}
+node  :: forall e x . (ShapeLifter e x) 
+      => n e x       -> f        -> m (RG f n e x, Fact x f)
+block :: forall e x . 
+         Block n e x -> f        -> m (RG f n e x, Fact x f)
+body  :: [Label] -> LabelMap (Block n C C)
+                     -> Fact C f -> m (RG f n C C, Fact C f)
+graph :: Graph n e x -> Fact e f -> m (RG f n e x, Fact x f)
+\end{smallcode}
+Together with @arfGraph@, these functions comprise a cycle of mutual recursion:
+@arfGraph@ calls @graph@,
+each of the inner functions calls the one above it,
+and @node@ may call @arfGraph@.
+And each of the inner functions has roughly the same form:
+it~gets a ``thing'' and returns a fact transformer suitable to that
+thing.
+But the fact transformer provides a bonus:
+in addition to a result fact, we also get a rewritten graph. 
+
+Fact transformers compose nicely, and our composition of fact
+transformers deliberately mirrors the composition of the
+data structures.
+The result is something one might call
+``@concatMap@ style,'' which is best defined by example:
 \begin{code}
-`normalizeBody :: NonLocal n => RG n f C C 
-              -> (Body n, FactBase f)
+  block (BFirst  n)  = node n
+  block (BMiddle n)  = node n
+  block (BLast   n)  = node n
+  block (BCat b1 b2) = block b1 `cat` block b2
 \end{code}
-\begin{figure}
-\hfuzz=0.98pt
+(We have also implemented a ``fold style,'' but because the types are
+a little less intuitive, we are sticking with @concatMap@ style for now.)
+The key operation here is @cat@, which must thread facts through
+monadic fact transformers and also accumulate the rewritten graphs:
 \begin{code}
-data `RG n f e x where
-  `RGNil   :: RG n f a a
-  `RGCatO  :: RG n f e O -> RG n f O x -> RG n f e x
-  `RGCatC  :: RG n f e C -> RG n f C x -> RG n f e x
-  `RGUnit  :: Fact e f  -> Block n e x -> RG n f e x
+  `cat ft1 ft2 f = do { (g1,f1) <- ft1 f
+                     ; (g2,f2) <- ft2 f1
+                     ; return (g1 `rgCat` g2, f2) }
 \end{code}
-\caption{The data type \texttt{RG} of rewritten graphs} \figlabel{rg}
-\end{figure}
-The constructors of @RG@ are given in \figref{rg}.
-The essential points are that constructor @RGUnit@ is polymorphic in
-the shape of a block, @RGUnit@ carries a fact as
-well as a block, and the concatenation constructors record the shapes
-of the graphs at the point of concatenation.
-\remark{Not too happy with calling this ``concatenation''}
-(A~record of the shapes is needed so that when
-@normalizeBody@ is presented with a block carried by @RGUnit@, it is
-known whether the block is an entry sequence, an exit sequence, or a
-basic block.)
-\remark{
-Within \hoopl,
-the @RG@~type is a great convenience.  Mutter mutter:
-it carries facts as well as blocks, and it frees the client's
-rewrite functions from any obligation to respect the invariants of
-type @Graph@---I'm not convinced.}
+(Function @rgCat@ is the same splicing function used for an ordinary
+@Graph@, but it takes a one-line block-concatenation function suitable
+for @FBlock@s.)
+The @cat@ function is completely agnostic about the types of facts,
+but it does ensure that where graphs are concatented, shapes match up:
+\begin{code}
+    cat :: forall m e a x info info' info''. Monad m =>
+           (info  -> m (RG f n e a, info'))
+        -> (info' -> m (RG f n a x, info''))
+        -> (info  -> m (RG f n e x, info''))
+\end{code}
 
 
-We exploit the type distinctions of nodes, @Block@, @Body@,
-and @Graph@ to structure the code into several small pieces, each of which
-can be understood independently.  Specifically, we define a layered set of
-functions, each of which calls the previous one:
-\begin{code}
- arfNode  :: NonLocal n => ARF n n
- arfBlock :: NonLocal n => ARF (Block n) n
- arfBody  :: NonLocal n
-          => FwdPass n f -> Body n -> FactBase f
-          -> FuelMonad (RG n f C C, FactBase f)
- arfGraph :: NonLocal n => ARF (Graph n) n
-\end{code} 
+
+
 \begin{itemize} 
 \item 
 The @arfNode@ function processes nodes (\secref{arf-node}).
@@ -2215,19 +2280,7 @@ Each recursive call produces a rewritten graph;
 we concatenate them with @RGCatO@. 
 
 Function @arfGraph@ is equally straightforward:
-\begin{code}
-`arfGraph :: NonLocal n => ARF (Graph n) n
-arfGraph _    GNil        f = return (RGNil, f)
-arfGraph pass (GUnit blk) f = arfBlock pass blk f
-arfGraph pass (GMany NothingO body NothingO) f
-  = do { (^body', ^fb) <- arfBody pass body f
-       ; return (body', fb) }
-arfGraph pass (GMany NothingO body (JustO ^exit)) f
-  = do { (body', fb) <- arfBody  pass body f
-       ; (^exit', ^fx) <- arfBlock pass exit fb
-       ; return (body' `RGCatC` exit', fx) }
- --  ... two more equations for GMany ...
-\end{code}
+XXXXXXXXXXXXXXX
 The pattern is the same as for @arfBlock@: thread
 facts through the sequence, and concatenate the results.
 Because the constructors of type~@RG@ are more polymorphic than those
