@@ -450,7 +450,7 @@ distinguishedEntryFact g f = maybe g
 
 data TxFactBase n f
   = TxFB { tfb_fbase :: FactBase f
-         , tfb_rg  :: RG f n C C -- Transformed blocks
+         , tfb_rg    :: RG f n C C -- Transformed blocks
          , tfb_cha   :: ChangeFlag
          , tfb_lbls  :: LabelSet }
  -- Note [TxFactBase change flag]
@@ -493,7 +493,7 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
 	     -- we have facts, that are *not* in the blocks of the graph
   where
     blocks = map tag untagged_blocks
-     where tag b = ((entryLabel b, b), if is_fwd then [entryLabel b] else successors b)
+    tag b = ((entryLabel b, b), if is_fwd then [entryLabel b] else successors b)
 
     tx_blocks :: [((Label, block n C C), [Label])]   -- I do not understand this type
               -> TxFactBase n f -> m (TxFactBase n f)
