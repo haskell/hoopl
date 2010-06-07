@@ -10,6 +10,11 @@ vs
 
 where 
 
+  data ShapeTag e x where
+    First  :: ShapeTag C O
+    Middle :: ShapeTag O O
+    Last   :: ShapeTag O C
+
   result C O = a
   result O O = b
   result O C = c
@@ -77,7 +82,7 @@ the following observations:
 
       - One can't write a generic dominator analysis with type
 
-           dom :: Edges n => FwdPass n Dominators
+           dom :: NonLocal n => FwdPass n Dominators
 
       - One can't write a generic debugging wrapper of type
 
@@ -862,7 +867,7 @@ data `MaybeO ^ex t where
 
 newtype `Label = Label Int
 
-class `Edges n where
+class `NonLocal n where
   `entryLabel :: n C x -> Label
   `successors :: n e C -> [Label]
 \end{fuzzcode}
@@ -1033,12 +1038,14 @@ to a client which representation to choose---or if the choice made a difference.
 
 \subsection{Labels and successors} \seclabel{edges}
 
-If \ourlib{} knows nothing about nodes, how can it know where
-a control transfer goes, or what is the @Label@ at the start of a block?
-To~answer such questions,
-the standard Haskell idiom is to define a type class whose methods
-provide exactly the operations needed;
-\ourlib's type class, called @Edges@, is given in \figref{edges}.
+Although \ourlib{} is polymorphic in the type of nodes, 
+it~still needs to know how nonlocal control is transferred from one
+block to another:
+\hoopl\ must know where
+a control transfer can go, 
+and it must know what @Label@ is at the start of a block.
+The client must provide this information by placing its node type into
+\ourlib's @NonLocal@ type class (\figref{edges}).
 The @entryLabel@ method takes a first node (one closed on entry, \secref{nodes})
 and returns its @Label@;
 the @successors@ method takes a last node (closed on exit) and returns
@@ -1048,11 +1055,11 @@ A~middle node, which is open at both entry and exit, cannot refer to
 any @Label@s, 
 so no corresponding interrogation function is needed.
 
-A node type defined by a client must be an instance of @Edges@.
+A node type defined by a client must be an instance of @NonLocal@.
 In~\figref{cmm-node},
 the client's instance declaration for @Node@ would be
 \begin{code}
-instance Edges Node where
+instance NonLocal Node where
   entryLabel (Label l) = l
   successors (Branch b) = [b]
   successors (CondBranch e b1 b2) = [b1, b2]
@@ -1069,7 +1076,7 @@ about blocks.
 For its own internal use,
 \ourlib{} provides this instance declaration for the @Block@ type:
 \begin{code}
-instance Edges n => Edges (Block n) where
+instance NonLocal n => NonLocal (Block n) where
   entryLabel (BFirst n) = entryLabel n
   entryLabel (BCat b _) = entryLabel b
   successors (BLast  n) = successors n
@@ -1078,12 +1085,12 @@ instance Edges n => Edges (Block n) where
 Because the functions @entryLabel@ and @successors@ are used to track control
 flow \emph{within} a graph, \ourlib\ does not need to ask for the
 entry label or successors of a @Graph@ itself.
-Indeed, @Graph@ \emph{cannot} be an instance of @Edges@, because even
+Indeed, @Graph@ \emph{cannot} be an instance of @NonLocal@, because even
 if a @Graph@ is closed at the entry, it does not have a unique entry label.
 %
-% A slight infelicity is that we cannot make @Graph@ an instance of @Edges@,
+% A slight infelicity is that we cannot make @Graph@ an instance of @NonLocal@,
 % because a graph closed on entry has no unique label.  Fortunately, we never
-% need @Graph@s to be in @Edges@.
+% need @Graph@s to be in @NonLocal@.
 %
 % ``Never apologize.  Never confess to infelicity.'' ---SLPJ
 
@@ -1164,7 +1171,7 @@ closed/closed graph:
 \begin{code}
 analyzeAndRewriteFwdBody
   :: ( FuelMonad m    -- Gensym and other state
-     , Edges n )      -- Access to flow edges
+     , NonLocal n )   -- Extract non-local flow edges
   => FwdPass m n f    -- Lattice, transfer, rewrite
   -> [Label]          -- Entry point(s)
   -> Graph n C C      -- Input graph
@@ -1459,7 +1466,7 @@ Such functions may also be useful in \hoopl's \emph{clients}:
 \item
 A dominator analysis in the style of
 \citet{cooper-harvey-kennedy:simple-dominance} requires only the
-functions in the \texttt{Edges} type class; 
+functions in the \texttt{NonLocal} type class; 
 we have written such an analysis using transfer functions that are 
 polymorphic in~@n@.
 \end{itemize}
@@ -2100,7 +2107,7 @@ The information in an @RG@ is returned to the client by
 the normalization function @normalizeBody@, which
 splits an @RG@ into a @Body@ and its corresponding @FactBase@:
 \begin{code}
-`normalizeBody :: Edges n => RG n f C C 
+`normalizeBody :: NonLocal n => RG n f C C 
               -> (Body n, FactBase f)
 \end{code}
 \begin{figure}
@@ -2137,12 +2144,12 @@ and @Graph@ to structure the code into several small pieces, each of which
 can be understood independently.  Specifically, we define a layered set of
 functions, each of which calls the previous one:
 \begin{code}
- arfNode  :: Edges n => ARF n n
- arfBlock :: Edges n => ARF (Block n) n
- arfBody  :: Edges n
+ arfNode  :: NonLocal n => ARF n n
+ arfBlock :: NonLocal n => ARF (Block n) n
+ arfBody  :: NonLocal n
           => FwdPass n f -> Body n -> FactBase f
           -> FuelMonad (RG n f C C, FactBase f)
- arfGraph :: Edges n => ARF (Graph n) n
+ arfGraph :: NonLocal n => ARF (Graph n) n
 \end{code} 
 \begin{itemize} 
 \item 
@@ -2176,7 +2183,7 @@ Given these functions, writing the main analyzer is a simple
 matter of matching the external API to the internal functions:
 \begin{code}
   `analyzeAndRewriteFwdBody
-     :: forall n f. Edges n
+     :: forall n f. NonLocal n
      => FwdPass n f -> Body n -> FactBase f
      -> FuelMonad (Body n, FactBase f)
 
@@ -2191,7 +2198,7 @@ matter of matching the external API to the internal functions:
 We begin our explanation with the second task:
 writing @arfBlock@, which analyzes and transforms blocks.
 \begin{code}
-`arfBlock :: Edges n => ARF (Block n) n
+`arfBlock :: NonLocal n => ARF (Block n) n
 arfBlock pass (BUnit node) f 
   = arfNode pass node f
 arfBlock pass (BCat b1 b2) f 
@@ -2209,7 +2216,7 @@ we concatenate them with @RGCatO@.
 
 Function @arfGraph@ is equally straightforward:
 \begin{code}
-`arfGraph :: Edges n => ARF (Graph n) n
+`arfGraph :: NonLocal n => ARF (Graph n) n
 arfGraph _    GNil        f = return (RGNil, f)
 arfGraph pass (GUnit blk) f = arfBlock pass blk f
 arfGraph pass (GMany NothingO body NothingO) f
@@ -2237,7 +2244,7 @@ Although interleaving analysis with transformation is tricky, we have
 succeeded in isolating the algorithm in just two functions,  
 @arfNode@ and its backward analog, @`arbNode@:
 \begin{fuzzcode}{10.5pt}
-`arfNode :: Edges n => ARF n n
+`arfNode :: NonLocal n => ARF n n
 arfNode ^pass n f
  = do { ^mb_g <- withFuel (fp_rewrite pass n f)
       ; case mb_g of
@@ -2300,7 +2307,7 @@ This part of the implementation is the only really tricky part, and it is
 cleanly separated from everything else:
 \par{\small
 \begin{code}
-arfBody  :: Edges n
+arfBody  :: NonLocal n
          => FwdPass n f -> Body n -> FactBase f
          -> FuelMonad (RG n f C C, FactBase f)
 `arfBody pass body ^fbase
@@ -2313,7 +2320,7 @@ Function @forwardBlockList@ takes a list of possible entry points and @Body@,
 blocks, sorted into an order that makes forward dataflow efficient:
 \begin{code}
 `forwardBlockList 
-  :: Edges n => [Label]
+  :: NonLocal n => [Label]
   -> Body n -> [(Label,Block n C C)]
 \end{code}
 For
@@ -2321,10 +2328,10 @@ example, if the @Body@ starts at block~@L2@, and @L2@
 branches to~@L1@, but not vice versa, then \hoopl\ will reach a fixed point
 more quickly if we process @L2@ before~@L1@.  
 To~find an efficient order, @forwardBlockList@ uses
-the methods of the @Edges@ class---@entryLabel@ and @successors@---to
+the methods of the @NonLocal@ class---@entryLabel@ and @successors@---to
 perform a reverse depth-first traversal of the control-flow graph.
 %%
-%%The @Edges@ type-class constraint on~@n@ propagates to all the
+%%The @NonLocal@ type-class constraint on~@n@ propagates to all the
 %%@`arfThing@ functions.
 %%  paragraph carrying too much freight
 %%
@@ -2342,7 +2349,7 @@ The rest of the work is done by @fixpoint@, which is shared by
 both forward and backward analyses:
 \begin{code}
 `fixpoint :: forall n f.
-     Edges n
+     NonLocal n
   => Bool     -- going Forward?
   -> DataflowLattice f
   -> (Block n C C -> FactBase f -> 
@@ -2694,7 +2701,7 @@ Making \ourlib{} polymorphic in the nodes
 made the code simpler, easier to understand, and easier to maintain.
 In particular, it forced us to make explicit \emph{exactly} what
 \ourlib\ must know about nodes, and to embody that knowledge in the
-@Edges@ type class (\secref{edges}). 
+@NonLocal@ type class (\secref{edges}). 
 \item
 We are proud of using GADTs to 
 track the open and closed shapes of nodes, blocks, and graphs at
@@ -2825,7 +2832,7 @@ updateFact ^lat ^lbls (lbl, ^new_fact) (^cha, fbase)
          Just ^old_fact -> fact_extend lat old_fact new_fact
     ^new_fbase = extendFactBase fbase lbl res_fact
 
-fixpoint :: forall n f. Edges n
+fixpoint :: forall n f. NonLocal n
          => Bool        -- Going forwards?
          -> DataflowLattice f
          -> (Block n C C -> FactBase f

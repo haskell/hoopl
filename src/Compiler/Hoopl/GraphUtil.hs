@@ -16,7 +16,7 @@ import Compiler.Hoopl.Label
 bodyGraph :: Body n -> Graph n C C
 bodyGraph b = GMany NothingO b NothingO
 
-splice :: forall block n e a x . Edges (block n) =>
+splice :: forall block n e a x . NonLocal (block n) =>
           (forall e x . block n e O -> block n O x -> block n e x)
        -> (Graph' block n e a -> Graph' block n a x -> Graph' block n e x)
 splice bcat = sp
@@ -45,7 +45,7 @@ splice bcat = sp
         bodyUnion = mapUnionWithKey nodups
          where nodups l _ _ = error $ "duplicate blocks with label " ++ show l
 
-gSplice :: Edges n => Graph n e a -> Graph n a x -> Graph n e x
+gSplice :: NonLocal n => Graph n e a -> Graph n a x -> Graph n e x
 gSplice = splice cat
 
 cat :: Block n e O -> Block n O x -> Block n e x

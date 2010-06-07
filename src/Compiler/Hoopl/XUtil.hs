@@ -36,7 +36,7 @@ import Compiler.Hoopl.Util
 -- A set of entry points must be supplied; blocks not reachable from
 -- the set are thrown away.
 analyzeAndRewriteFwdBody
-   :: forall m n f entries. (FuelMonad m, Edges n, LabelsPtr entries)
+   :: forall m n f entries. (FuelMonad m, NonLocal n, LabelsPtr entries)
    => FwdPass m n f
    -> entries -> Body n -> FactBase f
    -> m (Body n, FactBase f)
@@ -45,7 +45,7 @@ analyzeAndRewriteFwdBody
 -- A set of entry points must be supplied; blocks not reachable from
 -- the set are thrown away.
 analyzeAndRewriteBwdBody
-   :: forall m n f entries. (FuelMonad m, Edges n, LabelsPtr entries)
+   :: forall m n f entries. (FuelMonad m, NonLocal n, LabelsPtr entries)
    => BwdPass m n f 
    -> entries -> Body n -> FactBase f 
    -> m (Body n, FactBase f)
@@ -80,7 +80,7 @@ mapBodyFacts anal b f = anal (GMany NothingO b NothingO) f >>= bodyFacts
 -- from having to specify a type signature for 'NothingO', which beginners
 -- might find confusing and experts might find annoying.
 analyzeAndRewriteFwdOx
-   :: forall m n f x. (FuelMonad m, Edges n)
+   :: forall m n f x. (FuelMonad m, NonLocal n)
    => FwdPass m n f -> Graph n O x -> f -> m (Graph n O x, FactBase f, MaybeO x f)
 
 -- | Backward dataflow analysis and rewriting for the special case of a 
@@ -88,7 +88,7 @@ analyzeAndRewriteFwdOx
 -- from having to specify a type signature for 'NothingO', which beginners
 -- might find confusing and experts might find annoying.
 analyzeAndRewriteBwdOx
-   :: forall m n f x. (FuelMonad m, Edges n)
+   :: forall m n f x. (FuelMonad m, NonLocal n)
    => BwdPass m n f -> Graph n O x -> Fact x f -> m (Graph n O x, FactBase f, f)
 
 -- | A value that can be used for the entry point of a graph open at the entry.
@@ -109,28 +109,28 @@ analyzeAndRewriteBwdOx pass g fb = analyzeAndRewriteBwd pass noEntries g fb >>= 
 -- function is planned to be made obsolete by changes in the dataflow
 -- interface.
 
-firstXfer :: Edges n => (n C O -> f -> f) -> (n C O -> FactBase f -> f)
+firstXfer :: NonLocal n => (n C O -> f -> f) -> (n C O -> FactBase f -> f)
 firstXfer xfer n fb = xfer n $ fromJust $ lookupFact (entryLabel n) fb
 
 -- | This utility function handles a common case in which a transfer function
 -- produces a single fact out of a last node, which is then distributed
 -- over the outgoing edges.
-distributeXfer :: Edges n => (n O C -> f -> f) -> (n O C -> f -> FactBase f)
+distributeXfer :: NonLocal n => (n O C -> f -> f) -> (n O C -> f -> FactBase f)
 distributeXfer xfer n f = mkFactBase [ (l, xfer n f) | l <- successors n ]
 
 -- | This utility function handles a common case in which a transfer function
 -- for a last node takes the incoming fact unchanged and simply distributes
 -- that fact over the outgoing edges.
-distributeFact :: Edges n => n O C -> f -> FactBase f
+distributeFact :: NonLocal n => n O C -> f -> FactBase f
 distributeFact n f = mkFactBase [ (l, f) | l <- successors n ]
 
 -- | This utility function handles a common case in which a backward transfer
 -- function takes the incoming fact unchanged and tags it with the node's label.
-distributeFactBwd :: Edges n => n C O -> f -> FactBase f
+distributeFactBwd :: NonLocal n => n C O -> f -> FactBase f
 distributeFactBwd n f = mkFactBase [ (entryLabel n, f) ]
 
 -- | List of (unlabelled) facts from the successors of a last node
-successorFacts :: Edges n => n O C -> FactBase f -> [f]
+successorFacts :: NonLocal n => n O C -> FactBase f -> [f]
 successorFacts n fb = [ f | id <- successors n, let Just f = lookupFact id fb ]
 
 -- | Join a list of facts.
@@ -141,7 +141,7 @@ joinFacts lat inBlock = foldr extend (fact_bot lat)
 {-# DEPRECATED joinOutFacts
     "should be replaced by 'joinFacts lat l (successorFacts n f)'; as is, it uses the wrong Label" #-}
 
-joinOutFacts :: (Edges node) => DataflowLattice f -> node O C -> FactBase f -> f
+joinOutFacts :: (NonLocal node) => DataflowLattice f -> node O C -> FactBase f -> f
 joinOutFacts lat n f = foldr join (fact_bot lat) facts
   where join (lbl, new) old = snd $ fact_join lat lbl (OldFact old) (NewFact new)
         facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
@@ -414,7 +414,7 @@ data BlockResult n x where
   BodyBlock :: Block n C C -> BlockResult n x
   ExitBlock :: Block n C O -> BlockResult n O
 
-lookupBlock :: Edges n => Graph n e x -> Label -> BlockResult n x
+lookupBlock :: NonLocal n => Graph n e x -> Label -> BlockResult n x
 lookupBlock (GMany _ _ (JustO exit)) lbl
   | entryLabel exit == lbl = ExitBlock exit
 lookupBlock (GMany _ (Body body)  _) lbl =

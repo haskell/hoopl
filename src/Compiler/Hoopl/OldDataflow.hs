@@ -12,7 +12,7 @@ d) The body of a GMany is called Body
 e) A Body is just a list of blocks, not a map. I've argued
    elsewhere that this is consistent with (c)
 
-A consequence is that Graph is no longer an instance of Edges,
+A consequence is that Graph is no longer an instance of NonLocal,
 but nevertheless I managed to keep the ARF and ARB signatures
 nice and uniform.
 
@@ -50,7 +50,7 @@ This was made possible by
   nearly equivalent to (BlockId -> f).
 
 * I've realised that forwardBlockList and backwardBlockList
-  both need (Edges n), and that goes everywhere.
+  both need (NonLocal n), and that goes everywhere.
 
 * I renamed BlockId to Label
 -}
@@ -150,7 +150,7 @@ type instance Fact C f = FactBase f
 type instance Fact O f = f
 
 analyzeAndRewriteFwd
-   :: forall n f. Edges n
+   :: forall n f. NonLocal n
    => FwdPass n f
    -> Body n -> FactBase f
    -> FuelMonad (Body n, FactBase f)
@@ -162,7 +162,7 @@ analyzeAndRewriteFwd pass body facts
 -- | if the graph being analyzed is open at the entry, there must
 --   be no other entry point, or all goes horribly wrong...
 analyzeAndRewriteFwd'
-   :: forall n f e x. Edges n
+   :: forall n f e x. NonLocal n
    => FwdPass n f
    -> Graph n e x -> Fact e f
    -> FuelMonad (Graph n e x, FactBase f, MaybeO x f)
@@ -192,7 +192,7 @@ type ARFX' n f thing e x
   = FwdPass n f -> thing e x -> Fact e f -> FuelMonad (RG f n e x, Fact x f)
   -- ^ Analyze and rewrite forward extended -- can take @FactBase f@
 
-arfx :: Edges thing => ARF' n f thing C x -> ARFX' n f thing C x
+arfx :: NonLocal thing => ARF' n f thing C x -> ARFX' n f thing C x
 arfx arf pass thing fb = 
     arf pass thing $ fromJust $ lookupFact (joinInFacts lattice fb) $ entryLabel thing
   where lattice = fp_lattice pass
@@ -201,7 +201,7 @@ arfx arf pass thing fb =
 type ARF  thing n = forall f e x . ARF'  n f thing e x
 type ARFX thing n = forall f e x . ARFX' n f thing e x
 
-arfNode :: (Edges n, ShapeLifter e x) => ARF' n f n e x
+arfNode :: (NonLocal n, ShapeLifter e x) => ARF' n f n e x
 arfNode pass node f
   = do { mb_g <- withFuel (frewrite pass node f)
        ; case mb_g of
@@ -212,10 +212,10 @@ arfNode pass node f
                                      ; arfGraph pass' g (elift node f) } }
 
 -- type demonstration
-_arfBlock :: Edges n => ARF' n f (Block n) e x
+_arfBlock :: NonLocal n => ARF' n f (Block n) e x
 _arfBlock = arfBlock
 
-arfBlock :: Edges n => ARF (Block n) n
+arfBlock :: NonLocal n => ARF (Block n) n
 -- Lift from nodes to blocks
 arfBlock pass (BFirst  node)  = arfNode pass node
 arfBlock pass (BMiddle node)  = arfNode pass node
@@ -233,7 +233,7 @@ arfCat arf1 arf2 pass thing1 thing2 f = do { (g1,f1) <- arf1 pass thing1 f
                                            ; (g2,f2) <- arf2 pass thing2 f1
                                            ; return (g1 `rgCat` g2, f2) }
 
-arfBody :: Edges n
+arfBody :: NonLocal n
         => FwdPass n f -> Body n -> FactBase f
         -> FuelMonad (RG f n C C, FactBase f)
 		-- Outgoing factbase is restricted to Labels *not* in
@@ -246,7 +246,7 @@ arfBody pass blocks init_fbase
     do_block b f = do (g, fb) <- arfBlock pass b $ lookupF pass (entryLabel b) f
                       return (g, factBaseList fb)
 
-arfGraph :: Edges n => ARFX (Graph n) n
+arfGraph :: NonLocal n => ARFX (Graph n) n
 -- Lift from blocks to graphs
 arfGraph _    GNil        = \f -> return (rgnil, f)
 arfGraph pass (GUnit blk) = arfBlock pass blk
@@ -268,7 +268,7 @@ joinInFacts (DataflowLattice {fact_bot = bot, fact_extend = fe}) fb =
   mkFactBase $ map botJoin $ factBaseList fb
     where botJoin (l, f) = (l, snd $ fe l (OldFact bot) (NewFact f))
 
-forwardBlockList :: (Edges n, LabelsPtr entry)
+forwardBlockList :: (NonLocal n, LabelsPtr entry)
                  => entry -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for forward analysis,
 -- along with the list of Labels it may depend on for facts.
@@ -327,13 +327,13 @@ type ARBX' n f thing e x
 type ARB  thing n = forall f e x. ARB'  n f thing e x 
 type ARBX thing n = forall f e x. ARBX' n f thing e x 
 
-arbx :: Edges thing => ARB' n f thing C x -> ARBX' n f thing C x
+arbx :: NonLocal thing => ARB' n f thing C x -> ARBX' n f thing C x
 arbx arb pass thing f = do { (rg, f) <- arb pass thing f
                            ; let fb = joinInFacts (bp_lattice pass) $
                                       mkFactBase [(entryLabel thing, f)]
                            ; return (rg, fb) }
 
-arbNode :: (Edges n, ShapeLifter e x) => ARB' n f n e x
+arbNode :: (NonLocal n, ShapeLifter e x) => ARB' n f n e x
 -- Lifts (BwdTransfer,BwdRewrite) to ARB_Node; 
 -- this time we do rewriting as well. 
 -- The ARB_Graph parameters specifies what to do with the rewritten graph
@@ -347,7 +347,7 @@ arbNode pass node f
                                      ; (g, f) <- arbGraph pass' g f
                                      ; return (g, elower (bp_lattice pass) node f)} }
 
-arbBlock :: Edges n => ARB (Block n) n
+arbBlock :: NonLocal n => ARB (Block n) n
 -- Lift from nodes to blocks
 arbBlock pass (BFirst  node)  = arbNode pass node
 arbBlock pass (BMiddle node)  = arbNode pass node
@@ -365,7 +365,7 @@ arbCat arb1 arb2 pass thing1 thing2 f = do { (g2,f2) <- arb2 pass thing2 f
                                            ; (g1,f1) <- arb1 pass thing1 f2
                                            ; return (g1 `rgCat` g2, f1) }
 
-arbBody :: Edges n
+arbBody :: NonLocal n
         => BwdPass n f -> Body n -> FactBase f
         -> FuelMonad (RG f n C C, FactBase f)
 arbBody pass blocks init_fbase
@@ -375,7 +375,7 @@ arbBody pass blocks init_fbase
     do_block b f = do (g, f) <- arbBlock pass b f
                       return (g, [(entryLabel b, f)])
 
-arbGraph :: Edges n => ARBX (Graph n) n
+arbGraph :: NonLocal n => ARBX (Graph n) n
 arbGraph _    GNil        = \f -> return (rgnil, f)
 arbGraph pass (GUnit blk) = arbBlock pass blk
 arbGraph pass (GMany NothingO body NothingO) = arbBody pass body
@@ -388,7 +388,7 @@ arbGraph pass (GMany (JustO entry) body (JustO exit)) =
  where arbeb pass = uncurry $ arbCat arbBlock arbBody pass
 
 
-backwardBlockList :: Edges n => Body n -> [Block n C C]
+backwardBlockList :: NonLocal n => Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for backward analysis,
 -- along with the list of Labels it may depend on for facts.
 backwardBlockList body = reachable ++ missing
@@ -435,7 +435,7 @@ NR
 
 
 analyzeAndRewriteBwd
-   :: forall n f. Edges n
+   :: forall n f. NonLocal n
    => BwdPass n f 
    -> Body n -> FactBase f 
    -> FuelMonad (Body n, FactBase f)
@@ -447,7 +447,7 @@ analyzeAndRewriteBwd pass body facts
 -- | if the graph being analyzed is open at the exit, I don't
 --   quite understand the implications of possible other exits
 analyzeAndRewriteBwd'
-   :: forall n f e x. Edges n
+   :: forall n f e x. NonLocal n
    => BwdPass n f
    -> Graph n e x -> Fact x f
    -> FuelMonad (Graph n e x, FactBase f, MaybeO e f)
@@ -497,7 +497,7 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
          where join old_fact = fact_extend lat lbl (OldFact old_fact) (NewFact new_fact)
     new_fbase = extendFactBase fbase lbl res_fact
 
-fixpoint :: forall block n f. Edges (block n)
+fixpoint :: forall block n f. NonLocal (block n)
          => Bool	-- Going forwards?
          -> DataflowLattice f
          -> (block n C C -> FactBase f
@@ -606,8 +606,8 @@ type GraphWithFacts n f e x = (Graph n e x, FactBase f)
   -- The domains of the two maps should be identical
 
 normalizeGraph :: forall n f e x .
-                  Edges n => RG f n e x -> GraphWithFacts n f e x
-normaliseBody  :: Edges n => RG f n C C -> BodyWithFacts n f
+                  NonLocal n => RG f n e x -> GraphWithFacts n f e x
+normaliseBody  :: NonLocal n => RG f n C C -> BodyWithFacts n f
 
 normalizeGraph g = (graphMapBlocks dropFact g, facts g)
     where dropFact (FBlock _ b) = b
@@ -653,8 +653,8 @@ rgCat = U.splice fzCat
 -- Note that the latter two functions depend only on the entry shape.
 class ShapeLifter e x where
   unit      :: n e x -> Block n e x
-  elift     :: Edges n =>                      n e x -> f -> Fact e f
-  elower    :: Edges n => DataflowLattice f -> n e x -> Fact e f -> f
+  elift     :: NonLocal n =>                      n e x -> f -> Fact e f
+  elower    :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
   ftransfer :: FwdPass n f -> n e x -> f        -> Fact x f
   btransfer :: BwdPass n f -> n e x -> Fact x f -> f
   frewrite  :: FwdPass n f -> n e x -> f        -> Maybe (FwdRes n f e x)

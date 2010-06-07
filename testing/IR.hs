@@ -25,7 +25,7 @@ data Insn e x where
   Call   :: [Var]  -> String  -> [Expr] -> Label -> Insn O C
   Return :: [Expr] ->                               Insn O C
 
-instance Edges Insn where
+instance NonLocal Insn where
   entryLabel (Label l)      = l
   successors (Branch l)     = [l]
   successors (Cond _ t f)   = [t, f]

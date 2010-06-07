@@ -72,12 +72,12 @@ class GraphRep g where
   infixl 3 <*>
   infixl 2 |*><*| 
   -- | Concatenate two graphs; control flows from left to right.
-  (<*>)    :: Edges n => g n e O -> g n O x -> g n e x
+  (<*>)    :: NonLocal n => g n e O -> g n O x -> g n e x
   -- | Splice together two graphs at a closed point; nothing is known
   -- about control flow.
-  (|*><*|) :: Edges n => g n e C -> g n C x -> g n e x
+  (|*><*|) :: NonLocal n => g n e C -> g n C x -> g n e x
   -- | Conveniently concatenate a sequence of open/open graphs using '<*>'.
-  catGraphs :: Edges n => [g n O O] -> g n O O
+  catGraphs :: NonLocal n => [g n O O] -> g n O O
   catGraphs = foldr (<*>) emptyGraph
 
   -- | Create a graph that defines a label
@@ -87,7 +87,7 @@ class GraphRep g where
 
   -- | Conveniently concatenate a sequence of middle nodes to form
   -- an open/open graph.
-  mkMiddles :: Edges n => [n O O] -> g n O O
+  mkMiddles :: NonLocal n => [n O O] -> g n O O
 
   mkLabel  id     = mkFirst $ mkLabelNode id
   mkBranch target = mkLast  $ mkBranchNode target
@@ -171,7 +171,7 @@ addBlocks (A g) (A blocks) = A $ g >>= \g -> blocks >>= add g
 -- | For some graph-construction operations and some optimizations,
 -- Hoopl must be able to create control-flow edges using a given node
 -- type 'n'.
-class Edges n => HooplNode n where
+class NonLocal n => HooplNode n where
   -- | Create a branch node, the source of a control-flow edge.
   mkBranchNode :: Label -> n O C
   -- | Create a label node, the target (destination) of a control-flow edge.
@@ -244,9 +244,9 @@ instance (Uniques u1, Uniques u2, Uniques u3, Uniques u4) => Uniques (u1, u2, u3
 -- deprecated legacy functions
 
 {-# DEPRECATED addEntrySeq, addExitSeq, unionBlocks "use |*><*| instead" #-}
-addEntrySeq :: Edges n => AGraph n O C -> AGraph n C x -> AGraph n O x
-addExitSeq  :: Edges n => AGraph n e C -> AGraph n C O -> AGraph n e O
-unionBlocks :: Edges n => AGraph n C C -> AGraph n C C -> AGraph n C C
+addEntrySeq :: NonLocal n => AGraph n O C -> AGraph n C x -> AGraph n O x
+addExitSeq  :: NonLocal n => AGraph n e C -> AGraph n C O -> AGraph n e O
+unionBlocks :: NonLocal n => AGraph n C C -> AGraph n C C -> AGraph n C C
 
 addEntrySeq = (|*><*|)
 addExitSeq  = (|*><*|)

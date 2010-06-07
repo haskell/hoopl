@@ -16,9 +16,9 @@ import Compiler.Hoopl.Label
 type Showing n = forall e x . n e x -> String
  
 
-showGraph :: forall n e x . (Edges n) => Showing n -> Graph n e x -> String
+showGraph :: forall n e x . (NonLocal n) => Showing n -> Graph n e x -> String
 showGraph node = g
-  where g :: (Edges n) => Graph n e x -> String
+  where g :: (NonLocal n) => Graph n e x -> String
         g GNil = ""
         g (GUnit block) = b block
         g (GMany g_entry g_blocks g_exit) =
