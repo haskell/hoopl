@@ -4,6 +4,7 @@
 module Compiler.Hoopl.Passes.Dominator
   ( Doms, DPath(..), domPath, domEntry, domLattice, extendDom
   , DominatorNode(..), DominatorTree(..), tree
+  , immediateDominators
   , domPass
   )
 where
@@ -61,8 +62,8 @@ extend _ (OldFact (DPath l)) (NewFact (DPath l')) =
 
 
 -- | Dominator pass
-domPass :: (Edges n, Monad m) => FwdPass m n Doms
-domPass = FwdPass domLattice (mkFTransfer first (const id) distributeFact) noFwdRewrite
+domPass :: (NonLocal n, Monad m) => FwdPass m n Doms
+domPass = FwdPass domLattice (mkFTransfer3 first (const id) distributeFact) noFwdRewrite
   where first n = fmap (extendDom $ entryLabel n)
 
 ----------------------------------------------------------------
@@ -117,3 +118,13 @@ tree2dot t = concat $ "digraph {\n" : dot t ["}\n"]
 instance Show DominatorNode where
   show Entry = "entryNode"
   show (Labelled l) = show l
+
+----------------------------------------------------------------
+
+-- | Takes FactBase from dominator analysis and returns a map from each 
+-- label to its immediate dominator, if any
+immediateDominators :: FactBase Doms -> LabelMap Label
+immediateDominators = mapFoldWithKey add mapEmpty
+    where add l (PElem (DPath (idom:_))) = mapInsert l idom 
+          add _ _ = id
+

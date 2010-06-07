@@ -1,66 +1,12 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, MultiParamTypeClasses #-}
 
-{- Notes about the genesis of Hoopl7
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Hoopl7 has the following major chages
-
-a) GMany has symmetric entry and exit
-b) GMany closed-entry does not record a BlockId
-c) GMany open-exit does not record a BlockId
-d) The body of a GMany is called Body
-e) A Body is just a list of blocks, not a map. I've argued
-   elsewhere that this is consistent with (c)
-
-A consequence is that Graph is no longer an instance of Edges,
-but nevertheless I managed to keep the ARF and ARB signatures
-nice and uniform.
-
-This was made possible by
-
-* FwdTransfer looks like this:
-    type FwdTransfer n f
-      = forall e x. n e x -> Fact e f -> Fact x f 
-    type family   Fact x f :: *
-    type instance Fact C f = FactBase f
-    type instance Fact O f = f
-
-  Note that the incoming fact is a Fact (not just 'f' as in Hoopl5,6).
-  It's up to the *transfer function* to look up the appropriate fact
-  in the FactBase for a closed-entry node.  Example:
-	constProp (Label l) fb = lookupFact fb l
-  That is how Hoopl can avoid having to know the block-id for the
-  first node: it defers to the client.
-
-  [Side note: that means the client must know about 
-  bottom, in case the looupFact returns Nothing]
-
-* Note also that FwdTransfer *returns* a Fact too;
-  that is, the types in both directions are symmetrical.
-  Previously we returned a [(BlockId,f)] but I could not see
-  how to make everything line up if we do this.
-
-  Indeed, the main shortcoming of Hoopl7 is that we are more
-  or less forced into this uniform representation of the facts
-  flowing into or out of a closed node/block/graph, whereas
-  previously we had more flexibility.
-
-  In exchange the code is neater, with fewer distinct types.
-  And morally a FactBase is equivalent to [(BlockId,f)] and
-  nearly equivalent to (BlockId -> f).
-
-* I've realised that forwardBlockList and backwardBlockList
-  both need (Edges n), and that goes everywhere.
-
-* I renamed BlockId to Label
--}
-
 module Compiler.Hoopl.Dataflow
   ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..), Fact
   , ChangeFlag(..), changeIf
-  , FwdPass(..), FwdTransfer, mkFTransfer, mkFTransfer', getFTransfers
-  , FwdRes(..),  FwdRewrite,  mkFRewrite,  mkFRewrite',  getFRewrites
-  , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer', getBTransfers
-  , BwdRes(..),  BwdRewrite,  mkBRewrite,  mkBRewrite',  getBRewrites
+  , FwdPass(..), FwdTransfer, mkFTransfer, mkFTransfer3, getFTransfer3
+  , FwdRes(..),  FwdRewrite,  mkFRewrite,  mkFRewrite3,  getFRewrite3
+  , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer3, getBTransfer3
+  , BwdRes(..),  BwdRewrite,  mkBRewrite,  mkBRewrite3,  getBRewrite3
   , analyzeAndRewriteFwd,  analyzeAndRewriteBwd
   )
 where
@@ -81,9 +27,8 @@ import Compiler.Hoopl.Util
 data DataflowLattice a = DataflowLattice  
  { fact_name       :: String          -- Documentation
  , fact_bot        :: a               -- Lattice bottom element
- , fact_extend     :: JoinFun a       -- Lattice join plus change flag
+ , fact_join       :: JoinFun a       -- Lattice join plus change flag
                                       -- (changes iff result > old fact)
- , fact_do_logging :: Bool            -- log changes
  }
 -- ^ A transfer function might want to use the logging flag
 -- to control debugging, as in for example, it updates just one element
@@ -99,7 +44,6 @@ data ChangeFlag = NoChange | SomeChange deriving (Eq, Ord)
 changeIf :: Bool -> ChangeFlag
 changeIf changed = if changed then SomeChange else NoChange
 
-
 -----------------------------------------------------------------------------
 --		Analyze and rewrite forward: the interface
 -----------------------------------------------------------------------------
@@ -110,14 +54,14 @@ data FwdPass m n f
             , fp_rewrite  :: FwdRewrite m n f }
 
 newtype FwdTransfer n f 
-  = FwdTransfers { getFTransfers ::
+  = FwdTransfer3 { getFTransfer3 ::
                      ( n C O -> f -> f
                      , n O O -> f -> f
                      , n O C -> f -> FactBase f
                      ) }
 
 newtype FwdRewrite m n f 
-  = FwdRewrites { getFRewrites ::
+  = FwdRewrite3 { getFRewrite3 ::
                     ( n C O -> f -> m (FwdRes m n f C O)
                     , n O O -> f -> m (FwdRes m n f O O)
                     , n O C -> f -> m (FwdRes m n f O C)
@@ -126,23 +70,23 @@ data FwdRes m n f e x = FwdRes (Graph n e x) (FwdRewrite m n f)
                       | NoFwdRes
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
-mkFTransfer :: (n C O -> f -> f)
-            -> (n O O -> f -> f)
-            -> (n O C -> f -> FactBase f)
-            -> FwdTransfer n f
-mkFTransfer f m l = FwdTransfers (f, m, l)
+mkFTransfer3 :: (n C O -> f -> f)
+             -> (n O O -> f -> f)
+             -> (n O C -> f -> FactBase f)
+             -> FwdTransfer n f
+mkFTransfer3 f m l = FwdTransfer3 (f, m, l)
 
-mkFTransfer' :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
-mkFTransfer' f = FwdTransfers (f, f, f)
+mkFTransfer :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
+mkFTransfer f = FwdTransfer3 (f, f, f)
 
-mkFRewrite :: (n C O -> f -> m (FwdRes m n f C O))
-           -> (n O O -> f -> m (FwdRes m n f O O))
-           -> (n O C -> f -> m (FwdRes m n f O C))
-           -> FwdRewrite m n f
-mkFRewrite f m l = FwdRewrites (f, m, l)
+mkFRewrite3 :: (n C O -> f -> m (FwdRes m n f C O))
+            -> (n O O -> f -> m (FwdRes m n f O O))
+            -> (n O C -> f -> m (FwdRes m n f O C))
+            -> FwdRewrite m n f
+mkFRewrite3 f m l = FwdRewrite3 (f, m, l)
 
-mkFRewrite' :: (forall e x . n e x -> f -> m (FwdRes m n f e x)) -> FwdRewrite m n f
-mkFRewrite' f = FwdRewrites (f, f, f)
+mkFRewrite :: (forall e x . n e x -> f -> m (FwdRes m n f e x)) -> FwdRewrite m n f
+mkFRewrite f = FwdRewrite3 (f, f, f)
 
 
 type family   Fact x f :: *
@@ -152,7 +96,7 @@ type instance Fact O f = f
 -- | if the graph being analyzed is open at the entry, there must
 --   be no other entry point, or all goes horribly wrong...
 analyzeAndRewriteFwd
-   :: forall m n f e x entries. (FuelMonad m, Edges n, LabelsPtr entries)
+   :: forall m n f e x entries. (FuelMonad m, NonLocal n, LabelsPtr entries)
    => FwdPass m n f
    -> MaybeC e entries
    -> Graph n e x -> Fact e f
@@ -177,7 +121,7 @@ distinguishedExitFact g f = maybe g
 type Entries e = MaybeC e [Label]
 
 arfGraph :: forall m n f e x .
-            (Edges n, FuelMonad m) => FwdPass m n f -> 
+            (NonLocal n, FuelMonad m) => FwdPass m n f -> 
             Entries e -> Graph n e x -> Fact e f -> m (RG f n e x, Fact x f)
 arfGraph pass entries = graph
   where
@@ -240,7 +184,7 @@ arfGraph pass entries = graph
                        ; return (g1 `rgCat` g2, f2) }
 
     arfx :: forall thing x .
-            Edges thing
+            NonLocal thing
          => (thing C x ->        f -> m (RG f n C x, Fact x f))
          -> (thing C x -> Fact C f -> m (RG f n C x, Fact x f))
     arfx arf thing fb = 
@@ -265,11 +209,11 @@ arfGraph pass entries = graph
 -- We know the results _shouldn't change_, but the transfer
 -- functions might, for example, generate some debugging traces.
 joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
-joinInFacts (DataflowLattice {fact_bot = bot, fact_extend = fe}) fb =
+joinInFacts (DataflowLattice {fact_bot = bot, fact_join = fj}) fb =
   mkFactBase $ map botJoin $ mapToList fb
-    where botJoin (l, f) = (l, snd $ fe l (OldFact bot) (NewFact f))
+    where botJoin (l, f) = (l, snd $ fj l (OldFact bot) (NewFact f))
 
-forwardBlockList :: (Edges n, LabelsPtr entry)
+forwardBlockList :: (NonLocal n, LabelsPtr entry)
                  => entry -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for forward analysis,
 -- along with the list of Labels it may depend on for facts.
@@ -285,13 +229,13 @@ data BwdPass m n f
             , bp_rewrite  :: BwdRewrite m n f }
 
 newtype BwdTransfer n f 
-  = BwdTransfers { getBTransfers ::
+  = BwdTransfer3 { getBTransfer3 ::
                      ( n C O -> f          -> f
                      , n O O -> f          -> f
                      , n O C -> FactBase f -> f
                      ) }
 newtype BwdRewrite m n f 
-  = BwdRewrites { getBRewrites ::
+  = BwdRewrite3 { getBRewrite3 ::
                     ( n C O -> f          -> m (BwdRes m n f C O)
                     , n O O -> f          -> m (BwdRes m n f O O)
                     , n O C -> FactBase f -> m (BwdRes m n f O C)
@@ -299,22 +243,22 @@ newtype BwdRewrite m n f
 data BwdRes m n f e x = BwdRes (Graph n e x) (BwdRewrite m n f)
                       | NoBwdRes
 
-mkBTransfer :: (n C O -> f -> f) -> (n O O -> f -> f) ->
-               (n O C -> FactBase f -> f) -> BwdTransfer n f
-mkBTransfer f m l = BwdTransfers (f, m, l)
+mkBTransfer3 :: (n C O -> f -> f) -> (n O O -> f -> f) ->
+                (n O C -> FactBase f -> f) -> BwdTransfer n f
+mkBTransfer3 f m l = BwdTransfer3 (f, m, l)
 
-mkBTransfer' :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
-mkBTransfer' f = BwdTransfers (f, f, f)
+mkBTransfer :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
+mkBTransfer f = BwdTransfer3 (f, f, f)
 
-mkBRewrite :: (n C O -> f          -> m (BwdRes m n f C O))
-           -> (n O O -> f          -> m (BwdRes m n f O O))
-           -> (n O C -> FactBase f -> m (BwdRes m n f O C))
-           -> BwdRewrite m n f
-mkBRewrite f m l = BwdRewrites (f, m, l)
-
-mkBRewrite' :: (forall e x . n e x -> Fact x f -> m (BwdRes m n f e x))
+mkBRewrite3 :: (n C O -> f          -> m (BwdRes m n f C O))
+            -> (n O O -> f          -> m (BwdRes m n f O O))
+            -> (n O C -> FactBase f -> m (BwdRes m n f O C))
             -> BwdRewrite m n f
-mkBRewrite' f = BwdRewrites (f, f, f)
+mkBRewrite3 f m l = BwdRewrite3 (f, m, l)
+
+mkBRewrite :: (forall e x . n e x -> Fact x f -> m (BwdRes m n f e x))
+           -> BwdRewrite m n f
+mkBRewrite f = BwdRewrite3 (f, f, f)
 
 
 -----------------------------------------------------------------------------
@@ -322,7 +266,7 @@ mkBRewrite' f = BwdRewrites (f, f, f)
 -----------------------------------------------------------------------------
 
 arbGraph :: forall m n f e x .
-            (Edges n, FuelMonad m) => BwdPass m n f -> 
+            (NonLocal n, FuelMonad m) => BwdPass m n f -> 
             Entries e -> Graph n e x -> Fact x f -> m (RG f n e x, Fact e f)
 arbGraph pass entries = graph
   where
@@ -383,7 +327,7 @@ arbGraph pass entries = graph
                        ; return (g1 `rgCat` g2, f1) }
 
     arbx :: forall thing x .
-            Edges thing
+            NonLocal thing
          => (thing C x -> Fact x f -> m (RG f n C x, f))
          -> (thing C x -> Fact x f -> m (RG f n C x, Fact C f))
 
@@ -404,7 +348,7 @@ arbGraph pass entries = graph
                           return (g, [(entryLabel b, f)])
 
 
-backwardBlockList :: (LabelsPtr entries, Edges n) => entries -> Body n -> [Block n C C]
+backwardBlockList :: (LabelsPtr entries, NonLocal n) => entries -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for backward analysis,
 -- along with the list of Labels it may depend on for facts.
 backwardBlockList entries body = reverse $ forwardBlockList entries body
@@ -427,7 +371,7 @@ effects.)
 -- | if the graph being analyzed is open at the exit, I don't
 --   quite understand the implications of possible other exits
 analyzeAndRewriteBwd
-   :: (FuelMonad m, Edges n, LabelsPtr entries)
+   :: (FuelMonad m, NonLocal n, LabelsPtr entries)
    => BwdPass m n f
    -> MaybeC e entries -> Graph n e x -> Fact x f
    -> m (Graph n e x, FactBase f, MaybeO e f)
@@ -474,10 +418,10 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
        = case lookupFact lbl fbase of
            Nothing -> (SomeChange, snd $ join $ fact_bot lat)  -- Note [Unreachable blocks]
            Just old_fact -> join old_fact
-         where join old_fact = fact_extend lat lbl (OldFact old_fact) (NewFact new_fact)
+         where join old_fact = fact_join lat lbl (OldFact old_fact) (NewFact new_fact)
     new_fbase = mapInsert lbl res_fact fbase
 
-fixpoint :: forall m block n f. (FuelMonad m, Edges n, Edges (block n))
+fixpoint :: forall m block n f. (FuelMonad m, NonLocal n, NonLocal (block n))
          => Bool	-- Going forwards?
          -> DataflowLattice f
          -> (block n C C -> FactBase f -> m (RG f n C C, [(Label, f)]))
@@ -554,7 +498,7 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
        the points above bottom
 
 * Even if the fact is going from UNR to bottom, we still call the
-  client's fact_extend function because it might give the client
+  client's fact_join function because it might give the client
   some useful debugging information.
 
 * All of this only applies for *forward* fixpoints.  For the backward
@@ -569,7 +513,7 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 
 type RG     f n e x = Graph'   (FBlock f) n e x
 data FBlock f n e x = FBlock f (Block n e x)
-instance Edges n => Edges (FBlock f n) where
+instance NonLocal n => NonLocal (FBlock f n) where
   entryLabel (FBlock _ b) = entryLabel b
   successors (FBlock _ b) = successors b
 
@@ -577,8 +521,8 @@ instance Edges n => Edges (FBlock f n) where
 
 rgnil  :: RG f n O O
 rgnilC :: RG f n C C
-rgunit :: Edges n => f -> Block n e x -> RG f n e x
-rgCat  :: Edges n => RG f n e a -> RG f n a x -> RG f n e x
+rgunit :: NonLocal n => f -> Block n e x -> RG f n e x
+rgCat  :: NonLocal n => RG f n e a -> RG f n a x -> RG f n e x
 
 ---- observers
 
@@ -587,7 +531,7 @@ type GraphWithFacts n f e x = (Graph n e x, FactBase f)
   -- The domains of the two maps should be identical
 
 normalizeGraph :: forall n f e x .
-                  Edges n => RG f n e x -> GraphWithFacts n f e x
+                  NonLocal n => RG f n e x -> GraphWithFacts n f e x
 
 normalizeGraph g = (graphMapBlocks dropFact g, facts g)
     where dropFact (FBlock _ b) = b
@@ -630,42 +574,42 @@ rgCat = U.splice fzCat
 -- Note that the latter two functions depend only on the entry shape.
 class ShapeLifter e x where
   unit      :: n e x -> Block n e x
-  elift     :: Edges n =>                      n e x -> f -> Fact e f
-  elower    :: Edges n => DataflowLattice f -> n e x -> Fact e f -> f
+  elift     :: NonLocal n =>                      n e x -> f -> Fact e f
+  elower    :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
   ftransfer :: FwdPass m n f -> n e x -> f        -> Fact x f
   btransfer :: BwdPass m n f -> n e x -> Fact x f -> f
   frewrite  :: FwdPass m n f -> n e x -> f        -> m (FwdRes m n f e x)
   brewrite  :: BwdPass m n f -> n e x -> Fact x f -> m (BwdRes m n f e x)
-  entry     :: Edges n => n e x -> Entries e
+  entry     :: NonLocal n => n e x -> Entries e
 
 instance ShapeLifter C O where
   unit            = BFirst
   elift      n f  = mkFactBase [(entryLabel n, f)]
   elower lat n fb = getFact lat (entryLabel n) fb
-  ftransfer (FwdPass {fp_transfer = FwdTransfers (ft, _, _)}) n f = ft n f
-  btransfer (BwdPass {bp_transfer = BwdTransfers (bt, _, _)}) n f = bt n f
-  frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (fr, _, _)}) n f = fr n f
-  brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (br, _, _)}) n f = br n f
+  ftransfer (FwdPass {fp_transfer = FwdTransfer3 (ft, _, _)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = BwdTransfer3 (bt, _, _)}) n f = bt n f
+  frewrite  (FwdPass {fp_rewrite  = FwdRewrite3  (fr, _, _)}) n f = fr n f
+  brewrite  (BwdPass {bp_rewrite  = BwdRewrite3  (br, _, _)}) n f = br n f
   entry n = JustC [entryLabel n]
 
 instance ShapeLifter O O where
   unit         = BMiddle
   elift    _ f = f
   elower _ _ f = f
-  ftransfer (FwdPass {fp_transfer = FwdTransfers (_, ft, _)}) n f = ft n f
-  btransfer (BwdPass {bp_transfer = BwdTransfers (_, bt, _)}) n f = bt n f
-  frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (_, fr, _)}) n f = fr n f
-  brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (_, br, _)}) n f = br n f
+  ftransfer (FwdPass {fp_transfer = FwdTransfer3 (_, ft, _)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = BwdTransfer3 (_, bt, _)}) n f = bt n f
+  frewrite  (FwdPass {fp_rewrite  = FwdRewrite3  (_, fr, _)}) n f = fr n f
+  brewrite  (BwdPass {bp_rewrite  = BwdRewrite3  (_, br, _)}) n f = br n f
   entry _ = NothingC
 
 instance ShapeLifter O C where
   unit         = BLast
   elift    _ f = f
   elower _ _ f = f
-  ftransfer (FwdPass {fp_transfer = FwdTransfers (_, _, ft)}) n f = ft n f
-  btransfer (BwdPass {bp_transfer = BwdTransfers (_, _, bt)}) n f = bt n f
-  frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (_, _, fr)}) n f = fr n f
-  brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (_, _, br)}) n f = br n f
+  ftransfer (FwdPass {fp_transfer = FwdTransfer3 (_, _, ft)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = BwdTransfer3 (_, _, bt)}) n f = bt n f
+  frewrite  (FwdPass {fp_rewrite  = FwdRewrite3  (_, _, fr)}) n f = fr n f
+  brewrite  (BwdPass {bp_rewrite  = BwdRewrite3  (_, _, br)}) n f = br n f
   entry _ = NothingC
 
 -- Fact lookup: the fact `orelse` bottom

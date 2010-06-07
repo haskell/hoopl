@@ -5,6 +5,7 @@ module Compiler.Hoopl.Util
   , catGraphNodeOC, catGraphNodeOO
   , catNodeCOGraph, catNodeOOGraph
   , graphMapBlocks
+  , blockMapNodes, blockMapNodes3
   , blockGraph
   , postorder_dfs, postorder_dfs_from, postorder_dfs_from_except
   , preorder_dfs, preorder_dfs_from_except
@@ -25,7 +26,7 @@ import Compiler.Hoopl.Label
 gUnitOO :: block n O O -> Graph' block n O O
 gUnitOC :: block n O C -> Graph' block n O C
 gUnitCO :: block n C O -> Graph' block n C O
-gUnitCC :: Edges (block n) => block n C C -> Graph' block n C C
+gUnitCC :: NonLocal (block n) => block n C C -> Graph' block n C C
 gUnitOO b = GUnit b
 gUnitOC b = GMany (JustO b) emptyBody  NothingO
 gUnitCO b = GMany NothingO  emptyBody (JustO b)
@@ -33,9 +34,9 @@ gUnitCC b = GMany NothingO  (addBlock b $ emptyBody) NothingO
 
 
 catGraphNodeOO ::            Graph n e O -> n O O -> Graph n e O
-catGraphNodeOC :: Edges n => Graph n e O -> n O C -> Graph n e C
+catGraphNodeOC :: NonLocal n => Graph n e O -> n O C -> Graph n e C
 catNodeOOGraph ::            n O O -> Graph n O x -> Graph n O x
-catNodeCOGraph :: Edges n => n C O -> Graph n O x -> Graph n C x
+catNodeCOGraph :: NonLocal n => n C O -> Graph n O x -> Graph n C x
 
 catGraphNodeOO GNil                     n = gUnitOO $ BMiddle n
 catGraphNodeOO (GUnit b)                n = gUnitOO $ b `BCat` BMiddle n
@@ -65,7 +66,7 @@ catNodeCOGraph n (GMany (JustO e) body x) = GMany NothingO body' x
 
 
 
-blockGraph :: Edges n => Block n e x -> Graph n e x
+blockGraph :: NonLocal n => Block n e x -> Graph n e x
 blockGraph b@(BFirst  {}) = gUnitCO b
 blockGraph b@(BMiddle {}) = gUnitOO b
 blockGraph b@(BLast   {}) = gUnitOC b
@@ -94,13 +95,29 @@ graphMapBlocks f = map
 
 bodyMapBlocks f (Body body) = Body $ mapMap f body
 
+-- | Function 'blockMapNodes' enables a change of nodes in a block.
+blockMapNodes3 :: ( n C O -> n' C O
+                  , n O O -> n' O O
+                  , n O C -> n' O C)
+               -> Block n e x -> Block n' e x
+blockMapNodes3 (f, _, _) (BFirst n)     = BFirst (f n)
+blockMapNodes3 (_, m, _) (BMiddle n)    = BMiddle (m n)
+blockMapNodes3 (_, _, l) (BLast n)      = BLast (l n)
+blockMapNodes3 fs (BCat x y)            = BCat (blockMapNodes3 fs x) (blockMapNodes3 fs y)
+blockMapNodes3 fs@(_, m, _) (BHead x n) = BHead (blockMapNodes3 fs x) (m n)
+blockMapNodes3 fs@(_, m, _) (BTail n x) = BTail (m n) (blockMapNodes3 fs x)
+blockMapNodes3 fs (BClosed x y)         = BClosed (blockMapNodes3 fs x) (blockMapNodes3 fs y)
+
+blockMapNodes :: (forall e x. n e x -> n' e x)
+              -> (Block n e x -> Block n' e x)
+blockMapNodes f = blockMapNodes3 (f, f, f)
 
 ----------------------------------------------------------------
 
 class LabelsPtr l where
   targetLabels :: l -> [Label]
 
-instance Edges n => LabelsPtr (n e C) where
+instance NonLocal n => LabelsPtr (n e C) where
   targetLabels n = successors n
 
 instance LabelsPtr Label where
@@ -128,8 +145,8 @@ instance LabelsPtr l => LabelsPtr [l] where
 -- one doesn't want to try and maintain both forward and backward
 -- versions.)
 
-postorder_dfs :: Edges (block n) => Graph' block n O x -> [block n C C]
-preorder_dfs  :: Edges (block n) => Graph' block n O x -> [block n C C]
+postorder_dfs :: NonLocal (block n) => Graph' block n O x -> [block n C C]
+preorder_dfs  :: NonLocal (block n) => Graph' block n O x -> [block n C C]
 
 -- | This is the most important traversal over this data structure.  It drops
 -- unreachable code and puts blocks in an order that is good for solving forward
@@ -154,7 +171,7 @@ preorder_dfs  :: Edges (block n) => Graph' block n O x -> [block n C C]
 -- Better to get [A,B,C,D]
 
 
-graphDfs :: (Edges (block n))
+graphDfs :: (NonLocal (block n))
          => (LabelMap (block n C C) -> block n O C -> LabelSet -> [block n C C])
          -> (Graph' block n O x -> [block n C C])
 graphDfs _     (GNil)    = []
@@ -164,7 +181,7 @@ graphDfs order (GMany (JustO entry) (Body body) _) = order body entry setEmpty
 postorder_dfs = graphDfs postorder_dfs_from_except
 preorder_dfs  = graphDfs preorder_dfs_from_except
 
-postorder_dfs_from_except :: forall block e . (Edges block, LabelsPtr e)
+postorder_dfs_from_except :: forall block e . (NonLocal block, LabelsPtr e)
                           => LabelMap (block C C) -> e -> LabelSet -> [block C C]
 postorder_dfs_from_except blocks b visited =
  vchildren (get_children b) (\acc _visited -> acc) [] visited
@@ -187,7 +204,7 @@ postorder_dfs_from_except blocks b visited =
                       Nothing -> rst
 
 postorder_dfs_from
-    :: (Edges block, LabelsPtr b) => LabelMap (block C C) -> b -> [block C C]
+    :: (NonLocal block, LabelsPtr b) => LabelMap (block C C) -> b -> [block C C]
 postorder_dfs_from blocks b = postorder_dfs_from_except blocks b setEmpty
 
 
@@ -202,7 +219,7 @@ instance Monad VM where
 marked l = VM $ \v -> (setMember l v, v)
 mark   l = VM $ \v -> ((), setInsert l v)
 
-preorder_dfs_from_except :: forall block e . (Edges block, LabelsPtr e)
+preorder_dfs_from_except :: forall block e . (NonLocal block, LabelsPtr e)
                          => LabelMap (block C C) -> e -> LabelSet -> [block C C]
 preorder_dfs_from_except blocks b visited =
     (fst $ unVM (children (get_children b)) visited) []
@@ -225,7 +242,7 @@ cons a as tail = a : as tail
 
 ----------------------------------------------------------------
 
-labelsDefined :: forall block n e x . Edges (block n) => Graph' block n e x -> LabelSet
+labelsDefined :: forall block n e x . NonLocal (block n) => Graph' block n e x -> LabelSet
 labelsDefined GNil      = setEmpty
 labelsDefined (GUnit{}) = setEmpty
 labelsDefined (GMany _ body x) = foldBodyBlocks addEntry body $ exitLabel x
@@ -234,7 +251,7 @@ labelsDefined (GMany _ body x) = foldBodyBlocks addEntry body $ exitLabel x
         exitLabel NothingO = setEmpty
         exitLabel (JustO b) = setFromList [entryLabel b]
 
-labelsUsed :: forall block n e x. Edges (block n) => Graph' block n e x -> LabelSet
+labelsUsed :: forall block n e x. NonLocal (block n) => Graph' block n e x -> LabelSet
 labelsUsed GNil      = setEmpty
 labelsUsed (GUnit{}) = setEmpty
 labelsUsed (GMany e body _) = foldBodyBlocks addTargets body $ entryTargets e
@@ -246,7 +263,7 @@ labelsUsed (GMany e body _) = foldBodyBlocks addTargets body $ entryTargets e
 foldBodyBlocks :: (block n C C -> a -> a) -> Body' block n -> a -> a
 foldBodyBlocks f (Body body) z = mapFold f z body
 
-externalEntryLabels :: Edges (block n) => Body' block n -> LabelSet
+externalEntryLabels :: NonLocal (block n) => Body' block n -> LabelSet
 externalEntryLabels body = defined `setDifference` used
   where defined = labelsDefined g
         used = labelsUsed g

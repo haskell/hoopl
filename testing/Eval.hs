@@ -31,7 +31,7 @@ evalBody :: EvalTarget v => VarEnv v -> Graph Insn C C -> Label -> EvalM v [v]
 evalBody vars graph entry = inNewFrame vars graph $ get_block entry >>= evalB 
 
 evalB :: forall v . EvalTarget v => Block Insn C C -> EvalM v [v]
-evalB b = foldBlockNodesF (lift evalF, lift evalM, lift evalL) b $ return ()
+evalB b = foldBlockNodesF3 (lift evalF, lift evalM, lift evalL) b $ return ()
   where
     lift :: forall e x y . (Insn e x -> EvalM v y) -> Insn e x -> EvalM v () -> EvalM v y
     lift f n z = z >> f n

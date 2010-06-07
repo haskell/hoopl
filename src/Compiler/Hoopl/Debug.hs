@@ -52,11 +52,11 @@ debugFwdJoins trace pred p = p { fp_lattice = debugJoins trace pred $ fp_lattice
 debugBwdJoins trace pred p = p { bp_lattice = debugJoins trace pred $ bp_lattice p }
 
 debugJoins :: Show f => TraceFn -> ChangePred -> DataflowLattice f -> DataflowLattice f
-debugJoins trace showPred l@(DataflowLattice {fact_extend = extend}) = l {fact_extend = extend'}
+debugJoins trace showPred l@(DataflowLattice {fact_join = join}) = l {fact_join = join'}
   where
-   extend' l f1@(OldFact of1) f2@(NewFact nf2) =
+   join' l f1@(OldFact of1) f2@(NewFact nf2) =
      if showPred c then trace output res else res
-       where res@(c, f') = extend l f1 f2
+       where res@(c, f') = join l f1 f2
              output = case c of
                         SomeChange -> "+ Join@" ++ show l ++ ": " ++ show of1 ++ " `join` "
                                                                   ++ show nf2 ++ " = " ++ show f'
@@ -73,8 +73,8 @@ debugFwdTransfers::
   forall m n f . Show f => TraceFn -> ShowN n -> FPred n f -> FwdPass m n f -> FwdPass m n f
 debugFwdTransfers trace showN showPred pass = pass { fp_transfer = transfers' }
   where
-    (f, m, l) = getFTransfers $ fp_transfer pass
-    transfers' = mkFTransfer (wrap show f) (wrap show m) (wrap showFactBase l)
+    (f, m, l) = getFTransfer3 $ fp_transfer pass
+    transfers' = mkFTransfer3 (wrap show f) (wrap show m) (wrap showFactBase l)
     wrap :: forall e x . (Fact x f -> String) -> (n e x -> f -> Fact x f) -> n e x -> f -> Fact x f
     wrap showOutF ft n f = if showPred n f then trace output res else res
       where
@@ -86,8 +86,8 @@ debugBwdTransfers::
   forall m n f . Show f => TraceFn -> ShowN n -> BPred n f -> BwdPass m n f -> BwdPass m n f
 debugBwdTransfers trace showN showPred pass = pass { bp_transfer = transfers' }
   where
-    (f, m, l) = getBTransfers $ bp_transfer pass
-    transfers' = mkBTransfer (wrap show f) (wrap show m) (wrap showFactBase l)
+    (f, m, l) = getBTransfer3 $ bp_transfer pass
+    transfers' = mkBTransfer3 (wrap show f) (wrap show m) (wrap showFactBase l)
     wrap :: forall e x . (Fact x f -> String) -> (n e x -> Fact x f -> f) -> n e x -> Fact x f -> f
     wrap showInF ft n f = if showPred n f then trace output res else res
       where

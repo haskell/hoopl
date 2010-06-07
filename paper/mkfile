@@ -9,19 +9,27 @@ LASTPAGE=
 
 TGT=dfopt
 
-all:V: $TGT.pdf supplement.pdf $TGT.ps popl-index.bitly
+all:V: $TGT.pdf supplement.pdf $TGT.ps 
+old:V: popl-index.bitly
 bib:V: $TGT.bbl
 bibfile:V: $TGT.bib
 dvi:V: $TGT.dvi
 pdf:V: $TGT.pdf
+ps:V: $TGT.ps
 bbl:V: bib
+xdvi:V: $TGT.dvi
+	sht=`xwininfo -root | awk '$1 == "Height:" { print $2 }'`
+	swd=`xwininfo -root | awk '$1 == "Width:"  { print $2 }'`
+    swd=`expr $swd - 120` # more room
+	xdvi -s 5 -geometry =$(expr $swd / 2)x$(expr $sht - 20)+78+2 $prereq
+
 
 tag:VQ: $TGT.tex
 	tag=`$HOME/bin/md5words $prereq | tr -d "'" | tr -cs a-zA-Z0-9 - | sed s/-*$//`
 	echo git tag $tag
 	git tag $tag
 
-dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex
+dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex cprop.tex comb1.tex iterf.tex
 
 $TGT.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-$LASTPAGE $prereq
@@ -50,3 +58,14 @@ timestamp.tex: $TGT.tex
 	./defuse < $stem.tex > $target
 	chmod -w $target
 
+
+CLIENT=../testing
+CPROPS=ConstProp Simplify Test
+
+cprop.tex:D: ./xsource ${CPROPS:%=$CLIENT/%.hs}
+	lua $prereq > $target
+
+HOOPL=../src/Compiler/Hoopl
+
+comb1.tex iterf.tex:D: ./xsource $HOOPL/Combinators.hs
+	lua $prereq
