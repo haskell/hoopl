@@ -30,10 +30,12 @@ class FuelMonadT fm where
 
 type Fuel = Int
 
-withFuel :: FuelMonad m => a -> m (Maybe a)
-withFuel r = do f <- getFuel
-                if f == 0 then return Nothing
-                          else setFuel (f-1) >> return (Just r)
+withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
+withFuel Nothing  = return Nothing
+withFuel (Just a) = do f <- getFuel
+                       if f == 0
+                         then return Nothing
+                         else setFuel (f-1) >> return (Just a)
 
 
 ----------------------------------------------------------------
