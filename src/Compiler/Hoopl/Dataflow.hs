@@ -197,13 +197,14 @@ arfGraph pass entries = graph
                     -- Outgoing factbase is restricted to Labels *not* in
     		    -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
-    body entries blocks init_fbase
-      = fixpoint True (fp_lattice pass) do_block init_fbase $
-        forwardBlockList entries blocks
+    body entries blockmap init_fbase
+      = fixpoint True lattice do_block blocks init_fbase
       where
-        do_block b f = do (g, fb) <- block b $ lookupF pass (entryLabel b) f
-                          return (g, mapToList fb)
-
+        blocks = forwardBlockList entries blockmap
+        lattice = fp_lattice pass
+        do_block b fb = do (g, fb) <- block b entryFact
+                           return (g, mapToList fb)
+          where entryFact = getFact lattice (entryLabel b) fb
 
 
 -- Join all the incoming facts with bottom.
@@ -340,10 +341,10 @@ arbGraph pass entries = graph
                     -- Outgoing factbase is restricted to Labels *not* in
     		    -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
-    body entries blocks init_fbase
-      = fixpoint False (bp_lattice pass) do_block init_fbase $
-        backwardBlockList entries blocks 
+    body entries blockmap init_fbase
+      = fixpoint False (bp_lattice pass) do_block blocks init_fbase
       where
+        blocks = backwardBlockList entries blockmap
         do_block b f = do (g, f) <- block b f
                           return (g, [(entryLabel b, f)])
 
@@ -416,27 +417,30 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
   where
     (cha2, res_fact) -- Note [Unreachable blocks]
        = case lookupFact lbl fbase of
-           Nothing -> (SomeChange, snd $ join $ fact_bot lat)  -- Note [Unreachable blocks]
+           Nothing -> (SomeChange, new_fact_debug)  -- Note [Unreachable blocks]
            Just old_fact -> join old_fact
-         where join old_fact = fact_join lat lbl (OldFact old_fact) (NewFact new_fact)
+         where join old_fact = 
+                 fact_join lat lbl
+                   (OldFact old_fact) (NewFact new_fact)
+               (_, new_fact_debug) = join (fact_bot lat)
     new_fbase = mapInsert lbl res_fact fbase
 
 fixpoint :: forall m block n f. (FuelMonad m, NonLocal n, NonLocal (block n))
          => Bool	-- Going forwards?
          -> DataflowLattice f
          -> (block n C C -> FactBase f -> m (DG f n C C, [(Label, f)]))
-         -> FactBase f 
          -> [block n C C]
+         -> FactBase f 
          -> m (DG f n C C, FactBase f)
-fixpoint is_fwd lat do_block init_fbase untagged_blocks
+fixpoint is_fwd lat do_block blocks init_fbase
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
-                 map (fst . fst) blocks `mapDeleteList` tfb_fbase tx_fb ) }
+                 map (fst . fst) tagged_blocks `mapDeleteList` tfb_fbase tx_fb ) }
 	     -- The successors of the Graph are the the Labels for which
 	     -- we have facts, that are *not* in the blocks of the graph
   where
-    blocks = map tag untagged_blocks
+    tagged_blocks = map tag blocks
      where tag b = ((entryLabel b, b), if is_fwd then [entryLabel b] else successors b)
 
     tx_blocks :: [((Label, block n C C), [Label])]   -- I do not understand this type
@@ -466,7 +470,7 @@ fixpoint is_fwd lat do_block init_fbase untagged_blocks
                                    , tfb_cha   = NoChange
                                    , tfb_rg    = dgnilC
                                    , tfb_lbls  = setEmpty }
-           ; tx_fb <- tx_blocks blocks init_tx_fb
+           ; tx_fb <- tx_blocks tagged_blocks init_tx_fb
            ; case tfb_cha tx_fb of
                NoChange   -> return tx_fb
                SomeChange -> do { setFuel fuel
@@ -613,9 +617,6 @@ instance ShapeLifter O C where
   maybeEntry _ = NothingC
 
 -- Fact lookup: the fact `orelse` bottom
-lookupF :: FwdPass m n f -> Label -> FactBase f -> f
-lookupF = getFact . fp_lattice
-
 getFact  :: DataflowLattice f -> Label -> FactBase f -> f
 getFact lat l fb = case lookupFact l fb of Just  f -> f
                                            Nothing -> fact_bot lat
