@@ -11,7 +11,6 @@ module Compiler.Hoopl.Dataflow
   )
 where
 
-import Control.Monad
 import Data.Maybe
 
 import Compiler.Hoopl.Collections
