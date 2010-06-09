@@ -113,8 +113,9 @@ iterFwdRw :: Monad m
           -> FwdRewrite m n f
 iterFwdRw rw3 = wrapFRewrites iter rw3
  where
-    iter rw n f = liftM (fmap fwdRes) (rw n f)
-    fwdRes (FwdRew g rw3a) = FwdRew g (rw3a `thenFwdRw` iterFwdRw rw3)
+    iter rw n f = liftM (liftM fwdRes) (rw n f)
+    fwdRes (FwdRew g rw3a) = 
+      FwdRew g (rw3a `thenFwdRw` iterFwdRw rw3)
 -- @ end iterf.tex
 
 ----------------------------------------------------------------

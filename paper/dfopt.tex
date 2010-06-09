@@ -553,10 +553,6 @@ A~significant contribution of this paper is
 a new way to structure the implementation so that each tricky piece
 is handled in just 
 one place, separate from all the others (\secref{engine}). 
-%\remark{This is a very important claim---is
-%it substantiated in \secref{engine}? And shouldn't the word
-%\textbf{contribution} appear in this~\P?}
-% \simon{Better?} % yes thanks ---NR
 The result is sufficiently elegant that 
 we emphasize the implementation as an object of interest in
 its own right.
@@ -886,18 +882,18 @@ The @BFirst@, @BMiddle@, and @BLast@ constructors create one-node
 blocks.  
 Each of these constructors is polymorphic in the node's \emph{representation}
 but monomorphic in its \emph{shape}.
-An~earlier representation of blocks used a single constructor 
-of type \mbox{@n e x -> Block n e x@}, polymorphic in a node's representation \emph{and}
-shape. \simon{Why would the reader care about the earlier rep?}
-The representation of blocks in \figref{graph} has more constructors, but it
-uses the power of GADTs to ensure that the shape of every node is
-known statically. \simon{Why do we say this?  It only complicates the
-reader's job, and in any case I am far from convinced that we want
-blocks to have more constructors.}
-This property makes no difference to clients, but it significantly
-simplifies the implementation of analysis and transformation in
-\secref{monomorphic-shape-outcome}. \simon{Do we intend that clients
-can see the representation of blocks?}
+Why not use a single constructor 
+of type \mbox{@n e x -> Block n e x@}, which would be polymorphic in a
+node's representation \emph{and} 
+shape?
+Because by making the shape known statically, we simplify the
+implementation of analysis and transformation in 
+\secref{monomorphic-shape-outcome}. 
+\simon{Do we intend that clients
+can see the representation of blocks?
+Answer: At present the representation is partially exposed, and we
+have no principled answer to the question.  ---NR
+}
 
 The @BCat@ constructor concatenates blocks in sequence. 
 It~makes sense to concatenate blocks only when control can fall
@@ -1002,8 +998,10 @@ We can therefore concatenate them
 with @BCat@ to produce a closed/closed block, which is
 added to the body of the result.
 
-We~have carefully crafted the types so that if @BCat@ and @BodyCat@
-are considered as associative operators, 
+The representation of @Graph@s is exposed to \hoopl's clients.
+\remark{This \P\ is a candidate to be cut.}
+We~have carefully crafted the types so that if @BCat@ 
+is considered as an associative operator, 
 every graph has a unique representation.\finalremark{So what? (Doumont)
 Need some words about how this is part of making the API simple for
 the client---I've added something to the end of the paragraph, but I'm
@@ -1039,7 +1037,7 @@ blocks.
 If~@GUnit@ were more polymorphic, there would be 
 more than one way to represent some graphs, and it wouldn't be obvious
 to a client which representation to choose---or if the choice made a difference.
-\simon{We should state whether Graph is visible to clients, or is abstract.}
+
 
 \subsection{Labels and successors} \seclabel{edges}
 
@@ -1212,13 +1210,13 @@ newtype `NewFact a = NewFact a
 
 ------- Transfers ----------
 newtype `FwdTransfer n f      -- abstract type
-`mkFTransfer' 
+`mkFTransfer
  :: (forall e x . n e x -> f -> Fact x f)
  -> FwdTransfer n f
 
 ------- Rewrites ----------
 newtype `FwdRewrite m n f     -- abstract type
-`mkFRewrite' 
+`mkFRewrite
  :: (forall e x . n e x -> f
                -> m (Maybe (FwdRew m n f e x)))
  -> FwdRewrite m n f
@@ -1247,9 +1245,10 @@ class Monad m => HooplM m where
   \figlabel{transfers}  \figlabel{rewrites}
 \end{figure}
 % omit mkFactBase :: [(Label, f)] -> FactBase f
-\simon{Do @mkFTransfer'@ and @mkFRewrite'@ really have to have primes?}
 \simon{We previously renamed @fact\_join@ to @fact\_extend@ because it really
-is not a symmetrical join; we're extending an old fact with a new one.}
+is not a symmetrical join; we're extending an old fact with a new one.
+NR: Yes, but the asymmetry is now explicit in the \emph{type}, so it
+needn't also be reflected in the \emph{name}.}
 
 As well as taking and returning a graph with its entry point(s), the
 function also takes input facts (the @FactBase@) and produces output facts. 
@@ -1315,6 +1314,19 @@ To ensure that analysis
 terminates, it is enough if every fact has a finite number of
 distinct facts above it, so that repeated joins
 eventually reach a fixed point.
+\simon{There is no mention here of the @OldFact@ and @NewFact@ types.
+Shall we nuke them for the purposes of the paper?
+NR: They should definitely not be nuked; they're needed if the reader
+wants to understand the asymmetrical behavior of @fact\_join@.
+I'm~also mindful that this paper will be the primary explanation of
+\hoopl\ to its users, and I don't want to hide this part of the
+interface.
+As for mentions in the text, 
+if you look carefully, you'll
+see that I've changed the subscripts in the text to ``old'' and
+``new''.
+Together with the code, I believe that's enough to get the point across.
+}
 
 In practice, joins are computed at labels.
 If~$f_{\mathit{old}}$ is the fact currently associated with the
@@ -1344,8 +1356,6 @@ well as the least upper bound.
 The @ChangeFlag@ should be @NoChange@ if
 the result is the same as the old fact, and
 @SomeChange@ if the result differs.  
-\simon{There is no mention here of the @OldFact@ and @NewFact@ types.
-Shall we nuke them for the purposes of the paper?}
 
 \seclabel{WithTop}
 
@@ -1365,21 +1375,16 @@ so that value constructors @Top@ and @Bot@ may be used with any of the
 types.  \simon{This sentence was utterly opaque to me until I read the
 code.  We must remove it, or give more detail!}
 
-The real convenience of @WithTop@, @WithBot@, and @WithTopAndBot@ is
-that \hoopl\ provides a combinator that lifts
-a join function on~@a@ to a join function on
-@WithTop a@, and similarly for the other types.
-The lifting combinator ensures that joins involving top and bottom
-elements not only obey the appropriate algebraic laws but also set the
-@ChangeFlag@ properly.
-\simon{
-I think we could put this better.  The real benefit is that 
-we can lift an entire lattice:}
-\begin{code}
-liftTop :: DataflowLattice f -> DataflowLattice (WithTop f)
-\end{code}
-\simon{Warning: the above sig is not in an authornote. I don't know how to 
-put laid-out stuff in an authornote}
+The real convenience of @WithTop@ is that 
+\remark{Simon, is this better?}
+that \hoopl\ provides 
+\begin{smallcode}
+addTop :: DataflowLattice a -> DataflowLattice (WithTop a)
+\end{smallcode}
+in which the new top element obeys all the appropriate algebraic laws.
+\hoopl\ provides similar functions for
+types @WithBot@, and @WithTopAndBot@.
+%
 \simon{Can we shorten ``@DataFlowLattice@'' to just ``@Lattice@''?}
 
 
@@ -2275,10 +2280,17 @@ cat :: forall m e a x info info' info''. Monad m
     => (info  -> m (DG f n e a, info'))
     -> (info' -> m (DG f n a x, info''))
     -> (info  -> m (DG f n e x, info''))
+`cat ft1 ft2 f = do { (g1,f1) <- ft1 f
+                   ; (g2,f2) <- ft2 f1
+                   ; return (g1 `dgCat` g2, f2) }
 \end{code}
+(Function @dgCat@ is the same splicing function used for an ordinary
+@Graph@, but it takes a one-line block-concatenation function suitable
+for @DBlock@s.)
 The name @cat@ comes from the concatenation of the decorated graphs,
 but it is also appropriate because the style in which it is used is
-reminiscent of @concatMap@.
+reminiscent of @concatMap@, with the @node@ and @block@ functions
+playing the role of @map@.
 The inner @block@ function exemplifies this style:
 \begin{code}
   block :: forall e x .
@@ -2289,18 +2301,6 @@ The inner @block@ function exemplifies this style:
   block (BCat b1 b2) = block b1 `cat` block b2
 \end{code}
 The implementation of @graph@ is similar but has many more cases.
-
-Function @cat@ threads facts through
-monadic fact transformers and accumulates decorated graphs:
-\begin{code}
-  `cat ft1 ft2 f = do { (g1,f1) <- ft1 f
-                     ; (g2,f2) <- ft2 f1
-                     ; return (g1 `dgCat` g2, f2) }
-\end{code}
-\simon{Let's put the type and impl of @cat@ together}
-(Function @dgCat@ is the same splicing function used for an ordinary
-@Graph@, but it takes a one-line block-concatenation function suitable
-for @DBlock@s.)
 
 
 
