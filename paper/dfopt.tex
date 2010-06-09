@@ -773,7 +773,7 @@ The primitive constituents of a \ourlib{} control-flow graph are
 \emph{nodes}, which are defined by the client.
 Typically, a node might represent a machine instruction, such as an
 assignment, a call, or a conditional branch.  
-But \ourlib{}'s graph representation is polymorphic in the node type,
+But \ourlib{}'s graph representation is \emph{polymorphic in the node type},
 so each client can define nodes as it likes.
 Because they contain nodes defined by the client,
 graphs can include arbitrary client-specified data, including
@@ -801,6 +801,7 @@ the type of a node has kind @*->*->*@, where the two type parameters
 are type-level flags, one for entry and one for exit.
 Such a type parameter may be instantiated only with type @O@~(for
 open) or type~@C@ (for closed).
+
 As an example,
 \figref{cmm-node} shows a typical node type as it might be written by
 one of \ourlib's {clients}.
@@ -814,7 +815,6 @@ takes a @Label@ and returns a node of type @Node C O@, where
 the~``@C@'' says ``closed at entry'' and the~``@O@'' says ``open at exit''.  
 The types @Label@, @O@, and~@C@ are 
 defined by \ourlib{} (\figref{graph}).  
-
 Similarly, an @Assign@ node takes a variable and an expression, and
 returns a @Node@ open at both entry and exit; the @Store@ node is
 similar.  The types @`Var@ and @`Expr@ are private to the client, and
@@ -888,13 +888,16 @@ Each of these constructors is polymorphic in the node's \emph{representation}
 but monomorphic in its \emph{shape}.
 An~earlier representation of blocks used a single constructor 
 of type \mbox{@n e x -> Block n e x@}, polymorphic in a node's representation \emph{and}
-shape.
+shape. \simon{Why would the reader care about the earlier rep?}
 The representation of blocks in \figref{graph} has more constructors, but it
 uses the power of GADTs to ensure that the shape of every node is
-known statically.
+known statically. \simon{Why do we say this?  It only complicates the
+reader's job, and in any case I am far from convinced that we want
+blocks to have more constructors.}
 This property makes no difference to clients, but it significantly
 simplifies the implementation of analysis and transformation in
-\secref{monomorphic-shape-outcome}. 
+\secref{monomorphic-shape-outcome}. \simon{Do we intend that clients
+can see the representation of blocks?}
 
 The @BCat@ constructor concatenates blocks in sequence. 
 It~makes sense to concatenate blocks only when control can fall
@@ -938,7 +941,7 @@ fields: an optional entry sequence, a body, and an optional exit
 sequence.
 \begin{itemize}
 \item 
-If the graph is open at the entry, it contains an entry sequence of type 
+If the graph is open at the entry, it contains an \emph{entry sequence} of type 
 @Block n O C@.
 We could represent this sequence as a value of type
 @Maybe (Block n O C)@, but we can do better: 
@@ -951,11 +954,11 @@ which is also defined in \figref{graph}:
 the type @MaybeO O a@ is isomorphic to~@a@, while 
 the type @MaybeO C a@ is isomorphic to~@()@.
 \item 
-The body of the graph is a collection of  closed/closed blocks.  
+The \emph{body} of the graph is a collection of  closed/closed blocks.  
 To~facilitate traversal of the graph, we represent a body as a finite
 map from label to block.
 \item 
-The exit sequence is dual to the entry sequence, and like the entry
+The \emph{exit sequence} is dual to the entry sequence, and like the entry
 sequence, its presence or absence is deducible from the static type of the graph.
 \end{itemize}
 
@@ -1036,18 +1039,16 @@ blocks.
 If~@GUnit@ were more polymorphic, there would be 
 more than one way to represent some graphs, and it wouldn't be obvious
 to a client which representation to choose---or if the choice made a difference.
-
+\simon{We should state whether Graph is visible to clients, or is abstract.}
 
 \subsection{Labels and successors} \seclabel{edges}
 
-Although \ourlib{} is polymorphic in the type of nodes, 
-it~still needs to know how nonlocal control is transferred from one
-block to another:
-\hoopl\ must know where
-a control transfer can go, 
+To perform dataflow analysis and transformation
+\hoopl\ must obviously know where a control transfer can go, 
 and it must know what @Label@ is at the start of a block.
-The client must provide this information by placing its node type into
-\ourlib's @NonLocal@ type class (\figref{edges}).
+How can \hoopl{} know these things, and yet be polymorphic in the node type?
+Answer: by requiring the client to make the node type into an instance of 
+\ourlib's @NonLocal@ type class, which is defined in \figref{edges}.
 The @entryLabel@ method takes a first node (one closed on entry, \secref{nodes})
 and returns its @Label@;
 the @successors@ method takes a last node (closed on exit) and returns
@@ -1188,9 +1189,9 @@ As its type shows, this function
 is polymorphic in the types of nodes~@n@ and facts~@f@;
 these types are determined entirely by the client.
 The type of the monad~@m@ is also supplied by the client, but it must
-meet certain constraints laid out by \hoopl, as described in
-\secref{fuel-monad}. 
-
+offer at least the operations of the @HooplM@ class (\figref{api-types}),
+namely: the ability to allocate fresh labels (\secref{rewrites}) and to 
+manage ``optimisation fuel'' (\secref{fuel-monad}).
 
 \begin{figure}
 \begin{code}
@@ -1218,7 +1219,8 @@ newtype `FwdTransfer n f      -- abstract type
 ------- Rewrites ----------
 newtype `FwdRewrite m n f     -- abstract type
 `mkFRewrite' 
- :: (forall e x . n e x -> f -> m (Maybe (FwdRew m n f e x)))
+ :: (forall e x . n e x -> f
+               -> m (Maybe (FwdRew m n f e x)))
  -> FwdRewrite m n f
 
 data `FwdRew m n f e x 
@@ -1232,6 +1234,12 @@ type instance Fact C f = FactBase f
 ------- FactBase -------
 type `FactBase f = LabelMap f
  -- A finite mapping from Labels to facts f
+
+------- The monad -------
+class Monad m => HooplM m where
+  getFuel    :: m Fuel
+  setFuel    :: Fuel -> m ()
+  freshLabel :: m Label
 \end{code}
 \caption{\ourlib{} API data types}
   \figlabel{api-types}
@@ -1239,8 +1247,9 @@ type `FactBase f = LabelMap f
   \figlabel{transfers}  \figlabel{rewrites}
 \end{figure}
 % omit mkFactBase :: [(Label, f)] -> FactBase f
-
-
+\simon{Do @mkFTransfer'@ and @mkFRewrite'@ really have to have primes?}
+\simon{We previously renamed @fact\_join@ to @fact\_extend@ because it really
+is not a symmetrical join; we're extending an old fact with a new one.}
 
 As well as taking and returning a graph with its entry point(s), the
 function also takes input facts (the @FactBase@) and produces output facts. 
@@ -1335,6 +1344,8 @@ well as the least upper bound.
 The @ChangeFlag@ should be @NoChange@ if
 the result is the same as the old fact, and
 @SomeChange@ if the result differs.  
+\simon{There is no mention here of the @OldFact@ and @NewFact@ types.
+Shall we nuke them for the purposes of the paper?}
 
 \seclabel{WithTop}
 
@@ -1351,7 +1362,8 @@ constructors with these types:
 @`WithBot@, and @`WithTopAndBot@.
 All are defined using a single GADT,
 so that value constructors @Top@ and @Bot@ may be used with any of the
-types.
+types.  \simon{This sentence was utterly opaque to me until I read the
+code.  We must remove it, or give more detail!}
 
 The real convenience of @WithTop@, @WithBot@, and @WithTopAndBot@ is
 that \hoopl\ provides a combinator that lifts
@@ -1360,7 +1372,15 @@ a join function on~@a@ to a join function on
 The lifting combinator ensures that joins involving top and bottom
 elements not only obey the appropriate algebraic laws but also set the
 @ChangeFlag@ properly.
-
+\simon{
+I think we could put this better.  The real benefit is that 
+we can lift an entire lattice:}
+\begin{code}
+liftTop :: DataflowLattice f -> DataflowLattice (WithTop f)
+\end{code}
+\simon{Warning: the above sig is not in an authornote. I don't know how to 
+put laid-out stuff in an authornote}
+\simon{Can we shorten ``@DataFlowLattice@'' to just ``@Lattice@''?}
 
 
 
@@ -1389,7 +1409,8 @@ In a forward analysis, the dataflow engine starts with the fact at the
 beginning of a block and applies the transfer function to successive 
 nodes in that block until eventually the transfer function for the last node
 computes the facts that are propagated to the block's successors.
-For example, consider this graph, with entry at @L1@:
+For example, consider doing constant propagation (\secref{constant-propagation}) on 
+this graph, with entry at @L1@:
 \begin{code}
   L1: x=3; goto L2
   L2: y=x+4; x=x-1; 
@@ -1460,6 +1481,7 @@ A function that takes a @FwdTransfer@ and wraps it in logging code, so
 an analysis can be debugged by watching the facts flow through the
 nodes
 \end{itemize}
+\simon{These bullets are utterly opaque. They belong in 4.5}
 Such functions may also be useful in \hoopl's \emph{clients}:
 % may need
 %functions that are polymorphic in the node type~@n@:
@@ -1486,6 +1508,10 @@ newtype FwdTransfer n f
                  , n O C -> f -> FactBase f
                  )
 \end{code}
+\simon{I argue strongly that the implementation should be 
+polymorphic too, using a shape classifier where necessary.
+Regardless of how this debate pans out, though, I think it's 
+a bad idea to introduce triples here. They are simply confusing.}
 Such triples can easily be composed and wrapped without requiring a
 pattern match on the value constructor of an unknown node
 type.\remark{Need to refer to this junk in the conclusion}
@@ -1551,17 +1577,20 @@ In~general, a rewrite function must be able to return a
 
 \ifpagetuning\enlargethispage{0.8\baselineskip}\fi
 
-Concretely, a @FwdRewrite@ takes a node and a suitably shaped
+Concretely, a @FwdRewrite@ takes a node and a 
 fact, and returns either @Nothing@, indicating that the node should
 not be replaced,
-or $m\;@(Just (FwdRew@\;\ag\;\rw@))@$, indicating that the node should
-be replaced with~\ag: the replacement graph.  
-The result is monadic because
+or $@(Just (FwdRew@\;\ag\;\rw@))@$, indicating that the node should
+be replaced with~\ag: the replacement graph. 
+We will discuss $\rw$ in \secref{shallow-vs-deep}.
+
+As you will see from its type in \figref{api-types}, a @FwdRewrite@ is 
+a \emph{monadic} function, because
 if the rewriter makes graphs containing blocks,
-it may need fresh @Label@s, which are supplied by a monad.
+it may need fresh @Label@s, which are supplied by the monad.
 A~client may use its own monad or may use a monad or monad transformer
 supplied by \hoopl. 
-\remark{Forward reference??}
+\remark{Forward reference??} \simon{I don't think we need say more}
 
 %%%% \ifpagetuning\enlargethispage{0.8\baselineskip}\fi
 
@@ -1583,12 +1612,12 @@ rewritten to an empty graph.
 Once the rewrite has been performed, what then?  
 The rewrite returns a replacement graph, 
 which must itself be analyzed, and its nodes may be further rewritten.
-We~call @analyzeAndRewriteFwdBody@ to process the replacement
-graph---but what @FwdPass@ should we use?
+We can do this by making a recursive call to 
+@analyzeAndRewriteFwdBody@---but what @FwdPass@ should we use?
 There are two common situations:
 \begin{itemize}
 \item Sometimes we want to analyze and transform the replacement graph
-with an unmodified @FwdPass@, further rewriting the replacement graph.
+with an unmodified @FwdPass@, thereby further rewriting the replacement graph.
 This procedure is
 called \emph{deep rewriting}. 
 When deep rewriting is used, the client's rewrite function must
@@ -1622,9 +1651,9 @@ rewriting function.
 
 \subsection{Composing rewrite functions and dataflow passes} \seclabel{combinators}
 
-By requiring each rewrite to return a new rewrite function,
-\hoopl\ enables a variety of combinators over
-rewrite functions. 
+Requiring each rewrite to return a new rewrite function has another
+advantage, beyond controlling the shallow-vs-deep choice: it
+enables a variety of combinators over rewrite functions. 
 \remark{This whole subsection needs to be redone in light of the new
 (triple-based) representation.  It's not pretty any more.}
 For example, here is a function
@@ -2133,7 +2162,14 @@ The truth about @Graph@ and @DG@ is as follows:
 \end{code}
 Type~@DG@ is internal to \hoopl; it is not seen by any client.
 Extracting a @Graph@ and a @FactBase@ for @analyzeAndRewriteFwdBody@
-requires a 12-line function.
+requires a 12-line function:
+\begin{code}
+normalizeGraph :: NonLocal n
+               => DG f n e x
+               -> (Graph n e x, FactBase f)
+\end{code}
+\simon{At this point it's quite unclear why we are giving @arfGraph@
+a different return type to @analyzeAndRewriteFwdBody@.}
 %%
 %%  We use it, not @Graph@, for two reasons:
 %%  \begin{itemize}
@@ -2157,6 +2193,10 @@ requires a 12-line function.
 
 Function @arfGraph@ is implemented using four inner functions:
 one each for nodes, blocks, graph bodies, and full graphs.
+\simon{I'm afraid that this story about ``inner functions'' is
+not easy to understand. Moreover I don't there is any gain (and some loss)
+in  the exposition from having ``inner'' functions, compared to just
+having four top-level functions.}
 These functions help us separate concerns: for example, only the
 analysis of a node has to worry about rewrite functions;
 and only the analysis of a body has to worry about fixed points.
@@ -2257,6 +2297,7 @@ monadic fact transformers and accumulates decorated graphs:
                      ; (g2,f2) <- ft2 f1
                      ; return (g1 `dgCat` g2, f2) }
 \end{code}
+\simon{Let's put the type and impl of @cat@ together}
 (Function @dgCat@ is the same splicing function used for an ordinary
 @Graph@, but it takes a one-line block-concatenation function suitable
 for @DBlock@s.)
@@ -2356,8 +2397,9 @@ node n f
                 f'    = fwdEntryFact n f
             in  arfGraph pass' (maybeEntry n) g f' }
 \end{smallfuzzcode}
+\simon{Need types for @toDg@ and friends, and explanation.}
 This code is more complicated
-but still brief.  
+but still brief.  \simon{More complicated than what?}
 %
 Functions @`frewrite@, @`ftransfer@, @`toBlock@,
 @`maybeEntry@, and @`fwdEntryFact@ are overloaded based on the
@@ -2368,6 +2410,7 @@ rewriting function from the @FwdPass@,
 and we apply it to the node~@n@ 
 and the  incoming fact~@f@.  
 
+\simon{Shall we describe @withFuel@ in section on fuel?}
 The resulting monadic @Maybe@ is passed to @withFuel@, which 
 accounts for fuel:
 \begin{code}
