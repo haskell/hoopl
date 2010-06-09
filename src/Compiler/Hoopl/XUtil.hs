@@ -10,11 +10,13 @@ module Compiler.Hoopl.XUtil
   , joinOutFacts -- deprecated
   , foldGraphNodes
   , foldBlockNodesF, foldBlockNodesB, foldBlockNodesF3, foldBlockNodesB3
+  , tfFoldBlock
   , ScottBlock(ScottBlock), scottFoldBlock
   , fbnf3
   , blockToNodeList, blockOfNodeList
   , blockToNodeList'   -- alternate version using fold
   , blockToNodeList''  -- alternate version using scottFoldBlock
+  , blockToNodeList''' -- alternate version using tfFoldBlock
   , analyzeAndRewriteFwdBody, analyzeAndRewriteBwdBody
   , analyzeAndRewriteFwdOx, analyzeAndRewriteBwdOx
   , noEntries
@@ -145,6 +147,46 @@ joinOutFacts :: (NonLocal node) => DataflowLattice f -> node O C -> FactBase f -
 joinOutFacts lat n f = foldr join (fact_bot lat) facts
   where join (lbl, new) old = snd $ fact_join lat lbl (OldFact old) (NewFact new)
         facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
+
+-- | A fold function that relies on the EitherCO type function.
+--   Note that the type parameter e is available to the functions
+--   that are applied to the middle and last nodes.
+tfFoldBlock :: forall n bc bo c e x .
+               ( n C O -> bc
+               , n O O -> EitherCO e bc bo -> EitherCO e bc bo
+               , n O C -> EitherCO e bc bo -> c)
+            -> (Block n e x -> bo -> EitherCO x c (EitherCO e bc bo))
+tfFoldBlock (f, m, l) bl bo = block bl
+  where block :: forall x . Block n e x -> EitherCO x c (EitherCO e bc bo)
+        block (BFirst  n)       = f n
+        block (BMiddle n)       = m n bo
+        block (BLast   n)       = l n bo
+        block (b1 `BCat`    b2) = oblock b2 $ block b1
+        block (b1 `BClosed` b2) = oblock b2 $ block b1
+        block (b1 `BHead` n)    = m n $ block b1
+        block (n `BTail` b2)    = oblock b2 $ m n bo
+        oblock :: forall x . Block n O x -> EitherCO e bc bo -> EitherCO x c (EitherCO e bc bo)
+        oblock (BMiddle n)       = m n
+        oblock (BLast   n)       = l n
+        oblock (b1 `BCat`    b2) = oblock b1 `cat` oblock b2
+        oblock (n `BTail` b2)    = m n       `cat` oblock b2
+        cat f f' = f' . f
+
+
+type NodeList' e x n = (MaybeC e (n C O), [n O O], MaybeC x (n O C))
+blockToNodeList''' ::
+  forall n e x. ( EitherCO e (NodeList' C O n) (NodeList' O O n) ~ NodeList' e O n
+                , EitherCO x (NodeList' e C n) (NodeList' e O n) ~ NodeList' e x n) =>
+    Block n e x -> NodeList' e x n
+blockToNodeList''' b = (h, reverse ms', t)
+  where
+    (h, ms', t) = tfFoldBlock (f, m, l) b z
+    z :: NodeList' O O n
+    z = (NothingC, [], NothingC)
+    f :: n C O -> NodeList' C O n
+    f n = (JustC n,  [], NothingC)
+    m n (h, ms', t) = (h, n : ms', t)
+    l n (h, ms', _) = (h, ms', JustC n)
 
 
 {-
