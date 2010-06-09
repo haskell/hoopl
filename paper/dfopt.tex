@@ -1043,6 +1043,24 @@ to a client which representation to choose---or if the choice made a difference.
 
 \subsection{Labels and successors} \seclabel{edges}
 
+
+-Although \ourlib{} is polymorphic in the type of nodes, 
+-it~still needs to know how nonlocal control is transferred from one
+-block to another:
+-\hoopl\ must know where
+-a control transfer can go, 
++To perform dataflow analysis and transformation
++\hoopl\ must obviously know where a control transfer can go, 
+ and it must know what @Label@ is at the start of a block.
+-The client must provide this information by placing its node type into
+-\ourlib's @NonLocal@ type class (\figref{edges}).
++How can \hoopl{} know these things, and yet be polymorphic in the node type?
++Answer: by requiring the client to make the node type into an instance of 
++\ourlib's @NonLocal@ type class, which is defined in \figref{edges}.
+ The @entryLabel@ method takes a first node (one closed on entry,
+-\secref{nodes})
+
+
 To perform dataflow analysis and transformation
 \hoopl\ must obviously know where a control transfer can go, 
 and it must know what @Label@ is at the start of a block.
