@@ -2201,7 +2201,9 @@ one each for nodes, blocks, graph bodies, and full graphs.
 \simon{I'm afraid that this story about ``inner functions'' is
 not easy to understand. Moreover I don't there is any gain (and some loss)
 in  the exposition from having ``inner'' functions, compared to just
-having four top-level functions.}
+having four top-level functions.
+NR:~if the functions move to top level, their types \emph{and} their
+implementations become significantly more complicated.}
 These functions help us separate concerns: for example, only the
 analysis of a node has to worry about rewrite functions;
 and only the analysis of a body has to worry about fixed points.
