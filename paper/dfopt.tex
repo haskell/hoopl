@@ -521,6 +521,7 @@ can perform very local reasoning (``@y@ is live before
 ``if @x@~is live after @x:=y+2@ then @y@ is live before~it,''
 because if @x@~is \emph{not} live after @x:=y+2@, the assignment
 @x:=y+2@ will be eliminated.}
+\john{I think this footnote should go. The reader can't possibly understand it here.}
  analyses and transformations built on \ourlib\ 
 are small, simple, and easy to get right.
 Moreover, \ourlib\ helps you write correct optimizations:
@@ -654,7 +655,7 @@ is the new fact $@x=@\top \land @y=4@ \land @z=@\top$.
 
 \seclabel{simple-tx}
 \paragraph{Interleaved transformation and analysis.}
-Our example \emph{interleaves} transformation and analysis.
+Our first example \emph{interleaves} transformation and analysis.
 Interleaving makes it far easier to write effective analyses.
 If, instead, we \emph{first} analyzed the block
 and \emph{then} transformed it, the analysis would have to ``predict''
@@ -1284,7 +1285,7 @@ A~node following a rewritten node sees
 analyzing the replacement graph.
 
 In this section we flesh out the
-\emph{interface} to @analyzeAndRewriteFwdBody@, leaving the implementation for
+interface to @analyzeAndRewriteFwdBody@, leaving the implementation for
 \secref{engine}.  
 {\hfuzz=7.2pt\par}
 
@@ -1299,11 +1300,11 @@ control-flow graph.}
 but in general, dataflow analysis establishes properties of \emph{paths}:
 \begin{itemize}
 \item An assertion about all paths \emph{to} a program point is established
-by a \emph{forwards analysis}. For example the assertion ``$@x@=@3@$'' at point P 
+by a \emph{forward analysis}. For example the assertion ``$@x@=@3@$'' at point P 
 claims that variable @x@ holds value @3@ at P, regardless of the
 path by which P is reached.
 \item An assertion about all paths \emph{from} a program point is 
-established by a \emph{backwards analysis}. For example, the 
+established by a \emph{backward analysis}. For example, the 
 assertion ``@x@ is dead'' at point P claims that no path from P uses 
 variable @x@.
 \end{itemize}
@@ -1338,7 +1339,7 @@ into the label~$L$,
 the dataflow engine replaces $f_{\mathit{old}}$ with
 the join  $f_{\mathit{old}} \join f_{\mathit{new}}$.
 Furthermore, the dataflow engine wants to know if
-  $f_{\mathit{new}} \join f_{\mathit{old}} = f_{\mathit{old}}$,
+  $f_{\mathit{old}} \join f_{\mathit{new}} = f_{\mathit{old}}$,
 because if not, the analysis has not reached a fixed point.
 
 The bottom element and join operation of a lattice of facts of
@@ -1348,11 +1349,10 @@ type~@f@ are stored in a value of type @DataflowLattice f@
 %%@analyzeAndRewriteFwd@ above.
 As noted in the previous paragraph, 
 \ourlib{} needs to know when the result of a join is equal
-to one of the arguments joined.  
+to the old fact.
 Because this information can often be computed cheaply together
-when the join, \ourlib\ does not
- require a separate equality test on facts (which might be
-expensive).
+with the join, \ourlib\ does not
+ require a separate equality test on facts (which might be expensive).
 Instead, \ourlib\ requires that @fact_join@ return a @ChangeFlag@ as
 well as the least upper bound.
 The @ChangeFlag@ should be @NoChange@ if
@@ -1388,6 +1388,7 @@ in which the new top element obeys all the appropriate algebraic laws.
 types @WithBot@, and @WithTopAndBot@.
 %
 \simon{Can we shorten ``@DataFlowLattice@'' to just ``@Lattice@''?}
+\john{The previous 3 paragraphs aren't worth their space.}
 
 
 
@@ -1470,65 +1471,6 @@ then @(transfer_fn node)@ is a fact transformer:
 \begin{code}
   transfer_fn node :: f -> Fact x f
 \end{code}
-
-So much for the interface.
-What about the implementation?
-The way GADTs work is that the compiler uses the value constructor for
-type \mbox{@n@ @e@ @x@} to determine whether @e@~and~@x@ are open or
-closed.
-But we want to write functions that are \emph{polymorphic} in the node
-type~@n@!
-Such functions include
-\begin{itemize}
-\item
-A function that takes a pair of @FwdTransfer@s for facts @f@~and~@f'@,
-and returns a single @FwdTransfer@ for the fact @(f, f')@
-\item
-A function that takes a @FwdTransfer@ and wraps it in logging code, so
-an analysis can be debugged by watching the facts flow through the
-nodes
-\end{itemize}
-\simon{These bullets are utterly opaque. They belong in 4.5.  The rest of this section 
-is also very hard to understand without more explanation. See email.  }
-Such functions may also be useful in \hoopl's \emph{clients}:
-% may need
-%functions that are polymorphic in the node type~@n@:
-\begin{itemize}
-\item
-A dominator analysis in the style of
-\citet{cooper-harvey-kennedy:simple-dominance} requires only the
-functions in the \texttt{NonLocal} type class; 
-we have written such an analysis using transfer functions that are 
-polymorphic in~@n@.
-\end{itemize}
-Because the mapping from
-value constructors to shape is different for each node type~@n@, transfer
- functions cannot be polymorphic in both
-the representation and the shape of nodes.
- Our implementation therefore sacrifices polymorphism in shape:
-internally, \hoopl\ represents
-a~@FwdTransfer n f@ as a \emph{triple} of functions,
-each polymorphic in~@n@ but monomorphic in shape:
-\begin{code}
-newtype FwdTransfer n f 
-  = FwdTransfers ( n C O -> f -> f
-                 , n O O -> f -> f
-                 , n O C -> f -> FactBase f
-                 )
-\end{code}
-\simon{I argue strongly that the implementation should be 
-polymorphic too, using a shape classifier where necessary.
-Regardless of how this debate pans out, though, I think it's 
-a bad idea to introduce triples here. They are simply confusing.}
-Such triples can easily be composed and wrapped without requiring a
-pattern match on the value constructor of an unknown node
-type.\remark{Need to refer to this junk in the conclusion}
-Working with triples is tedious, but only \hoopl\ itself is forced to
-work with triples; each client, which knows the node type, may supply
-a triple,
-but it typically supplies a single function polymorphic in the shape
-of the (known) node.  
-
 
 
 
@@ -1655,6 +1597,99 @@ the replacement graph.
 For shallow rewriting this new function is
 the constant @Nothing@ function; for deep rewriting it is the original
 rewriting function.
+
+
+\subsection{Shape-dependent, node-independent analysis}
+
+We noted in \secref{transfers} that
+``\emph{the type of the transfer function's result 
+depends on the shape of the node's exit}.''
+This type is very convenient for clients:
+because the client defines the node type,
+the client also knows the shape of each node.
+Therefore, a client can just write a transfer
+function that matches on the node argument
+and produces the right type of outgoing fact
+for the shape of the node.
+
+But what if you want to write a transfer function that
+\emph{does not know the type of the node}?
+For example, a dominator analysis
+does not need to know the type of the node; it needs to know only about
+the labels and edges in the graph.
+Therefore, you might want to write a dominator analysis
+that will work with \emph{any} type of node that is an
+instance of the @Edges@ type class.
+Or, you might want to write a combinator that
+computes the pairwise composition of any two analyses
+defined on any node type.
+
+You cannot write either of these examples
+using the polymorphic function described in \secref{transfers}
+because these examples require the ability
+to inspect the shape of the node.
+
+
+\subsection{Stuff cut from 4.2 that should disappear when the previous section is finished}
+
+So much for the interface.
+What about the implementation?
+The way GADTs work is that the compiler uses the value constructor for
+type \mbox{@n@ @e@ @x@} to determine whether @e@~and~@x@ are open or
+closed.
+But we want to write functions that are \emph{polymorphic} in the node
+type~@n@!
+Such functions include
+\begin{itemize}
+\item
+A function that takes a pair of @FwdTransfer@s for facts @f@~and~@f'@,
+and returns a single @FwdTransfer@ for the fact @(f, f')@
+\item
+A function that takes a @FwdTransfer@ and wraps it in logging code, so
+an analysis can be debugged by watching the facts flow through the
+nodes
+\end{itemize}
+\simon{These bullets are utterly opaque. They belong in 4.5.  The rest of this section 
+is also very hard to understand without more explanation. See email.  }
+Such functions may also be useful in \hoopl's \emph{clients}:
+% may need
+%functions that are polymorphic in the node type~@n@:
+\begin{itemize}
+\item
+A dominator analysis in the style of
+\citet{cooper-harvey-kennedy:simple-dominance} requires only the
+functions in the \texttt{NonLocal} type class; 
+we have written such an analysis using transfer functions that are 
+polymorphic in~@n@.
+\end{itemize}
+Because the mapping from
+value constructors to shape is different for each node type~@n@, transfer
+ functions cannot be polymorphic in both
+the representation and the shape of nodes.
+ Our implementation therefore sacrifices polymorphism in shape:
+internally, \hoopl\ represents
+a~@FwdTransfer n f@ as a \emph{triple} of functions,
+each polymorphic in~@n@ but monomorphic in shape:
+\begin{code}
+newtype FwdTransfer n f 
+  = FwdTransfers ( n C O -> f -> f
+                 , n O O -> f -> f
+                 , n O C -> f -> FactBase f
+                 )
+\end{code}
+\simon{I argue strongly that the implementation should be 
+polymorphic too, using a shape classifier where necessary.
+Regardless of how this debate pans out, though, I think it's 
+a bad idea to introduce triples here. They are simply confusing.}
+Such triples can easily be composed and wrapped without requiring a
+pattern match on the value constructor of an unknown node
+type.\remark{Need to refer to this junk in the conclusion}
+Working with triples is tedious, but only \hoopl\ itself is forced to
+work with triples; each client, which knows the node type, may supply
+a triple,
+but it typically supplies a single function polymorphic in the shape
+of the (known) node.  
+
 
 
 \subsection{Composing rewrite functions and dataflow passes} \seclabel{combinators}
