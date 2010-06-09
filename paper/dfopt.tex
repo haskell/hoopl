@@ -893,6 +893,7 @@ implementation of analysis and transformation in
 can see the representation of blocks?
 Answer: At present the representation is partially exposed, and we
 have no principled answer to the question.  ---NR
+OK; but what do we tell our readers?
 }
 
 The @BCat@ constructor concatenates blocks in sequence. 
@@ -1171,7 +1172,7 @@ exposition, we present a function that is specialized to a
 closed/closed graph:
 \begin{code}
 analyzeAndRewriteFwdBody
-  :: ( FuelMonad m    -- Gensym and other state
+  :: ( HooplM m    -- Gensym and other state
      , NonLocal n )   -- Extract non-local flow edges
   => FwdPass m n f    -- Lattice, transfer, rewrite
   -> [Label]          -- Entry point(s)
@@ -1326,6 +1327,7 @@ if you look carefully, you'll
 see that I've changed the subscripts in the text to ``old'' and
 ``new''.
 Together with the code, I believe that's enough to get the point across.
+SLPJ -- OK.  I don't agree that it's enough, but we have more important fish to fry.
 }
 
 In practice, joins are computed at labels.
@@ -1376,7 +1378,7 @@ types.  \simon{This sentence was utterly opaque to me until I read the
 code.  We must remove it, or give more detail!}
 
 The real convenience of @WithTop@ is that 
-\remark{Simon, is this better?}
+\remark{Simon, is this better? SLPJ: yes much!}
 that \hoopl\ provides 
 \begin{smallcode}
 addTop :: DataflowLattice a -> DataflowLattice (WithTop a)
@@ -1486,7 +1488,8 @@ A function that takes a @FwdTransfer@ and wraps it in logging code, so
 an analysis can be debugged by watching the facts flow through the
 nodes
 \end{itemize}
-\simon{These bullets are utterly opaque. They belong in 4.5}
+\simon{These bullets are utterly opaque. They belong in 4.5.  The rest of this section 
+is also very hard to understand without more explanation. See email.  }
 Such functions may also be useful in \hoopl's \emph{clients}:
 % may need
 %functions that are polymorphic in the node type~@n@:
@@ -1925,11 +1928,10 @@ The $n$th rewrite is faulty.
 \seclabel{fuel-monad}
 
 \hoopl\ ensures it can keep track of fuel by imposing the constraint
-@FuelMonad m@ on the monad of any rewrite function used with
+@HooplM m@ (see \figref{api-types}) on the monad of any rewrite function used with
 @analyzeAndRewriteFwdBody@.
-This constraint ensures that \hoopl\ can get and set the amount of
-fuel remaining.
-
+This constraint allows \hoopl\ to use @getFuel@ and @setFuel@ (which 
+should have the obvious state-monad semantics) to keep track of the remaining fuel.
 
 \subsection{Fixed points and speculative rewrites} \seclabel{fixpoints}
 
@@ -2129,7 +2131,7 @@ the internal function @arfGraph@ (short for ``analyze and rewrite
 forward graph''):
 \begin{smallcode}
 `arfGraph
- :: forall m n f e x. (FuelMonad m, NonLocal n)
+ :: forall m n f e x. (HooplM m, NonLocal n)
  => FwdPass m n f    -- lattice, transfers, rewrites
  -> MaybeC e [Label] -- entry points for a closed graph
  -> Graph n e x      -- the original graph
@@ -2227,6 +2229,8 @@ graph :: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
 \end{smallcode}
 Each inner function works the same way: it takes a ``thing'' and
 returns an \emph{extended fact transformer}.
+\simon{Would it be worth articulating this idea by giving a 
+type syononym for an extended fact transformer, and using it?}
 An~extended fact transformer takes an input fact or fact suitable to
 the ``thing'' and it returns an output fact or facts.
 And it also returns a decorated graph representing the (possibly
@@ -2416,7 +2420,7 @@ and the  incoming fact~@f@.
 The resulting monadic @Maybe@ is passed to @withFuel@, which 
 accounts for fuel:
 \begin{code}
-  `withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
+  `withFuel :: HooplM m => Maybe a -> m (Maybe a)
 \end{code}
 If @withFuel@'s argument is @Nothing@, \emph{or} if we have run out of
 optimization fuel (\secref{fuel}), @withFuel@ returns @Nothing@.
@@ -2492,7 +2496,7 @@ reach the fixed point.)
 The rest of the work is done by @fixpoint@, which is shared by
 both forward and backward analyses:
 \begin{smallcode}
-`fixpoint :: forall m n f. (FuelMonad m, NonLocal n)
+`fixpoint :: forall m n f. (HooplM m, NonLocal n)
   => Bool     -- going Forward?
   -> DataflowLattice f
   -> (Block n C C -> FactBase f -> m (DG n f C C, FactBase f))
@@ -2940,8 +2944,8 @@ extended visits to the third author.
 % omit factBaseLabels :: FactBase f -> [Label]
 % omit extendFactBase :: FactBase f -> Label -> f -> FactBase f
 % omit extendLabelSet :: LabelSet -> Label -> LabelSet
-% omit getFuel :: FuelMonad Fuel
-% omit setFuel :: Fuel -> FuelMonad ()
+% omit getFuel :: HooplM Fuel
+% omit setFuel :: Fuel -> HooplM ()
 % omit lookupFact :: FactBase f -> Label -> Maybe f
 % omit factBaseList :: FactBase f -> [(Label, f)]
 
@@ -2979,9 +2983,9 @@ fixpoint :: forall n f. NonLocal n
          => Bool        -- Going forwards?
          -> DataflowLattice f
          -> (Block n C C -> FactBase f
-              -> FuelMonad (DG n f C C, FactBase f))
+              -> HooplM (DG n f C C, FactBase f))
          -> FactBase f -> [(Label, Block n C C)]
-         -> FuelMonad (DG n f C C, FactBase f)
+         -> HooplM (DG n f C C, FactBase f)
 fixpoint ^is_fwd lat ^do_block ^init_fbase ^blocks
  = do { ^fuel <- getFuel  
       ; ^tx_fb <- loop fuel init_fbase
@@ -2991,13 +2995,13 @@ fixpoint ^is_fwd lat ^do_block ^init_fbase ^blocks
           -- Labels *not* in the blocks of the graph
  where
   `tx_blocks :: [(Label, Block n C C)] 
-            -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+            -> TxFactBase n f -> HooplM (TxFactBase n f)
   tx_blocks []             tx_fb = return tx_fb
   tx_blocks ((lbl,blk):bs) tx_fb = tx_block lbl blk tx_fb
                                    >>= tx_blocks bs
 
   `tx_block :: Label -> Block n C C 
-           -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+           -> TxFactBase n f -> HooplM (TxFactBase n f)
   tx_block ^lbl ^blk tx_fb@(TxFB { tfb_fbase = fbase
                                , tfb_lbls  = lbls
                                , tfb_rg    = ^blks
@@ -3014,7 +3018,7 @@ fixpoint ^is_fwd lat ^do_block ^init_fbase ^blocks
                         , tfb_fbase = fbase'
                         , tfb_cha = cha' }) }
 
-  loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
+  loop :: Fuel -> FactBase f -> HooplM (TxFactBase n f)
   `loop fuel fbase 
     = do { let ^init_tx_fb = TxFB { tfb_fbase = fbase
                                  , tfb_cha   = NoChange
