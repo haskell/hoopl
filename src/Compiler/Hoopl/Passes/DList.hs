@@ -40,6 +40,6 @@ extend _ (OldFact l) (NewFact l') = (changeIf (l `lengthDiffers` j), j)
           lengthDiffers (_:_) [] = True
 
 -- | Dominator pass
-domPass :: (Edges n, Monad m) => FwdPass m n Doms
+domPass :: (NonLocal n, Monad m) => FwdPass m n Doms
 domPass = FwdPass domLattice (mkFTransfer3 first (const id) distributeFact) noFwdRewrite
   where first n = fmap (entryLabel n:)

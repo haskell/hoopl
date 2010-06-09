@@ -66,9 +66,9 @@ constPropPass :: Monad m => FwdPass m Insn ConstFact
 ----------------------------------------
 -- Defining the forward dataflow pass
 constPropPass = FwdPass
-  { fp_lattice = constLattice
+  { fp_lattice  = constLattice
   , fp_transfer = varHasLit
-  , fp_rewrite = constProp `thenFwdRw` simplify }
+  , fp_rewrite  = constProp `thenFwdRw` simplify }
 -- @ end cprop.tex
 
 optTest :: String -> IO ()

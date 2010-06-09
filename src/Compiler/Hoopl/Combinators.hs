@@ -22,6 +22,8 @@ import Compiler.Hoopl.Label
 type FR m n f = FwdRewrite m n f
 type BR m n f = BwdRewrite m n f
 
+type FwdRes m n f e x = Maybe (FwdRew m n f e x)
+
 type SFRW m n f e x = n e x -> f -> m (Maybe (Graph n e x))
 type FRW  m n f e x = n e x -> f -> m (FwdRes m n f e x)
 type SimpleFwdRewrite3 m n f = ExTriple (SFRW m n f)
@@ -77,9 +79,7 @@ wrapFRewrites2 map = wrapFRewrites23 (map, map, map)
 
 shallowFwdRw3 :: forall m n f . Monad m => SimpleFwdRewrite3 m n f -> FwdRewrite m n f
 shallowFwdRw3 rw = wrapSFRewrites' lift rw
-  where lift rw n f = liftM withoutRewrite (rw n f) 
-        withoutRewrite Nothing = NoFwdRes
-        withoutRewrite (Just g) = FwdRes g noFwdRewrite
+  where lift rw n f = liftM (fmap (flip FwdRew noFwdRewrite)) (rw n f) 
 
 shallowFwdRw :: Monad m => SimpleFwdRewrite m n f -> FwdRewrite m n f
 shallowFwdRw f = shallowFwdRw3 (f, f, f)
@@ -99,12 +99,12 @@ thenFwdRw :: Monad m
 thenFwdRw rw3 rw3' = wrapFRewrites2 thenrw rw3 rw3'
  where
   thenrw rw rw' n f = rw n f >>= fwdRes
-     where fwdRes NoFwdRes = rw' n f
-           fwdRes (FwdRes g rw3a)
-            = return $ FwdRes g (rw3a `thenFwdRw` rw3')
+     where fwdRes Nothing = rw' n f
+           fwdRes (Just (FwdRew g rw3a))
+            = return $ Just $ FwdRew g (rw3a `thenFwdRw` rw3')
 
 noFwdRewrite :: Monad m => FwdRewrite m n f
-noFwdRewrite = mkFRewrite $ \ _ _ -> return NoFwdRes
+noFwdRewrite = mkFRewrite $ \ _ _ -> return Nothing
 -- @ end comb1.tex
 
 -- @ start iterf.tex
@@ -113,13 +113,12 @@ iterFwdRw :: Monad m
           -> FwdRewrite m n f
 iterFwdRw rw3 = wrapFRewrites iter rw3
  where
-    iter rw n f = rw n f >>= fwdRes
-    fwdRes NoFwdRes = return NoFwdRes
-    fwdRes (FwdRes g rw3a)
-      = return $ FwdRes g (rw3a `thenFwdRw` iterFwdRw rw3)
+    iter rw n f = liftM (fmap fwdRes) (rw n f)
+    fwdRes (FwdRew g rw3a) = FwdRew g (rw3a `thenFwdRw` iterFwdRw rw3)
 -- @ end iterf.tex
 
 ----------------------------------------------------------------
+type BwdRes m n f e x = Maybe (BwdRew m n f e x)
 
 type SBRW m n f e x = n e x -> Fact x f -> m (Maybe (Graph n e x))
 type BRW  m n f e x = n e x -> Fact x f -> m (BwdRes m n f e x)
@@ -154,13 +153,11 @@ wrapBRewrites2' map = wrapBRewrites2 (map, map, map)
 ----------------------------------------------------------------
 
 noBwdRewrite :: Monad m => BwdRewrite m n f
-noBwdRewrite = mkBRewrite $ \ _ _ -> return NoBwdRes
+noBwdRewrite = mkBRewrite $ \ _ _ -> return Nothing
 
 shallowBwdRw3 :: Monad m => SimpleBwdRewrite3 m n f -> BwdRewrite m n f
 shallowBwdRw3 rw = wrapSBRewrites' lift rw
-  where lift rw n f = liftM withoutRewrite (rw n f)
-        withoutRewrite Nothing = NoBwdRes
-        withoutRewrite (Just g) = BwdRes g noBwdRewrite
+  where lift rw n f = liftM (fmap (flip BwdRew noBwdRewrite)) (rw n f)
 
 shallowBwdRw :: Monad m => SimpleBwdRewrite m n f -> BwdRewrite m n f
 shallowBwdRw f = shallowBwdRw3 (f, f, f)
@@ -176,14 +173,13 @@ thenBwdRw rw1 rw2 = wrapBRewrites2' f rw1 rw2
   where f rw1 rw2' n f = do
           res1 <- rw1 n f
           case res1 of
-            NoBwdRes        -> rw2' n f
-            (BwdRes g rw1a) -> return $ BwdRes g (rw1a `thenBwdRw` rw2)
+            Nothing              -> rw2' n f
+            Just (BwdRew g rw1a) -> return $ Just $ BwdRew g (rw1a `thenBwdRw` rw2)
 
 iterBwdRw :: Monad m => BwdRewrite m n f -> BwdRewrite m n f
 iterBwdRw rw = wrapBRewrites' f rw
-  where f rw' n f = liftM iterRewrite (rw' n f)
-        iterRewrite NoBwdRes = NoBwdRes
-        iterRewrite (BwdRes g rw2) = BwdRes g (rw2 `thenBwdRw` iterBwdRw rw)
+  where f rw' n f = liftM (fmap iterRewrite) (rw' n f)
+        iterRewrite (BwdRew g rw2) = BwdRew g (rw2 `thenBwdRw` iterBwdRw rw)
 
 pairFwd :: forall m n f f' . Monad m => FwdPass m n f -> FwdPass m n f' -> FwdPass m n (f, f')
 pairFwd pass1 pass2 = FwdPass lattice transfer rewrite
@@ -202,9 +198,8 @@ pairFwd pass1 pass2 = FwdPass lattice transfer rewrite
     rewrite = liftRW (fp_rewrite pass1) fst `thenFwdRw` liftRW (fp_rewrite pass2) snd
       where
         liftRW rws proj = mkFRewrite3 (lift f) (lift m) (lift l)
-          where lift rw n f = liftM projRewrite $ rw n (proj f)
-                projRewrite NoFwdRes = NoFwdRes
-                projRewrite (FwdRes g rws') = FwdRes g $ liftRW rws' proj
+          where lift rw n f = liftM (fmap projRewrite) $ rw n (proj f)
+                projRewrite (FwdRew g rws') = FwdRew g $ liftRW rws' proj
                 (f, m, l) = getFRewrite3 rws
 
 pairBwd :: forall m n f f' . Monad m => BwdPass m n f -> BwdPass m n f' -> BwdPass m n (f, f')
@@ -221,23 +216,21 @@ pairBwd pass1 pass2 = BwdPass lattice transfer rewrite
       where
         liftRW :: forall f1 . BwdRewrite m n f1 -> ((f, f') -> f1) -> BwdRewrite m n (f, f')
         liftRW rws proj = mkBRewrite3 (lift proj f) (lift proj m) (lift (mapMap proj) l)
-          where lift proj' rw n f = liftM projRewrite $ rw n (proj' f)
-                projRewrite NoBwdRes = NoBwdRes
-                projRewrite (BwdRes g rws') = BwdRes g $ liftRW rws' proj
+          where lift proj' rw n f = liftM (fmap projRewrite) $ rw n (proj' f)
+                projRewrite (BwdRew g rws') = BwdRew g $ liftRW rws' proj
                 (f, m, l) = getBRewrite3 rws
 
 pairLattice :: forall f f' . DataflowLattice f -> DataflowLattice f' -> DataflowLattice (f, f')
 pairLattice l1 l2 =
   DataflowLattice
-    { fact_name       = fact_name l1 ++ " x " ++ fact_name l2
-    , fact_bot        = (fact_bot l1, fact_bot l2)
-    , fact_extend     = extend'
-    , fact_do_logging = fact_do_logging l1 || fact_do_logging l2
+    { fact_name = fact_name l1 ++ " x " ++ fact_name l2
+    , fact_bot  = (fact_bot l1, fact_bot l2)
+    , fact_join = join
     }
   where
-    extend' lbl (OldFact (o1, o2)) (NewFact (n1, n2)) = (c', (f1, f2))
-      where (c1, f1) = fact_extend l1 lbl (OldFact o1) (NewFact n1)
-            (c2, f2) = fact_extend l2 lbl (OldFact o2) (NewFact n2)
+    join lbl (OldFact (o1, o2)) (NewFact (n1, n2)) = (c', (f1, f2))
+      where (c1, f1) = fact_join l1 lbl (OldFact o1) (NewFact n1)
+            (c2, f2) = fact_join l2 lbl (OldFact o2) (NewFact n2)
             c' = case (c1, c2) of
                    (NoChange, NoChange) -> NoChange
                    _                    -> SomeChange

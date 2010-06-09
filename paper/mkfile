@@ -15,7 +15,14 @@ bib:V: $TGT.bbl
 bibfile:V: $TGT.bib
 dvi:V: $TGT.dvi
 pdf:V: $TGT.pdf
+ps:V: $TGT.ps
 bbl:V: bib
+xdvi:V: $TGT.dvi
+	sht=`xwininfo -root | awk '$1 == "Height:" { print $2 }'`
+	swd=`xwininfo -root | awk '$1 == "Width:"  { print $2 }'`
+    swd=`expr $swd - 120` # more room
+	xdvi -s 5 -geometry =$(expr $swd / 2)x$(expr $sht - 20)+78+2 $prereq
+
 
 tag:VQ: $TGT.tex
 	tag=`$HOME/bin/md5words $prereq | tr -d "'" | tr -cs a-zA-Z0-9 - | sed s/-*$//`
@@ -61,4 +68,4 @@ cprop.tex:D: ./xsource ${CPROPS:%=$CLIENT/%.hs}
 HOOPL=../src/Compiler/Hoopl
 
 comb1.tex iterf.tex:D: ./xsource $HOOPL/Combinators.hs
-	lua $prereq > $target
+	lua $prereq

@@ -12,10 +12,9 @@ import OptSupport
 type Live = S.Set Var
 liveLattice :: DataflowLattice Live
 liveLattice = DataflowLattice
-  { fact_name       = "Live variables"
-  , fact_bot        = S.empty
-  , fact_extend     = add
-  , fact_do_logging = False
+  { fact_name = "Live variables"
+  , fact_bot  = S.empty
+  , fact_join = add
   }
     where add _ (OldFact old) (NewFact new) = (ch, j)
             where

@@ -3,7 +3,7 @@
 module Compiler.Hoopl.Graph 
   ( O, C, Block(..), Body, Body'(..), Graph, Graph'(..)
   , MaybeO(..), MaybeC(..), EitherCO
-  , Edges(entryLabel, successors)
+  , NonLocal(entryLabel, successors)
   , emptyBody, addBlock, bodyList
   )
 where
@@ -85,11 +85,13 @@ instance Functor (MaybeC ex) where
   fmap f (JustC a) = JustC (f a)
 
 -------------------------------
-class Edges thing where
+-- | Gives access to the anchor points for
+-- nonlocal edges as well as the edges themselves
+class NonLocal thing where 
   entryLabel :: thing C x -> Label   -- ^ The label of a first node or block
   successors :: thing e C -> [Label] -- ^ Gives control-flow successors
 
-instance Edges n => Edges (Block n) where
+instance NonLocal n => NonLocal (Block n) where
   entryLabel (BFirst n)    = entryLabel n
   entryLabel (BHead h _)   = entryLabel h
   entryLabel (BClosed h _) = entryLabel h
@@ -101,12 +103,12 @@ instance Edges n => Edges (Block n) where
 emptyBody :: Body' block n
 emptyBody = Body mapEmpty
 
-addBlock :: Edges (block n) => block n C C -> Body' block n -> Body' block n
+addBlock :: NonLocal (block n) => block n C C -> Body' block n -> Body' block n
 addBlock b (Body body) = Body $ nodupsInsert (entryLabel b) b body
   where nodupsInsert l b body = if mapMember l body then
                                     error $ "duplicate label " ++ show l ++ " in graph"
                                 else
                                     mapInsert l b body
 
-bodyList :: Edges (block n) => Body' block n -> [(Label,block n C C)]
+bodyList :: NonLocal (block n) => Body' block n -> [(Label,block n C C)]
 bodyList (Body body) = mapToList body

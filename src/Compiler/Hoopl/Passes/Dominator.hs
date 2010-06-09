@@ -62,7 +62,7 @@ extend _ (OldFact (DPath l)) (NewFact (DPath l')) =
 
 
 -- | Dominator pass
-domPass :: (Edges n, Monad m) => FwdPass m n Doms
+domPass :: (NonLocal n, Monad m) => FwdPass m n Doms
 domPass = FwdPass domLattice (mkFTransfer3 first (const id) distributeFact) noFwdRewrite
   where first n = fmap (extendDom $ entryLabel n)
 

@@ -10,11 +10,13 @@ module Compiler.Hoopl.XUtil
   , joinOutFacts -- deprecated
   , foldGraphNodes
   , foldBlockNodesF, foldBlockNodesB, foldBlockNodesF3, foldBlockNodesB3
+  , tfFoldBlock
   , ScottBlock(ScottBlock), scottFoldBlock
   , fbnf3
   , blockToNodeList, blockOfNodeList
   , blockToNodeList'   -- alternate version using fold
   , blockToNodeList''  -- alternate version using scottFoldBlock
+  , blockToNodeList''' -- alternate version using tfFoldBlock
   , analyzeAndRewriteFwdBody, analyzeAndRewriteBwdBody
   , analyzeAndRewriteFwdOx, analyzeAndRewriteBwdOx
   , noEntries
@@ -36,7 +38,7 @@ import Compiler.Hoopl.Util
 -- A set of entry points must be supplied; blocks not reachable from
 -- the set are thrown away.
 analyzeAndRewriteFwdBody
-   :: forall m n f entries. (FuelMonad m, Edges n, LabelsPtr entries)
+   :: forall m n f entries. (FuelMonad m, NonLocal n, LabelsPtr entries)
    => FwdPass m n f
    -> entries -> Body n -> FactBase f
    -> m (Body n, FactBase f)
@@ -45,7 +47,7 @@ analyzeAndRewriteFwdBody
 -- A set of entry points must be supplied; blocks not reachable from
 -- the set are thrown away.
 analyzeAndRewriteBwdBody
-   :: forall m n f entries. (FuelMonad m, Edges n, LabelsPtr entries)
+   :: forall m n f entries. (FuelMonad m, NonLocal n, LabelsPtr entries)
    => BwdPass m n f 
    -> entries -> Body n -> FactBase f 
    -> m (Body n, FactBase f)
@@ -80,7 +82,7 @@ mapBodyFacts anal b f = anal (GMany NothingO b NothingO) f >>= bodyFacts
 -- from having to specify a type signature for 'NothingO', which beginners
 -- might find confusing and experts might find annoying.
 analyzeAndRewriteFwdOx
-   :: forall m n f x. (FuelMonad m, Edges n)
+   :: forall m n f x. (FuelMonad m, NonLocal n)
    => FwdPass m n f -> Graph n O x -> f -> m (Graph n O x, FactBase f, MaybeO x f)
 
 -- | Backward dataflow analysis and rewriting for the special case of a 
@@ -88,7 +90,7 @@ analyzeAndRewriteFwdOx
 -- from having to specify a type signature for 'NothingO', which beginners
 -- might find confusing and experts might find annoying.
 analyzeAndRewriteBwdOx
-   :: forall m n f x. (FuelMonad m, Edges n)
+   :: forall m n f x. (FuelMonad m, NonLocal n)
    => BwdPass m n f -> Graph n O x -> Fact x f -> m (Graph n O x, FactBase f, f)
 
 -- | A value that can be used for the entry point of a graph open at the entry.
@@ -109,42 +111,82 @@ analyzeAndRewriteBwdOx pass g fb = analyzeAndRewriteBwd pass noEntries g fb >>= 
 -- function is planned to be made obsolete by changes in the dataflow
 -- interface.
 
-firstXfer :: Edges n => (n C O -> f -> f) -> (n C O -> FactBase f -> f)
+firstXfer :: NonLocal n => (n C O -> f -> f) -> (n C O -> FactBase f -> f)
 firstXfer xfer n fb = xfer n $ fromJust $ lookupFact (entryLabel n) fb
 
 -- | This utility function handles a common case in which a transfer function
 -- produces a single fact out of a last node, which is then distributed
 -- over the outgoing edges.
-distributeXfer :: Edges n => (n O C -> f -> f) -> (n O C -> f -> FactBase f)
+distributeXfer :: NonLocal n => (n O C -> f -> f) -> (n O C -> f -> FactBase f)
 distributeXfer xfer n f = mkFactBase [ (l, xfer n f) | l <- successors n ]
 
 -- | This utility function handles a common case in which a transfer function
 -- for a last node takes the incoming fact unchanged and simply distributes
 -- that fact over the outgoing edges.
-distributeFact :: Edges n => n O C -> f -> FactBase f
+distributeFact :: NonLocal n => n O C -> f -> FactBase f
 distributeFact n f = mkFactBase [ (l, f) | l <- successors n ]
 
 -- | This utility function handles a common case in which a backward transfer
 -- function takes the incoming fact unchanged and tags it with the node's label.
-distributeFactBwd :: Edges n => n C O -> f -> FactBase f
+distributeFactBwd :: NonLocal n => n C O -> f -> FactBase f
 distributeFactBwd n f = mkFactBase [ (entryLabel n, f) ]
 
 -- | List of (unlabelled) facts from the successors of a last node
-successorFacts :: Edges n => n O C -> FactBase f -> [f]
+successorFacts :: NonLocal n => n O C -> FactBase f -> [f]
 successorFacts n fb = [ f | id <- successors n, let Just f = lookupFact id fb ]
 
 -- | Join a list of facts.
 joinFacts :: DataflowLattice f -> Label -> [f] -> f
 joinFacts lat inBlock = foldr extend (fact_bot lat)
-  where extend new old = snd $ fact_extend lat inBlock (OldFact old) (NewFact new)
+  where extend new old = snd $ fact_join lat inBlock (OldFact old) (NewFact new)
 
 {-# DEPRECATED joinOutFacts
     "should be replaced by 'joinFacts lat l (successorFacts n f)'; as is, it uses the wrong Label" #-}
 
-joinOutFacts :: (Edges node) => DataflowLattice f -> node O C -> FactBase f -> f
-joinOutFacts lat n f = foldr extend (fact_bot lat) facts
-  where extend (lbl, new) old = snd $ fact_extend lat lbl (OldFact old) (NewFact new)
+joinOutFacts :: (NonLocal node) => DataflowLattice f -> node O C -> FactBase f -> f
+joinOutFacts lat n f = foldr join (fact_bot lat) facts
+  where join (lbl, new) old = snd $ fact_join lat lbl (OldFact old) (NewFact new)
         facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
+
+-- | A fold function that relies on the EitherCO type function.
+--   Note that the type parameter e is available to the functions
+--   that are applied to the middle and last nodes.
+tfFoldBlock :: forall n bc bo c e x .
+               ( n C O -> bc
+               , n O O -> EitherCO e bc bo -> EitherCO e bc bo
+               , n O C -> EitherCO e bc bo -> c)
+            -> (Block n e x -> bo -> EitherCO x c (EitherCO e bc bo))
+tfFoldBlock (f, m, l) bl bo = block bl
+  where block :: forall x . Block n e x -> EitherCO x c (EitherCO e bc bo)
+        block (BFirst  n)       = f n
+        block (BMiddle n)       = m n bo
+        block (BLast   n)       = l n bo
+        block (b1 `BCat`    b2) = oblock b2 $ block b1
+        block (b1 `BClosed` b2) = oblock b2 $ block b1
+        block (b1 `BHead` n)    = m n $ block b1
+        block (n `BTail` b2)    = oblock b2 $ m n bo
+        oblock :: forall x . Block n O x -> EitherCO e bc bo -> EitherCO x c (EitherCO e bc bo)
+        oblock (BMiddle n)       = m n
+        oblock (BLast   n)       = l n
+        oblock (b1 `BCat`    b2) = oblock b1 `cat` oblock b2
+        oblock (n `BTail` b2)    = m n       `cat` oblock b2
+        cat f f' = f' . f
+
+
+type NodeList' e x n = (MaybeC e (n C O), [n O O], MaybeC x (n O C))
+blockToNodeList''' ::
+  forall n e x. ( EitherCO e (NodeList' C O n) (NodeList' O O n) ~ NodeList' e O n
+                , EitherCO x (NodeList' e C n) (NodeList' e O n) ~ NodeList' e x n) =>
+    Block n e x -> NodeList' e x n
+blockToNodeList''' b = (h, reverse ms', t)
+  where
+    (h, ms', t) = tfFoldBlock (f, m, l) b z
+    z :: NodeList' O O n
+    z = (NothingC, [], NothingC)
+    f :: n C O -> NodeList' C O n
+    f n = (JustC n,  [], NothingC)
+    m n (h, ms', t) = (h, n : ms', t)
+    l n (h, ms', _) = (h, ms', JustC n)
 
 
 {-
@@ -414,7 +456,7 @@ data BlockResult n x where
   BodyBlock :: Block n C C -> BlockResult n x
   ExitBlock :: Block n C O -> BlockResult n O
 
-lookupBlock :: Edges n => Graph n e x -> Label -> BlockResult n x
+lookupBlock :: NonLocal n => Graph n e x -> Label -> BlockResult n x
 lookupBlock (GMany _ _ (JustO exit)) lbl
   | entryLabel exit == lbl = ExitBlock exit
 lookupBlock (GMany _ (Body body)  _) lbl =

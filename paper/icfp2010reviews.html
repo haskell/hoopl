@@ -1,0 +1,424 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta http-equiv="Content-Style-Type" content="text/css" />
+<meta http-equiv="Content-Script-Type" content="text/javascript" />
+<link rel='stylesheet' type='text/css' href="cacheable.php?file=style.css&amp;mtime=1268319418" />
+<title>Paper #69 - ICFP 2010</title>
+</head><body id='paper_view' onload='hotcrpLoad(1274717974, 240, 0)'>
+<div id='header'>
+  <div id='header_left_conf'><h1><a class='x' href='index.php' title='Home'>ICFP 2010</a></h1></div><div id='header_left_page'><h1>Paper #69</h1></div><div id='header_right'><strong>nr@cs.tufts.edu</strong> <span class='barsep'>&nbsp;|&nbsp;</span> <a href='help.php'>Help</a> <span class='barsep'>&nbsp;|&nbsp;</span> <a href='index.php?signout=1'>Sign&nbsp;out</a> <span class='barsep'>&nbsp;|&nbsp;</span> Monday 24 May 2010 12:19:34pm EDT<br /><span id='usertime'></span></div>
+  <div class='clear'></div>
+<div class='nvbar'><table class='vbar'><tr><td class='spanner'></td>
+  <td class='listlinks nowrap'><a href="review.php?p=7&amp;ls=3"><img src='images/_.gif' alt="&lt;-" class="prev" />#7</a></td>
+  <td class='gopaper nowrap'><form class='gopaper' action='paper.php' method='get' accept-charset='UTF-8'><div class='inform'><input class='textlite' type='text' size='10' name='p' title='Enter paper numbers or search terms' /><input type='hidden' name='ls' value='3' />&nbsp; <input class='b' type='submit' value='Search' /></div></form></td>
+</tr></table></div></div><div class='body'>
+<table class='pbox'><tr>
+    <td colspan='3' class='pboxt'><div class='psmodec'><div class='psmode'><div class='papmodex'><a href='paper.php?p=69&amp;ls=3'><img src='images/view18.png' alt="[Main]" class="b" /></a>&nbsp;<a href='paper.php?p=69&amp;ls=3'>Main</a></div>
+<div class='papmode'><a href='paper.php?p=69&amp;m=pe&amp;ls=3'><img src='images/edit18.png' alt="[Edit]" class="b" /></a>&nbsp;<a href='paper.php?p=69&amp;m=pe&amp;ls=3'>Edit</a></div>
+<div class='clear'></div></div></div></td>
+</tr>
+<tr>
+    <td class='pboxi'><div class='papnum'><h2><a href='paper.php?p=69&amp;ls=3' class='q'>#69</a></h2></div>    <div class='papstripc'><div class='papstrip'>
+<form id='watchform' class='fold7o' action="comment.php?p=69&amp;post=1&amp;ls=3" method='post' enctype='multipart/form-data' accept-charset='UTF-8' onsubmit='return Miniajax.submit("watchform")'><div class='inform'><input type='hidden' name='setwatch' value='1' /><div class='pst'><span class='psfn'><input type="checkbox" class="cb" id="taggctl1" name="watch" value="2" checked="checked" onchange="Miniajax.submit('watchform')" />&nbsp;<label for="taggctl1">Comment notification</label></span><div class='clear'></div></div><div class='pshint'>If selected, you will receive email when updated comments are available for this paper. <span id='watchformresult'></span></div><div class='papv'><input class='b fx7' type='submit' value='Save' /></div></div></form>
+
+<div class='pst'><span class='psfn'>PC conflicts</span><div class='clear'></div></div><div class='psv'><span class='autblentry'>Simon Peyton Jones</span> <span class='autblentry'>Stephanie Weirich</span> </div>
+</div></div></td>
+    <td class='pboxt'><table class='papc'>
+	<tr><td class='papculs'></td><td></td><td class='papcur'></td></tr>
+	<tr><td></td><td><h2><a href='paper.php?p=69&amp;ls=3' class='q'>Hoopl: A Modular, Reusable Library for Dataflow Analysis and Transformation</a></h2></td><td></td></tr>
+    </table></td>
+    <td class='pboxj'></td>
+</tr><tr>
+    <td class='pboxl'></td>
+    <td class='pboxr'><table class='papc'>
+	<tr><td class='papcl'><img src='images/_.gif' alt="" class="_" /></td><td class='papct'><div class='inpapct'><div id='foldpaper' class='fold8c fold9c fold6c fold5c'><table class='paptab'><tr><td class='papbe' colspan='3'><table><tr><td class='nowrap'><span class='pstat pstat_sub'>Submitted</span></td><td class='nowrap'><a href="doc.php/icfp2010-paper69.pdf" class='q nowrap'><img src='images/pdf24.png' alt="[PDF]" class="dlimg" />&nbsp;<span class='dlsize'>238kB</span></a></td><td><span class='sep'></span></td><td><span class='hint'><span class='nowrap' title='Time of most recent update'><img src='images/_.gif' alt="Updated" title="Time of most recent update" class="timestamp12" /> Friday 2 Apr 2010 10:24:41am EDT</span> &nbsp;<span class='barsep'>|</span>&nbsp; <span class='nowrap' title='SHA-1 checksum'><img src='images/_.gif' alt="SHA-1" title="SHA-1 checksum" class="checksum12" /> 4e8df6a07b4c698ac20a073bf2a3decf1de2467c</span></span></td></tr></table><div class='g'></div>
+You are an <span class='author'>author</span> of this paper.</td></tr>
+	<tr><td class='paple'><div class='papt'><span class='papfn'><a class='q fn6' href="/paper.php?p=69&amp;pfold=6o&amp;ls=3" onclick='return fold("paper", 0, 6)' title="Show full abstract">+&nbsp;Abstract</a><a class='q fx6' href="/paper.php?p=69&amp;pfold=6c&amp;ls=3" onclick='return fold("paper", 1, 6)' title="Abbreviate abstract">&minus;&nbsp;Abstract</a><img id='foldsession.paper6' alt='' src='sessionvar.php?var=foldpaperb&amp;val=1&amp;cache=1' width='1' height='1' /></span><div class='clear'></div></div><div class='papv abstract'><span class='fn6'>Dataflow analysis and transformation of control-flow graphs is
+pervasive in optimizing compilers, but it is typically tightly
+interwoven with the details of a particular  <a class='fn6' href='javascript:void fold("paper", 0, 6)'>[more]</a></span><span class='fx6'>Dataflow analysis and transformation of control-flow graphs is
+pervasive in optimizing compilers, but it is typically tightly
+interwoven with the details of a particular compiler.  We describe
+Hoopl, a reusable Haskell library that makes it unusually easy 
+to define new analyses and transformations for *any* compiler.  Hoopl's
+interface is modular and polymorphic, and it offers unusually strong
+static guarantees.  The implementation is also far from routine: it
+encapsulates state-of-the-art algorithms (interleaved analysis and
+rewriting, dynamic error isolation), and it cleanly separates their
+tricky elements so that they can be understood independently.</span></div>
+
+</td><td class='papce'></td><td class='papre'><div class='papt'><span class='papfn'><a class='q fn9' href="/paper.php?p=69&amp;pfold=9o&amp;ls=3" onclick='return fold("paper", 0, 9)' title="Show full authors">+&nbsp;Authors</a><a class='q fx9' href="/paper.php?p=69&amp;pfold=9c&amp;ls=3" onclick='return fold("paper", 1, 9)' title="Show abbreviated authors">&minus;&nbsp;Authors</a><img id='foldsession.paper9' alt='' src='sessionvar.php?var=foldpaperp&amp;val=1&amp;cache=1' width='1' height='1' /></span><div class='clear'></div></div><div class='papv'><span class='fn9'>N. Ramsey, J. Dias, S. Jones <a class='fn9' href='javascript:void fold("paper", 0, 9)'>[details]</a></span><span class='fx9'>Norman Ramsey (Tufts University) &lt;<a href="mailto:nr@cs.tufts.edu">nr@cs.tufts.edu</a>&gt;<br />
+João Dias (Tufts University) &lt;<a href="mailto:dias@cs.tufts.edu">dias@cs.tufts.edu</a>&gt;<br />
+Simon Peyton Jones (Microsoft Research) &lt;<a href="mailto:simonpj@microsoft.com">simonpj@microsoft.com</a>&gt;</span></div>
+
+<div class='papt'><span class='papfn'><a class='q fn5' href="/paper.php?p=69&amp;pfold=5o&amp;ls=3" onclick='return fold("paper", 0, 5)' title="Show topics, documents, and options">+&nbsp;Topics, Documents, and Options</a><a class='q fx5' href="/paper.php?p=69&amp;pfold=5c&amp;ls=3" onclick='return fold("paper", 1, 5)' title="Hide topics, documents, and options">&minus;&nbsp;Topics</a><img id='foldsession.paper5' alt='' src='sessionvar.php?var=foldpapert&amp;val=1&amp;cache=1' width='1' height='1' /></span><div class='clear'></div></div><div class='papv fn5'></div><div class='papv fx5'><span class='topic1'>compilation</span> <span class='sep'></span> <span class='topic1'>components and composition</span></div>
+
+<div class='papt fx5'><span class='papfn'>Documents and Options</span><div class='clear'></div></div><div class='papv fx5'>Submission category: Functional pearl<br />
+<a href="doc.php/icfp2010-supplementary-material69.pdf"><img src='images/pdf.png' alt="[PDF]" class="sdlimg" />&nbsp;Supplementary material</a><br />
+</div>
+
+</td></tr></table></div></div></td><td class='papcr'><img src='images/_.gif' alt="" class="_" /></td></tr>
+	<tr><td colspan='3' class='papsep'></td></tr>
+	<tr><td></td><td class='papcc'><table class='reviewers'>
+    <tr><td class='empty' colspan='2'></td><th><span class='hastitle' title="Overall merit">OveMer</span></th><th><span class='hastitle' title="Expertise">Exp</span></th></tr>
+    <tr><td><a href='#review69A'>Review&nbsp;#69A</a></td><td class='empty'></td><td class='revscore rs_overAllMerit'>B</td><td class='revscore rs_reviewerQualification'>Y</td><td></td></tr>
+    <tr><td><a href='#review69B'>Review&nbsp;#69B</a></td><td class='empty'></td><td class='revscore rs_overAllMerit'>A</td><td class='revscore rs_reviewerQualification'>Y</td><td></td></tr>
+    <tr><td><a href='#review69C'>Review&nbsp;#69C</a></td><td class='empty'></td><td class='revscore rs_overAllMerit'>A</td><td class='revscore rs_reviewerQualification'>X</td><td></td></tr>
+    <tr><td><a href='#review69D'>Review&nbsp;#69D</a></td><td class='empty'></td><td class='revscore rs_overAllMerit'>C</td><td class='revscore rs_reviewerQualification'>Y</td><td></td></tr>
+  </table>
+<a href='paper.php?p=69&amp;m=pe&amp;ls=3'><img src='images/edit24.png' alt="[Edit paper]" class="dlimg" /></a>&nbsp;<a href='paper.php?p=69&amp;m=pe&amp;ls=3'><strong>Edit paper</strong></a> <span class='barsep'>&nbsp;|&nbsp;</span> <a href="#response"><img src='images/comment24.png' alt="[Add response]" class="dlimg" /></a>&nbsp;<a href="#response"><strong>Add response</strong></a></td><td></td></tr>
+	<tr><td class='papcll'></td><td></td><td class='papclr'></td></tr>
+</table></td></tr></table>
+<div class='relative'><table class='pbox'><tr><td class='pboxl'></td><td class='pboxr'><a href='review.php?p=69&amp;m=r&amp;text=1&amp;ls=3'><img src='images/txt24.png' alt="[Text]" class="dlimg" /></a>&nbsp;<a href='review.php?p=69&amp;m=r&amp;text=1&amp;ls=3'>Reviews and comments in plain text</a></td></tr></table></div>
+<div class='relative'><table class='pbox'><tr>
+  <td class='pboxl'></td>
+  <td class='pboxr'><table class='revc'>
+	<tr><td class='revcul'></td><td></td><td class='revcur'></td></tr>
+	<tr><td></td><td class='revhead'><div class='floatright'><a href='review.php?r=69A&amp;text=1&amp;ls=3'><img src='images/txt.png' alt="[Text]" class="b" /></a>&nbsp;<a href='review.php?r=69A&amp;text=1&amp;ls=3'>Plain text</a></div><h3><a href='review.php?r=69A&amp;ls=3' name='review69A' class='u'>Review&nbsp;#69A</a></h3>
+ <span class='revinfo'>Modified Tuesday 18 May 2010 8:33:53am EDT</span>
+<div class='clear'></div></td><td></td></tr>
+  <tr><td></td><td class='revct'><div class='inrevct'><table class='revtab'>
+<tr>
+  <td class='reve rev_overAllMerit revle'><div class='revt'><span class='revfn'>Overall&nbsp;merit <a class='scorehelp' href='scorehelp.php?f=overAllMerit'>(?)</a></span><div class='clear'></div></div>
+<div class='revv'><span class='rev_overAllMerit_B'><span class='rev_num rev_num_B'>B.</span> OK paper, but I will not champion it.</span></div></td>
+  <td class='revce'></td>
+  <td class='reve rev_reviewerQualification revre'><div class='revt'><span class='revfn'>Expertise <a class='scorehelp' href='scorehelp.php?f=reviewerQualification'>(?)</a></span><div class='clear'></div></div>
+<div class='revv'><span class='rev_reviewerQualification_Y'><span class='rev_num rev_num_Y'>Y.</span> I am knowledgeable in the area, though not an expert.</span></div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_paperSummary revbe' colspan='3'><div class='revt'><span class='revfn'>Paper&nbsp;summary</span><div class='clear'></div></div>
+<div class='revv'>Describes the design, interface and implementation of a generic library for dataflow analyses and transformations.  The approach followed is Lerner, Grove and Chambers's &quot;analyze and (simultaneously) transform&quot; rather than the more traditional &quot;analyze then transform&quot;.  GADTs and type families are used in a couple of places to statically enforce some well-formedness properties on control-flow graphs (e.g. maintain a distinction between nodes that start a block, end a block, or are in the middle of a block).<br />
+<br />
+</div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_strengthOfPaper revbe' colspan='3'><div class='revt'><span class='revfn'>Paper strengths and weaknesses</span><div class='clear'></div></div>
+<div class='revv'>+ Very solid engineering.<br />
++ Good writing for such a technical topic<br />
+- The examples don't demonstrate the full power of the Lerner-Grove-Chambers approach (composition of analyses)<br />
+- As a research paper: no breakthrough, conceptual advances are small.<br />
+- As a functional pearl: not really entertaining, reads too much like documentation for a library.<br />
+<br />
+</div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_commentsToAuthor revbe' colspan='3'><div class='revt'><span class='revfn'>Comments for author</span><div class='clear'></div></div>
+<div class='revv'>This is a nice, well-engineered implementation of the &quot;analyze and transform&quot; approach of Lerner et al.<br />
+<br />
+As a research paper, it is very short on conceptual advances, though.  The use of GADTs and type families to enforce shape properties on CFGs is cute but not very deep.  Everything else is known already, although the paper does a good job of connecting the pieces of knowledge together.<br />
+<br />
+As a programming pearl, I'm afraid it fails the Bird-Gibbons test (http://www.comlab.ox.ac.uk/people/Jeremy.Gibbons/pearls/):<br />
+<br />
+&quot;Bird characterizes them as &quot;polished, elegant, instructive, entertaining&quot;. [...] Think more along the lines of short stories --- 6 to 10 pages, brisk, engaging, accessible, surprising.&quot;<br />
+<br />
+Polished and instructive it is; elegant and accessible, to some extent; but entertaining, brisk, engaging and surprising, no.<br />
+<br />
+I was disappointed by the very short treatment of compositionality (section 4.5).  The ability to compose analyses is the major innovation of Lerner et al's paper.  For a single analysis followed by a single transformation, their approach simplifies a bit the transfer function (as explained well in the paper), but doesn't improve the precision of the analysis.  Where Lerner et al really shine is the ability to combine multiple analyses and transformations.  I really missed an example of such a combination in the paper, and was disappointed to see the &quot;thenFwd&quot; combinator on page 7 left as an exercise for the reader.  There is also the question of combining forward and backward analyses that is left open in Lerner et al's paper (as far as I can remember) and would definitely deserve a second look.<br />
+<br />
+Page 11: CIL is not &quot;analysis-only&quot;.  It provides about as many (or as few?) facilities for code rewriting than for code analysis.  The comment about the API being complicated (in both cases) is correct, though.<br />
+<br />
+The paper is generally well written but is somewhat repetitive in emphasizing how hard the authors worked and how nice the resulting API is.  I'm not sure all of the following sentences have their place in a scientific paper (some of them perhaps, but all of them is a bit too much):<br />
+<br />
+&quot;... an idea that is elegantly captured by the FwdRes type...&quot;<br />
+&quot;What a beautiful type thenFwrdRw has!&quot;<br />
+&quot;We have spent six years implementing...&quot;<br />
+&quot;This formidable design problem...&quot;<br />
+&quot;...have been through dozens of revisions&quot;<br />
+&quot;We are proud of using GADTs to track...&quot;<br />
+<br />
+</div></td>
+</tr>
+</table>
+</div></td><td></td></tr>
+	<tr><td class='revcll'></td><td></td><td class='revclr'></td></tr>
+</table></td></tr>
+</table></div>
+
+<div class='relative'><table class='pbox'><tr>
+  <td class='pboxl'></td>
+  <td class='pboxr'><table class='revc'>
+	<tr><td class='revcul'></td><td></td><td class='revcur'></td></tr>
+	<tr><td></td><td class='revhead'><div class='floatright'><a href='review.php?r=69B&amp;text=1&amp;ls=3'><img src='images/txt.png' alt="[Text]" class="b" /></a>&nbsp;<a href='review.php?r=69B&amp;text=1&amp;ls=3'>Plain text</a></div><h3><a href='review.php?r=69B&amp;ls=3' name='review69B' class='u'>Review&nbsp;#69B</a></h3>
+ <span class='revinfo'>Modified Wednesday 19 May 2010 8:22:31am EDT</span>
+<div class='clear'></div></td><td></td></tr>
+  <tr><td></td><td class='revct'><div class='inrevct'><table class='revtab'>
+<tr>
+  <td class='reve rev_overAllMerit revle'><div class='revt'><span class='revfn'>Overall&nbsp;merit <a class='scorehelp' href='scorehelp.php?f=overAllMerit'>(?)</a></span><div class='clear'></div></div>
+<div class='revv'><span class='rev_overAllMerit_A'><span class='rev_num rev_num_A'>A.</span> Good paper. I will champion it at the PC meeting.</span></div></td>
+  <td class='revce'></td>
+  <td class='reve rev_reviewerQualification revre'><div class='revt'><span class='revfn'>Expertise <a class='scorehelp' href='scorehelp.php?f=reviewerQualification'>(?)</a></span><div class='clear'></div></div>
+<div class='revv'><span class='rev_reviewerQualification_Y'><span class='rev_num rev_num_Y'>Y.</span> I am knowledgeable in the area, though not an expert.</span></div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_paperSummary revbe' colspan='3'><div class='revt'><span class='revfn'>Paper&nbsp;summary</span><div class='clear'></div></div>
+<div class='revv'>The paper presents Hoopl, a Haskell framework for implementing<br />
+dataflow analyses and compiler optimizations. Hoopl implements the<br />
+ideas first presented by Lerner, Grove, and Chambers in their POPL<br />
+2002 paper. The paper presents Hoopl, shows how to use it practically on<br />
+one example (constant folding), and sketches its implementation.<br />
+<br />
+</div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_strengthOfPaper revbe' colspan='3'><div class='revt'><span class='revfn'>Paper strengths and weaknesses</span><div class='clear'></div></div>
+<div class='revv'>+ nicely written<br />
+<br />
++ good and convincing illustration of the Haskell type machinery<br />
+<br />
++ inspiring paper on compilers architecture<br />
+<br />
+- merely a packaging of already published ideas<br />
+<br />
+</div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_commentsToAuthor revbe' colspan='3'><div class='revt'><span class='revfn'>Comments for author</span><div class='clear'></div></div>
+<div class='revv'>Section 4.5 vaguely remembers me Expansion Passing Style by Dybvig,<br />
+Friedman and Haynes. Don't you think EPS is related to your rewrite<br />
+functions that return rewrite functions?<br />
+<br />
+Page 7, why no giving definition of rewriteE?<br />
+<br />
+Page 8, section 4.7. This section is not very convincing. It is not <br />
+technically very deep and I have mostly read it as a disrupting digression.<br />
+Toward the conclusion, you state that using the fuel monad was one of<br />
+your three goals. If, indeed, you consider using the fuel monad that<br />
+important, then I think you should emphasize it all along the paper.<br />
+<br />
+Section 5. This section is really for Haskell aficionados. I understand why<br />
+it is there and I thank you for not making it too long but I still don't<br />
+like it very much. It reads too much as a self contentment Section.<br />
+<br />
+</div></td>
+</tr>
+</table>
+</div></td><td></td></tr>
+	<tr><td class='revcll'></td><td></td><td class='revclr'></td></tr>
+</table></td></tr>
+</table></div>
+
+<div class='relative'><table class='pbox'><tr>
+  <td class='pboxl'></td>
+  <td class='pboxr'><table class='revc'>
+	<tr><td class='revcul'></td><td></td><td class='revcur'></td></tr>
+	<tr><td></td><td class='revhead'><div class='floatright'><a href='review.php?r=69C&amp;text=1&amp;ls=3'><img src='images/txt.png' alt="[Text]" class="b" /></a>&nbsp;<a href='review.php?r=69C&amp;text=1&amp;ls=3'>Plain text</a></div><h3><a href='review.php?r=69C&amp;ls=3' name='review69C' class='u'>Review&nbsp;#69C</a></h3>
+ <span class='revinfo'>Modified Friday 21 May 2010 10:52:35am EDT</span>
+<div class='clear'></div></td><td></td></tr>
+  <tr><td></td><td class='revct'><div class='inrevct'><table class='revtab'>
+<tr>
+  <td class='reve rev_overAllMerit revle'><div class='revt'><span class='revfn'>Overall&nbsp;merit <a class='scorehelp' href='scorehelp.php?f=overAllMerit'>(?)</a></span><div class='clear'></div></div>
+<div class='revv'><span class='rev_overAllMerit_A'><span class='rev_num rev_num_A'>A.</span> Good paper. I will champion it at the PC meeting.</span></div></td>
+  <td class='revce'></td>
+  <td class='reve rev_reviewerQualification revre'><div class='revt'><span class='revfn'>Expertise <a class='scorehelp' href='scorehelp.php?f=reviewerQualification'>(?)</a></span><div class='clear'></div></div>
+<div class='revv'><span class='rev_reviewerQualification_X'><span class='rev_num rev_num_X'>X.</span> I am an expert in the subject area of this paper.</span></div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_paperSummary revbe' colspan='3'><div class='revt'><span class='revfn'>Paper&nbsp;summary</span><div class='clear'></div></div>
+<div class='revv'>This paper describes a dataflow analysis and transformation framework<br />
+written in Haskell.  A client of this library provides the representation<br />
+of nodes (i.e., instructions), data-flow facts, and transformations,<br />
+and the library provides the analysis and transformations.  Hoopl makes<br />
+heavy use of advanced Haskell type-system features (GADTs, etc.) to<br />
+enforce static correctness.<br />
+<br />
+</div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_strengthOfPaper revbe' colspan='3'><div class='revt'><span class='revfn'>Paper strengths and weaknesses</span><div class='clear'></div></div>
+<div class='revv'>Pros:<br />
+<br />
+While it does not introduce a new analysis algorithm or transformation, this<br />
+work bridges the gap between the theoretical presentations and actual compilers.<br />
+<br />
+Demonstrates the utility of functional programming for algorithms on<br />
+control-flow graphs, which are an aspect of compilers that was _not_ obviously<br />
+suited to functional programming languages.<br />
+<br />
+One might argue that the paper does not introduce any new analyses or optimizations,<br />
+but I think that problem of how to actually build such applications is important<br />
+and this paper does a very good job of addressing that topic in a principled way.<br />
+<br />
+Cons:<br />
+<br />
+Some minor quibbles described below.<br />
+<br />
+</div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_commentsToAuthor revbe' colspan='3'><div class='revt'><span class='revfn'>Comments for author</span><div class='clear'></div></div>
+<div class='revv'>On page 4, the claim that middle nodes cannot refer to labels is not<br />
+really true (e.g., LoadAddress); what you mean is that middle nodes<br />
+do not use labels for their control flow.<br />
+<br />
+In footnote 4, you say that program points correspond to edges, but edges<br />
+only occur between blocks and not between nodes.  Surely nodes are program<br />
+points too?<br />
+<br />
+The mkIfThenElse function in Figure 4 looks like it has a type error:<br />
+t and e are AGraphs, but gCat is defined to work on Graphs.<br />
+<br />
+How do you expect function calls to be treated?  Would then be open/closed<br />
+nodes with a closed/open return node?<br />
+<br />
+I would like to see a bit more discussion about use cases.  For example,<br />
+would you use it on an SSA representation?  Do you support other control-flow<br />
+algorithms, such as determining dominators?<br />
+<br />
+You do not mention the MLRisc library, but it also supports some higher-order<br />
+programming of optimizations (mostly through the heavy use of functors).<br />
+I don't think that there was ever a write up of this, other than the<br />
+documentation<br />
+<br />
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;http://www.cs.nyu.edu/leunga/www/MLRISC/Doc/html/index.html<br />
+<br />
+One issue that is not addressed is how fast/slow are the resulting optimization<br />
+passes?  Do you take a big hit because of the abstractions?<br />
+<br />
+Another piece of related work that is missing is Lee and Colby's implementation<br />
+of Parameterized Partial Evaluation using SML functors (the idea is based<br />
+on Consel's Parameterized Partial).  It is similar in that the client<br />
+supplies an abstract domain and operators and the library takes care of the<br />
+rest.  It also supports combining analyses and transformations automatically.<br />
+<br />
+</div></td>
+</tr>
+</table>
+</div></td><td></td></tr>
+	<tr><td class='revcll'></td><td></td><td class='revclr'></td></tr>
+</table></td></tr>
+</table></div>
+
+<div class='relative'><table class='pbox'><tr>
+  <td class='pboxl'></td>
+  <td class='pboxr'><table class='revc'>
+	<tr><td class='revcul'></td><td></td><td class='revcur'></td></tr>
+	<tr><td></td><td class='revhead'><div class='floatright'><a href='review.php?r=69D&amp;text=1&amp;ls=3'><img src='images/txt.png' alt="[Text]" class="b" /></a>&nbsp;<a href='review.php?r=69D&amp;text=1&amp;ls=3'>Plain text</a></div><h3><a href='review.php?r=69D&amp;ls=3' name='review69D' class='u'>Review&nbsp;#69D</a></h3>
+ <span class='revinfo'>Modified Friday 21 May 2010 12:18:00pm EDT</span>
+<div class='clear'></div></td><td></td></tr>
+  <tr><td></td><td class='revct'><div class='inrevct'><table class='revtab'>
+<tr>
+  <td class='reve rev_overAllMerit revle'><div class='revt'><span class='revfn'>Overall&nbsp;merit <a class='scorehelp' href='scorehelp.php?f=overAllMerit'>(?)</a></span><div class='clear'></div></div>
+<div class='revv'><span class='rev_overAllMerit_C'><span class='rev_num rev_num_C'>C.</span> Weak paper, though I will not fight strongly against it.</span></div></td>
+  <td class='revce'></td>
+  <td class='reve rev_reviewerQualification revre'><div class='revt'><span class='revfn'>Expertise <a class='scorehelp' href='scorehelp.php?f=reviewerQualification'>(?)</a></span><div class='clear'></div></div>
+<div class='revv'><span class='rev_reviewerQualification_Y'><span class='rev_num rev_num_Y'>Y.</span> I am knowledgeable in the area, though not an expert.</span></div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_paperSummary revbe' colspan='3'><div class='revt'><span class='revfn'>Paper&nbsp;summary</span><div class='clear'></div></div>
+<div class='revv'>The paper descripes Hoopl, a library for dataflow analysis mixed with<br />
+transformations.  Hoopl is implemented in Haskell in a purely functional<br />
+way, using GADT to enforce invariants on internal data structures.<br />
+<br />
+</div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_strengthOfPaper revbe' colspan='3'><div class='revt'><span class='revfn'>Paper strengths and weaknesses</span><div class='clear'></div></div>
+<div class='revv'>Strengths:<br />
+<br />
+&nbsp;- Having this code exported as a library rather than keeping it internal to<br />
+&nbsp;&nbsp;&nbsp;the GHC compiler is useful for others.  <br />
+<br />
+&nbsp;- This paper may serve as a reference for people using the library or for<br />
+&nbsp;&nbsp;&nbsp;other people implementing a similar library in other languages. <br />
+<br />
+Weaknesses: <br />
+<br />
+&nbsp;- This remains the description of code, without much algorithmic novelty,<br />
+&nbsp;&nbsp;&nbsp;and however useful the work and smart the implementation are, this remains<br />
+&nbsp;&nbsp;&nbsp;a kind of boring paper to read.  (Despite the constant efforts of the<br />
+&nbsp;&nbsp;&nbsp;authors to transmit their enthusiasm to the reader.)<br />
+<br />
+&nbsp;- One originality of the library compared to other existing implementations<br />
+&nbsp;&nbsp;&nbsp;of similar libraries is that it is purely functional.  This is presented<br />
+&nbsp;&nbsp;&nbsp;as a great advantage for the design and I can believe it.  Still, it<br />
+&nbsp;&nbsp;&nbsp;would have been interesting to have a discussion and some figures about<br />
+&nbsp;&nbsp;&nbsp;the efficiency of the implementation, to convince us that this is not<br />
+&nbsp;&nbsp;&nbsp;simultaneously a dropback.<br />
+<br />
+</div></td>
+</tr>
+
+<tr>
+  <td class='reve rev_commentsToAuthor revbe' colspan='3'><div class='revt'><span class='revfn'>Comments for author</span><div class='clear'></div></div>
+<div class='revv'>- Section 3.3, col 1, last sentence: &quot;Using GADTs to enforce...&quot;  Since you<br />
+&nbsp;&nbsp;given an interface in a library, you could use smart constructors and<br />
+&nbsp;&nbsp;phantom types to enfore the invariants from the client's point of view,<br />
+&nbsp;&nbsp;i.e. to force the client to write only meaningful graphs. The GADTs helps<br />
+&nbsp;&nbsp;you &quot;take advantage&quot; of these invariants knowing that other cases cannot<br />
+&nbsp;&nbsp;occur.<br />
+<br />
+&nbsp;&nbsp;My impression is that (here and below) you are slightly exagerating the<br />
+&nbsp;&nbsp;importance of GADTs---form the clients point of view.  <br />
+&nbsp;<br />
+- Section 4.8: col 1, last two items: I do not understand what you mean<br />
+&nbsp;&nbsp;here.  It seems that you throw away the transformation at each<br />
+&nbsp;&nbsp;iteration, so what would be the point of iterating?  Please detail.<br />
+&nbsp;&nbsp;You call the original graph &quot;virgin&quot;. In what sense? Since you transform<br />
+&nbsp;&nbsp;graphs rather than annotate them, each graph should have the same status as<br />
+&nbsp;&nbsp;another. <br />
+<br />
+- Section 4, last item: &quot;The algorithm is sound&quot;.  Is it so obvious? Can the<br />
+&nbsp;&nbsp;transfer function be wrong, e.g. say that nothing never flows out of<br />
+&nbsp;&nbsp;anything and the rewrite eliminated significant stuff because it is not<br />
+&nbsp;&nbsp;assume to flow in (this rewrite is sound) so that the resulting<br />
+&nbsp;&nbsp;transformation is wrong?  You should assume some form of soundness for the<br />
+&nbsp;&nbsp;transfer function as well. <br />
+<br />
+- Section 5, one before last paragraph: &quot;clever trick&quot;.  This seems a rather<br />
+&nbsp;&nbsp;obvious thing to do, not even a trick...<br />
+<br />
+</div></td>
+</tr>
+</table>
+</div></td><td></td></tr>
+	<tr><td class='revcll'></td><td></td><td class='revclr'></td></tr>
+</table></td></tr>
+</table></div>
+
+<form action='comment.php?p=69&amp;ls=3&amp;response=1&amp;post=1' method='post' enctype='multipart/form-data' accept-charset='UTF-8'><div class='aahc'>
+<table class='pbox'>
+<tr>
+  <td class='pboxl'></td>
+  <td class='pboxr'><table class='cmtc response'>
+	<tr><td class='cmtcul'></td><td></td><td class='cmtcur'></td></tr>
+	<tr><td></td><td class='cmthead'><h3 id='response'>Response</h3><span class='cmtfn'></span><div class='clear'></div><div class='hint'>The authors' response is intended to address
+reviewer concerns and correct misunderstandings.
+The response should be addressed to the program committee, who
+will consider it when making their decision.  Don't try to
+augment the paper's content or form&mdash;the conference deadline
+has passed.  Please keep the response short and to the point.</div>
+</td><td></td></tr>
+  <tr><td></td><td class='cmtcc'><textarea name='comment' class='reviewtext' rows='10' cols='60' onchange='hiliter(this)'></textarea>
+  <div class='g'></div>
+  <input type="checkbox" class="cb" id="taggctl2" name="forReviewers" value="1" checked="checked" onchange="hiliter(this)" />&nbsp;<label for="taggctl2">This response should be sent to the reviewers.</label>
+<div class='aa'><table class='pt_buttons'>
+    <tr>
+      <td class='ptb_button'><input class='bb' type='submit' value='Save' name='submit' /></td>
+    </tr>
+  </table></div>
+</td><td></td></tr>
+	<tr><td class='cmtcll'></td><td></td><td class='cmtclr'></td></tr>
+</table></td></tr>
+</table>
+</div></form>
+
+</div>
+<div id='footer'>
+  <div id='footer_crp'><a href='http://www.cs.ucla.edu/~kohler/hotcrp/'>HotCRP</a> Conference Management Software<!-- Version 2.38 --></div>
+  <div class='clear'></div></div>
+<script type='text/javascript' src='cacheable.php?file=script.js&amp;mtime=1268319418'></script>
+<!--[if lte IE 6]> <script type='text/javascript' src='cacheable.php?file=supersleight.js'></script> <![endif]-->
+<script type='text/javascript'>Miniajax.onload("watchform");addScoreHelp()</script><div class='scorehelpc' id='scorehelp_overAllMerit'><strong>Overall&nbsp;merit</strong> choices are:<br /><span class='rev_overAllMerit'><span class='rev_num rev_num_A'>A.</span>&nbsp;Good paper. I will champion it at the PC meeting.<br /><span class='rev_num rev_num_B'>B.</span>&nbsp;OK paper, but I will not champion it.<br /><span class='rev_num rev_num_C'>C.</span>&nbsp;Weak paper, though I will not fight strongly against it.<br /><span class='rev_num rev_num_D'>D.</span>&nbsp;Serious problems. I will argue to reject this paper.<br /></span></div><div class='scorehelpc' id='scorehelp_reviewerQualification'><strong>Expertise</strong> choices are:<br /><span class='rev_reviewerQualification'><span class='rev_num rev_num_X'>X.</span>&nbsp;I am an expert in the subject area of this paper.<br /><span class='rev_num rev_num_Y'>Y.</span>&nbsp;I am knowledgeable in the area, though not an expert.<br /><span class='rev_num rev_num_Z'>Z.</span>&nbsp;I am not an expert. My evaluation is that of an informed outsider.<br /></span></div></body>
+</html>
