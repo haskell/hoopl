@@ -1191,7 +1191,7 @@ exposition, we present a function that is specialized to a
 closed/closed graph:
 \begin{code}
 analyzeAndRewriteFwdBody
-  :: ( HooplM m    -- Gensym and other state
+  :: ( FuelMonad m    -- Gensym and other state
      , NonLocal n )   -- Extract non-local flow edges
   => FwdPass m n f    -- Lattice, transfer, rewrite
   -> [Label]          -- Entry point(s)
@@ -1207,9 +1207,12 @@ As its type shows, this function
 is polymorphic in the types of nodes~@n@ and facts~@f@;
 these types are determined entirely by the client.
 The type of the monad~@m@ is also supplied by the client, but it must
-offer at least the operations of the @HooplM@ class (\figref{api-types}),
-namely: the ability to allocate fresh labels (\secref{rewrites}) and to 
-manage ``optimisation fuel'' (\secref{fuel-monad}).
+meet certain constraints laid out by \hoopl, as described in
+\secref{fuel-monad}. 
+%%  
+%%  offer at least the operations of the @FuelMonad@ class (\figref{api-types}),
+%%  namely: the ability to allocate fresh labels (\secref{rewrites}) and to 
+%%  manage ``optimisation fuel'' (\secref{fuel-monad}).
 
 \begin{figure}
 \begin{code}
@@ -1252,12 +1255,6 @@ type instance Fact C f = FactBase f
 ------- FactBase -------
 type `FactBase f = LabelMap f
  -- A finite mapping from Labels to facts f
-
-------- The monad -------
-class Monad m => HooplM m where
-  getFuel    :: m Fuel
-  setFuel    :: Fuel -> m ()
-  freshLabel :: m Label
 \end{code}
 \caption{\ourlib{} API data types}
   \figlabel{api-types}
@@ -1981,7 +1978,7 @@ The $n$th rewrite is faulty.
 \seclabel{fuel-monad}
 
 \hoopl\ ensures it can keep track of fuel by imposing the constraint
-@HooplM m@ (see \figref{api-types}) on the monad of any rewrite function used with
+@FuelMonad m@ on the monad of any rewrite function used with
 @analyzeAndRewriteFwdBody@.
 This constraint allows \hoopl\ to use @getFuel@ and @setFuel@ (which 
 should have the obvious state-monad semantics) to keep track of the remaining fuel.
@@ -2184,7 +2181,7 @@ the internal function @arfGraph@ (short for ``analyze and rewrite
 forward graph''):
 \begin{smallcode}
 `arfGraph
- :: forall m n f e x. (HooplM m, NonLocal n)
+ :: forall m n f e x. (FuelMonad m, NonLocal n)
  => FwdPass m n f    -- lattice, transfers, rewrites
  -> MaybeC e [Label] -- entry points for a closed graph
  -> Graph n e x      -- the original graph
@@ -2473,7 +2470,7 @@ and the  incoming fact~@f@.
 The resulting monadic @Maybe@ is passed to @withFuel@, which 
 accounts for fuel:
 \begin{code}
-  `withFuel :: HooplM m => Maybe a -> m (Maybe a)
+  `withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
 \end{code}
 If @withFuel@'s argument is @Nothing@, \emph{or} if we have run out of
 optimization fuel (\secref{fuel}), @withFuel@ returns @Nothing@.
@@ -2549,7 +2546,7 @@ reach the fixed point.)
 The rest of the work is done by @fixpoint@, which is shared by
 both forward and backward analyses:
 \begin{smallcode}
-`fixpoint :: forall m n f. (HooplM m, NonLocal n)
+`fixpoint :: forall m n f. (FuelMonad m, NonLocal n)
   => Bool     -- going Forward?
   -> DataflowLattice f
   -> (Block n C C -> FactBase f -> m (DG n f C C, FactBase f))
@@ -2997,8 +2994,8 @@ extended visits to the third author.
 % omit factBaseLabels :: FactBase f -> [Label]
 % omit extendFactBase :: FactBase f -> Label -> f -> FactBase f
 % omit extendLabelSet :: LabelSet -> Label -> LabelSet
-% omit getFuel :: HooplM Fuel
-% omit setFuel :: Fuel -> HooplM ()
+% omit getFuel :: FuelMonad Fuel
+% omit setFuel :: Fuel -> FuelMonad ()
 % omit lookupFact :: FactBase f -> Label -> Maybe f
 % omit factBaseList :: FactBase f -> [(Label, f)]
 
@@ -3036,9 +3033,9 @@ fixpoint :: forall n f. NonLocal n
          => Bool        -- Going forwards?
          -> DataflowLattice f
          -> (Block n C C -> FactBase f
-              -> HooplM (DG n f C C, FactBase f))
+              -> FuelMonad (DG n f C C, FactBase f))
          -> FactBase f -> [(Label, Block n C C)]
-         -> HooplM (DG n f C C, FactBase f)
+         -> FuelMonad (DG n f C C, FactBase f)
 fixpoint ^is_fwd lat ^do_block ^init_fbase ^blocks
  = do { ^fuel <- getFuel  
       ; ^tx_fb <- loop fuel init_fbase
@@ -3048,13 +3045,13 @@ fixpoint ^is_fwd lat ^do_block ^init_fbase ^blocks
           -- Labels *not* in the blocks of the graph
  where
   `tx_blocks :: [(Label, Block n C C)] 
-            -> TxFactBase n f -> HooplM (TxFactBase n f)
+            -> TxFactBase n f -> FuelMonad (TxFactBase n f)
   tx_blocks []             tx_fb = return tx_fb
   tx_blocks ((lbl,blk):bs) tx_fb = tx_block lbl blk tx_fb
                                    >>= tx_blocks bs
 
   `tx_block :: Label -> Block n C C 
-           -> TxFactBase n f -> HooplM (TxFactBase n f)
+           -> TxFactBase n f -> FuelMonad (TxFactBase n f)
   tx_block ^lbl ^blk tx_fb@(TxFB { tfb_fbase = fbase
                                , tfb_lbls  = lbls
                                , tfb_rg    = ^blks
@@ -3071,7 +3068,7 @@ fixpoint ^is_fwd lat ^do_block ^init_fbase ^blocks
                         , tfb_fbase = fbase'
                         , tfb_cha = cha' }) }
 
-  loop :: Fuel -> FactBase f -> HooplM (TxFactBase n f)
+  loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
   `loop fuel fbase 
     = do { let ^init_tx_fb = TxFB { tfb_fbase = fbase
                                  , tfb_cha   = NoChange
