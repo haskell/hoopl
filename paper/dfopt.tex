@@ -1511,22 +1511,39 @@ Similarly, a liveness analysis may allow us to
 replace a dead assignment with a no-op.
 
 A @FwdPass@ therefore includes a \emph{rewriting function}, whose
-type, @FwdRewrite@, is given in \figref{api-types}.
-A rewriting function takes a node and a fact, and optionally returns\ldots what?
-At first one might
-expect that rewriting should return a new node, but that is not enough:
-We~might want to remove a node by rewriting it to the empty graph,
+type, @FwdRewrite@, is abstract (\figref{api-types}).
+A~programmer creating a rewrite function knows the type of a node~@n@ and
+a dataflow fact~@f@.
+A~rewrite function might also want to have access to a supply of fresh
+names (e.g., to create new blocks) or to other state (e.g., a~mapping
+indicating which loops a block is a part of).
+So~that a rewrite function may have access to such state, \hoopl\
+requires that a programmer creating a rewrite function also choose a
+monad~@m@. 
+The programmer may write code that works with any monad,
+may create a monad just for the client,
+or may use a monad supplied by \hoopl. 
+
+
+When these choices are made, the easiest way to create a rewrite
+function is to call the function @mkFRewrite@ in \figref{api-types}.
+The client supplies a function that is specialized to a particular
+node, fact, and (possibly) monad, but is polymorphic in the
+\emph{shape} of the node to be rewritten.
+The function, which we will call~$r$, takes a node and a fact and returns a monadic
+computation, but what is the result of that computation?
+One  might
+expect that the result should be a new node, but that is not enough:
+We~might want to remove a node by returning the empty graph,
 or more ambitiously, we might want to replace a high-level operation
 with a tree of conditional branches or a loop, which would entail
-introducing new blocks with internal control flow.
-In~general, a rewrite function must be able to return a
-\emph{graph}. 
+returning a graph containing new blocks with internal control flow.
+In~the general case, it must be possible for rewriting to result in a graph.
 
-\ifpagetuning\enlargethispage{0.8\baselineskip}\fi
-
-Concretely, a @FwdRewrite@ takes a node and a 
-fact, and returns either @Nothing@, indicating that the node should
-not be replaced,
+It~must also be possible for a rewrite function to decide to do nothing.
+The result of the monadic computation returned by~$r$ may therefore be
+@Nothing@, indicating that the node should
+not be rewritten,
 or $@Just (FwdRew@\;\ag\;\rw@)@$, indicating that the node should
 be replaced with~\ag: the replacement graph. 
 The additional value $\rw$ tells \hoopl\ whether
@@ -1534,32 +1551,26 @@ and how the replacement graph~$\ag$ should be analyzed and rewritten
 further;
 we explain~$\rw$ in \secref{shallow-vs-deep}.
 
-As suggested by its type in \figref{api-types}, 
-a @FwdRewrite@ is
-a \emph{monadic} function, 
-with monad~@m@ chosen by the client.
-If the rewriter makes graphs containing blocks,
-it may need fresh @Label@s, which are supplied by the monad.
-A~client may use its own monad or may use a monad or monad transformer
-supplied by \hoopl. 
 
-%%%% \ifpagetuning\enlargethispage{0.8\baselineskip}\fi
-
-The type of @FwdRewrite@ in \figref{api-types} guarantees
+The type of @mkFRewrite@ in \figref{api-types} guarantees
 that
 the replacement graph $\ag$ has
 the \emph{same} open/closed shape as the node being rewritten.
 For example, a branch instruction can be replaced only by a graph 
-closed at the exit.  Moreover, because only an open/open graph can be 
-empty---look at the type of @GNil@ in \figref{graph}---the type 
-of @FwdRewrite@ 
-guarantees, at compile time, that no head of a block (closed/open)
-or tail of a block (open/closed) can ever be deleted by being
-rewritten to an empty graph.
+closed at the exit.
+%%  Moreover, because only an open/open graph can be 
+%%  empty---look at the type of @GNil@ in \figref{graph}---the type 
+%%  of @FwdRewrite@ 
+%%  guarantees, at compile time, that no head of a block (closed/open)
+%%  or tail of a block (open/closed) can ever be deleted by being
+%%  rewritten to an empty graph.
 
-A~single dataflow fact might enable more than one rewrite.
-\hoopl\ provides function @thenFwdRw@, which
-combines two rewriting functions into one:
+Rewrite functions are potentially more plentiful than transfer
+functions, because
+a~single dataflow fact might justify more than one kind of rewrite.
+\hoopl\ makes it easy for a client to use multiple rewrite functions;
+\hoopl's  function @thenFwdRw@
+combines rewriting functions:
 \verbatiminput{comb1}
 Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
 then the rewrites of~@r2@.
@@ -1605,7 +1616,9 @@ For shallow rewriting this new function is
 the constant @Nothing@ function; for deep rewriting it is the original
 rewriting function.
 \hoopl\ provides
-a function that makes a shallow rewrite deep:\finalremark{algebraic law wanted!}
+a function that makes a shallow rewrite deep:\finalremark{algebraic
+law wanted!}
+\remark{Do we really care about @iterFwdRw@ or can we just drop it?}
 \verbatiminput{iterf}
 
 
@@ -2208,6 +2221,7 @@ by the client,
 may wish to consult state provided by the client, 
 or may consume ``optimization fuel'' (\secref{fuel}),
 every extended fact transformer is monadic.
+\remark{duplicate text in \secref{rewrites}}
 
 %%%%    \begin{figure}
 %%%%    SIMON HAS ASKED IF TYPE SYNONYMS MIGHT IMPROVE THINGS FOR EXTENDED
