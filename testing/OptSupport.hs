@@ -31,11 +31,13 @@ stdMapJoin eltJoin l (OldFact old) (NewFact new) = M.foldWithKey add (NoChange, 
 -- Map/Fold functions for expressions/insns
 ----------------------------------------------
 
-map_VE :: (Var  -> Maybe Expr) -> (Expr     -> Maybe Expr)
-map_EE :: (Expr -> Maybe Expr) -> (Expr     -> Maybe Expr)
-map_EN :: (Expr -> Maybe Expr) -> (Insn e x -> Maybe (Insn e x))
+type Node = Insn
+type MaybeChange a = a -> Maybe a
+map_VE :: (Var  -> Maybe Expr) -> MaybeChange Expr
+map_EE :: MaybeChange Expr     -> MaybeChange Expr
+map_EN :: MaybeChange Expr     -> MaybeChange (Node e x)
+map_VN :: (Var  -> Maybe Expr) -> MaybeChange (Node e x)
 
-map_VN :: (Var  -> Maybe Expr) -> (Insn e x -> Maybe (Insn e x))
 map_VN = map_EN . map_EE . map_VE
 
 map_VE f (Var v) = f v

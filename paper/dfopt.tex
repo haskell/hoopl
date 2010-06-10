@@ -1935,12 +1935,14 @@ opportunities to improve the code.
 
 \figref{const-prop}'s rewrite function for constant propagation, @constProp@,
 rewrites each use of a variable to its constant value.
-The client has defined auxiliary functions
+The client has defined auxiliary functions that may change expressions
+or nodes:
 \begin{smallcode}
-`mapVE :: (Var  -> Maybe Expr) -> (Expr     -> Maybe Expr)
-`mapEE :: (Expr -> Maybe Expr) -> (Expr     -> Maybe Expr)
-`mapEN :: (Expr -> Maybe Expr) -> (Node e x -> Maybe (Node e x))
-`mapVN :: (Var  -> Maybe Expr) -> (Node e x -> Maybe (Node e x))
+type `MaybeChange a = a -> Maybe a
+`mapVE :: (Var  -> Maybe Expr) -> MaybeChange Expr
+`mapEE :: MaybeChange Expr     -> MaybeChange Expr
+`mapEN :: MaybeChange Expr     -> MaybeChange (Node e x)
+`mapVN :: (Var  -> Maybe Expr) -> MaybeChange (Node e x)
 `nodeToG :: Node e x -> Graph Node e x
 \end{smallcode}
 The client composes @mapXX@ functions
