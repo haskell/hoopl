@@ -1547,7 +1547,10 @@ fact, and returns either @Nothing@, indicating that the node should
 not be replaced,
 or $@Just (FwdRew@\;\ag\;\rw@)@$, indicating that the node should
 be replaced with~\ag: the replacement graph. 
-We~discuss $\rw$ in \secref{shallow-vs-deep}.
+The additional value $\rw$ tells \hoopl\ whether
+and how the replacement graph~$\ag$ should be analyzed and rewritten
+further;
+we explain~$\rw$ in \secref{shallow-vs-deep}.
 
 As suggested by its type in \figref{api-types}, 
 a @FwdRewrite@ is
@@ -1571,6 +1574,13 @@ of @FwdRewrite@
 guarantees, at compile time, that no head of a block (closed/open)
 or tail of a block (open/closed) can ever be deleted by being
 rewritten to an empty graph.
+
+A~single dataflow fact might enable more than one rewrite.
+\hoopl\ provides function @thenFwdRw@, which
+combines two rewriting functions into one:
+\verbatiminput{comb1}
+Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
+then the rewrites of~@r2@.
 
 \subsection{Shallow vs deep rewriting}
  \seclabel{shallow-vs-deep}
@@ -1612,6 +1622,10 @@ the replacement graph.
 For shallow rewriting this new function is
 the constant @Nothing@ function; for deep rewriting it is the original
 rewriting function.
+\hoopl\ also provides
+a function that makes a shallow rewrite deep:\finalremark{algebraic law wanted!}
+\verbatiminput{iterf}
+
 
 
 \subsection{When the type of nodes is not known}
@@ -1652,12 +1666,6 @@ mkFTransfer3 :: (n C O -> f -> Fact O f)
 We have used this interface to write a number functions that are
  polymorphic in the node type~@n@:
 \begin{itemize}
-\item
-A function that combines two rewriting functions in sequence:
-\verbatiminput{comb1}
-\item
-A function that makes a shallow rewrite deep:\finalremark{algebraic law wanted!}
-\verbatiminput{iterf}
 \item
 A function that takes a @FwdTransfer@ and wraps it in logging code, so
 an analysis can be debugged by watching the facts flow through the
