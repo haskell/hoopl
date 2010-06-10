@@ -79,7 +79,7 @@ wrapFRewrites2 map = wrapFRewrites23 (map, map, map)
 
 shallowFwdRw3 :: forall m n f . Monad m => SimpleFwdRewrite3 m n f -> FwdRewrite m n f
 shallowFwdRw3 rw = wrapSFRewrites' lift rw
-  where lift rw n f = liftM (fmap (flip FwdRew noFwdRewrite)) (rw n f) 
+  where lift rw n f = liftM (liftM (flip FwdRew noFwdRewrite)) (rw n f) 
 
 shallowFwdRw :: Monad m => SimpleFwdRewrite m n f -> FwdRewrite m n f
 shallowFwdRw f = shallowFwdRw3 (f, f, f)
@@ -158,7 +158,7 @@ noBwdRewrite = mkBRewrite $ \ _ _ -> return Nothing
 
 shallowBwdRw3 :: Monad m => SimpleBwdRewrite3 m n f -> BwdRewrite m n f
 shallowBwdRw3 rw = wrapSBRewrites' lift rw
-  where lift rw n f = liftM (fmap (flip BwdRew noBwdRewrite)) (rw n f)
+  where lift rw n f = liftM (liftM (flip BwdRew noBwdRewrite)) (rw n f)
 
 shallowBwdRw :: Monad m => SimpleBwdRewrite m n f -> BwdRewrite m n f
 shallowBwdRw f = shallowBwdRw3 (f, f, f)
@@ -179,7 +179,7 @@ thenBwdRw rw1 rw2 = wrapBRewrites2' f rw1 rw2
 
 iterBwdRw :: Monad m => BwdRewrite m n f -> BwdRewrite m n f
 iterBwdRw rw = wrapBRewrites' f rw
-  where f rw' n f = liftM (fmap iterRewrite) (rw' n f)
+  where f rw' n f = liftM (liftM iterRewrite) (rw' n f)
         iterRewrite (BwdRew g rw2) = BwdRew g (rw2 `thenBwdRw` iterBwdRw rw)
 
 -- @ start pairf.tex
@@ -204,7 +204,7 @@ pairFwd pass1 pass2 = FwdPass lattice transfer rewrite
     rewrite = liftRW (fp_rewrite pass1) fst `thenFwdRw` liftRW (fp_rewrite pass2) snd
       where
         liftRW rws proj = mkFRewrite3 (lift f) (lift m) (lift l)
-          where lift rw n f = liftM (fmap projRewrite) $ rw n (proj f)
+          where lift rw n f = liftM (liftM projRewrite) $ rw n (proj f)
                 projRewrite (FwdRew g rws') = FwdRew g $ liftRW rws' proj
                 (f, m, l) = getFRewrite3 rws
 
@@ -222,7 +222,7 @@ pairBwd pass1 pass2 = BwdPass lattice transfer rewrite
       where
         liftRW :: forall f1 . BwdRewrite m n f1 -> ((f, f') -> f1) -> BwdRewrite m n (f, f')
         liftRW rws proj = mkBRewrite3 (lift proj f) (lift proj m) (lift (mapMap proj) l)
-          where lift proj' rw n f = liftM (fmap projRewrite) $ rw n (proj' f)
+          where lift proj' rw n f = liftM (liftM projRewrite) $ rw n (proj' f)
                 projRewrite (BwdRew g rws') = BwdRew g $ liftRW rws' proj
                 (f, m, l) = getBRewrite3 rws
 

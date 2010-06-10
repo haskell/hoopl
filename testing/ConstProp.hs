@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables, GADTs #-}
 module ConstProp (ConstFact, constLattice, initFact, varHasLit, constProp) where
 
+import Control.Monad
 import qualified Data.Map as M
 import qualified Data.Map as Map
 
@@ -67,7 +68,7 @@ constProp :: Monad m => FwdRewrite m Node ConstFact
 constProp = shallowFwdRw cp
  where
    cp node f
-     = return $ fmap nodeToG $ mapVN (lookup f) node
+     = return $ liftM nodeToG $ mapVN (lookup f) node
    mapVN      = map_EN . map_EE . map_VE
    lookup f x = case M.lookup x f of
                   Just (PElem v) -> Just $ Lit v

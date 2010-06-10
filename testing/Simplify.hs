@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables, GADTs, PatternGuards #-}
 module Simplify (simplify) where
 
+import Control.Monad
 import Compiler.Hoopl
 import IR
 import OptSupport
@@ -16,7 +17,7 @@ type Node = Insn
 simplify :: Monad m => FwdRewrite m Node f
 simplify = deepFwdRw simp
  where
-  simp node _ = return $ fmap nodeToG $ s_node node
+  simp node _ = return $ liftM nodeToG $ s_node node
   s_node :: Node e x -> Maybe (Node e x)
   s_node (Cond (Lit (Bool b)) t f)
     = Just $ Branch (if b then t else f)

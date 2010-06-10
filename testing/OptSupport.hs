@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
 module OptSupport (stdMapJoin, map_VE, map_EE, map_EN, map_VN, fold_EE, fold_EN, insnToG) where
 
+import Control.Monad
 import qualified Data.Map as M
 import Data.Maybe
 import Prelude hiding (succ)
@@ -93,7 +94,7 @@ map_EE f e@(Binop op e1 e2) =
                     where e' = Binop op (fromMaybe e1 e1') (fromMaybe e2 e2')
 
 map_EN _   (Label _)           = Nothing
-map_EN f   (Assign v e)        = fmap (Assign v) $ f e
+map_EN f   (Assign v e)        = liftM (Assign v) $ f e
 map_EN f   (Store addr e)      =
   case (f addr, f e) of
     (Nothing, Nothing) -> Nothing
