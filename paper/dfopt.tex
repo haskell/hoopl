@@ -1360,6 +1360,7 @@ because if not, the analysis has not reached a fixed point.
 The bottom element and join operation of a lattice of facts of
 type~@f@ are stored in a value of type @DataflowLattice f@
 (\figref{lattice}). 
+\simon{Can we shorten ``@DataFlowLattice@'' to just ``@Lattice@''?}
 %%Such a value is part of the  @FwdPass n f@ that is passed to
 %%@analyzeAndRewriteFwd@ above.
 As noted in the previous paragraph, 
@@ -1596,7 +1597,7 @@ to insert infinitely many spills.
 
 An~innovation of \hoopl\ is to build the choice of shallow or deep
 rewriting into each rewrite function, 
-an idea that is elegantly captured by the
+as expressed by the
 @FwdRew@ type returned by a @FwdRewrite@ (\figref{api-types}).
 The first component of the @FwdRew@ is the replacement graph, as discussed earlier.
 The second component, $\rw$, is a 
@@ -1607,160 +1608,196 @@ the constant @Nothing@ function; for deep rewriting it is the original
 rewriting function.
 
 
-\subsection{Shape-dependent, node-independent analysis}
+\subsection{When the type of nodes is not known}
 
-We noted in \secref{transfers} that
+We note above (\secref{transfers}) that
 ``\emph{the type of the transfer function's result 
 depends on the shape of the node's exit}.''
-This type is very convenient for clients:
-because the client defines the node type,
-the client also knows the shape of each node.
-Therefore, a client can just write a transfer
-function that matches on the node argument
-and produces the right type of outgoing fact
-for the shape of the node.
-
+It~is easy for a client to write a dependent transfer function,
+because the client defines the constructor and shape for each node,
+and the client's transfer functions discriminate on the constructor
+and so can return a result appropriate to each node's shape.
 But what if you want to write a transfer function that
 \emph{does not know the type of the node}?
-For example, a dominator analysis
-does not need to know the type of the node; it needs to know only about
-the labels and edges in the graph.
-Therefore, you might want to write a dominator analysis
-that will work with \emph{any} type of node that is an
-instance of the @Edges@ type class.
-Or, you might want to write a combinator that
-computes the pairwise composition of any two analyses
-defined on any node type.
 
-You cannot write either of these examples
-using the polymorphic function described in \secref{transfers}
-because these examples require the ability
-to inspect the shape of the node.
+For example, a dominator analysis need not scrutinize nodes;
+it needs to know only about
+labels and edges in the graph.
+We~prefer to write a dominator analysis that works
+with \emph{any} type of node~@n@, 
+provided only that @n@~is an
+instance of the @NonLocal@ type class.
+But if we don't know
+the type of~@n@, 
+we can't write a function of type 
+@n e x -> f -> Fact x f@,
+because the only way to get the dependency right is to be able to
+scrutinize the constructors of~@n@.
 
-
-\subsection{Stuff cut from 4.2 that should disappear when the previous section is finished}
-
-So much for the interface.
-What about the implementation?
-The way GADTs work is that the compiler uses the value constructor for
-type \mbox{@n@ @e@ @x@} to determine whether @e@~and~@x@ are open or
-closed.
-But we want to write functions that are \emph{polymorphic} in the node
-type~@n@!
-Such functions include
+There is another way;
+instead of providing a single function that is polymorphic in shape,
+the client may provide a triple of monomorphic functions:
+\begin{code}
+mkFTransfer3 :: (n C O -> f -> Fact O f)
+             -> (n O O -> f -> Fact O f)
+             -> (n O C -> f -> Fact C f)
+             -> FwdTransfer n f
+\end{code}
+We have used this interface to write a number functions that are
+ polymorphic in the node type~@n@:
 \begin{itemize}
 \item
-A function that takes a pair of @FwdTransfer@s for facts @f@~and~@f'@,
-and returns a single @FwdTransfer@ for the fact @(f, f')@
+A function that combines two rewriting functions in sequence:
+\verbatiminput{comb1}
+\item
+A function that makes a shallow rewrite deep:\finalremark{algebraic law wanted!}
+\verbatiminput{iterf}
 \item
 A function that takes a @FwdTransfer@ and wraps it in logging code, so
 an analysis can be debugged by watching the facts flow through the
 nodes
-\end{itemize}
-\simon{These bullets are utterly opaque. They belong in 4.5.  The rest of this section 
-is also very hard to understand without more explanation. See email.  }
-Such functions may also be useful in \hoopl's \emph{clients}:
-% may need
-%functions that are polymorphic in the node type~@n@:
-\begin{itemize}
 \item
-A dominator analysis in the style of
-\citet{cooper-harvey-kennedy:simple-dominance} requires only the
-functions in the \texttt{NonLocal} type class; 
-we have written such an analysis using transfer functions that are 
-polymorphic in~@n@.
+A pairing function that runs two passes interleaved, not sequentially,
+potentially producing better results than any sequence:
+\verbatiminput{pairf}
+
+\item
+ An efficient dominator analysis
+in the style of 
+\citet{cooper-harvey-kennedy:simple-dominance},
+whose transfer function is implemented 
+using only the
+functions in the \texttt{NonLocal} type class
 \end{itemize}
-Because the mapping from
-value constructors to shape is different for each node type~@n@, transfer
- functions cannot be polymorphic in both
-the representation and the shape of nodes.
- Our implementation therefore sacrifices polymorphism in shape:
-internally, \hoopl\ represents
-a~@FwdTransfer n f@ as a \emph{triple} of functions,
-each polymorphic in~@n@ but monomorphic in shape:
-\begin{code}
-newtype FwdTransfer n f 
-  = FwdTransfers ( n C O -> f -> f
-                 , n O O -> f -> f
-                 , n O C -> f -> FactBase f
-                 )
-\end{code}
-\simon{I argue strongly that the implementation should be 
-polymorphic too, using a shape classifier where necessary.
-Regardless of how this debate pans out, though, I think it's 
-a bad idea to introduce triples here. They are simply confusing.}
-Such triples can easily be composed and wrapped without requiring a
-pattern match on the value constructor of an unknown node
-type.\remark{Need to refer to this junk in the conclusion}
-Working with triples is tedious, but only \hoopl\ itself is forced to
-work with triples; each client, which knows the node type, may supply
-a triple,
-but it typically supplies a single function polymorphic in the shape
-of the (known) node.  
 
 
+%%  Or, you might want to write a combinator that
+%%  computes the pairwise composition of any two analyses
+%%  defined on any node type.
+%%  
+%%  You cannot write either of these examples
+%%  using the polymorphic function described in \secref{transfers}
+%%  because these examples require the ability
+%%  to inspect the shape of the node.
+%%  
+%%  
+%%  \subsection{Stuff cut from 4.2 that should disappear when the previous section is finished}
+%%  
+%%  So much for the interface.
+%%  What about the implementation?
+%%  The way GADTs work is that the compiler uses the value constructor for
+%%  type \mbox{@n@ @e@ @x@} to determine whether @e@~and~@x@ are open or
+%%  closed.
+%%  But we want to write functions that are \emph{polymorphic} in the node
+%%  type~@n@!
+%%  Such functions include
+%%  \begin{itemize}
+%%  \item
+%%  A function that takes a pair of @FwdTransfer@s for facts @f@~and~@f'@,
+%%  and returns a single @FwdTransfer@ for the fact @(f, f')@
+%%  \end{itemize}
+%%  \simon{These bullets are utterly opaque. They belong in 4.5.  The rest of this section 
+%%  is also very hard to understand without more explanation. See email.  }
+%%  Such functions may also be useful in \hoopl's \emph{clients}:
+%%  % may need
+%%  %functions that are polymorphic in the node type~@n@:
+%%  \begin{itemize}
+%%  \item
+%%  A dominator analysis in the style of
+%%  \citet{cooper-harvey-kennedy:simple-dominance} requires only the
+%%  functions in the \texttt{NonLocal} type class; 
+%%  we have written such an analysis using transfer functions that are 
+%%  polymorphic in~@n@.
+%%  \end{itemize}
+%%  Because the mapping from
+%%  value constructors to shape is different for each node type~@n@, transfer
+%%   functions cannot be polymorphic in both
+%%  the representation and the shape of nodes.
+%%   Our implementation therefore sacrifices polymorphism in shape:
+%%  internally, \hoopl\ represents
+%%  a~@FwdTransfer n f@ as a \emph{triple} of functions,
+%%  each polymorphic in~@n@ but monomorphic in shape:
+%%  \begin{code}
+%%  newtype FwdTransfer n f 
+%%    = FwdTransfers ( n C O -> f -> f
+%%                   , n O O -> f -> f
+%%                   , n O C -> f -> FactBase f
+%%                   )
+%%  \end{code}
+%%  \simon{I argue strongly that the implementation should be 
+%%  polymorphic too, using a shape classifier where necessary.
+%%  Regardless of how this debate pans out, though, I think it's 
+%%  a bad idea to introduce triples here. They are simply confusing.}
+%%  Such triples can easily be composed and wrapped without requiring a
+%%  pattern match on the value constructor of an unknown node
+%%  type.\remark{Need to refer to this junk in the conclusion}
+%%  Working with triples is tedious, but only \hoopl\ itself is forced to
+%%  work with triples; each client, which knows the node type, may supply
+%%  a triple,
+%%  but it typically supplies a single function polymorphic in the shape
+%%  of the (known) node.  
+%%  
+%%  
 
-\subsection{Composing rewrite functions and dataflow passes} \seclabel{combinators}
-
-Requiring each rewrite to return a new rewrite function has another
-advantage, beyond controlling the shallow-vs-deep choice: it
-enables a variety of combinators over rewrite functions. 
-\remark{This whole subsection needs to be redone in light of the new
-(triple-based) representation.  It's not pretty any more.}
-For example, here is a function
-that combines two rewriting functions in sequence:
-\remark{This code must be improved}
-\smallverbatiminput{comb1}
-What a beautiful type @thenFwdRw@ has! 
-\remark{And what an ugly implementation!  Implementations must go.}
-It tries @rw1@, and if @rw1@
-declines to rewrite, it behaves like @rw2@.  But if
-@rw1@ rewrites, returning a new rewriter @rw1a@, then the overall call also
-succeeds, returning a new rewrite function obtained by combining @rw1a@
-with @rw2@.  (We cannot apply @rw1a@ or @rw2@ 
-directly to the replacement graph~@g@, 
-because @r1@~returns a graph and @rw2@~expects a node.)
-The rewriter @noFwdRw@ is the identity of @thenFwdRw@.
-Finally, @thenFwdRw@ can 
-combine a deep-rewriting function and a shallow-rewriting function,
-to produce a rewriting function that is a combination of deep and shallow.
-%%This is something that the Lerner/Grove/Chambers framework could not do,
-%%because there was a global shallow/deep flag.
-%% Our shortsightedness; Lerner/Grove/Chambers is deep only ---NR
-
-
-A shallow rewriting function can be made deep by iterating
-it:\remark{Algebraic law wanted!}
-\smallverbatiminput{iterf}
-If we have shallow rewrites $A$~and~$B$ then we can build $AB$,
-$A^*B$, $(AB)^*$, 
-and so on: sequential composition is @thenFwdRw@ and the Kleene star
-is @iterFwdRw@.\remark{Do we still believe this claim?}
-\remark{We can't define @iterFwdRew@ in terms of @thenFwdRew@ because
-the second argument to @thenFwdRew@ would have to be the constant
-nothing function when applied but would have to be the original triple
-when passed to @thenFwdRew@ as the second argument (in the recursive
-call).}
-
-
-The combinators above operate on rewrite functions that share a common
-fact type and transfer function.
-It~can also be useful to combine entire dataflow passes that use
-different facts.
-We~invite you to write one such combinator, with type
-\begin{code}
-  `pairFwd :: Monad m
-          => FwdPass m n f1 
-          -> FwdPass m n f2
-          -> FwdPass m n (f1,f2)
-\end{code}
-The two passes run interleaved, not sequentially, and each may help
-the other,
-yielding better results than running $A$~and then~$B$ or $B$~and then~$A$
-\citep{lerner-grove-chambers:2002}.
-%%  call these passes. ``super-analyses;''
-%%  in \hoopl, construction of super-analyses is
-%%  particularly concrete.
+%%    \subsection{Composing rewrite functions and dataflow passes} \seclabel{combinators}
+%%    
+%%    Requiring each rewrite to return a new rewrite function has another
+%%    advantage, beyond controlling the shallow-vs-deep choice: it
+%%    enables a variety of combinators over rewrite functions. 
+%%    \remark{This whole subsection needs to be redone in light of the new
+%%    (triple-based) representation.  It's not pretty any more.}
+%%    For example, here is a function
+%%    that combines two rewriting functions in sequence:
+%%    \remark{This code must be improved}
+%%    What a beautiful type @thenFwdRw@ has! 
+%%    \remark{And what an ugly implementation!  Implementations must go.}
+%%    It tries @rw1@, and if @rw1@
+%%    declines to rewrite, it behaves like @rw2@.  But if
+%%    @rw1@ rewrites, returning a new rewriter @rw1a@, then the overall call also
+%%    succeeds, returning a new rewrite function obtained by combining @rw1a@
+%%    with @rw2@.  (We cannot apply @rw1a@ or @rw2@ 
+%%    directly to the replacement graph~@g@, 
+%%    because @r1@~returns a graph and @rw2@~expects a node.)
+%%    The rewriter @noFwdRw@ is the identity of @thenFwdRw@.
+%%    Finally, @thenFwdRw@ can 
+%%    combine a deep-rewriting function and a shallow-rewriting function,
+%%    to produce a rewriting function that is a combination of deep and shallow.
+%%    %%This is something that the Lerner/Grove/Chambers framework could not do,
+%%    %%because there was a global shallow/deep flag.
+%%    %% Our shortsightedness; Lerner/Grove/Chambers is deep only ---NR
+%%    
+%%    
+%%    A shallow rewriting function can be made deep by iterating
+%%    it:\remark{Algebraic law wanted!}
+%%    If we have shallow rewrites $A$~and~$B$ then we can build $AB$,
+%%    $A^*B$, $(AB)^*$, 
+%%    and so on: sequential composition is @thenFwdRw@ and the Kleene star
+%%    is @iterFwdRw@.\remark{Do we still believe this claim?}
+%%    \remark{We can't define @iterFwdRew@ in terms of @thenFwdRew@ because
+%%    the second argument to @thenFwdRew@ would have to be the constant
+%%    nothing function when applied but would have to be the original triple
+%%    when passed to @thenFwdRew@ as the second argument (in the recursive
+%%    call).}
+%%    
+%%    
+%%    The combinators above operate on rewrite functions that share a common
+%%    fact type and transfer function.
+%%    It~can also be useful to combine entire dataflow passes that use
+%%    different facts.
+%%    We~invite you to write one such combinator, with type
+%%    \begin{code}
+%%      `pairFwd :: Monad m
+%%              => FwdPass m n f1 
+%%              -> FwdPass m n f2
+%%              -> FwdPass m n (f1,f2)
+%%    \end{code}
+%%    The two passes run interleaved, not sequentially, and each may help
+%%    the other,
+%%    yielding better results than running $A$~and then~$B$ or $B$~and then~$A$
+%%    \citep{lerner-grove-chambers:2002}.
+%%    %%  call these passes. ``super-analyses;''
+%%    %%  in \hoopl, construction of super-analyses is
+%%    %%  particularly concrete.
 
 \subsection{Example: Constant propagation and constant folding} 
   \seclabel{const-prop-client}

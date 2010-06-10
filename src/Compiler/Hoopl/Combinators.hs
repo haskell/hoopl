@@ -96,6 +96,7 @@ thenFwdRw :: Monad m
           => FwdRewrite m n f 
           -> FwdRewrite m n f 
           -> FwdRewrite m n f
+-- @ end comb1.tex
 thenFwdRw rw3 rw3' = wrapFRewrites2 thenrw rw3 rw3'
  where
   thenrw rw rw' n f = rw n f >>= fwdRes
@@ -105,18 +106,17 @@ thenFwdRw rw3 rw3' = wrapFRewrites2 thenrw rw3 rw3'
 
 noFwdRewrite :: Monad m => FwdRewrite m n f
 noFwdRewrite = mkFRewrite $ \ _ _ -> return Nothing
--- @ end comb1.tex
 
 -- @ start iterf.tex
 iterFwdRw :: Monad m 
           => FwdRewrite m n f 
           -> FwdRewrite m n f
+-- @ end iterf.tex
 iterFwdRw rw3 = wrapFRewrites iter rw3
  where
     iter rw n f = liftM (liftM fwdRes) (rw n f)
     fwdRes (FwdRew g rw3a) = 
       FwdRew g (rw3a `thenFwdRw` iterFwdRw rw3)
--- @ end iterf.tex
 
 ----------------------------------------------------------------
 type BwdRes m n f e x = Maybe (BwdRew m n f e x)
@@ -182,7 +182,12 @@ iterBwdRw rw = wrapBRewrites' f rw
   where f rw' n f = liftM (fmap iterRewrite) (rw' n f)
         iterRewrite (BwdRew g rw2) = BwdRew g (rw2 `thenBwdRw` iterBwdRw rw)
 
-pairFwd :: forall m n f f' . Monad m => FwdPass m n f -> FwdPass m n f' -> FwdPass m n (f, f')
+-- @ start pairf.tex
+pairFwd :: Monad m
+        => FwdPass m n f
+        -> FwdPass m n f' 
+        -> FwdPass m n (f, f')
+-- @ end pairf.tex
 pairFwd pass1 pass2 = FwdPass lattice transfer rewrite
   where
     lattice = pairLattice (fp_lattice pass1) (fp_lattice pass2)
