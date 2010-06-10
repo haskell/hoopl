@@ -10,14 +10,18 @@ TEXINPUTS := .:../styles//:$(TEXINPUTS)
 # Bibliographies are in papers/bibs
 BIBINPUTS := .:../bibs//:$(BIBINPUTS)
 
-default:
+default: comb1.tex iterf.tex pairf.tex dg.tex 
+	[ -r "$(MAIN)du.tex" ] && chmod +w $(MAIN)du.tex
 	./defuse < $(MAIN).tex > $(MAIN)du.tex
+	chmod -w $(MAIN)du.tex
 	latex $(MAIN).tex
 #	bibtex $(MAIN)
 	latex $(MAIN).tex
 	latex $(MAIN).tex
 	dvips -f -P pdf < $(MAIN).dvi > $(MAIN).ps
 	ps2pdf $(MAIN).ps
+
+
 
 esc:
 	latex escMeets.tex
@@ -42,3 +46,11 @@ ps:
 
 clean-ps:
 	clean-ps imp*.ps
+
+HOOPL=../src/Compiler/Hoopl
+
+comb1.tex iterf.tex pairf.tex: ./xsource $(HOOPL)/Combinators.hs
+	lua ./xsource $(HOOPL)/Combinators.hs
+
+dg.tex: ./xsource $(HOOPL)/Dataflow.hs
+	lua ./xsource $(HOOPL)/Dataflow.hs
