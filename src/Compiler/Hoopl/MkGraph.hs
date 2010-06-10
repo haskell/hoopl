@@ -10,7 +10,6 @@ module Compiler.Hoopl.MkGraph
     )
 where
 
-import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Label (Label, uniqueToLbl)
 import Compiler.Hoopl.Graph
 import qualified Compiler.Hoopl.GraphUtil as U
@@ -159,8 +158,8 @@ addBlocks      :: HooplNode n
 addBlocks (A g) (A blocks) = A $ g >>= \g -> blocks >>= add g
   where add :: (UniqueMonad m, HooplNode n)
             => Graph n e x -> Graph n C C -> m (Graph n e x)
-        add (GMany e (Body body) x) (GMany NothingO (Body body') NothingO) =
-          return $ GMany e (Body $ mapUnion body body') x
+        add (GMany e body x) (GMany NothingO body' NothingO) =
+          return $ GMany e (body `U.bodyUnion` body') x
         add g@GNil      blocks = spliceOO g blocks
         add g@(GUnit _) blocks = spliceOO g blocks
         spliceOO :: (HooplNode n, UniqueMonad m)

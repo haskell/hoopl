@@ -3,7 +3,7 @@
 -- N.B. addBasicBlocks won't work on OO without a Node (branch/label) constraint
 
 module Compiler.Hoopl.GraphUtil
-  ( splice, gSplice , cat , bodyGraph
+  ( splice, gSplice , cat , bodyGraph, bodyUnion
   , frontBiasBlock, backBiasBlock
   )
 
