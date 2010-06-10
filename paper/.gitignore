@@ -22,6 +22,9 @@ dg.tex
 cprop.tex
 hoopl.tex
 hoopl.ps
+fptype.tex
+bodyfun.tex
+
 
 *.log
 *.blg
