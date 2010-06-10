@@ -2211,7 +2211,7 @@ exactly analogous and are included in \hoopl.
 %%  is open at the exit, an ``exit  fact'' flowing out.
 
 Instead of the interface function @analyzeAndRewriteBody@, we present
-the internal function @arfGraph@ (short for ``analyze and rewrite
+the private function @arfGraph@ (short for ``analyze and rewrite
 forward graph''):
 \begin{smallcode}
 `arfGraph
@@ -2222,8 +2222,10 @@ forward graph''):
  -> Fact e f         -- fact(s) flowing into the entry/entries
  -> m (DG f n e x, Fact x f)
 \end{smallcode}
-We analyze graphs of all shapes; a single @FwdPass@ may be used with
-multiple shapes.
+Function @arfGraph@ has a more general type than
+the function @analyzeAndRewriteFwdBody@ % praying for a decent line break
+because @arfGraph@ is used recursively
+to analyze graphs of all shapes.
 If a graph is closed at the entry, a list of entry points must be
 provided;
 if the graph is open at the entry, it must be the case that the
@@ -2231,7 +2233,7 @@ implicit entry point is the only entry point.
 The fact or set of facts flowing into the entries is similarly
 determined by the shape of the entry point.
 Finally, the result is a ``decorated graph''
-(@DG f n e x@),
+@DG f n e x@,
 and if the graph
 is open at the exit, an ``exit  fact'' flowing out.
 
@@ -2246,11 +2248,7 @@ as an additional parameter.
 higher-order function that takes a block-concatenation function as a
 parameter.) 
 The truth about @Graph@ and @DG@ is as follows:
-\begin{code}
-  type Graph = Graph' Block
-  type DG     f n e x = Graph'   (DBlock f) n e x
-  data DBlock f n e x = DBlock f (Block n e x)
-\end{code}
+\verbatiminput{dg}
 Type~@DG@ is internal to \hoopl; it is not seen by any client.
 Extracting a @Graph@ and a @FactBase@ for @analyzeAndRewriteFwdBody@
 requires a 12-line function:
@@ -2259,8 +2257,6 @@ normalizeGraph :: NonLocal n
                => DG f n e x
                -> (Graph n e x, FactBase f)
 \end{code}
-\simon{At this point it's quite unclear why we are giving @arfGraph@
-a different return type to @analyzeAndRewriteFwdBody@.}
 %%
 %%  We use it, not @Graph@, for two reasons:
 %%  \begin{itemize}
@@ -2282,45 +2278,75 @@ a different return type to @analyzeAndRewriteFwdBody@.}
 %%                -> (Body n, FactBase f)
 %%  
 
-Function @arfGraph@ is implemented using four inner functions:
-one each for nodes, blocks, graph bodies, and full graphs.
-\simon{I'm afraid that this story about ``inner functions'' is
-not easy to understand. Moreover I don't there is any gain (and some loss)
-in  the exposition from having ``inner'' functions, compared to just
-having four top-level functions.
-NR:~if the functions move to top level, their types \emph{and} their
-implementations become significantly more complicated.}
-These functions help us separate concerns: for example, only the
-analysis of a node has to worry about rewrite functions;
-and only the analysis of a body has to worry about fixed points.
-All four functions have access to the @FwdPass@ and any entry points
-that are passed to @arfGraph@.
-These functions also have access to type variables bound by
-@arfGraph@:
-@n@~is the type of nodes; @f@~is the type of facts;
-@m@~is the monad used in the rewriting functions of the @FwdPass@;
-and
-@e@~and~@x@ give the shape of the graph passed to @arfGraph@.
-The types of the inner functions are 
+Function @arfGraph@ is implemented as follows:
 \begin{smallcode}
-node  :: forall e x . (ShapeLifter e x) 
-      => n e x       -> f        -> m (DG f n e x, Fact x f)
-block :: forall e x . 
-         Block n e x -> f        -> m (DG f n e x, Fact x f)
-body  :: [Label] -> LabelMap (Block n C C)
-                     -> Fact C f -> m (DG f n C C, Fact C f)
-graph :: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
+arfGraph pass entries = graph
+ where
+ node  :: forall e x . (ShapeLifter e x) 
+       => n e x       -> f        -> m (DG f n e x, Fact x f)
+ block :: forall e x . 
+          Block n e x -> f        -> m (DG f n e x, Fact x f)
+ body  :: [Label] -> LabelMap (Block n C C)
+                      -> Fact C f -> m (DG f n C C, Fact C f)
+ graph :: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
+ ... definitions of 'node', 'block', 'body', and 'graph' ...
 \end{smallcode}
-Each inner function works the same way: it takes a ``thing'' and
+The four auxiliary functions help us separate concerns: for example, only 
+@node@ knows about rewrite functions;
+and only @body@ knows about fixed points.
+%%  All four functions have access to the @FwdPass@ and any entry points
+%%  that are passed to @arfGraph@.
+%%  These functions also have access to type variables bound by
+%%  @arfGraph@:
+%%  @n@~is the type of nodes; @f@~is the type of facts;
+%%  @m@~is the monad used in the rewriting functions of the @FwdPass@;
+%%  and
+%%  @e@~and~@x@ give the shape of the graph passed to @arfGraph@.
+%%  The types of the inner functions are 
+%%  \begin{smallcode}
+%%  \end{smallcode}
+Each function works the same way: it takes a ``thing'' and
 returns an \emph{extended fact transformer}.
-\simon{Would it be worth articulating this idea by giving a 
-type syononym for an extended fact transformer, and using it?}
 An~extended fact transformer takes an input fact or fact suitable to
 the ``thing'' and it returns an output fact or facts.
 And it also returns a decorated graph representing the (possibly
 rewritten) ``thing''---that's the \emph{extended} part.
 Finally, because rewriting may consume fuel or require a fresh name,
 every extended fact transformer is monadic.
+
+\begin{figure}
+SIMON HAS ASKED IF TYPE SYNONYMS MIGHT IMPROVE THINGS FOR EXTENDED
+FACT TRANSFORMERS.  JUDGE FOR YOURSELF.
+FIRST, SOMETHING THAT IS SOMEWHAT READABLE BUT IS NOT LEGAL HASKELL:
+\begin{smallcode}
+ type EFFX ipt e x = ipt -> m (DG f n e x, Fact x f) 
+    -- extended forward fact transformer
+
+ node  :: forall e x . (ShapeLifter e x) 
+       => n e x       -> EFFX f          e x
+ block :: forall e x . 
+          Block n e x -> EFFX f          e x
+ body  :: [Label] -> LabelMap (Block n C C)
+                      -> EFFX (Fact C f) C C
+ graph :: Graph n e x -> EFFX (Fact e f) e x
+\end{smallcode}
+IF WE MAKE IT LEGAL HASKELL, IT BECOMES COMPLETELY HOPELESS:
+\begin{smallcode}
+ type EFFX m n f ipt e x = ipt -> m (DG f n e x, Fact x f) 
+    -- extended forward fact transformer
+
+ node  :: forall e x . (ShapeLifter e x) 
+       => n e x       -> EFFX m n f f e x
+ block :: forall e x . 
+          Block n e x -> EFFX m n f f e x
+ body  :: [Label] -> LabelMap (Block n C C)
+                      -> EFFX m n f (Fact C f) C C
+ graph :: Graph n e x -> EFFX m n f (Fact e f) e x
+\end{smallcode}
+\caption{EXPERIMENTS WITH TYPE SYNONYMS}
+\end{figure}
+
+
 
 The types of the four extended fact transformers are not quite
 identical:
