@@ -1443,44 +1443,43 @@ function, this time emerging with a new fact \mbox{\{@x=2@, @y=7@\}} for @L2@.
 Again, the new fact is joined with the existing fact for @L2@, and the process
 is iterated until the facts for each label reach a fixed point.
 
-But wait!  What is the \emph{type} of the transfer function?
+%%% But wait! % Too breathless ---NR
+A~transfer function has a \emph{dependent} type:
 If the node is open at exit, the transfer function produces a single fact.
-But what if the node is \emph{closed} on exit?
-In that case the transfer function must
+But if the node is \emph{closed} at exit,
+the transfer function must
 produce a list of (@Label@,fact) pairs, one for each outgoing edge.  
 %
-\emph{So the type of the transfer function's result 
-depends on the shape of the node's exit.}
-Fortunately, this dependency can be expressed precisely, at compile
-time, by Haskell's (recently added) 
+The dependency can be expressed by Haskell's (recently added) 
 \emph{indexed type families}.
 The relevant part of \ourlib's interface is given in \figref{transfers}.
 A~forward transfer function supplied by a client, 
-of type (@FwdTransfer@ @n@ @f@), 
+of type \mbox{@FwdTransfer@ @n@ @f@}, 
 is typically a function polymorphic in @e@ and @x@.  
 It takes a 
-node of type \mbox{(@n@ @e@ @x@)} and a fact of type~@f@, and it produces an
-outgoing ``fact-like thing'' of type (@Fact@ @x@ @f@).  The 
-type constructor @Fact@
-should be thought of as a type-level function; its signature is given in the
+node of type \mbox{@n@ @e@ @x@}
+and it returns a \emph{fact transformer} of type
+@f -> Fact x f@.
+Type constructor @Fact@
+should be thought of as a type-level function: its signature is given in the
 @type family@ declaration, while its definition is given by two @type instance@
-declarations.  The first declaration says that the fact-like thing
-coming out of a node
+declarations.  The first declaration says that a @Fact O f@, which
+comes out of a node
 \emph{open} at the exit is just a fact~@f@. The second declaration says that 
-the fact-like thing
-coming out of a node
-\emph{closed} at the exit is a mapping from @Label@ to facts.
+a @Fact C f@, which
+comes out of a node
+\emph{closed} at the exit, is a mapping from @Label@ to facts.
 
-We have ordered the arguments such that if
-\begin{code}
-  `transfer_fn :: forall e x . n e x -> f -> Fact x f
-  `node        :: n e x
-\end{code}
-then @(transfer_fn node)@ is a fact transformer:
-\begin{code}
-  transfer_fn node :: f -> Fact x f
-\end{code}
-
+%%  
+%%  \begin{code}
+%%    `transfer_fn :: forall e x . n e x -> f -> Fact x f
+%%    `node        :: n e x
+%%  \end{code}
+%%  then @(transfer_fn node)@ is a fact transformer:
+%%  \begin{code}
+%%    transfer_fn node :: f -> Fact x f
+%%  \end{code}
+%%  
 
 
 \subsection{The rewrite function} 
