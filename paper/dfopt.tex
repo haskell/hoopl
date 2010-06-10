@@ -2273,11 +2273,11 @@ and only @body@ knows about fixed points.
 %%  \end{smallcode}
 Each function works the same way: it takes a ``thing'' and
 returns an \emph{extended fact transformer}.
-An~extended fact transformer takes an input fact or fact suitable to
-the ``thing'' and it returns an output fact or facts.
+An~extended fact transformer takes an input fact suitable to
+the ``thing'' and it returns an output fact.
 And it also returns a decorated graph representing the (possibly
 rewritten) ``thing''---that's the \emph{extended} part.
-Finally, because a rewriting may wish to consume fresh names provided
+Finally, because a rewrite may require fresh names provided
 by the client, 
 may wish to consult state provided by the client, 
 or may consume ``optimization fuel'' (\secref{fuel}),
@@ -2528,13 +2528,13 @@ node n f
  = do { rew <- frewrite pass n f >>= withFuel
       ; case rew of
           Nothing -> return (toDg f (toBlock n),
-                                  ftransfer pass n f)
+                             ftransfer pass n f)
           Just (FwdRew g rw) ->
             let pass' = pass { fp_rewrite = rw }
                 f'    = fwdEntryFact n f
             in  arfGraph pass' (maybeEntry n) g f' }
 \end{smallfuzzcode}
-This code is more complicated than the code for @node@ or @graph@, but
+This code is more complicated than the code for @block@ or @graph@, but
 it is still short.
 %
 Functions @`frewrite@, @`ftransfer@, @`toBlock@,
@@ -2577,7 +2577,7 @@ This part of the implementation is the only really tricky part, and it is
 cleanly separated from everything else:
 \smallverbatiminput{bodyfun}
 Function @forwardBlockList@ takes a list of possible entry points and 
-a finite map from labels to places.
+a finite map from labels to blocks.
 It returns a list of
 blocks, sorted into an order that makes forward dataflow efficient:
 \begin{smallcode}
