@@ -2372,7 +2372,7 @@ extended fact transformer for a closed/closed graph.
 \end{itemize}
 
 
-Function @arfGraph@ and its four inner functions comprise a cycle of
+Function @arfGraph@ and its four auxiliary functions comprise a cycle of
 mutual recursion: 
 @arfGraph@ calls @graph@;
 @graph@ calls @body@ and @block@;
@@ -2407,7 +2407,7 @@ The name @cat@ comes from the concatenation of the decorated graphs,
 but it is also appropriate because the style in which it is used is
 reminiscent of @concatMap@, with the @node@ and @block@ functions
 playing the role of @map@.
-The inner @block@ function exemplifies this style:
+The @block@ function exemplifies this style:
 \begin{code}
   block :: forall e x .
     Block n e x -> f -> m (DG f n e x, Fact x f)
@@ -2565,7 +2565,7 @@ shallow rewriting, the rewrite function will have returned
 
 \subsection{Fixed points} \seclabel{arf-body}
 
-Lastly, the inner @body@ function iterates to a fixed point.
+Lastly, the @body@ function iterates to a fixed point.
 This part of the implementation is the only really tricky part, and it is
 cleanly separated from everything else:
 \begin{smallcode}
