@@ -83,17 +83,12 @@ blockGraph b@(BClosed {}) = gUnitCC b
 graphMapBlocks :: forall block n block' n' e x .
                   (forall e x . block n e x -> block' n' e x)
                -> (Graph' block n e x -> Graph' block' n' e x)
-bodyMapBlocks  :: forall block n block' n' .
-                  (block n C C -> block' n' C C)
-               -> (Body' block n -> Body' block' n')
 
 graphMapBlocks f = map
   where map :: Graph' block n e x -> Graph' block' n' e x
         map GNil = GNil
         map (GUnit b) = GUnit (f b)
-        map (GMany e b x) = GMany (fmap f e) (bodyMapBlocks f b) (fmap f x)
-
-bodyMapBlocks f (Body body) = Body $ mapMap f body
+        map (GMany e b x) = GMany (fmap f e) (mapMap f b) (fmap f x)
 
 -- | Function 'blockMapNodes' enables a change of nodes in a block.
 blockMapNodes3 :: ( n C O -> n' C O
@@ -176,7 +171,7 @@ graphDfs :: (NonLocal (block n))
          -> (Graph' block n O x -> [block n C C])
 graphDfs _     (GNil)    = []
 graphDfs _     (GUnit{}) = []
-graphDfs order (GMany (JustO entry) (Body body) _) = order body entry setEmpty
+graphDfs order (GMany (JustO entry) body _) = order body entry setEmpty
 
 postorder_dfs = graphDfs postorder_dfs_from_except
 preorder_dfs  = graphDfs preorder_dfs_from_except
@@ -245,25 +240,23 @@ cons a as tail = a : as tail
 labelsDefined :: forall block n e x . NonLocal (block n) => Graph' block n e x -> LabelSet
 labelsDefined GNil      = setEmpty
 labelsDefined (GUnit{}) = setEmpty
-labelsDefined (GMany _ body x) = foldBodyBlocks addEntry body $ exitLabel x
-  where addEntry block labels = setInsert (entryLabel block) labels
+labelsDefined (GMany _ body x) = mapFoldWithKey addEntry (exitLabel x) body
+  where addEntry label _ labels = setInsert label labels
         exitLabel :: MaybeO x (block n C O) -> LabelSet
-        exitLabel NothingO = setEmpty
-        exitLabel (JustO b) = setFromList [entryLabel b]
+        exitLabel NothingO  = setEmpty
+        exitLabel (JustO b) = setSingleton (entryLabel b)
 
 labelsUsed :: forall block n e x. NonLocal (block n) => Graph' block n e x -> LabelSet
 labelsUsed GNil      = setEmpty
 labelsUsed (GUnit{}) = setEmpty
-labelsUsed (GMany e body _) = foldBodyBlocks addTargets body $ entryTargets e
+labelsUsed (GMany e body _) = mapFold addTargets (entryTargets e) body 
   where addTargets block labels = setInsertList (successors block) labels
         entryTargets :: MaybeO e (block n O C) -> LabelSet
         entryTargets NothingO = setEmpty
         entryTargets (JustO b) = addTargets b setEmpty
 
-foldBodyBlocks :: (block n C C -> a -> a) -> Body' block n -> a -> a
-foldBodyBlocks f (Body body) z = mapFold f z body
-
-externalEntryLabels :: NonLocal (block n) => Body' block n -> LabelSet
+externalEntryLabels :: forall n .
+                       NonLocal n => LabelMap (Block n C C) -> LabelSet
 externalEntryLabels body = defined `setDifference` used
   where defined = labelsDefined g
         used = labelsUsed g

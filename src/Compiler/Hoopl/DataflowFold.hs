@@ -624,7 +624,7 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
 --- implementation of the constructors (boring)
 
 rgnil  = GNil
-rgnilC = GMany NothingO emptyBody NothingO
+rgnilC = GMany NothingO emptyMap NothingO
 
 rgunit f b@(BFirst  {}) = gUnitCO (FBlock f b)
 rgunit f b@(BMiddle {}) = gUnitOO (FBlock f b)
@@ -692,12 +692,12 @@ instance ShapeLifter O C where
   btransfer (BwdPass {bp_transfer = BwdTransfers (_, _, bt)}) n f = bt n f
   frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (_, _, fr)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (_, _, br)}) n f = br n f
-  spliceRgNode (GMany e (Body b1) (JustO (FBlock f x))) _ n = GMany e body' NothingO
-     where body'     = Body $ unionLabelMap b1 b2
-           (Body b2) = addBlock (FBlock f $ BClosed x $ BLast n) emptyBody
-  spliceRgNode (GNil) f n = GMany e emptyBody NothingO
+  spliceRgNode (GMany e b1 (JustO (FBlock f x))) _ n = GMany e body' NothingO
+     where body' = unionLabelMap b1 b2
+           b2 = addBlock (FBlock f $ BClosed x $ BLast n) emptyMap
+  spliceRgNode (GNil) f n = GMany e emptyMap NothingO
      where e = JustO $ FBlock f $ BLast n
-  spliceRgNode (GUnit (FBlock f b)) _ n = GMany e emptyBody NothingO
+  spliceRgNode (GUnit (FBlock f b)) _ n = GMany e emptyMap NothingO
      where e = JustO $ FBlock f (b `U.cat` BLast n)
   entry _ = NothingC
 

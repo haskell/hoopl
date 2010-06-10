@@ -223,7 +223,7 @@ forwardBlockList :: (NonLocal n, LabelsPtr entry)
                  => entry -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for forward analysis,
 -- along with the list of Labels it may depend on for facts.
-forwardBlockList entries (Body blks) = postorder_dfs_from blks entries
+forwardBlockList entries blks = postorder_dfs_from blks entries
 
 -----------------------------------------------------------------------------
 --		Backward analysis and rewriting: the interface
@@ -593,9 +593,9 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
           facts (GMany _ body exit) = bodyFacts body `mapUnion` exitFacts exit
           exitFacts :: MaybeO x (DBlock f n C O) -> FactBase f
           exitFacts NothingO = noFacts
-          exitFacts (JustO (DBlock f b)) = mkFactBase [(entryLabel b, f)]
-          bodyFacts :: Body' (DBlock f) n -> FactBase f
-          bodyFacts (Body body) = mapFold f noFacts body
+          exitFacts (JustO (DBlock f b)) = mapSingleton (entryLabel b) f
+          bodyFacts :: LabelMap (DBlock f n C C) -> FactBase f
+          bodyFacts body = mapFold f noFacts body
             where f (DBlock f b) fb = mapInsert (entryLabel b) f fb
 
 --- implementation of the constructors (boring)

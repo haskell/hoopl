@@ -402,7 +402,7 @@ foldGraphNodes f = graph
           graph (GUnit b)         = block b
           graph (GMany e b x)     = lift block e . body b . lift block x
           body :: Body n -> a -> a
-          body  (Body bdy)        = \a -> mapFold block a bdy
+          body bdy                = \a -> mapFold block a bdy
           lift _ NothingO         = id
           lift f (JustO thing)    = f thing
 
@@ -459,7 +459,7 @@ data BlockResult n x where
 lookupBlock :: NonLocal n => Graph n e x -> Label -> BlockResult n x
 lookupBlock (GMany _ _ (JustO exit)) lbl
   | entryLabel exit == lbl = ExitBlock exit
-lookupBlock (GMany _ (Body body)  _) lbl =
+lookupBlock (GMany _ body _) lbl =
   case mapLookup lbl body of
     Just b  -> BodyBlock b
     Nothing -> NoBlock

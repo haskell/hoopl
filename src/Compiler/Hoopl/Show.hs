@@ -23,7 +23,7 @@ showGraph node = g
         g (GUnit block) = b block
         g (GMany g_entry g_blocks g_exit) =
             open b g_entry ++ body g_blocks ++ open b g_exit
-        body blocks = concatMap b (map snd $ bodyList blocks)
+        body blocks = concatMap b (mapElems blocks)
         b :: forall e x . Block n e x -> String
         b (BFirst  n)     = node n
         b (BMiddle n)     = node n

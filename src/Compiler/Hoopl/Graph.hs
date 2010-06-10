@@ -46,7 +46,7 @@ data Block n e x where
   BClosed :: Block n C O -> Block n O C -> Block n C C -- the zipper
 
 -- | A (possibly empty) collection of closed/closed blocks
-type Body = Body' Block
+type Body n = LabelMap (Block n C C)
 newtype Body' block n = Body (LabelMap (block n C C))
 
 -- | A control-flow graph, which may take any of four shapes (O/O, O/C, C/O, C/C).
@@ -57,7 +57,7 @@ data Graph' block n e x where
   GNil  :: Graph' block n O O
   GUnit :: block n O O -> Graph' block n O O
   GMany :: MaybeO e (block n O C) 
-        -> Body' block n
+        -> LabelMap (block n C C)
         -> MaybeO x (block n C O)
         -> Graph' block n e x
 
@@ -100,11 +100,11 @@ instance NonLocal n => NonLocal (Block n) where
   successors (BClosed _ t) = successors t
 
 ------------------------------
-emptyBody :: Body' block n
-emptyBody = Body mapEmpty
+emptyBody :: LabelMap (thing C C)
+emptyBody = mapEmpty
 
-addBlock :: NonLocal (block n) => block n C C -> Body' block n -> Body' block n
-addBlock b (Body body) = Body $ nodupsInsert (entryLabel b) b body
+addBlock :: NonLocal thing => thing C C -> LabelMap (thing C C) -> LabelMap (thing C C)
+addBlock b body = nodupsInsert (entryLabel b) b body
   where nodupsInsert l b body = if mapMember l body then
                                     error $ "duplicate label " ++ show l ++ " in graph"
                                 else
