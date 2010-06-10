@@ -30,7 +30,7 @@ gUnitCC :: NonLocal (block n) => block n C C -> Graph' block n C C
 gUnitOO b = GUnit b
 gUnitOC b = GMany (JustO b) emptyBody  NothingO
 gUnitCO b = GMany NothingO  emptyBody (JustO b)
-gUnitCC b = GMany NothingO  (addBlock b $ emptyBody) NothingO
+gUnitCC b = GMany NothingO  (addBlock b emptyBody) NothingO
 
 
 catGraphNodeOO ::            Graph n e O -> n O O -> Graph n e O

@@ -29,7 +29,7 @@ tag:VQ: $TGT.tex
 	echo git tag $tag
 	git tag $tag
 
-dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex cprop.tex comb1.tex iterf.tex pairf.tex
+dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex cprop.tex comb1.tex iterf.tex pairf.tex dg.tex
 
 $TGT.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-$LASTPAGE $prereq
@@ -68,4 +68,7 @@ cprop.tex:D: ./xsource ${CPROPS:%=$CLIENT/%.hs}
 HOOPL=../src/Compiler/Hoopl
 
 comb1.tex iterf.tex pairf.tex:D: ./xsource $HOOPL/Combinators.hs
+	lua $prereq
+
+dg.tex:D: ./xsource $HOOPL/Dataflow.hs
 	lua $prereq

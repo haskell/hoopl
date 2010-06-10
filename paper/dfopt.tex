@@ -2416,7 +2416,7 @@ The inner @block@ function exemplifies this style:
   block (BLast   n)  = node n
   block (BCat b1 b2) = block b1 `cat` block b2
 \end{code}
-The implementation of @graph@ is similar but has many more cases.
+The implementation of @graph@ is similar but has more cases.
 
 
 
@@ -2513,9 +2513,8 @@ node n f
                 f'    = fwdEntryFact n f
             in  arfGraph pass' (maybeEntry n) g f' }
 \end{smallfuzzcode}
-\simon{Need types for @toDg@ and friends, and explanation.}
-This code is more complicated
-but still brief.  \simon{More complicated than what?}
+This code is more complicated than the code for @node@ or @graph@, but
+it is still short.
 %
 Functions @`frewrite@, @`ftransfer@, @`toBlock@,
 @`maybeEntry@, and @`fwdEntryFact@ are overloaded based on the
@@ -2526,7 +2525,10 @@ rewriting function from the @FwdPass@,
 and we apply it to the node~@n@ 
 and the  incoming fact~@f@.  
 
-\simon{Shall we describe @withFuel@ in section on fuel?}
+\simon{Shall we describe @withFuel@ in section on fuel?
+NR: sounds like extra work for the reader---I'd rather do it lazily,
+on demand\ldots
+}
 The resulting monadic @Maybe@ is passed to @withFuel@, which 
 accounts for fuel:
 \begin{code}
@@ -2542,8 +2544,8 @@ In the @Nothing@ case, no rewrite takes place: fuel is
 exhausted, or the rewrite function
 didn't want a rewrite.
 We~return the single-node
-graph @(toDg f (toBlock n))@, decorated with its incoming fact.
-We~also apply the transfer function @(ftransfer pass)@ 
+graph @toDg f (toBlock n)@, decorated with its incoming fact.
+We~also apply the transfer function @ftransfer pass@ 
 to the incoming fact to produce the outgoing fact.
 
 In the @Just@ case, we receive a replacement

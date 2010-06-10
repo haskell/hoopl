@@ -15,7 +15,8 @@ import Data.Maybe
 
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Fuel
-import Compiler.Hoopl.Graph
+import Compiler.Hoopl.Graph hiding (Graph) -- hiding so we can redefine
+                                           -- and include definition in paper
 import qualified Compiler.Hoopl.GraphUtil as U
 import Compiler.Hoopl.Label
 import Compiler.Hoopl.Util
@@ -544,8 +545,12 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 --          TOTALLY internal to Hoopl; each block is decorated with a fact
 -----------------------------------------------------------------------------
 
+-- @ start dg.tex
+type Graph = Graph' Block
 type DG     f n e x = Graph'   (DBlock f) n e x
 data DBlock f n e x = DBlock f (Block n e x) -- ^ block decorated with fact
+toDg :: NonLocal n => f -> Block n e x -> DG f n e x
+-- @ end dg.tex
 instance NonLocal n => NonLocal (DBlock f n) where
   entryLabel (DBlock _ b) = entryLabel b
   successors (DBlock _ b) = successors b
@@ -554,7 +559,6 @@ instance NonLocal n => NonLocal (DBlock f n) where
 
 dgnil  :: DG f n O O
 dgnilC :: DG f n C C
-toDg   :: NonLocal n => f -> Block n e x -> DG f n e x
 dgCat  :: NonLocal n => DG f n e a -> DG f n a x -> DG f n e x
 
 ---- observers
