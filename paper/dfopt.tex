@@ -1608,7 +1608,7 @@ the replacement graph.
 For shallow rewriting this new function is
 the constant @Nothing@ function; for deep rewriting it is the original
 rewriting function.
-\hoopl\ also provides
+\hoopl\ provides
 a function that makes a shallow rewrite deep:\finalremark{algebraic law wanted!}
 \verbatiminput{iterf}
 
@@ -2911,6 +2911,7 @@ Reuse requires abstraction, and as is well known,
 designing good abstractions is challenging. 
 \hoopl's data types and the functions over those types have been
 through {dozens} of revisions.
+\remark{dozens alert}
 As~we were refining our design, we~found it invaluable to operate in
 two modes:
 In the first mode, we designed, built, and used a framework as an
@@ -2966,6 +2967,7 @@ In particular, it forced us to make explicit \emph{exactly} what
 @NonLocal@ type class (\secref{edges}). 
 \item
 We are proud of using GADTs to 
+\remark{too much?}
 track the open and closed shapes of nodes, blocks, and graphs at
 compile time. 
 Shapes may
