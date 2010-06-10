@@ -49,3 +49,5 @@ Map.lookup
 Map.empty
 Map.Map
 fmap
+concatMap
+Monad

@@ -941,7 +941,7 @@ class `NonLocal n where
 \caption{The block and graph types defined by \ourlib} 
 \figlabel{graph} \figlabel{edges}
 \end{figure}
-
+% omit MaybeC :: * -> * -> *
 
 
 \subsection{Graphs} \seclabel{graphs}
@@ -1009,6 +1009,8 @@ gSplice (GMany e1 ^bs1 (JustO x1)) (GMany (JustO e2) ^bs2 x2)
 gSplice (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
   = GMany e1 (bs1 `mapUnion` bs2) x2
 \end{smallfuzzcode}
+% omit mapUnion :: LabelMap a -> LabelMap a -> LabelMap a
+% omit addBlock :: NonLocal n => Block n C C -> LabelMap (Block n C C) -> LabelMap (Block n C C)
 This definition illustrates the power of GADTs: the
 pattern matching is exhaustive, and all the open/closed invariants are
 statically checked.  For example, consider the second-last equation for @gSplice@.
@@ -1196,7 +1198,7 @@ graph.
 exposition, we present a function that is specialized to a
 closed/closed graph:
 \begin{code}
-analyzeAndRewriteFwdBody
+`analyzeAndRewriteFwdBody
   :: ( FuelMonad m    -- Gensym and other state
      , NonLocal n )   -- Extract non-local flow edges
   => FwdPass m n f    -- Lattice, transfer, rewrite
@@ -1263,10 +1265,10 @@ type `FactBase f = LabelMap f
  -- A finite mapping from Labels to facts f
 
 ------- Optimization Fuel ----
-type Fuel = Int
-class Monad m => FuelMonad m where
-  getFuel :: m Fuel
-  setFuel :: Fuel -> m ()
+type `Fuel = Int
+class Monad m => `FuelMonad m where
+  `getFuel :: m Fuel
+  `setFuel :: Fuel -> m ()
 \end{code}
 \caption{\ourlib{} API data types}
   \figlabel{api-types}
@@ -1274,16 +1276,16 @@ class Monad m => FuelMonad m where
   \figlabel{transfers}  \figlabel{rewrites}
 \end{figure}
 % omit mkFactBase :: [(Label, f)] -> FactBase f
-\simon{We previously renamed @fact\_join@ to @fact\_extend@ because it really
-is not a symmetrical join; we're extending an old fact with a new one.
-NR: Yes, but the asymmetry is now explicit in the \emph{type}, so it
-needn't also be reflected in the \emph{name}.}
+%%%%  \simon{We previously renamed @fact\_join@ to @fact\_extend@ because it really
+%%%%  is not a symmetrical join; we're extending an old fact with a new one.
+%%%%  NR: Yes, but the asymmetry is now explicit in the \emph{type}, so it
+%%%%  needn't also be reflected in the \emph{name}.}
 
 As well as taking and returning a graph with its entry point(s), the
 function also takes input facts (the @FactBase@) and produces output facts. 
 A~@FactBase@ is simply a finite mapping from @Label@ to facts.
 The
-output @FactBase@ maps each @Label@ in the @Body@ to its fact; if
+output @FactBase@ maps each @Label@ in the body to its fact; if
 the @Label@ is not in the domain of the @FactBase@, its fact is the
 bottom element of the lattice.
 The point(s) at which control flow may enter the graph are supplied by
@@ -1370,7 +1372,8 @@ because if not, the analysis has not reached a fixed point.
 The bottom element and join operation of a lattice of facts of
 type~@f@ are stored in a value of type @DataflowLattice f@
 (\figref{lattice}). 
-\simon{Can we shorten ``@DataFlowLattice@'' to just ``@Lattice@''?}
+%%%% \simon{Can we shorten ``@DataflowLattice@'' to just
+%%%% ``@Lattice@''?} % bigger fish ---NR
 %%Such a value is part of the  @FwdPass n f@ that is passed to
 %%@analyzeAndRewriteFwd@ above.
 As noted in the previous paragraph, 
@@ -1407,7 +1410,7 @@ the most useful is @extendJoinDomain@:
 \end{smallcode}
 A~client can write a join function that \emph{consumes} only facts of
 type~@a@, but may produce @Top@ (as well as a fact of type~@a@)---as
-in the example of \figref{const-prop}.
+in the example of \figref{const-prop} below.
 Calling @extendJoinDomain@ extends the client's function to a proper
 join function on the type @WithTop a@,
 and @extendJoinDomain@ makes sure that joins
@@ -1580,6 +1583,7 @@ a~single dataflow fact might justify more than one kind of rewrite.
 \hoopl's  function @thenFwdRw@
 combines rewriting functions:
 \verbatiminput{comb1}
+% defn thenFwdRw
 Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
 then the rewrites of~@r2@.
 
@@ -1623,11 +1627,23 @@ the replacement graph.
 For shallow rewriting this new function is
 the constant @Nothing@ function; for deep rewriting it is the original
 rewriting function.
-\hoopl\ provides
-a function that makes a shallow rewrite deep:\finalremark{algebraic
-law wanted!}
-\remark{Do we really care about @iterFwdRw@ or can we just drop it?}
-\verbatiminput{iterf}
+While @mkFRewrite@ allows for general rewriting, most clients will
+take advantage of \hoopl's support for these two common cases:
+\begin{smallcode}
+`deepFwdRw, `shallowFwdRw
+   :: Monad m 
+   => (forall e x . n e x -> f -> m (Maybe (Graph n e x)) 
+   -> FwdRewrite m n f
+\end{smallcode}
+
+
+
+%%%%  \hoopl\ provides
+%%%%  a function that makes a shallow rewrite deep:\finalremark{algebraic
+%%%%  law wanted!}
+%%%%  \remark{Do we really care about @iterFwdRw@ or can we just drop it?}
+%%%%  \verbatiminput{iterf}
+%%%%  % defn iterFwdRw
 
 
 
@@ -1661,7 +1677,7 @@ There is another way;
 instead of providing a single function that is polymorphic in shape,
 the client may provide a triple of monomorphic functions:
 \begin{code}
-mkFTransfer3 :: (n C O -> f -> Fact O f)
+`mkFTransfer3 :: (n C O -> f -> Fact O f)
              -> (n O O -> f -> Fact O f)
              -> (n O C -> f -> Fact C f)
              -> FwdTransfer n f
@@ -1677,7 +1693,7 @@ nodes
 A pairing function that runs two passes interleaved, not sequentially,
 potentially producing better results than any sequence:
 \verbatiminput{pairf}
-
+% defn pairFwd
 \item
  An efficient dominator analysis
 in the style of 
@@ -1824,6 +1840,20 @@ functions in the \texttt{NonLocal} type class
 
 \begin{figure}
 \smallverbatiminput{cprop}
+% local node
+% defn ConstFact
+% defn constLattice
+% defn constFactAdd
+% defn varHasLit
+% local ft
+% defn constProp
+% local cp
+% local lookup
+% defn simplify
+% local simp
+% local s_node
+% local s_exp
+% defn constPropPass
 \caption{The client for constant propagation and constant folding\break (extracted automatically from code distributed with Hoopl)}
 \figlabel{const-prop}
 \end{figure}
@@ -1850,7 +1880,7 @@ The bottom element is an empty map (nothing is known about the contents of any v
 We~use the @stdMapJoin@ function to lift the join operation
 for a single variable (@constFactAdd@) up to the map containing facts
 for all variables.
-The utility function @`changeIf :: Bool -> ChangeFlag@ is exported by \hoopl.
+
 
 % omit stdMapJoin :: Ord k => JoinFun v -> JoinFun (Map.Map k v)
 
@@ -1992,7 +2022,7 @@ intuition.
 \begin{itemize}
 \item 
 The lattice must have no \emph{infinite ascending chains}; that is,
-every sequence of calls to @fact_extend@ must eventually return @NoChange@.
+every sequence of calls to @fact_join@ must eventually return @NoChange@.
 \item 
 The transfer function must be 
 \emph{monotonic}: given a more informative fact in,
@@ -2131,7 +2161,7 @@ exactly analogous and are included in \hoopl.
 %%  fixed point of the analysis on the rewritten graph, and if the graph
 %%  is open at the exit, an ``exit  fact'' flowing out.
 
-Instead of the interface function @analyzeAndRewriteBody@, we present
+Instead of the interface function @analyzeAndRewriteFwdBody@, we present
 the private function @arfGraph@ (short for ``analyze and rewrite
 forward graph''):
 \begin{smallcode}
@@ -2170,34 +2200,17 @@ higher-order function that takes a block-concatenation function as a
 parameter.) 
 The truth about @Graph@ and @DG@ is as follows:
 \verbatiminput{dg}
+% defn DG
+% defn DBlock
+% defn toDg
 Type~@DG@ is internal to \hoopl; it is not seen by any client.
 Extracting a @Graph@ and a @FactBase@ for @analyzeAndRewriteFwdBody@
 requires a 12-line function:
 \begin{code}
-normalizeGraph :: NonLocal n
+`normalizeGraph :: NonLocal n
                => DG f n e x
                -> (Graph n e x, FactBase f)
 \end{code}
-%%
-%%  We use it, not @Graph@, for two reasons:
-%%  \begin{itemize}
-%%  \item The client is often interested not only in the facts flowing
-%%  out of the graph (which are returned in the @Fact x f@), 
-%%  but also in the facts on the \emph{internal} blocks
-%%  of the graph. A~replacement graph of type @(DG n e x)@ is decorated with
-%%  these internal facts.
-%%  \item A @Graph@ has deliberately restrictive invariants; for example,
-%%  a @GMany@ with a @JustO@ is always open at exit (\figref{graph}).  It turns
-%%  out to be awkward to maintain these invariants \emph{during} rewriting,
-%%  but easy to restore them \emph{after} rewriting by ``normalizing'' an @DG@.
-%%  \end{itemize}
-%%  The information in an @DG@ is returned to the client by
-%%  the normalization function @normalizeBody@, which
-%%  splits an @DG@ into a @Body@ and its corresponding @FactBase@:
-%%  \begin{code}
-%%  `normalizeBody :: NonLocal n => DG n f C C 
-%%                -> (Body n, FactBase f)
-%%  
 
 Function @arfGraph@ is implemented as follows:
 \begin{smallcode}
@@ -2209,7 +2222,7 @@ arfGraph pass entries = graph
          Block n e x -> f        -> m (DG f n e x, Fact x f)
  body :: [Label] -> LabelMap (Block n C C)
                      -> Fact C f -> m (DG f n C C, Fact C f)
- graph:: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
+ `graph:: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
  ... definitions of 'node', 'block', 'body', and 'graph' ...
 \end{smallcode}
 The four auxiliary functions help us separate concerns: for example, only 
@@ -2325,7 +2338,7 @@ cat :: forall m e a x info info' info''. Monad m
                    ; (g2,f2) <- ft2 f1
                    ; return (g1 `dgCat` g2, f2) }
 \end{code}
-(Function @dgCat@ is the same splicing function used for an ordinary
+(Function @`dgCat@ is the same splicing function used for an ordinary
 @Graph@, but it takes a one-line block-concatenation function suitable
 for @DBlock@s.)
 The name @cat@ comes from the concatenation of the decorated graphs,
@@ -2334,7 +2347,7 @@ reminiscent of @concatMap@, with the @node@ and @block@ functions
 playing the role of @map@.
 The @block@ function exemplifies this style:
 \begin{code}
-  block :: forall e x .
+  `block :: forall e x .
     Block n e x -> f -> m (DG f n e x, Fact x f)
   block (BFirst  n)  = node n
   block (BMiddle n)  = node n
@@ -2517,12 +2530,12 @@ function from @pass@, together with the new rewrite function~@rw@.
 Function @fwdEntryFact@ converts fact~@f@ from the type~@f@,
 which @node@ expects, to the type @Fact e f@, which @arfGraph@ expects.
 
-And that's it!  If~the client wanted deep rewriting, it is
-implemented by the call to @arfGraph@;
-if the client wanted
-shallow rewriting, the rewrite function will have returned
-@noFwdRw@ as~@rw@, which is implanted in @pass'@
-(\secref{shallow-vs-deep}).
+%%  And that's it!  If~the client wanted deep rewriting, it is
+%%  implemented by the call to @arfGraph@;
+%%  if the client wanted
+%%  shallow rewriting, the rewrite function will have returned
+%%  @noFwdRw@ as~@rw@, which is implanted in @pass'@
+%%  (\secref{shallow-vs-deep}).
 
 \subsection{Fixed points} \seclabel{arf-body}
 
@@ -2530,6 +2543,19 @@ Lastly, the @body@ function iterates to a fixed point.
 This part of the implementation is the only really tricky part, and it is
 cleanly separated from everything else:
 \smallverbatiminput{bodyfun}
+% defn body
+% local do_block
+% local blocks
+% local lattice
+% local entryFact
+% local entries
+% local init_fbase
+% local blockmap
+Function @getFact@ looks up a fact, and if the fact is not found, uses
+the bottom element of the lattice: 
+\begin{smallcode}
+`getFact :: DataflowLattice f -> Label -> FactBase f -> f
+\end{smallcode}
 Function @forwardBlockList@ takes a list of possible entry points and 
 a finite map from labels to blocks.
 It returns a list of
@@ -2558,6 +2584,9 @@ reach the fixed point.)
 The rest of the work is done by @fixpoint@, which is shared by
 both forward and backward analyses:
 \smallverbatiminput{fptype}
+% defn Direction
+% defn Fwd
+% defn Bwd
 Except for the mysterious @Bool@ passed as the first argument,
 the type signature tells the story.
 The third argument is an extended fact transformer for a single block; 
@@ -3048,94 +3077,92 @@ extended visits to the third author.
 % omit factBaseLabels :: FactBase f -> [Label]
 % omit extendFactBase :: FactBase f -> Label -> f -> FactBase f
 % omit extendLabelSet :: LabelSet -> Label -> LabelSet
-% omit getFuel :: FuelMonad Fuel
-% omit setFuel :: Fuel -> FuelMonad ()
 % omit lookupFact :: FactBase f -> Label -> Maybe f
 % omit factBaseList :: FactBase f -> [(Label, f)]
 
-\section{Code for \textmd{\texttt{fixpoint}}}
-\label{app:fixpoint}
-
-{\def\baselinestretch{0.95}\hfuzz=20pt
-\begin{smallcode}
-data `TxFactBase n f
-  = `TxFB { `tfb_fbase :: FactBase f
-         , `tfb_rg  :: DG n f C C -- Transformed blocks
-         , `tfb_cha   :: ChangeFlag
-         , `tfb_lbls  :: LabelSet }
- -- Set the tfb_cha flag iff 
- --   (a) the fact in tfb_fbase for or a block L changes
- --   (b) L is in tfb_lbls.
- -- The tfb_lbls are all Labels of the *original* 
- -- (not transformed) blocks
-
-`updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
-           -> (ChangeFlag, FactBase f) 
-           -> (ChangeFlag, FactBase f)
-updateFact ^lat ^lbls (lbl, ^new_fact) (^cha, fbase)
-  | NoChange <- ^cha2        = (cha,        fbase)
-  | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
-  | otherwise               = (cha,        new_fbase)
-  where
-    (cha2, ^res_fact) 
-      = case lookupFact fbase lbl of
-         Nothing -> (SomeChange, new_fact)
-         Just ^old_fact -> fact_extend lat old_fact new_fact
-    ^new_fbase = extendFactBase fbase lbl res_fact
-
-fixpoint :: forall n f. NonLocal n
-         => Bool        -- Going forwards?
-         -> DataflowLattice f
-         -> (Block n C C -> FactBase f
-              -> FuelMonad (DG n f C C, FactBase f))
-         -> FactBase f -> [(Label, Block n C C)]
-         -> FuelMonad (DG n f C C, FactBase f)
-fixpoint ^is_fwd lat ^do_block ^init_fbase ^blocks
- = do { ^fuel <- getFuel  
-      ; ^tx_fb <- loop fuel init_fbase
-      ; return (tfb_rg tx_fb, 
-                tfb_fbase tx_fb `delFromFactBase` blocks) }
-          -- The outgoing FactBase contains facts only for 
-          -- Labels *not* in the blocks of the graph
- where
-  `tx_blocks :: [(Label, Block n C C)] 
-            -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-  tx_blocks []             tx_fb = return tx_fb
-  tx_blocks ((lbl,blk):bs) tx_fb = tx_block lbl blk tx_fb
-                                   >>= tx_blocks bs
-
-  `tx_block :: Label -> Block n C C 
-           -> TxFactBase n f -> FuelMonad (TxFactBase n f)
-  tx_block ^lbl ^blk tx_fb@(TxFB { tfb_fbase = fbase
-                               , tfb_lbls  = lbls
-                               , tfb_rg    = ^blks
-                               , tfb_cha   = cha })
-    | is_fwd && not (lbl `elemFactBase` fbase)
-    = return tx_fb    -- Note [Unreachable blocks]
-    | otherwise
-    = do { (rg, ^out_facts) <- do_block blk fbase
-         ; let (^cha', ^fbase') 
-                 = foldr (updateFact lat lbls) (cha,fbase) 
-                         (factBaseList out_facts)
-         ; return (TxFB { tfb_lbls = extendLabelSet lbls lbl
-                        , tfb_rg   = rg `DGCatC` blks
-                        , tfb_fbase = fbase'
-                        , tfb_cha = cha' }) }
-
-  loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
-  `loop fuel fbase 
-    = do { let ^init_tx_fb = TxFB { tfb_fbase = fbase
-                                 , tfb_cha   = NoChange
-                                 , tfb_rg    = DGNil
-                                 , tfb_lbls  = emptyLabelSet}
-         ; tx_fb <- tx_blocks blocks init_tx_fb
-         ; case tfb_cha tx_fb of
-             NoChange   -> return tx_fb
-             SomeChange -> setFuel fuel >>
-                           loop fuel (tfb_fbase tx_fb) }
-\end{smallcode}
-\par
-} % end \baselinestretch
+%%  \section{Code for \textmd{\texttt{fixpoint}}}
+%%  \label{app:fixpoint}
+%%  
+%%  {\def\baselinestretch{0.95}\hfuzz=20pt
+%%  \begin{smallcode}
+%%  data `TxFactBase n f
+%%    = `TxFB { `tfb_fbase :: FactBase f
+%%           , `tfb_rg  :: DG n f C C -- Transformed blocks
+%%           , `tfb_cha   :: ChangeFlag
+%%           , `tfb_lbls  :: LabelSet }
+%%   -- Set the tfb_cha flag iff 
+%%   --   (a) the fact in tfb_fbase for or a block L changes
+%%   --   (b) L is in tfb_lbls.
+%%   -- The tfb_lbls are all Labels of the *original* 
+%%   -- (not transformed) blocks
+%%  
+%%  `updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
+%%             -> (ChangeFlag, FactBase f) 
+%%             -> (ChangeFlag, FactBase f)
+%%  updateFact ^lat ^lbls (lbl, ^new_fact) (^cha, fbase)
+%%    | NoChange <- ^cha2        = (cha,        fbase)
+%%    | lbl `elemLabelSet` lbls = (SomeChange, new_fbase)
+%%    | otherwise               = (cha,        new_fbase)
+%%    where
+%%      (cha2, ^res_fact) 
+%%        = case lookupFact fbase lbl of
+%%           Nothing -> (SomeChange, new_fact)
+%%           Just ^old_fact -> fact_extend lat old_fact new_fact
+%%      ^new_fbase = extendFactBase fbase lbl res_fact
+%%  
+%%  fixpoint :: forall n f. NonLocal n
+%%           => Bool        -- Going forwards?
+%%           -> DataflowLattice f
+%%           -> (Block n C C -> FactBase f
+%%                -> FuelMonad (DG n f C C, FactBase f))
+%%           -> FactBase f -> [(Label, Block n C C)]
+%%           -> FuelMonad (DG n f C C, FactBase f)
+%%  fixpoint ^is_fwd lat ^do_block ^init_fbase ^blocks
+%%   = do { ^fuel <- getFuel  
+%%        ; ^tx_fb <- loop fuel init_fbase
+%%        ; return (tfb_rg tx_fb, 
+%%                  tfb_fbase tx_fb `delFromFactBase` blocks) }
+%%            -- The outgoing FactBase contains facts only for 
+%%            -- Labels *not* in the blocks of the graph
+%%   where
+%%    `tx_blocks :: [(Label, Block n C C)] 
+%%              -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+%%    tx_blocks []             tx_fb = return tx_fb
+%%    tx_blocks ((lbl,blk):bs) tx_fb = tx_block lbl blk tx_fb
+%%                                     >>= tx_blocks bs
+%%  
+%%    `tx_block :: Label -> Block n C C 
+%%             -> TxFactBase n f -> FuelMonad (TxFactBase n f)
+%%    tx_block ^lbl ^blk tx_fb@(TxFB { tfb_fbase = fbase
+%%                                 , tfb_lbls  = lbls
+%%                                 , tfb_rg    = ^blks
+%%                                 , tfb_cha   = cha })
+%%      | is_fwd && not (lbl `elemFactBase` fbase)
+%%      = return tx_fb    -- Note [Unreachable blocks]
+%%      | otherwise
+%%      = do { (rg, ^out_facts) <- do_block blk fbase
+%%           ; let (^cha', ^fbase') 
+%%                   = foldr (updateFact lat lbls) (cha,fbase) 
+%%                           (factBaseList out_facts)
+%%           ; return (TxFB { tfb_lbls = extendLabelSet lbls lbl
+%%                          , tfb_rg   = rg `DGCatC` blks
+%%                          , tfb_fbase = fbase'
+%%                          , tfb_cha = cha' }) }
+%%  
+%%    loop :: Fuel -> FactBase f -> FuelMonad (TxFactBase n f)
+%%    `loop fuel fbase 
+%%      = do { let ^init_tx_fb = TxFB { tfb_fbase = fbase
+%%                                   , tfb_cha   = NoChange
+%%                                   , tfb_rg    = DGNil
+%%                                   , tfb_lbls  = emptyLabelSet}
+%%           ; tx_fb <- tx_blocks blocks init_tx_fb
+%%           ; case tfb_cha tx_fb of
+%%               NoChange   -> return tx_fb
+%%               SomeChange -> setFuel fuel >>
+%%                             loop fuel (tfb_fbase tx_fb) }
+%%  \end{smallcode}
+%%  \par
+%%  } % end \baselinestretch
 
 
 \section{Index of defined identifiers}
@@ -3150,7 +3177,8 @@ the type signature and the page on which the identifier is first
 referred to.
 
 Some identifiers used in the text are defined in the Haskell Prelude;
-for those readers less familiar with Haskell, these identifiers are
+for those readers less familiar with Haskell (possible even at the
+Haskell Symposium!), these identifiers are
 listed in Appendix~\ref{sec:prelude}.
 
 \newcommand\dropit[3][]{}

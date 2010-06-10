@@ -3,7 +3,6 @@
 module ConstProp (ConstFact, constLattice, initFact, varHasLit, constProp) where
 
 import Control.Monad
-import qualified Data.Map as M
 import qualified Data.Map as Map
 
 import Compiler.Hoopl
@@ -26,13 +25,13 @@ constLattice = DataflowLattice
   , fact_join = stdMapJoin (extendJoinDomain constFactAdd) }
   where
     constFactAdd _ (OldFact old) (NewFact new) 
-        = (changeIf (new /= old), joined)
-      where joined = if new == old then PElem new else Top
+        = if new == old then (NoChange, PElem new)
+          else               (SomeChange, Top)
 
 -- @ end cprop.tex
 -- Initially, we assume that all variable values are unknown.
 initFact :: [Var] -> ConstFact
-initFact vars = M.fromList $ [(v, Top) | v <- vars]
+initFact vars = Map.fromList $ [(v, Top) | v <- vars]
 
 -- Only interesting semantic choice: values of variables are live across
 -- a call site.
@@ -46,8 +45,8 @@ varHasLit = mkFTransfer ft
  where
   ft :: Node e x -> ConstFact -> Fact x ConstFact
   ft (Label _)            f = f
-  ft (Assign x (Lit v))   f = M.insert x (PElem v) f
-  ft (Assign x _)         f = M.insert x Top f
+  ft (Assign x (Lit v))   f = Map.insert x (PElem v) f
+  ft (Assign x _)         f = Map.insert x Top f
   ft (Store _ _)          f = f
   ft (Branch l)           f = mkFactBase [(l, f)]
   ft (Cond (Var x) tl fl) f 
@@ -58,7 +57,7 @@ varHasLit = mkFTransfer ft
 
 -- @ end cprop.tex
   ft (Call vs _ _ bid)      f = mkFactBase [(bid, foldl toTop f vs)]
-      where toTop f v = M.insert v Top f
+      where toTop f v = Map.insert v Top f
   ft (Return _)             _ = mkFactBase []
 
 -- @ start cprop.tex
@@ -69,8 +68,8 @@ constProp = shallowFwdRw cp
  where
    cp node f
      = return $ liftM nodeToG $ mapVN (lookup f) node
-   mapVN      = map_EN . map_EE . map_VE
-   lookup f x = case M.lookup x f of
+   mapVN      = mapEN . mapEE . mapVE
+   lookup f x = case Map.lookup x f of
                   Just (PElem v) -> Just $ Lit v
                   _              -> Nothing
 -- @ end cprop.tex

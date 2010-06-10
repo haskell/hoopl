@@ -45,5 +45,3 @@ simplify = deepFwdRw simp
   cmpOp Lte = Just (<=)
   cmpOp _   = Nothing
   nodeToG = insnToG
-  mapEN = map_EN
-  mapEE = map_EE

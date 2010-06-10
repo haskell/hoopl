@@ -167,6 +167,39 @@ local function find_uses(s)
   end
 end
 
+
+local comment_pat = '%s+%-%-[%s%w]'
+local comment_line_pat = '^%-%-.*$'
+
+local function strip_stringlit(s)
+  local q = s:find '"'
+  local c = s:find(comment_pat)
+  if q and (not c or q < c) then
+    s = s:gsub('".-"', ''):gsub("'.-'", "") -- misses escaped quote
+    return strip_stringlit(s)
+  else
+    return s
+  end
+end
+
+
+local function strip_comment(c)
+  c = strip_stringlit(c)
+  c = c:gsub('^%s*%.%.%.%s+.-%s+%.%.%.%s*$', '')
+  return (c:gsub(comment_line_pat, ''):gsub(comment_pat .. '.*$', ''))
+end
+
+
+local function add_file_uses(filename)
+  io.stderr:write('============ uses in ', filename, '=============\n')
+  local f = assert(io.open(filename) or io.open(filename .. '.tex'),
+                   "Cannot open " .. filename)
+  for l in f:lines() do
+    find_uses(strip_comment(l))
+  end
+  f:close()
+  return
+end
 ----------------------------------------------------------------
 
 local function find_definitions(defs, label)
@@ -241,26 +274,6 @@ local endspecial = { }
 function special.document(line)
   in_document = true
   io.write(line, '\n')
-end
-
-local comment_pat = '%s+%-%-[%s%w]'
-local comment_line_pat = '^%-%-.*$'
-
-local function strip_stringlit(s)
-  local q = s:find '"'
-  local c = s:find(comment_pat)
-  if q and (not c or q < c) then
-    s = s:gsub('".-"', '') -- misses escaped quote
-    return strip_stringlit(s)
-  else
-    return s
-  end
-end
-
-
-local function strip_comment(c)
-  c = strip_stringlit(c)
-  return (c:gsub(comment_line_pat, ''):gsub(comment_pat .. '.*$', ''))
 end
 
 function special.code(line, env)
@@ -341,7 +354,10 @@ while line do
     env = env and env:sub(2, -2)
     local endenv   = line:match [[^%s*\end{(.*)}]]
     local def      = line:match '^%%%s*defn%s+(%S+)%s*$'
+    local localdef = line:match '^%%%s*local%s+(%S+)%s*$'
     local omit, ty = line:match '^%%%s*omit%s+(%S+)%s+::%s+(.-)%s*$'
+    local input    = line:match [[^%s*\verbatiminput{(.*)}]] or
+                     line:match [[^%s*\smallverbatiminput{(.*)}]]
 if line:match 'fuzzcode' then
 --  fprintf(io.stderr, "%s: env = %s, endenv = %s\n", line, env or '<nil>', endenv or '<nil>')
 end
@@ -356,11 +372,17 @@ end
     elseif context == 'verbatim' then
       io.write(line, '\n')  -- do not look for defs or uses in verbatim environments
     elseif def then
-      add_defn(def)
+      add_defn(def, nil, '`')
       write_defn(def)
+    elseif localdef then
+      add_defn(localdef, nil, '^')
+      write_defn(localdef)
     elseif omit then
       add_omit(omit, ty)
       write_defn(omit)
+    elseif input then
+      add_file_uses(input)
+      io.write(line, '\n')
     elseif in_document then
       process_at_signs(line)
     else

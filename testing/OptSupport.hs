@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, RankNTypes #-}
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
-module OptSupport (stdMapJoin, map_VE, map_EE, map_EN, map_VN, fold_EE, fold_EN, insnToG) where
+module OptSupport (stdMapJoin, mapVE, mapEE, mapEN, mapVN, fold_EE, fold_EN, insnToG) where
 
 import Control.Monad
 import qualified Data.Map as M
@@ -34,15 +34,15 @@ stdMapJoin eltJoin l (OldFact old) (NewFact new) = M.foldWithKey add (NoChange, 
 
 type Node = Insn
 type MaybeChange a = a -> Maybe a
-map_VE :: (Var  -> Maybe Expr) -> MaybeChange Expr
-map_EE :: MaybeChange Expr     -> MaybeChange Expr
-map_EN :: MaybeChange Expr     -> MaybeChange (Node e x)
-map_VN :: (Var  -> Maybe Expr) -> MaybeChange (Node e x)
+mapVE :: (Var  -> Maybe Expr) -> MaybeChange Expr
+mapEE :: MaybeChange Expr     -> MaybeChange Expr
+mapEN :: MaybeChange Expr     -> MaybeChange (Node e x)
+mapVN :: (Var  -> Maybe Expr) -> MaybeChange (Node e x)
 
-map_VN = map_EN . map_EE . map_VE
+mapVN = mapEN . mapEE . mapVE
 
-map_VE f (Var v) = f v
-map_VE _ _       = Nothing
+mapVE f (Var v) = f v
+mapVE _ _       = Nothing
                   
 
 data Mapped a = Old a | New a
@@ -80,34 +80,34 @@ mapVars f e@(Var x) = makeTotalDefault e f x
 mapVars _ e         = return e
 
 
-map_EE f e@(Lit _)     = f e
-map_EE f e@(Var _)     = f e
-map_EE f e@(Load addr) =
-  case map_EE f addr of 
+mapEE f e@(Lit _)     = f e
+mapEE f e@(Var _)     = f e
+mapEE f e@(Load addr) =
+  case mapEE f addr of 
     Just addr' -> Just $ fromMaybe e' (f e')
                     where e' = Load addr'
     Nothing    -> f e
-map_EE f e@(Binop op e1 e2) =
-  case (map_EE f e1, map_EE f e2) of
+mapEE f e@(Binop op e1 e2) =
+  case (mapEE f e1, mapEE f e2) of
     (Nothing, Nothing) -> f e
     (e1',     e2')     -> Just $ fromMaybe e' (f e')
                     where e' = Binop op (fromMaybe e1 e1') (fromMaybe e2 e2')
 
-map_EN _   (Label _)           = Nothing
-map_EN f   (Assign v e)        = liftM (Assign v) $ f e
-map_EN f   (Store addr e)      =
+mapEN _   (Label _)           = Nothing
+mapEN f   (Assign v e)        = liftM (Assign v) $ f e
+mapEN f   (Store addr e)      =
   case (f addr, f e) of
     (Nothing, Nothing) -> Nothing
     (addr', e') -> Just $ Store (fromMaybe addr addr') (fromMaybe e e')
-map_EN _   (Branch _)          = Nothing
-map_EN f   (Cond e tid fid)    =
+mapEN _   (Branch _)          = Nothing
+mapEN f   (Cond e tid fid)    =
   case f e of Just e' -> Just $ Cond e' tid fid
               Nothing -> Nothing
-map_EN f   (Call rs n es succ) =
+mapEN f   (Call rs n es succ) =
   if all isNothing es' then Nothing
   else Just $ Call rs n (map (uncurry fromMaybe) (zip es es')) succ
     where es' = map f es
-map_EN f   (Return es) =
+mapEN f   (Return es) =
    if all isNothing es' then Nothing
    else Just $ Return (map (uncurry fromMaybe) (zip es es'))
      where es' = map f es
