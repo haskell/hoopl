@@ -1191,7 +1191,6 @@ we represent their combination
 as a single record of type @FwdPass@ (\figref{api-types}).
 
 
-\ifpagetuning\enlargethispage{\baselineskip}\fi
 
 Given a node type~@n@ and a @FwdPass@,
 a client can ask \ourlib{}\ to analyze and rewrite a 
@@ -1501,31 +1500,6 @@ comes out of a node
  \seclabel{rewrites} 
  \seclabel{example-rewrites}
 
-%%%%    \begin{figure}
-%%%%    \begin{smallfuzzcode}{6.6pt}
-%%%%    type `AGraph n e x 
-%%%%      = [Label] -> (Graph n e x, [Label])
-%%%%    
-%%%%    `withLabels :: Int -> ([Label] -> AGraph n e x)
-%%%%               -> AGraph n e x
-%%%%    withLabels n ^fn = \ls -> fn (take n ^ls) (drop n ls)
-%%%%    
-%%%%    `mkIfThenElse :: Expr -> AGraph Node O O
-%%%%                 -> AGraph Node O O -> AGraph Node O O
-%%%%    mkIfThenElse p t e
-%%%%      = withLabels 3 $ \[l1,l2,l3] ->
-%%%%        gUnitOC (BUnit (CondBranch p l1 l2)) `gSplice` 
-%%%%        mkLabel l1 `gSplice` t `gSplice` mkBranch l3 `gSplice`
-%%%%        mkLabel l2 `gSplice` e `gSplice` mkBranch l3 `gSplice`
-%%%%        mkLabel l3
-%%%%    
-%%%%    `mkLabel  l = gUnitCO (BUnit (Label l))          
-%%%%    `mkBranch l = gUnitOC (BUnit (Branch l))
-%%%%    `gUnitOC  b = GMany (JustO b) BodyEmpty   NothingO
-%%%%    `gUnitCO  b = GMany NothingO  BodyEmpty   (JustO b)
-%%%%    \end{smallfuzzcode}
-%%%%    \caption{The \texttt{AGraph} type and example constructions} \figlabel{agraph}
-%%%%    \end{figure}
 
 We compute dataflow facts in order to enable code-improving
 transformations.
@@ -1827,76 +1801,6 @@ functions in the \texttt{NonLocal} type class
 % omit Binop :: Operator -> Expr -> Expr -> Expr
 % omit Add :: Operator
 
-
-%%  \begin{figure}
-%%  {\small\hfuzz=3pt
-%%  \begin{code}
-%%  -- Types and definition of the lattice
-%%  data `HasConst = `Top | `B Bool | `I Integer
-%%  type `ConstFact = Map.Map Var HasConst
-%%  `constLattice = DataflowLattice
-%%    { fact_bot    = Map.empty
-%%    , fact_extend = stdMapJoin constFactAdd }
-%%    where
-%%      `constFactAdd ^old ^new = (c, j)
-%%        where j = if new == old then new else Top
-%%              c = if j == old then NoChange else SomeChange
-%%  
-%%  -------------------------------------------------------
-%%  -- Analysis: variable has constant value
-%%  `varHasConst :: FwdTransfer Node ConstFact
-%%  varHasConst (Label l)       f = lookupFact f l
-%%  varHasConst (Store _ _)         f = f
-%%  varHasConst (Assign x (Bool b)) f = Map.insert x (B b) f
-%%  varHasConst (Assign x (Int  i)) f = Map.insert x (I i) f
-%%  varHasConst (Assign x _)        f = Map.insert x Top   f
-%%  varHasConst (Branch l)          f = mkFactBase [(l, f)]
-%%  varHasConst (CondBranch (Var x) ^tid ^fid) f
-%%    = mkFactBase [(tid, Map.insert x (B True)  f),
-%%                  (fid, Map.insert x (B False) f)]
-%%  varHasConst (CondBranch _ tid fid) f 
-%%    = mkFactBase [(tid, f), (fid, f)]
-%%  
-%%  -------------------------------------------------------
-%%  -- Constant propagation
-%%  `constProp :: FwdRewrite Node ConstFact
-%%  constProp node ^facts
-%%    = fmap toAGraph (mapE rewriteE node)
-%%    where
-%%      `rewriteE e (Var x)
-%%        = case Map.lookup x facts of
-%%            Just (B b) -> Just $ Bool b
-%%            Just (I i) -> Just $ Int  i
-%%            _          -> Nothing
-%%      rewriteE e = Nothing
-%%  
-%%  -------------------------------------------------------
-%%  -- Simplification ("constant folding")
-%%  `simplify :: FwdRewrite Node f
-%%  simplify (CondBranch (Bool b) t f) _
-%%    = Just $ toAGraph $ Branch (if b then t else f)
-%%  simplify node _ = fmap toAGraph (mapE s_exp node)
-%%    where
-%%      `s_exp (Binop Add (Int i1) (Int i2))
-%%         = Just $ Int $ i1 + i2
-%%      ...  -- more cases for constant folding
-%%  
-%%  -- Rewriting expressions
-%%  `mapE :: (Expr    -> Maybe Expr) 
-%%        -> Node e x -> Maybe (Node e x)
-%%  mapE f (Label _) = Nothing
-%%  mapE f (Assign x e)  = fmap (Assign x) $ f e
-%%   ...  -- more cases for rewriting expressions
-%%  
-%%  -------------------------------------------------------
-%%  -- Defining the forward dataflow pass
-%%  `constPropPass = FwdPass
-%%     { fp_lattice  = constLattice
-%%     , fp_transfer = varHasConst
-%%     , fp_rewrite  = constProp `thenFwdRw` simplify } 
-%%  \end{code}}
-%%  \caption{The client for constant propagation and constant folding} \figlabel{old-const-prop}
-%%  \end{figure}
 \begin{figure}
 \smallverbatiminput{cprop}
 \caption{The client for constant propagation and constant folding\break (extracted automatically from code distributed with Hoopl)}
@@ -2422,7 +2326,6 @@ The implementation of @graph@ is similar but has more cases.
 %%%%    Based on @arfNode@ it is extremely easy to write @arfBlock@, which lifts
 %%%%    the analysis and rewriting from nodes to blocks (\secref{arf-block}).
 %%%%    
-%%%%    %%% \ifpagetuning\penalty -10000 \fi
 %%%%    
 %%%%    
 %%%%    \item
@@ -2485,7 +2388,6 @@ The implementation of @graph@ is similar but has more cases.
 %%%%    @GMany@ becomes a single @DG@ object, and these @DG@ objects are then 
 %%%%    concatenated to form a single result of type~@DG@.
 %%%%    
-%%%%    %% \ifpagetuning\penalty -10000 \fi
 
 \subsection{Throttling rewriting using ``optimization fuel''}
 \seclabel{vpoiso}
