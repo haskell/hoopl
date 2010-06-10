@@ -198,7 +198,7 @@ arfGraph pass entries = graph
     		    -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
     body entries blockmap init_fbase
-      = fixpoint True lattice do_block blocks init_fbase
+      = fixpoint Fwd lattice do_block blocks init_fbase
       where
         blocks = forwardBlockList entries blockmap
         lattice = fp_lattice pass
@@ -342,7 +342,7 @@ arbGraph pass entries = graph
     		    -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
     body entries blockmap init_fbase
-      = fixpoint False (bp_lattice pass) do_block blocks init_fbase
+      = fixpoint Bwd (bp_lattice pass) do_block blocks init_fbase
       where
         blocks = backwardBlockList entries blockmap
         do_block b f = do (g, f) <- block b f
@@ -419,14 +419,15 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
                (_, new_fact_debug) = join (fact_bot lat)
     new_fbase = mapInsert lbl res_fact fbase
 
+data Direction = Fwd | Bwd
 fixpoint :: forall m block n f. (FuelMonad m, NonLocal n, NonLocal (block n))
-         => Bool	-- Going forwards?
+         => Direction
          -> DataflowLattice f
          -> (block n C C -> FactBase f -> m (DG f n C C, [(Label, f)]))
          -> [block n C C]
          -> FactBase f 
          -> m (DG f n C C, FactBase f)
-fixpoint is_fwd lat do_block blocks init_fbase
+fixpoint direction lat do_block blocks init_fbase
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
@@ -435,6 +436,7 @@ fixpoint is_fwd lat do_block blocks init_fbase
 	     -- we have facts, that are *not* in the blocks of the graph
   where
     tagged_blocks = map tag blocks
+    is_fwd = case direction of { Fwd -> True; Bwd -> False }
     tag b = ((entryLabel b, b), if is_fwd then [entryLabel b] else successors b)
      -- 'tag' adds the in-labels of the block; see Note [TxFactBase invairants]
 

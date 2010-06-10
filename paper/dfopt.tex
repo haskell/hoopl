@@ -1323,20 +1323,20 @@ To ensure that analysis
 terminates, it is enough if every fact has a finite number of
 distinct facts above it, so that repeated joins
 eventually reach a fixed point.
-\simon{There is no mention here of the @OldFact@ and @NewFact@ types.
-Shall we nuke them for the purposes of the paper?
-NR: They should definitely not be nuked; they're needed if the reader
-wants to understand the asymmetrical behavior of @fact\_join@.
-I'm~also mindful that this paper will be the primary explanation of
-\hoopl\ to its users, and I don't want to hide this part of the
-interface.
-As for mentions in the text, 
-if you look carefully, you'll
-see that I've changed the subscripts in the text to ``old'' and
-``new''.
-Together with the code, I believe that's enough to get the point across.
-SLPJ -- OK.  I don't agree that it's enough, but we have more important fish to fry.
-}
+%% \simon{There is no mention here of the @OldFact@ and @NewFact@ types.
+%% Shall we nuke them for the purposes of the paper?
+%% NR: They should definitely not be nuked; they're needed if the reader
+%% wants to understand the asymmetrical behavior of @fact\_join@.
+%% I'm~also mindful that this paper will be the primary explanation of
+%% \hoopl\ to its users, and I don't want to hide this part of the
+%% interface.
+%% As for mentions in the text, 
+%% if you look carefully, you'll
+%% see that I've changed the subscripts in the text to ``old'' and
+%% ``new''.
+%% Together with the code, I believe that's enough to get the point across.
+%% SLPJ -- OK.  I don't agree that it's enough, but we have more important fish to fry.
+%% }
 
 In practice, joins are computed at labels.
 If~$f_{\mathit{old}}$ is the fact currently associated with the
@@ -2248,13 +2248,13 @@ Function @arfGraph@ is implemented as follows:
 \begin{smallcode}
 arfGraph pass entries = graph
  where
- node  :: forall e x . (ShapeLifter e x) 
-       => n e x       -> f        -> m (DG f n e x, Fact x f)
- block :: forall e x . 
-          Block n e x -> f        -> m (DG f n e x, Fact x f)
- body  :: [Label] -> LabelMap (Block n C C)
-                      -> Fact C f -> m (DG f n C C, Fact C f)
- graph :: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
+ node :: forall e x . (ShapeLifter e x) 
+      => n e x       -> f        -> m (DG f n e x, Fact x f)
+ block:: forall e x . 
+         Block n e x -> f        -> m (DG f n e x, Fact x f)
+ body :: [Label] -> LabelMap (Block n C C)
+                     -> Fact C f -> m (DG f n C C, Fact C f)
+ graph:: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
  ... definitions of 'node', 'block', 'body', and 'graph' ...
 \end{smallcode}
 The four auxiliary functions help us separate concerns: for example, only 
@@ -2277,7 +2277,10 @@ An~extended fact transformer takes an input fact or fact suitable to
 the ``thing'' and it returns an output fact or facts.
 And it also returns a decorated graph representing the (possibly
 rewritten) ``thing''---that's the \emph{extended} part.
-Finally, because rewriting may consume fuel or require a fresh name,
+Finally, because a rewriting may wish to consume fresh names provided
+by the client, 
+may wish to consult state provided by the client, 
+or may consume ``optimization fuel'' (\secref{fuel}),
 every extended fact transformer is monadic.
 
 %%%%    \begin{figure}
@@ -2324,7 +2327,7 @@ required for a graph.
 We~made a similar design choice in the interface for transfer
 functions (\secref{transfer-function}): because a node or a block has
 exactly one fact flowing into the entry, it is easiest  simply to pass
-that fact,  
+that fact.
 \item
 Extended fact transformers for graphs have the most general type,
 which is expressed using the type family @Fact@:
@@ -2359,7 +2362,7 @@ compose and for the decorated graphs to be spliceable.
 It~has a very general type:
 \begin{code}
 cat :: forall m e a x info info' info''. Monad m 
-    => (info  -> m (DG f n e a, info'))
+    => (info  -> m (DG f n e a, info' ))
     -> (info' -> m (DG f n a x, info''))
     -> (info  -> m (DG f n e x, info''))
 `cat ft1 ft2 f = do { (g1,f1) <- ft1 f
@@ -2576,7 +2579,7 @@ cleanly separated from everything else:
 `body :: [Label] -> LabelMap (Block n C C)
      -> Fact C f -> m (DG f n C C, Fact C f)
 body entries blocks init_fbase
-  = fixpoint True lattice do_block init_fbase $
+  = fixpoint Fwd lattice do_block init_fbase $
     forwardBlockList entries blocks
   where
     lattice = fp_lattice pass
@@ -2612,8 +2615,9 @@ reach the fixed point.)
 The rest of the work is done by @fixpoint@, which is shared by
 both forward and backward analyses:
 \begin{smallcode}
+data `Direction = `Fwd | `Bwd
 `fixpoint :: forall m n f. (FuelMonad m, NonLocal n)
-  => Bool     -- going Forward?
+  => Direction
   -> DataflowLattice f
   -> (Block n C C -> FactBase f -> m (DG n f C C, FactBase f))
   -> [Block n C C]
@@ -2664,13 +2668,12 @@ safe only for a forward analysis;
 reachable from an entry point.
 This trick is not safe for a backward analysis, which
  is why
-@fixpoint@ takes a @Bool@ as its first argument:
-it must know if the analysis goes forward.
+@fixpoint@ takes a @Direction@ as its first argument.
 
-Although the trick can be implemented in just a couple of lines of
-code, the reasoning behind it is quite subtle---exactly the sort of
-thing that should be implemented once in \hoopl, so clients don't have
-to worry about it.
+%%  Although the trick can be implemented in just a couple of lines of
+%%  code, the reasoning behind it is quite subtle---exactly the sort of
+%%  thing that should be implemented once in \hoopl, so clients don't have
+%%  to worry about it.
 
 \section {Related work} \seclabel{related}
 
