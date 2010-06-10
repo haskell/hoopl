@@ -1550,7 +1550,7 @@ supplied by \hoopl.
 %%%% \ifpagetuning\enlargethispage{0.8\baselineskip}\fi
 
 The type of @FwdRewrite@ in \figref{api-types} guarantees
-\emph{at compile time} that
+that
 the replacement graph $\ag$ has
 the \emph{same} open/closed shape as the node being rewritten.
 For example, a branch instruction can be replaced only by a graph 
@@ -2720,7 +2720,10 @@ analysis and transformation.
 
 The CIL toolkit \cite{necula:cil:2002}\finalremark{No good citation
 for same reason as Soot below ---JD}
-provides an analysis-only framework for C~programs.
+supports both analysis and rewriting of C~programs,
+but rewriting is clearly distinct from analysis:
+one runs an analysis to completion and then rewrites based on the
+results. 
 The framework is limited to one representation of control-flow graphs
 and one representation of instructions, both of which are provided by
 the framework.
@@ -2832,7 +2835,9 @@ as the previous version, which is part of GHC, version 6.12.
 
 
 
-\section{What we learned}
+\section{Discussion}
+
+\iffalse
 
 (We have also implemented a ``fold style,'' but because the types are
 a little less intuitive, we are sticking with @concatMap@ style for now.)
@@ -2853,49 +2858,50 @@ a little less intuitive, we are sticking with @concatMap@ style for now.)
 type-parameter hell, newtype hell, typechekcing hell, instance hell,
 triple hell
 
+\fi
 
 
-We have spent six years implementing and reimplementing frameworks for
-dataflow analysis and transformation.
- This formidable design problem taught us
-two kinds of lessons:
-we learned some very specific lessons about representations and
-algorithms for optimizing compilers,
-and we were forcibly reminded of some very general, old lessons that are well
-known not just to functional programmers, but to programmers
-everywhere.
+% We have spent six years implementing and reimplementing frameworks for
+% dataflow analysis and transformation.
+%  This formidable design problem taught us
+% two kinds of lessons:
+% we learned some very specific lessons about representations and
+% algorithms for optimizing compilers,
+% and we were forcibly reminded of some very general, old lessons that are well
+% known not just to functional programmers, but to programmers
+% everywhere.
 
 
 
-%%  \remark{Orphaned: but for transfer functions that
-%%  approximate weakest preconditions or strongest postconditions,
-%%  monotonicity falls out naturally.}
-%%  
-%%  
-%%  In conclusion we offer the following lessons from the experience of designing
-%%  and implementing \ourlib{}.
-%%  \begin{itemize}
-%%  \item 
-%%  Although we have not stressed this point, there is a close connection
-%%  between dataflow analyses and program logic:
-%%  \begin{itemize}
-%%  \item
-%%  A forward dataflow analysis is represented by a predicate transformer
-%%  that is related to \emph{strongest postconditions}
-%%  \cite{floyd:meaning}.\footnote
-%%  {In Floyd's paper the output of the predicate transformer is called
-%%  the \emph{strongest verifiable consequent}, not the ``strongest
-%%  postcondition.''} 
-%%  \item
-%%  A backward dataflow analysis is represented by a predicate transformer
-%%  that is related to \emph{weakest preconditions} \cite{dijkstra:discipline}.
-%%  \end{itemize}
-%%  Logicians write down the predicate transformers for the primitive
-%%  program fragments, and then use compositional rules to ``lift'' them 
-%%  to a logic for whole programs.  In the same way \ourlib{} lets the client
-%%  write simple predicate transformers,
-%%  and local rewrites based on those assertions, and ``lifts'' them to entire
-%%  function bodies with arbitrary control flow.
+%%%%    \remark{Orphaned: but for transfer functions that
+%%%%    approximate weakest preconditions or strongest postconditions,
+%%%%    monotonicity falls out naturally.}
+%%%%    
+%%%%    
+%%%%    In conclusion we offer the following lessons from the experience of designing
+%%%%    and implementing \ourlib{}.
+%%%%    \begin{itemize}
+%%%%    \item 
+%%%%    Although we have not stressed this point, there is a close connection
+%%%%    between dataflow analyses and program logic:
+%%%%    \begin{itemize}
+%%%%    \item
+%%%%    A forward dataflow analysis is represented by a predicate transformer
+%%%%    that is related to \emph{strongest postconditions}
+%%%%    \cite{floyd:meaning}.\footnote
+%%%%    {In Floyd's paper the output of the predicate transformer is called
+%%%%    the \emph{strongest verifiable consequent}, not the ``strongest
+%%%%    postcondition.''} 
+%%%%    \item
+%%%%    A backward dataflow analysis is represented by a predicate transformer
+%%%%    that is related to \emph{weakest preconditions} \cite{dijkstra:discipline}.
+%%%%    \end{itemize}
+%%%%    Logicians write down the predicate transformers for the primitive
+%%%%    program fragments, and then use compositional rules to ``lift'' them 
+%%%%    to a logic for whole programs.  In the same way \ourlib{} lets the client
+%%%%    write simple predicate transformers,
+%%%%    and local rewrites based on those assertions, and ``lifts'' them to entire
+%%%%    function bodies with arbitrary control flow.
 
 Our main goal for \hoopl\ was to combine three good ideas (interleaved
 analysis and transformation, optimization fuel, and an applicative
@@ -2904,7 +2910,7 @@ compiler writers.
 Reuse requires abstraction, and as is well known,
 designing good abstractions is challenging. 
 \hoopl's data types and the functions over those types have been
-through \emph{dozens} of revisions.
+through {dozens} of revisions.
 As~we were refining our design, we~found it invaluable to operate in
 two modes:
 In the first mode, we designed, built, and used a framework as an
@@ -2919,15 +2925,22 @@ cripple some other part of the compiler.
 Operating in the second mode---as a standalone library---enabled us to
 iterate furiously, trying out many more ideas than would have
 been possible in the first mode.
-We~have learned that alternating between these two modes leads to a
+ Alternating between these two modes has led to a
 better design than operating in either mode alone.
 
-We were forcibly reminded of timeless truths:
-that interfaces are more important than implementations, and that data
+%% We were forcibly reminded of timeless truths:
+It is a truth universally acknowledged that
+interfaces are more important than implementations and data
 is more important than code.
-These truths are reflected in this paper, in which
+This truth is reflected in this paper, in which
 we
 have given \hoopl's API three times as much space as \hoopl's implementation.
+
+We have evaluate \hoopl's API through small, focused classroom
+projects and by using \hoopl\ in the back end of the Glasgow Haskell
+Compiler. 
+
+
 
 We were also reminded that Haskell's type system (polymorphism, GADTs,
 higher-order functions, type classes, and so on) is a remarkably
