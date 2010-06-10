@@ -2328,38 +2328,38 @@ rewritten) ``thing''---that's the \emph{extended} part.
 Finally, because rewriting may consume fuel or require a fresh name,
 every extended fact transformer is monadic.
 
-\begin{figure}
-SIMON HAS ASKED IF TYPE SYNONYMS MIGHT IMPROVE THINGS FOR EXTENDED
-FACT TRANSFORMERS.  JUDGE FOR YOURSELF.
-FIRST, SOMETHING THAT IS SOMEWHAT READABLE BUT IS NOT LEGAL HASKELL:
-\begin{smallcode}
- type EFFX ipt e x = ipt -> m (DG f n e x, Fact x f) 
-    -- extended forward fact transformer
-
- node  :: forall e x . (ShapeLifter e x) 
-       => n e x       -> EFFX f          e x
- block :: forall e x . 
-          Block n e x -> EFFX f          e x
- body  :: [Label] -> LabelMap (Block n C C)
-                      -> EFFX (Fact C f) C C
- graph :: Graph n e x -> EFFX (Fact e f) e x
-\end{smallcode}
-IF WE MAKE IT LEGAL HASKELL, IT BECOMES COMPLETELY HOPELESS:
-\begin{smallcode}
- type EFFX m n f ipt e x = ipt -> m (DG f n e x, Fact x f) 
-    -- extended forward fact transformer
-
- node  :: forall e x . (ShapeLifter e x) 
-       => n e x       -> EFFX m n f f e x
- block :: forall e x . 
-          Block n e x -> EFFX m n f f e x
- body  :: [Label] -> LabelMap (Block n C C)
-                      -> EFFX m n f (Fact C f) C C
- graph :: Graph n e x -> EFFX m n f (Fact e f) e x
-\end{smallcode}
-\caption{EXPERIMENTS WITH TYPE SYNONYMS}
-\end{figure}
-
+%%%%    \begin{figure}
+%%%%    SIMON HAS ASKED IF TYPE SYNONYMS MIGHT IMPROVE THINGS FOR EXTENDED
+%%%%    FACT TRANSFORMERS.  JUDGE FOR YOURSELF.
+%%%%    FIRST, SOMETHING THAT IS SOMEWHAT READABLE BUT IS NOT LEGAL HASKELL:
+%%%%    \begin{smallcode}
+%%%%     type EFFX ipt e x = ipt -> m (DG f n e x, Fact x f) 
+%%%%        -- extended forward fact transformer
+%%%%    
+%%%%     node  :: forall e x . (ShapeLifter e x) 
+%%%%           => n e x       -> EFFX f          e x
+%%%%     block :: forall e x . 
+%%%%              Block n e x -> EFFX f          e x
+%%%%     body  :: [Label] -> LabelMap (Block n C C)
+%%%%                          -> EFFX (Fact C f) C C
+%%%%     graph :: Graph n e x -> EFFX (Fact e f) e x
+%%%%    \end{smallcode}
+%%%%    IF WE MAKE IT LEGAL HASKELL, IT BECOMES COMPLETELY HOPELESS:
+%%%%    \begin{smallcode}
+%%%%     type EFFX m n f ipt e x = ipt -> m (DG f n e x, Fact x f) 
+%%%%        -- extended forward fact transformer
+%%%%    
+%%%%     node  :: forall e x . (ShapeLifter e x) 
+%%%%           => n e x       -> EFFX m n f f e x
+%%%%     block :: forall e x . 
+%%%%              Block n e x -> EFFX m n f f e x
+%%%%     body  :: [Label] -> LabelMap (Block n C C)
+%%%%                          -> EFFX m n f (Fact C f) C C
+%%%%     graph :: Graph n e x -> EFFX m n f (Fact e f) e x
+%%%%    \end{smallcode}
+%%%%    \caption{EXPERIMENTS WITH TYPE SYNONYMS}
+%%%%    \end{figure}
+%%%%    
 
 
 The types of the four extended fact transformers are not quite
