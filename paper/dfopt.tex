@@ -1396,11 +1396,22 @@ constructors with these types:
   `PElem :: a -> WithTop a
   `Top   ::      WithTop a
 \end{code}
-\hoopl\ provides 
+\hoopl\ provides combinators which make it easier to create join
+  functions that use @Top@;
+the most useful is @extendJoinDomain@:
 \begin{smallcode}
-addTop :: DataflowLattice a -> DataflowLattice (WithTop a)
+`extendJoinDomain
+ :: (OldFact a -> NewFact a -> (ChangeFlag, WithTop a))
+ -> (OldFact (WithTop a) -> NewFact (WithTop a)
+                            -> (ChangeFlag, WithTop a))
 \end{smallcode}
-in which the @Top@ element obeys all the appropriate algebraic laws.
+A~client can write a join function that \emph{consumes} only facts of
+type~@a@, but may produce @Top@ (as well as a fact of type~@a@)---as
+in the example of \figref{const-prop}.
+Calling @extendJoinDomain@ extends the client's function to a proper
+join function on the type @WithTop a@,
+and @extendJoinDomain@ makes sure that joins
+involving the @Top@ element obey all the appropriate algebraic laws.
 \hoopl\ also provides a @`Bot@ constructor and type constructors
 @`WithBot@, and @`WithTopAndBot@, along with similar functions.
 @Top@ and @Bot@ are polymorphic, so for example,
