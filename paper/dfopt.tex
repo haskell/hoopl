@@ -2273,9 +2273,9 @@ and only @body@ knows about fixed points.
 %%  \end{smallcode}
 Each function works the same way: it takes a ``thing'' and
 returns an \emph{extended fact transformer}.
-An~extended fact transformer takes an input fact suitable to
-the ``thing'' and it returns an output fact.
-And it also returns a decorated graph representing the (possibly
+An~extended fact transformer takes dataflow fact(s) coming into
+the ``thing,'' and it returns an output fact.
+It~also returns a decorated graph representing the (possibly
 rewritten) ``thing''---that's the \emph{extended} part.
 Finally, because a rewrite may require fresh names provided
 by the client, 
