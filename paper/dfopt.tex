@@ -1044,58 +1044,44 @@ to a client which representation to choose---or if the choice made a difference.
 \subsection{Labels and successors} \seclabel{edges}
 
 
--Although \ourlib{} is polymorphic in the type of nodes, 
--it~still needs to know how nonlocal control is transferred from one
--block to another:
--\hoopl\ must know where
--a control transfer can go, 
-+To perform dataflow analysis and transformation
-+\hoopl\ must obviously know where a control transfer can go, 
- and it must know what @Label@ is at the start of a block.
--The client must provide this information by placing its node type into
--\ourlib's @NonLocal@ type class (\figref{edges}).
-+How can \hoopl{} know these things, and yet be polymorphic in the node type?
-+Answer: by requiring the client to make the node type into an instance of 
-+\ourlib's @NonLocal@ type class, which is defined in \figref{edges}.
- The @entryLabel@ method takes a first node (one closed on entry,
--\secref{nodes})
-
-
-To perform dataflow analysis and transformation
-\hoopl\ must obviously know where a control transfer can go, 
-and it must know what @Label@ is at the start of a block.
-How can \hoopl{} know these things, and yet be polymorphic in the node type?
-Answer: by requiring the client to make the node type into an instance of 
+Although \ourlib{} is polymorphic in the type of nodes, 
+it~still needs to know how a node may transfer control from one
+block to another.
+\hoopl\ also
+needs to know what @Label@ is on the first node in a block.
+How can \hoopl{} know these things, if it is polymorphic in the node type?
+\hoopl\ requires the client to make the node type an instance of 
 \ourlib's @NonLocal@ type class, which is defined in \figref{edges}.
 The @entryLabel@ method takes a first node (one closed on entry, \secref{nodes})
 and returns its @Label@;
 the @successors@ method takes a last node (closed on exit) and returns
 the @Label@s to 
 which it can transfer control.  
-A~middle node, which is open at both entry and exit, cannot refer to
-any @Label@s, 
+A~middle node, which is open at both entry and exit, transfers control
+only locally, to its successor within a basic block,
 so no corresponding interrogation function is needed.
 
-A node type defined by a client must be an instance of @NonLocal@.
+%% A node type defined by a client must be an instance of @NonLocal@.
 In~\figref{cmm-node},
 the client's instance declaration for @Node@ would be
 \begin{code}
 instance NonLocal Node where
-  entryLabel (Label l) = l
+  entryLabel (Label l)  = l
   successors (Branch b) = [b]
   successors (CondBranch e b1 b2) = [b1, b2]
 \end{code}
 Again, the pattern matching for both functions is exhaustive, and
-the compiler statically checks this fact.  Here, @entryLabel@ 
+the compiler statically checks this fact.  
+Here, @entryLabel@ 
 cannot be applied to an @Assign@ or @Branch@ node,
 and any attempt to define a case for @Assign@ or @Branch@ would result
 in a type error.
 
-While it is required for the client to provide this information about
+While the client provides this information about
 nodes, it is very convenient for \ourlib\ to get the same information
 about blocks.
-For its own internal use,
-\ourlib{} provides this instance declaration for the @Block@ type:
+Internally,
+\ourlib{} uses this instance declaration for the @Block@ type:
 \begin{code}
 instance NonLocal n => NonLocal (Block n) where
   entryLabel (BFirst n) = entryLabel n
