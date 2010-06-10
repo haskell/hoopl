@@ -1255,6 +1255,12 @@ type instance Fact C f = FactBase f
 ------- FactBase -------
 type `FactBase f = LabelMap f
  -- A finite mapping from Labels to facts f
+
+------- Optimization Fuel ----
+type Fuel = Int
+class Monad m => FuelMonad m where
+  getFuel :: m Fuel
+  setFuel :: Fuel -> m ()
 \end{code}
 \caption{\ourlib{} API data types}
   \figlabel{api-types}
