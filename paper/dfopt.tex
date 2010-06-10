@@ -1980,82 +1980,48 @@ to
 @analyzeAndRewriteFwdBody@.
 
 
-\subsection{Throttling the dataflow engine using ``optimization fuel''}
-\seclabel{vpoiso}
-\seclabel{fuel}
 
-Debugging an optimization can be tricky:
-an optimization may rewrite hundreds of nodes,
-and any of those rewrites could be incorrect.
-To debug dataflow optimizations, we use Whalley's
-\citeyearpar{whalley:isolation} powerful technique
-to identify the first rewrite that 
-transforms a program from working code to faulty code.
-
-The key idea is to~limit the number of rewrites that
-are performed while optimizing a graph.
-In \hoopl, the limit is called
-\emph{optimization fuel}:
-each rewrite costs one unit of fuel,
-and when the fuel is exhausted, no more rewrites are permitted.
-Because each rewrite leaves the observable behavior of the
-program unchanged, it is safe to stop rewriting at any point.
-Given a program that fails when compiled with optimization,
-a test infrastructure uses binary search on the amount of
-optimization fuel, until
-it finds that the program works correctly after $n-1$ rewrites but fails
-after $n$~rewrites.
-The $n$th rewrite is faulty.
-
-\seclabel{fuel-monad}
-
-\hoopl\ ensures it can keep track of fuel by imposing the constraint
-@FuelMonad m@ on the monad of any rewrite function used with
-@analyzeAndRewriteFwdBody@.
-This constraint allows \hoopl\ to use @getFuel@ and @setFuel@ (which 
-should have the obvious state-monad semantics) to keep track of the remaining fuel.
-
-\subsection{Fixed points and speculative rewrites} \seclabel{fixpoints}
-
-Are rewrites sound, especially when there are loops?
-Many analyses compute a fixed point starting from unsound
-``facts''; for example, a live-variable analysis starts from the
-assumption that all variables are dead.  This means \emph{rewrites
-performed before a fixed point is reached may be unsound, and their results
-must be discarded}.  Each iteration of the fixed-point computation must
-start afresh with the original graph.  
-
-
-Although the rewrites may be unsound, \emph{they must be performed}
-(speculatively, and possibly recursively), 
-so that the facts downstream of the replacement graphs are as accurate
-as possible.
-For~example, consider this graph, with entry at @L1@:
-\par{\small
-\begin{code}
-  L1: x=0; goto L2
-  L2: x=x+1; if x==10 then goto L3 else goto L2
-\end{code}}
-The first traversal of block @L2@ starts with the unsound ``fact'' \{x=0\};
-but analysis of the block propagates the new fact \{x=1\} to @L2@, which joins the
-existing fact to get \{x=$\top$\}.
-What if the predicate in the conditional branch were @x<10@ instead
-of @x==10@?
-Again the first iteration would begin with the tentative fact \{x=0\}.
-Using that fact, we would rewrite the conditional branch to an unconditional
-branch @goto L3@.  No new fact would propagate to @L2@, and we would
-have successfully (and soundly) eliminated the loop.
-This example is contrived, but it illustrates that 
-for best results we should
-\begin{itemize}
-\item Perform the rewrites on every iteration.
-\item Begin each new iteration with the original, virgin graph.
-\end{itemize}
-This sort of algorithm is hard to implement in an imperative setting, where rewrites
-mutate a graph in place.
-But  with an immutable graph, implementing the algorithm
-is trivially easy: we simply revert to the original graph at the start
-of each fixed-point iteration.
+%%%%    \subsection{Fixed points and speculative rewrites} \seclabel{fixpoints}
+%%%%    
+%%%%    Are rewrites sound, especially when there are loops?
+%%%%    Many analyses compute a fixed point starting from unsound
+%%%%    ``facts''; for example, a live-variable analysis starts from the
+%%%%    assumption that all variables are dead.  This means \emph{rewrites
+%%%%    performed before a fixed point is reached may be unsound, and their results
+%%%%    must be discarded}.  Each iteration of the fixed-point computation must
+%%%%    start afresh with the original graph.  
+%%%%    
+%%%%    
+%%%%    Although the rewrites may be unsound, \emph{they must be performed}
+%%%%    (speculatively, and possibly recursively), 
+%%%%    so that the facts downstream of the replacement graphs are as accurate
+%%%%    as possible.
+%%%%    For~example, consider this graph, with entry at @L1@:
+%%%%    \par{\small
+%%%%    \begin{code}
+%%%%      L1: x=0; goto L2
+%%%%      L2: x=x+1; if x==10 then goto L3 else goto L2
+%%%%    \end{code}}
+%%%%    The first traversal of block @L2@ starts with the unsound ``fact'' \{x=0\};
+%%%%    but analysis of the block propagates the new fact \{x=1\} to @L2@, which joins the
+%%%%    existing fact to get \{x=$\top$\}.
+%%%%    What if the predicate in the conditional branch were @x<10@ instead
+%%%%    of @x==10@?
+%%%%    Again the first iteration would begin with the tentative fact \{x=0\}.
+%%%%    Using that fact, we would rewrite the conditional branch to an unconditional
+%%%%    branch @goto L3@.  No new fact would propagate to @L2@, and we would
+%%%%    have successfully (and soundly) eliminated the loop.
+%%%%    This example is contrived, but it illustrates that 
+%%%%    for best results we should
+%%%%    \begin{itemize}
+%%%%    \item Perform the rewrites on every iteration.
+%%%%    \item Begin each new iteration with the original, virgin graph.
+%%%%    \end{itemize}
+%%%%    This sort of algorithm is hard to implement in an imperative setting, where rewrites
+%%%%    mutate a graph in place.
+%%%%    But  with an immutable graph, implementing the algorithm
+%%%%    is trivially easy: we simply revert to the original graph at the start
+%%%%    of each fixed-point iteration.
 
 \subsection{Correctness} \seclabel{correctness}
 
@@ -2496,7 +2462,59 @@ The implementation of @graph@ is similar but has more cases.
 %%%%    
 %%%%    %% \ifpagetuning\penalty -10000 \fi
 
+\subsection{Throttling rewriting using ``optimization fuel''}
+\seclabel{vpoiso}
+\seclabel{fuel}
+
+Function @node@ handles all rewriting,
+but before we explain @node@'s implementation, 
+we need to present a mechanism we use to~limit 
+the number of rewrites that
+are performed while optimizing a program.
+We limit rewrites only when debugging an optimizer:
+when an optimizer produces a faulty program,
+the blame could lie with any of many hundreds of rewrites.
+To~find the first rewrite that 
+transforms a program from working code to faulty code,
+we use Whalley's
+\citeyearpar{whalley:isolation} powerful fault-isolation technique.
+
+Whalley's technique uses a limit on the number of rewrites
+the optimizer may perform;
+in~\hoopl, we call the limit
+\emph{optimization fuel}.
+Each rewrite costs one unit of fuel,
+and when the fuel is exhausted, no more rewrites are permitted.
+Because each rewrite leaves the observable behavior of the
+program unchanged, it is safe to stop rewriting at any point.
+%
+Given a program that fails when compiled with optimization,
+a test infrastructure uses binary search on the amount of
+optimization fuel, until
+it finds that the program works correctly after $n-1$ rewrites but fails
+after $n$~rewrites.
+The $n$th rewrite is faulty.
+
+
+
+\seclabel{fuel-monad}
+
+The throttling mechanism is isolated in a single function:
+\begin{code}
+  `withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
+\end{code}
+If @withFuel@'s argument is @Nothing@, \emph{or} if we have run out of
+optimization fuel, @withFuel@ returns @Nothing@.
+Otherwise, @withFuel@ consumes one unit of fuel and returns its
+argument (which will be a @Just@).  
+A~@FuelMonad@ is simply a state monad that provides operations
+ @getFuel@ and @setFuel@, as shown in \figref{api-types}.
+
+
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
+
+NEEDS THINKING ABOUT THE TRANSITION
+
 
 Although interleaving analysis with transformation is tricky, we have
 isolated the algorithm in the @node@ function:
@@ -2525,20 +2543,6 @@ rewriting function from the @FwdPass@,
 and we apply it to the node~@n@ 
 and the  incoming fact~@f@.  
 
-\simon{Shall we describe @withFuel@ in section on fuel?
-NR: sounds like extra work for the reader---I'd rather do it lazily,
-on demand\ldots
-}
-The resulting monadic @Maybe@ is passed to @withFuel@, which 
-accounts for fuel:
-\begin{code}
-  `withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
-\end{code}
-If @withFuel@'s argument is @Nothing@, \emph{or} if we have run out of
-optimization fuel (\secref{fuel}), @withFuel@ returns @Nothing@.
-Otherwise, @withFuel@ consumes one unit of fuel and returns its
-% defn Fuel
-argument (which will be a @Just@).  That is all we need say about fuel.
 
 In the @Nothing@ case, no rewrite takes place: fuel is
 exhausted, or the rewrite function
