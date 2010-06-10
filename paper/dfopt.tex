@@ -515,13 +515,8 @@ iterations, and we offer our API as a contribution.
 \item
 Because the client
 can perform very local reasoning (``@y@ is live before
-@x:=y+2@''),%
-\footnote
-{Using \hoopl, it is not necessary to have the more complex rule
-``if @x@~is live after @x:=y+2@ then @y@ is live before~it,''
-because if @x@~is \emph{not} live after @x:=y+2@, the assignment
-@x:=y+2@ will be eliminated.}
-\john{I think this footnote should go. The reader can't possibly understand it here.}
+@x:=y+2@''),
+\seclabel{liveness-mention}
  analyses and transformations built on \ourlib\ 
 are small, simple, and easy to get right.
 Moreover, \ourlib\ helps you write correct optimizations:
@@ -839,39 +834,6 @@ respectively.
 
 \subsection{Blocks} \seclabel{blocks}
 
-\begin{figure}
-\begin{fuzzcode}{0.98pt}
-data `O   -- Open
-data `C   -- Closed
-
-data `Block n e x where
- `BFirst  :: n C O                      -> Block n C O
- `BMiddle :: n O O                      -> Block n O O
- `BLast   :: n O C                      -> Block n O C
- `BCat    :: Block n e O -> Block n O x -> Block n e x
-
-data `Graph n e x where
-  `GNil  :: Graph n O O
-  `GUnit :: Block n O O -> Graph n O O
-  `GMany :: MaybeO e (Block n O C) 
-        -> LabelMap (Block n C C)
-        -> MaybeO x (Block n C O)
-        -> Graph n e x
-
-data `MaybeO ^ex t where
-  `JustO    :: t -> MaybeO O t
-  `NothingO ::      MaybeO C t
-
-newtype `Label = Label Int
-
-class `NonLocal n where
-  `entryLabel :: n C x -> Label
-  `successors :: n e C -> [Label]
-\end{fuzzcode}
-\caption{The block and graph types defined by \ourlib} 
-\figlabel{graph} \figlabel{edges}
-\end{figure}
-
 \ourlib\ combines the client's nodes into
 blocks and graphs, which, unlike the nodes, are defined by \ourlib{}
  (\figref{graph}).
@@ -922,6 +884,40 @@ Using GADTs to enforce these invariants is one of
 % \remark{So what? Who cares?  Why is it important
 % that no block is empty?  (And if we had an empty block, we could ditch
 % @PNil@ from @PGraph@, which woudl be an improvement.)}
+
+\begin{figure}
+\begin{fuzzcode}{0.98pt}
+data `O   -- Open
+data `C   -- Closed
+
+data `Block n e x where
+ `BFirst  :: n C O                      -> Block n C O
+ `BMiddle :: n O O                      -> Block n O O
+ `BLast   :: n O C                      -> Block n O C
+ `BCat    :: Block n e O -> Block n O x -> Block n e x
+
+data `Graph n e x where
+  `GNil  :: Graph n O O
+  `GUnit :: Block n O O -> Graph n O O
+  `GMany :: MaybeO e (Block n O C) 
+        -> LabelMap (Block n C C)
+        -> MaybeO x (Block n C O)
+        -> Graph n e x
+
+data `MaybeO ^ex t where
+  `JustO    :: t -> MaybeO O t
+  `NothingO ::      MaybeO C t
+
+newtype `Label = Label Int
+
+class `NonLocal n where
+  `entryLabel :: n C x -> Label
+  `successors :: n e C -> [Label]
+\end{fuzzcode}
+\caption{The block and graph types defined by \ourlib} 
+\figlabel{graph} \figlabel{edges}
+\end{figure}
+
 
 \subsection{Graphs} \seclabel{graphs}
 
@@ -1931,7 +1927,15 @@ which is exactly what our simple transfer function expects.
 As we mention in \secref{simple-tx},
 interleaving makes it possible to write
 the simplest imaginable transfer functions, without missing
-opportunities to improve the code.
+opportunities to improve the code.%
+\footnote
+{Another example is the interleaving of liveness analysis and dead-assignment elimination.
+As mentioned in \secref{liveness-mention},
+it is sufficient for the analysis to~say ``@y@ is live before @x:=y+2@''.
+It is not necessary to have the more complex rule
+``if @x@~is live after @x:=y+2@ then @y@ is live before~it,''
+because if @x@~is \emph{not} live after @x:=y+2@,
+the assignment @x:=y+2@ will be eliminated.}
 
 \figref{const-prop}'s rewrite function for constant propagation, @constProp@,
 rewrites each use of a variable to its constant value.
