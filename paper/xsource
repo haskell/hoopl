@@ -1,5 +1,12 @@
 #!/usr/bin/env lua
 
+local shift = '^'   -- prefix of blanks to remove
+
+if arg[1] and arg[1]:find '^%-%d+$' then
+  shift = '^' .. string.rep(' ', -tonumber(arg[1]))
+  table.remove(arg, 1)
+end
+
 local outputs = { } -- map filename to list of lines
 setmetatable(outputs, { __index = function(t, k) local u = {}; t[k] = u; return u end })
 
@@ -36,8 +43,15 @@ end
 
 for file, lines in pairs(outputs) do
   local f = assert(io.open(file, 'w'))
+  local do_shift = true
   for _, l in ipairs(lines) do
-    f:write(l, '\n')
+    if not l:find(shift) then
+      do_shift = false
+      break
+    end
+  end
+  for _, l in ipairs(lines) do
+    f:write(do_shift and l:gsub(shift, '') or l, '\n')
   end
   f:close()
 end

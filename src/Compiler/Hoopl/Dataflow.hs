@@ -135,7 +135,10 @@ arfGraph pass entries = graph
     block :: forall e x . Block n e x -> f        -> m (DG f n e x, Fact x f)
     node  :: forall e x . (ShapeLifter e x) 
                        => n e x       -> f        -> m (DG f n e x, Fact x f)
-    body  :: [Label] -> Body n -> Fact C f -> m (DG f n C C, Fact C f)
+-- @ start bodyfun.tex
+    body  :: [Label] -> LabelMap (Block n C C)
+          -> Fact C f -> m (DG f n C C, Fact C f)
+-- @ end bodyfun.tex
                     -- Outgoing factbase is restricted to Labels *not* in
                     -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
@@ -197,14 +200,15 @@ arfGraph pass entries = graph
                     -- Outgoing factbase is restricted to Labels *not* in
     		    -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
+-- @ start bodyfun.tex
     body entries blockmap init_fbase
       = fixpoint Fwd lattice do_block blocks init_fbase
       where
-        blocks = forwardBlockList entries blockmap
+        blocks  = forwardBlockList entries blockmap
         lattice = fp_lattice pass
-        do_block b fb = do (g, fb) <- block b entryFact
-                           return (g, mapToList fb)
+        do_block b fb = block b entryFact
           where entryFact = getFact lattice (entryLabel b) fb
+-- @ end bodyfun.tex
 
 
 -- Join all the incoming facts with bottom.
@@ -334,7 +338,7 @@ arbGraph pass entries = graph
 
     arbx arb thing f = do { (rg, f) <- arb thing f
                           ; let fb = joinInFacts (bp_lattice pass) $
-                                     mkFactBase [(entryLabel thing, f)]
+                                     mapSingleton (entryLabel thing) f
                           ; return (rg, fb) }
      -- joinInFacts adds debugging information
 
@@ -346,7 +350,7 @@ arbGraph pass entries = graph
       where
         blocks = backwardBlockList entries blockmap
         do_block b f = do (g, f) <- block b f
-                          return (g, [(entryLabel b, f)])
+                          return (g, mapSingleton (entryLabel b) f)
 
 
 backwardBlockList :: (LabelsPtr entries, NonLocal n) => entries -> Body n -> [Block n C C]
@@ -400,11 +404,10 @@ data TxFactBase n f
          , tfb_lbls  :: LabelSet }
      -- See Note [TxFactBase invariants]
 
-updateFact :: DataflowLattice f -> LabelSet -> (Label, f)
-           -> (ChangeFlag, FactBase f) 
-           -> (ChangeFlag, FactBase f)
+updateFact :: DataflowLattice f -> LabelSet
+           -> Label -> f -> (ChangeFlag, FactBase f) -> (ChangeFlag, FactBase f)
 -- See Note [TxFactBase change flag]
-updateFact lat lbls (lbl, new_fact) (cha, fbase)
+updateFact lat lbls lbl new_fact (cha, fbase)
   | NoChange <- cha2     = (cha,        fbase)
   | lbl `setMember` lbls = (SomeChange, new_fbase)
   | otherwise            = (cha,        new_fbase)
@@ -419,7 +422,7 @@ updateFact lat lbls (lbl, new_fact) (cha, fbase)
                (_, new_fact_debug) = join (fact_bot lat)
     new_fbase = mapInsert lbl res_fact fbase
 
-data Direction = Fwd | Bwd
+{-  this type is too general for the paper :-( 
 fixpoint :: forall m block n f. (FuelMonad m, NonLocal n, NonLocal (block n))
          => Direction
          -> DataflowLattice f
@@ -427,6 +430,16 @@ fixpoint :: forall m block n f. (FuelMonad m, NonLocal n, NonLocal (block n))
          -> [block n C C]
          -> FactBase f 
          -> m (DG f n C C, FactBase f)
+-}
+-- @ start fptype.tex
+data Direction = Fwd | Bwd
+fixpoint :: forall m n f. (FuelMonad m, NonLocal n)
+ => Direction
+ -> DataflowLattice f
+ -> (Block n C C -> Fact C f -> m (DG f n C C, Fact C f))
+ -> [Block n C C]
+ -> (Fact C f -> m (DG f n C C, Fact C f))
+-- @ end fptype.tex
 fixpoint direction lat do_block blocks init_fbase
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
@@ -440,13 +453,13 @@ fixpoint direction lat do_block blocks init_fbase
     tag b = ((entryLabel b, b), if is_fwd then [entryLabel b] else successors b)
      -- 'tag' adds the in-labels of the block; see Note [TxFactBase invairants]
 
-    tx_blocks :: [((Label, block n C C), [Label])]   -- I do not understand this type
+    tx_blocks :: [((Label, Block n C C), [Label])]   -- I do not understand this type
               -> TxFactBase n f -> m (TxFactBase n f)
     tx_blocks []              tx_fb = return tx_fb
     tx_blocks (((lbl,blk), in_lbls):bs) tx_fb = tx_block lbl blk in_lbls tx_fb >>= tx_blocks bs
      -- "in_lbls" == Labels the block may _depend_ upon for facts
 
-    tx_block :: Label -> block n C C -> [Label]
+    tx_block :: Label -> Block n C C -> [Label]
              -> TxFactBase n f -> m (TxFactBase n f)
     tx_block lbl blk in_lbls tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                                       , tfb_rg = blks, tfb_cha = cha })
@@ -455,7 +468,7 @@ fixpoint direction lat do_block blocks init_fbase
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
-                   = foldr (updateFact lat lbls) (cha,fbase) out_facts
+                   = mapFoldWithKey (updateFact lat lbls) (cha,fbase) out_facts
                  lbls' = lbls `setUnion` setFromList in_lbls
            ; return (TxFB { tfb_lbls  = lbls'
                           , tfb_rg    = rg `dgCat` blks

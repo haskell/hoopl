@@ -2575,18 +2575,7 @@ shallow rewriting, the rewrite function will have returned
 Lastly, the @body@ function iterates to a fixed point.
 This part of the implementation is the only really tricky part, and it is
 cleanly separated from everything else:
-\begin{smallcode}
-`body :: [Label] -> LabelMap (Block n C C)
-     -> Fact C f -> m (DG f n C C, Fact C f)
-body entries blocks init_fbase
-  = fixpoint Fwd lattice do_block init_fbase $
-    forwardBlockList entries blocks
-  where
-    lattice = fp_lattice pass
-    do_block b fb = do (g, fb) <- block b entryFact
-                       return (g, mapToList fb)
-      where entryFact = getFact lattice (entryLabel b) fb
-\end{smallcode}
+\smallverbatiminput{bodyfun}
 Function @forwardBlockList@ takes a list of possible entry points and 
 a finite map from labels to places.
 It returns a list of
@@ -2614,28 +2603,22 @@ reach the fixed point.)
 
 The rest of the work is done by @fixpoint@, which is shared by
 both forward and backward analyses:
-\begin{smallcode}
-data `Direction = `Fwd | `Bwd
-`fixpoint :: forall m n f. (FuelMonad m, NonLocal n)
-  => Direction
-  -> DataflowLattice f
-  -> (Block n C C -> FactBase f -> m (DG n f C C, FactBase f))
-  -> [Block n C C]
-  -> (FactBase f -> m (DG f n C C, FactBase f))
-\end{smallcode}
+\smallverbatiminput{fptype}
 Except for the mysterious @Bool@ passed as the first argument,
 the type signature tells the story.
 The third argument is an extended fact transformer for a single block; 
 @fixpoint@ applies that function successively to all the blocks,
 which are passed as the fourth argument.
 The result is an extended fact transformer for the blocks.
-This extended fact transformer maintains a
+
+The extended fact transformer returned by @fixpoint@
+ maintains a
  ``Current @FactBase@''
 which grows monotonically:
 its initial value is the input @FactBase@, and it is
 augmented with the new facts that flow
 out of each @Block@ as it is analyzed.
-The @fixpoint@ function
+The extended fact transformer
 iterates over the list of blocks until the Current @FactBase@ reaches
 a fixed point.  
 
