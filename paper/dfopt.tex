@@ -480,24 +480,28 @@ optimization.  It has the following distinctive characteristics:
 \begin{itemize}
 \item
 \ourlib\ is purely functional.  
-Perhaps surprisingly, code that
-manipulates control-flow graphs is easier to write, and far easier
-to write correctly, when written in a purely functional style
+Although pure functional languages are not obviously suited to writing
+standard algorithms that
+manipulate control-flow graphs,
+the pure functional code is actually easier to write, and far easier
+to write correctly, than code that is mostly functional uses a mutable
+representation of graphs
 \cite{ramsey-dias:applicative-flow-graph}.
 When analysis and rewriting
 are interleaved, so that rewriting must be done \emph{speculatively},
 without knowing whether
 the result of the rewrite will be retained or discarded,
 the benefit of a purely functional style is intensified
-(Sections \ref{sec:overview} and \ref{sec:fixpoints}).
+(\secref{overview}).
 
 \item
 \ourlib\ is polymorphic. Just as a list library is
 polymorphic in the list elements, so is \ourlib{} polymorphic, both in
-the nodes that inhabit graphs, and in the dataflow facts that 
+the nodes that inhabit graphs and in the dataflow facts that 
 analyses compute over these graphs (\secref{using-hoopl}).
 
-\item The paper by Lerner, Grove, and Chambers is inspiring but abstract.
+\item
+The paper by Lerner, Grove, and Chambers is inspiring but abstract.
 We articulate their ideas in a concrete but simple API that hides 
 a subtle implementation (Sections \ref{sec:graph-rep} and \ref{sec:using-hoopl}).  
 You provide a representation for assertions, 
@@ -547,6 +551,8 @@ and maybe the open/closed story is hard to understand here.}
 \item \ourlib{} implements subtle algorithms, including 
 (a)~interleaved analysis and rewriting, (b)~speculative rewriting,
 (c)~computing fixed points, and (d)~dynamic fault isolation.
+\remark{Should we prefigure somehow the ``main goal'' of the
+concluding section?}
 Previous implementations of these algorithms---including three of our
 own---are complicated and hard to understand, because the tricky pieces
 are implemented all together, inseparably. 
@@ -558,17 +564,18 @@ The result is sufficiently elegant that
 we emphasize the implementation as an object of interest in
 its own right.
 \end{itemize}
-A working prototype of \ourlib{} is available from
+Our work bridges the gap between abstract, theoretical presentations
+and actual compilers. 
+\ourlib{} is available from
 \burl{http://ghc.cs.tufts.edu/hoopl} and also from Hackage.
-It is no toy: an ancestor of this library is
-part of the Glasgow Haskell Compiler, where it optimizes the
-imperative {\PAL} code in GHC's back end.  The new design is far
-nicer, and it will be in GHC shortly.
+One of \hoopl's clients
+is the Glasgow Haskell Compiler, which uses \hoopl\ to optimize 
+imperative code in GHC's back end.
 
-The API for \ourlib{} seems quite natural, but it requires
+The API for \ourlib{} requires
 relatively sophisticated aspects of Haskell's type system, such
 as higher-rank polymorphism, GADTs, and type functions.
-As such, \ourlib{} offers a compelling case study in the utility
+\ourlib{} thereby offers a case study in the utility
 of these features.
 
 
@@ -578,8 +585,8 @@ of these features.
 \seclabel{example:transforms}
 \seclabel{example:xforms}
 
-We begin by setting the scene, introducing some vocabulary, and
-showing a small motivating example.
+%%  We begin by setting the scene, introducing some vocabulary, and
+%%  showing a small motivating example.
 A control-flow graph, perhaps representing the body of a procedure,
 is a collection of \emph{basic blocks}---or just ``blocks''.
 Each block is a sequence of instructions,
@@ -698,6 +705,7 @@ bottom up:\finalremark{something about replacement graphs?}
 \item A \emph{node} is defined by \ourlib's client;
 \ourlib{} knows nothing about the representation of nodes (\secref{nodes}).
 \item A basic \emph{block} is a sequence of nodes (\secref{blocks}).
+\item Control-flow \emph{edges} connect nodes (\secref{edges}).
 \item A \emph{graph} is an arbitrarily complicated control-flow graph,
 composed from basic blocks (\secref{graphs}).
 \end{itemize}
@@ -722,7 +730,7 @@ control to fall through into a branch target), but open on exit.
 \end{itemize}
 % This taxonomy enables \ourlib{} to enforce invariants:
 % only nodes closed at entry can be the targets of branches, and only nodes closed
-% at exits can transfer control (see also \secref{edges}).
+% at exits can transfer control (see also \secref{nonlocal-class}).
 % As~a consequence, all control transfers originate at control-transfer
 % instructions and terminated at labels; this invariant dramatically
 % simplifies analysis and transformation. 
@@ -923,6 +931,22 @@ Using GADTs to enforce these invariants is one of
 % that no block is empty?  (And if we had an empty block, we could ditch
 % @PNil@ from @PGraph@, which woudl be an improvement.)}
 
+\subsection{Control-flow edges and program points} \seclabel{edges}
+
+In a block, a control-flow edge is implicit in every application of
+the @BCat@ constructor.
+An~implicit edge originates in a first node or a middle node and flows
+to a middle node or a last node.
+\emph{Explicit} edges between blocks are represented by the client's
+node type;
+an~explicit edge originates in a last node and flows to a first node.
+\hoopl\ discovers explicit edges by using the @successors@ and
+@entryLabel@ functions of the @NonLocal@ class.
+Any~edge, whether implicit or explicit, is considered a program point,
+and an analysis written using \hoopl\ computes a dataflow fact at each
+such point.
+
+
 \subsection{Graphs} \seclabel{graphs}
 
 \ourlib{} composes blocks into graphs, which are also defined 
@@ -1041,7 +1065,7 @@ more than one way to represent some graphs, and it wouldn't be obvious
 to a client which representation to choose---or if the choice made a difference.
 
 
-\subsection{Labels and successors} \seclabel{edges}
+\subsection{Labels and successors} \seclabel{nonlocal-class}
 
 
 Although \ourlib{} is polymorphic in the type of nodes, 
@@ -1301,9 +1325,7 @@ interface to @analyzeAndRewriteFwdBody@, leaving the implementation for
 For each analysis or transformation, the client must define a type
 of dataflow facts.
 A~dataflow fact often represents an assertion
-about a program point,\footnote
-{In \ourlib, a program point is simply an edge in a
-control-flow graph.}
+about a program point,
 but in general, dataflow analysis establishes properties of \emph{paths}:
 \begin{itemize}
 \item An assertion about all paths \emph{to} a program point is established
@@ -2837,6 +2859,35 @@ as the previous version, which is part of GHC, version 6.12.
 
 \section{Discussion}
 
+Regarding use cases, we do support other control-flow algorithms; for
+example, we use Hoopl to compute dominators by a purely functional
+variant of the algorithm of Cooper, Harvey, and Kennedy (2001).
+We have also implemented a small suite of pure control-flow
+optimizations that that do not use any dataflow analysis, such as the
+elimination of branches to branches.  We have not contemplated trying
+to extend Hoopl to establish or maintain SSA invariants.
+
+HOW FAST/SLOW ARE THE RESULTING OPTIMIZATIONS?
+DO YOU TAKE A BIG HIT BECAUSE OF THE ABSTRACTIONS?
+
+Since you
+    given an interface in a library, you could use smart constructors and
+    phantom types to enfore the invariants from the client's point of view,
+    i.e. to force the client to write only meaningful graphs. The GADTs helps
+    you "take advantage" of these invariants knowing that other cases cannot
+    occur.
+
+Your point about GADTs and their utility is well taken: from the
+client's point of view, we could do almost as well with phantom types.
+The major exception is that without GADTs, a client would have to
+provide smart constructors for nodes: the client must ensure that each
+time a node is created with a particular value constructor, it always
+gets the same phantom type.
+
+
+multiple interfaces for rewrite functions---a subtlety!
+
+
 \iffalse
 
 (We have also implemented a ``fold style,'' but because the types are
@@ -2964,7 +3015,7 @@ Making \ourlib{} polymorphic in the nodes
 made the code simpler, easier to understand, and easier to maintain.
 In particular, it forced us to make explicit \emph{exactly} what
 \ourlib\ must know about nodes, and to embody that knowledge in the
-@NonLocal@ type class (\secref{edges}). 
+@NonLocal@ type class (\secref{nonlocal-class}). 
 \item
 We are proud of using GADTs to 
 \remark{too much?}
@@ -3033,6 +3084,10 @@ live-compiler mode,  pushing \hoopl\ into version
 
 
 \acks
+
+Several anonymous reviewers provided helpful feedback, especially
+reviewer~C, who gave us better language with which to describe our
+work. 
 
 The first and second authors were funded 
 by a grant from Intel Corporation and
