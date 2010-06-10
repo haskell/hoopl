@@ -1385,25 +1385,19 @@ constructors with these types:
   `PElem :: a -> WithTop a
   `Top   ::      WithTop a
 \end{code}
-\hoopl\ also provides a @`Bot@ constructor and types @WithTop@,
-@`WithBot@, and @`WithTopAndBot@.
-All are defined using a single GADT,
-so that value constructors @Top@ and @Bot@ may be used with any of the
-types.  \simon{This sentence was utterly opaque to me until I read the
-code.  We must remove it, or give more detail!}
-
-The real convenience of @WithTop@ is that 
-\remark{Simon, is this better? SLPJ: yes much!}
-that \hoopl\ provides 
+\hoopl\ provides 
 \begin{smallcode}
 addTop :: DataflowLattice a -> DataflowLattice (WithTop a)
 \end{smallcode}
-in which the new top element obeys all the appropriate algebraic laws.
-\hoopl\ provides similar functions for
-types @WithBot@, and @WithTopAndBot@.
-%
-\simon{Can we shorten ``@DataFlowLattice@'' to just ``@Lattice@''?}
-\john{The previous 3 paragraphs aren't worth their space.}
+in which the @Top@ element obeys all the appropriate algebraic laws.
+\hoopl\ also provides a @`Bot@ constructor and type constructors
+@`WithBot@, and @`WithTopAndBot@, along with similar functions.
+@Top@ and @Bot@ are polymorphic, so for example,
+@Top@~also has type @WithTopAndBot a@.
+\john{The previous 3 paragraphs aren't worth their space.
+NR: The issue is how to introduce @WithTop@ and @PElem@, which are used in
+\figref{const-prop}.
+I'd be happy if we could condense.}
 
 
 
