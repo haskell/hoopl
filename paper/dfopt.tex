@@ -1538,17 +1538,18 @@ In~general, a rewrite function must be able to return a
 Concretely, a @FwdRewrite@ takes a node and a 
 fact, and returns either @Nothing@, indicating that the node should
 not be replaced,
-or $@(Just (FwdRew@\;\ag\;\rw@))@$, indicating that the node should
+or $@Just (FwdRew@\;\ag\;\rw@)@$, indicating that the node should
 be replaced with~\ag: the replacement graph. 
-We will discuss $\rw$ in \secref{shallow-vs-deep}.
+We~discuss $\rw$ in \secref{shallow-vs-deep}.
 
-As you will see from its type in \figref{api-types}, a @FwdRewrite@ is 
-a \emph{monadic} function, because
-if the rewriter makes graphs containing blocks,
+As suggested by its type in \figref{api-types}, 
+a @FwdRewrite@ is
+a \emph{monadic} function, 
+with monad~@m@ chosen by the client.
+If the rewriter makes graphs containing blocks,
 it may need fresh @Label@s, which are supplied by the monad.
 A~client may use its own monad or may use a monad or monad transformer
 supplied by \hoopl. 
-\remark{Forward reference??} \simon{I don't think we need say more}
 
 %%%% \ifpagetuning\enlargethispage{0.8\baselineskip}\fi
 
