@@ -10,7 +10,7 @@ TEXINPUTS := .:../styles//:$(TEXINPUTS)
 # Bibliographies are in papers/bibs
 BIBINPUTS := .:../bibs//:$(BIBINPUTS)
 
-default: comb1.tex iterf.tex pairf.tex dg.tex 
+default: comb1.tex iterf.tex pairf.tex dg.tex  cprop.tex
 	[ -r "$(MAIN)du.tex" ] && chmod +w $(MAIN)du.tex
 	./defuse < $(MAIN).tex > $(MAIN)du.tex
 	chmod -w $(MAIN)du.tex
@@ -54,3 +54,10 @@ comb1.tex iterf.tex pairf.tex: ./xsource $(HOOPL)/Combinators.hs
 
 dg.tex: ./xsource $(HOOPL)/Dataflow.hs
 	lua ./xsource $(HOOPL)/Dataflow.hs
+
+CLIENT=../testing
+CPROPS=$(CLIENT)/ConstProp.hs $(CLIENT)/Simplify.hs $(CLIENT)/Test.hs
+
+cprop.tex: ./xsource $(CPROPS)
+	lua ./xsource $(CPROPS)
+
