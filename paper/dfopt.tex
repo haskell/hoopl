@@ -1568,11 +1568,10 @@ rewritten to an empty graph.
 \subsection{Shallow vs deep rewriting}
  \seclabel{shallow-vs-deep}
 
-Once the rewrite has been performed, what then?  
-The rewrite returns a replacement graph, 
-which must itself be analyzed, and its nodes may be further rewritten.
-We can do this by making a recursive call to 
-@analyzeAndRewriteFwdBody@---but what @FwdPass@ should we use?
+Once the rewrite has been performed, the replacement graph~$g$
+must itself be analyzed, and its nodes may be further rewritten.
+\hoopl\ can make a recursive call to 
+@analyzeAndRewriteFwdBody@---but what @FwdPass@ should it use?
 There are two common situations:
 \begin{itemize}
 \item Sometimes we want to analyze and transform the replacement graph
@@ -1582,10 +1581,10 @@ called \emph{deep rewriting}.
 When deep rewriting is used, the client's rewrite function must
 ensure that the graphs it produces are not rewritten indefinitely
 (\secref{correctness}). 
-\item Sometimes we want to analyze \emph{but not further rewrite} the
-replacement graph.  This procedure is called \emph{shallow rewriting}.
-It~is easily implemented by using a modified @FwdPass@
-whose rewriting function always returns @Nothing@.
+\item
+A client may want to analyze the
+replacement graph \emph{without} further rewriting.  
+This procedure is called \emph{shallow rewriting}.
 \end{itemize}
 Deep rewriting is essential to achieve the full benefits of
 interleaved analysis and transformation
