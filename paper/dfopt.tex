@@ -182,6 +182,7 @@ higher-rank any longer).
 \newenvironment{smallcode}{\par\unskip\small\verbatim}{\endverbatim}
 \newenvironment{fuzzcode}[1]{\par\unskip\hfuzz=#1 \verbatim}{\endverbatim}
 \newenvironment{smallfuzzcode}[1]{\par\unskip\small\hfuzz=#1 \verbatim}{\endverbatim}
+\newenvironment{smallttcode}{\par\unskip\small\alltt}{\endalltt}
 
 \newcommand\smallverbatiminput[1]{{\small\verbatiminput{#1}}}
 
@@ -991,26 +992,24 @@ Unlike blocks, two graphs may be spliced together
 not only when they are both open
  at splice point but also
 when they are both closed---and not in the other two cases:
-\begin{smallfuzzcode}{10.8pt}
+\begingroup
+\newcommand\cnl{\\[-5pt]}%
+\begin{smallttcode}
 `gSplice :: Graph n e a -> Graph n a x -> Graph n e x
 gSplice GNil g2 = g2
-gSplice g1 GNil = g1
-
-gSplice (GUnit ^b1) (GUnit ^b2) = GUnit (b1 `BCat` b2)
-
+gSplice g1 GNil = g1\cnl
+gSplice (GUnit ^b1) (GUnit ^b2) = GUnit (b1 `BCat` b2)\cnl
 gSplice (GUnit b) (GMany (JustO e) bs x) 
-  = GMany (JustO (b `BCat` e)) bs x
-
+  = GMany (JustO (b `BCat` e)) bs x\cnl
 gSplice (GMany e ^bs (JustO x)) (GUnit b2) 
-  = GMany e bs (JustO (x `BCat` b2))
-
+  = GMany e bs (JustO (x `BCat` b2))\cnl
 gSplice (GMany e1 ^bs1 (JustO x1)) (GMany (JustO e2) ^bs2 x2)
   = GMany e1 (bs1 `mapUnion` (b `addBlock` bs2)) x2
-  where b = x1 `BCat` e2
-
+  where b = x1 `BCat` e2\cnl
 gSplice (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
   = GMany e1 (bs1 `mapUnion` bs2) x2
-\end{smallfuzzcode}
+\end{smallttcode}
+\endgroup
 % omit mapUnion :: LabelMap a -> LabelMap a -> LabelMap a
 % omit addBlock :: NonLocal n => Block n C C -> LabelMap (Block n C C) -> LabelMap (Block n C C)
 This definition illustrates the power of GADTs: the
@@ -2447,7 +2446,7 @@ The @node@ function is where we interleave analysis with rewriting:
 node :: forall e x . (ShapeLifter e x) 
      => n e x -> f -> m (DG f n e x, Fact x f)
 node n f
- = do { rew <- withFuel (frewrite pass n f)
+ = do { rew <- withFuel =<< frewrite pass n f
       ; case rew of
           Nothing -> return (singletonDG f n,
                              ftransfer pass n f)
@@ -2506,22 +2505,29 @@ away by the compiler.
 \seclabel{vpoiso}
 \seclabel{fuel}
 
-The call to @withFuel@ in function @node@ enables us to 
-set a limit on the number of nodes rewritten.
-We~call the limit \emph{optimization fuel}.
-Each rewrite costs one unit of fuel,
-and when the fuel is exhausted, no more rewrites are permitted.
-Because each rewrite leaves the observable behavior of the
-program unchanged, it is safe to stop rewriting at any point.
+The call to @withFuel@ in function @node@ may prevent a node from
+being rewritten.
+It~uses a mechanism we call \emph{optimization fuel},
+which is stored in a @FuelMonad@ (\figref{api-types}):
+\begin{code}
+ `withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
+\end{code}
+If @withFuel@ is passed a @Just@, a rewrite is being requested.
+If~fuel is available, @withFuel@ @return@s its argument,
+reducing the supply of fuel by one unit.
+In~all other cases, including when fuel is exhausted, @withFuel@
+@return@s @Nothing@. 
 
-Optimization fuel is used when debugging the optimizer:
+
+Optimization fuel is used to debug the optimizer:
 when an optimizer produces a faulty program,
 we use Whalley's
-\citeyearpar{whalley:isolation} powerful fault-isolation technique:
+\citeyearpar{whalley:isolation} technique to find the fault.
 Given a program that fails when compiled with optimization,
-a test infrastructure uses binary search on the amount of
-optimization fuel, until
-it finds that the program works correctly after $n-1$ rewrites but fails
+a binary search on the amount of
+optimization fuel
+finds an~$n$ such that program works correctly after $n-1$ rewrites
+but fails 
 after $n$~rewrites.
 The $n$th rewrite is faulty.
 
@@ -2529,16 +2535,6 @@ The $n$th rewrite is faulty.
 
 \seclabel{fuel-monad}
 
-The throttling mechanism is isolated in a single function:
-\begin{code}
-`withFuel :: FuelMonad m => m (Maybe a) -> m (Maybe a)
-\end{code}
-If~fuel is available, @withFuel@ @return@s its argument,
-consuming a unit of fuel if the argument is a @Just@.
-If~fuel is exhaused, @withFuel@ @return@s @Nothing@, independent of
-its argument.
-A~@FuelMonad@ is simply a state monad that provides operations
- @getFuel@ and @setFuel@, as shown in \figref{api-types}.
 
 
 \subsection{Fixed points} \seclabel{arf-body}
@@ -2777,47 +2773,49 @@ for a phase distinction.
 %%%     using Whalley's  \citeyearpar{whalley:isolation} fault-isolation technique.
 %%%   \end{itemize}
 
-In previous work \cite{ramsey-dias:applicative-flow-graph}, we
-described a zipper-based representation of control-flow 
-graphs, stressing the advantages
-of immutability.
-Our new representation, described in \secref{graph-rep}, is a significant improvement:
-\begin{itemize}
-\item
-We can concatenate nodes, blocks, and graphs in constant time.
-%Previously, we had to resort to Hughes's
-%\citeyearpar{hughes:lists-representation:article} technique, representing
-%a graph as a function.
-\item
-We can do a backward analysis without having
-to ``unzip'' (and allocate a copy of) each block.
-\item
-Using GADTs, we can represent a flow-graph
-node using a single type, instead of the triple of first, middle, and
-last types used in our earlier representation.
-This change simplifies the interface significantly:
-instead of providing three transfer functions and three rewrite
-functions per pass---one for 
-each type of node---a client of \hoopl\ provides only one transfer
-function and one rewrite function per pass.
-\item
-Errors in concatenation are ruled out at
-compile-compile time by Haskell's static
-type system.
-In~earlier implementations, such errors were not detected until
-the compiler~ran, at which point we tried to compensate
-for the errors---but
-the compensation code harbored subtle faults,
-which we discovered while developing a new back end
-for the Glasgow Haskell Compiler.
-\end{itemize}
+%% what follows now looks redundant with discussion below ---NR
 
-The implementation of \ourlib\ is also much better than
-our earlier implementations.
-Not only is the code simpler conceptually,
-but it is also shorter:
-our new implementation is about a third as long
-as the previous version, which is part of GHC, version 6.12.
+%%  In previous work \cite{ramsey-dias:applicative-flow-graph}, we
+%%  described a zipper-based representation of control-flow 
+%%  graphs, stressing the advantages
+%%  of immutability.
+%%  Our new representation, described in \secref{graph-rep}, is a significant improvement:
+%%  \begin{itemize}
+%%  \item
+%%  We can concatenate nodes, blocks, and graphs in constant time.
+%%  %Previously, we had to resort to Hughes's
+%%  %\citeyearpar{hughes:lists-representation:article} technique, representing
+%%  %a graph as a function.
+%%  \item
+%%  We can do a backward analysis without having
+%%  to ``unzip'' (and allocate a copy of) each block.
+%%  \item
+%%  Using GADTs, we can represent a flow-graph
+%%  node using a single type, instead of the triple of first, middle, and
+%%  last types used in our earlier representation.
+%%  This change simplifies the interface significantly:
+%%  instead of providing three transfer functions and three rewrite
+%%  functions per pass---one for 
+%%  each type of node---a client of \hoopl\ provides only one transfer
+%%  function and one rewrite function per pass.
+%%  \item
+%%  Errors in concatenation are ruled out at
+%%  compile-compile time by Haskell's static
+%%  type system.
+%%  In~earlier implementations, such errors were not detected until
+%%  the compiler~ran, at which point we tried to compensate
+%%  for the errors---but
+%%  the compensation code harbored subtle faults,
+%%  which we discovered while developing a new back end
+%%  for the Glasgow Haskell Compiler.
+%%  \end{itemize}
+%%  
+%%  The implementation of \ourlib\ is also much better than
+%%  our earlier implementations.
+%%  Not only is the code simpler conceptually,
+%%  but it is also shorter:
+%%  our new implementation is about a third as long
+%%  as the previous version, which is part of GHC, version 6.12.
 
 
 
