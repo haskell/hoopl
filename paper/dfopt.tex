@@ -1623,7 +1623,7 @@ Deep rewriting is essential to achieve the full benefits of
 interleaved analysis and transformation
 \citep{lerner-grove-chambers:2002}.
 But shallow rewriting can be vital as well; 
-for example, a forward dataflow pass that inserts
+for example, a backward dataflow pass that inserts
 a spill before a call must not rewrite the call again, lest it attempt
 to insert infinitely many spills.
 
