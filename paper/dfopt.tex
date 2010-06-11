@@ -2504,25 +2504,18 @@ away by the compiler.
 \seclabel{vpoiso}
 \seclabel{fuel}
 
-The call to @withFuel@ in function @node@ allows us to set as
-limit on the number of permitted rewrites.
-This is useful when debugging:
-when an optimizer produces a faulty program,
-the blame could lie with any of many hundreds of rewrites.
-To~find the first rewrite that 
-transforms a program from working code to faulty code,
-we use Whalley's
-\citeyearpar{whalley:isolation} powerful fault-isolation technique.
-
-Whalley's technique uses a limit on the number of rewrites
-the optimizer may perform;
-in~\hoopl, we call the limit
-\emph{optimization fuel}.
+The call to @withFuel@ in function @node@ enables us to 
+set a limit on the number of nodes rewritten.
+We~call the limit \emph{optimization fuel}.
 Each rewrite costs one unit of fuel,
 and when the fuel is exhausted, no more rewrites are permitted.
 Because each rewrite leaves the observable behavior of the
 program unchanged, it is safe to stop rewriting at any point.
-%
+
+Optimization fuel is used when debugging the optimizer:
+when an optimizer produces a faulty program,
+we use Whalley's
+\citeyearpar{whalley:isolation} powerful fault-isolation technique:
 Given a program that fails when compiled with optimization,
 a test infrastructure uses binary search on the amount of
 optimization fuel, until
@@ -2538,10 +2531,10 @@ The throttling mechanism is isolated in a single function:
 \begin{code}
 `withFuel :: FuelMonad m => m (Maybe a) -> m (Maybe a)
 \end{code}
-If @withFuel@'s argument returns @Nothing@, \emph{or} if we have run out of
-optimization fuel, @withFuel@ returns @Nothing@.
-Otherwise, @withFuel@ consumes one unit of fuel and returns its
-argument (which will be a @Just@).  
+If~fuel is available, @withFuel@ @return@s its argument,
+consuming a unit of fuel if the argument is a @Just@.
+If~fuel is exhaused, @withFuel@ @return@s @Nothing@, independent of
+its argument.
 A~@FuelMonad@ is simply a state monad that provides operations
  @getFuel@ and @setFuel@, as shown in \figref{api-types}.
 
