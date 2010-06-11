@@ -736,7 +736,7 @@ control to fall through into a branch target), but open on exit.
 \item
 A~function call should be closed on exit,
 because control can flow from a call site to multiple points:
-a~return continuation, and exception handler, or what have you.
+for example, a~return continuation or an exception handler.
 (And~after optimization, distinct call sites may share a return
 continuation.)
 \end{itemize}
@@ -794,7 +794,7 @@ But \ourlib{}'s graph representation is \emph{polymorphic in the node type},
 so each client can define nodes as it likes.
 Because they contain nodes defined by the client,
 graphs can include arbitrary client-specified data, including
-(say) C~statements, method calls in an object-oriented language, or
+(say) method calls, C~statements, stack maps, or
 whatever.
 
 
