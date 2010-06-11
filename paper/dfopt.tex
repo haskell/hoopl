@@ -1474,6 +1474,7 @@ If the node is open at exit, the transfer function produces a single fact.
 But if the node is \emph{closed} at exit,
 the transfer function must
 produce a list of (@Label@,fact) pairs, one for each outgoing edge.  
+\simon{Actually it's a @FactBase@.}
 %
 The dependency can be expressed by Haskell's (recently added) 
 \emph{indexed type families}.
@@ -2188,6 +2189,8 @@ Finally, the result is a ``decorated graph''
 and if the graph
 is open at the exit, an ``exit  fact'' flowing out.
 
+\simon{I suggest (a) putting the paragraph break one sentence earlier,
+so that this para is all about DGs.}
 A~``decorated graph'' is one in which each block is decorated with the
 fact that holds at the start of the block.
 @DG@ actually shares a representation with @Graph@,
@@ -2202,7 +2205,6 @@ The truth about @Graph@ and @DG@ is as follows:
 \verbatiminput{dg}
 % defn DG
 % defn DBlock
-% defn toDg
 Type~@DG@ is internal to \hoopl; it is not seen by any client.
 Extracting a @Graph@ and a @FactBase@ for @analyzeAndRewriteFwdBody@
 requires a 12-line function:
@@ -2294,7 +2296,7 @@ Extended fact transformers for nodes and blocks have the same type;
 they expect a fact~@f@ rather than the more general @Fact e f@
 required for a graph.
 We~made a similar design choice in the interface for transfer
-functions (\secref{transfer-function}): because a node or a block has
+functions (\figref{api-types}): because a node or a block has
 exactly one fact flowing into the entry, it is easiest  simply to pass
 that fact.
 \item
@@ -2324,28 +2326,10 @@ fixed points.
 
 
 \subsection{Analyzing blocks and graphs by composing extended fact transformers}
+\seclabel{block-impl}
 
 Extended fact transformers compose nicely.
-The composition function, @cat@, arranges for the functional parts to
-compose and for the decorated graphs to be spliceable.
-It~has a very general type:
-\begin{code}
-cat :: forall m e a x info info' info''. Monad m 
-    => (info  -> m (DG f n e a, info' ))
-    -> (info' -> m (DG f n a x, info''))
-    -> (info  -> m (DG f n e x, info''))
-`cat ft1 ft2 f = do { (g1,f1) <- ft1 f
-                   ; (g2,f2) <- ft2 f1
-                   ; return (g1 `dgCat` g2, f2) }
-\end{code}
-(Function @`dgCat@ is the same splicing function used for an ordinary
-@Graph@, but it takes a one-line block-concatenation function suitable
-for @DBlock@s.)
-The name @cat@ comes from the concatenation of the decorated graphs,
-but it is also appropriate because the style in which it is used is
-reminiscent of @concatMap@, with the @node@ and @block@ functions
-playing the role of @map@.
-The @block@ function exemplifies this style:
+For example, @block@ is implemented thus:
 \begin{code}
   `block :: forall e x .
     Block n e x -> f -> m (DG f n e x, Fact x f)
@@ -2355,8 +2339,25 @@ The @block@ function exemplifies this style:
   block (BCat b1 b2) = block b1 `cat` block b2
 \end{code}
 The implementation of @graph@ is similar but has more cases.
-
-
+The composition function, @cat@, arranges for the functional parts to
+compose and for the decorated graphs to be spliceable.
+It~has a very general type:
+\begin{code}
+cat :: forall m e a x f f1 f2. Monad m 
+    => (f  -> m (DG f n e a, f1))
+    -> (f1 -> m (DG f n a x, f2))
+    -> (f  -> m (DG f n e x, f2))
+`cat ft1 ft2 f = do { (g1,f1) <- ft1 f
+                    ; (g2,f2) <- ft2 f1
+                    ; return (g1 `dgCat` g2, f2) }
+\end{code}
+(Function @`dgCat@ is the same splicing function used for an ordinary
+@Graph@, but it takes a one-line block-concatenation function suitable
+for @DBlock@s.)
+The name @cat@ comes from the concatenation of the decorated graphs,
+but it is also appropriate because the style in which it is used is
+reminiscent of @concatMap@, with the @node@ and @block@ functions
+playing the role of @map@.
 
 %%%%    
 %%%%    \begin{itemize} 
@@ -2432,16 +2433,78 @@ The implementation of @graph@ is similar but has more cases.
 %%%%    concatenated to form a single result of type~@DG@.
 %%%%    
 
+\subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
+
+The @node@ function implements the interleaved rewrite-and-transfer
+algorithm:
+\begin{smallfuzzcode}{10.5pt}
+node :: forall e x . (ShapeLifter e x) 
+     => n e x -> f -> m (DG f n e x, Fact x f)
+node n f
+ = do { rew <- withFuel (frewrite pass n f)
+      ; case rew of
+          Nothing -> return (singletonDG f n,
+                             ftransfer pass n f)
+          Just (FwdRew g rw) ->
+            let pass' = pass { fp_rewrite = rw }
+                f'    = fwdEntryFact n f
+            in  arfGraph pass' (fwdEntryLabel n) g f' }
+
+class ShapeLifter e x where
+ singletonDG   :: f -> n e x -> DG f n e x
+ fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
+ fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
+ ftransfer     :: FwdPass m n f -> n e x -> f -> Fact x f
+ frewrite      :: FwdPass m n f -> n e x
+               -> f -> m (Maybe (FwdRew m n f e x))
+\end{smallfuzzcode}
+%
+% Functions @`frewrite@, @`ftransfer@, @`toBlock@,
+% @`maybeEntry@, and @`fwdEntryFact@ are overloaded based on the
+% node's shape, via the (private) @`ShapeLifter@ class.
+It uses @frewrite@ to extract the rewriting function from @pass@,
+and applies it to the node~@n@ and the incoming fact~@f@.
+Ignore the call to @withFuel@ for now; we discuss it next
+in \secref{fuel}.  The result of the rewrite, @res@, is then
+scrutinised by the @case@ expression.
+
+In the @Nothing@ case, no rewrite takes place: either fuel is
+exhausted, or the rewrite function
+didn't want a rewrite.
+We~return the single-node
+graph @(singletonDG f n)@, decorated with its incoming fact,
+and apply the transfer function @ftransfer pass@ 
+to the incoming fact to produce the outgoing fact.
+
+In the @Just@ case, we receive a replacement
+graph~@g@ and a new rewrite function~@rw@.
+We~recursively analyze @g@ with @arfGraph@.  
+This analysis uses @pass'@, which contains the original lattice and transfer
+function from @pass@, together with the new rewrite function~@rw@.
+Function @fwdEntryFact@ converts fact~@f@ from the type~@f@,
+which @node@ expects, to the type @Fact e f@, which @arfGraph@ expects.
+
+As you can see, several functions called in @node@ are overloaded over a
+(private) class @ShapeLifter@, because their implementations depend
+on the open/closed shape of the node.  Each call of @node@ (in @block@,
+\secref{block-impl}) has a statically-fixed open/closed shape, so
+this use of @ShapeLifter@ is highly localised, and is specialised
+away by the compiler.
+
+%%  And that's it!  If~the client wanted deep rewriting, it is
+%%  implemented by the call to @arfGraph@;
+%%  if the client wanted
+%%  shallow rewriting, the rewrite function will have returned
+%%  @noFwdRw@ as~@rw@, which is implanted in @pass'@
+%%  (\secref{shallow-vs-deep}).
+
 \subsection{Throttling rewriting using ``optimization fuel''}
 \seclabel{vpoiso}
 \seclabel{fuel}
 
-Function @node@ handles all rewriting,
-but before we explain @node@'s implementation, 
-we need to present a mechanism we use to~limit 
-the number of rewrites that
-are performed while optimizing a program.
-We limit rewrites only when debugging an optimizer:
+The call to @withFuel@ in function @node@ allows us to set as
+limit on the number of permitted rewrites.
+This is useful when debugging:
 when an optimizer produces a faulty program,
 the blame could lie with any of many hundreds of rewrites.
 To~find the first rewrite that 
@@ -2471,71 +2534,15 @@ The $n$th rewrite is faulty.
 
 The throttling mechanism is isolated in a single function:
 \begin{code}
-  `withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
+`withFuel :: FuelMonad m => m (Maybe a) -> m (Maybe a)
 \end{code}
-If @withFuel@'s argument is @Nothing@, \emph{or} if we have run out of
+If @withFuel@'s argument returns @Nothing@, \emph{or} if we have run out of
 optimization fuel, @withFuel@ returns @Nothing@.
 Otherwise, @withFuel@ consumes one unit of fuel and returns its
 argument (which will be a @Just@).  
 A~@FuelMonad@ is simply a state monad that provides operations
  @getFuel@ and @setFuel@, as shown in \figref{api-types}.
 
-
-\subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
-
-NEEDS THINKING ABOUT THE TRANSITION
-
-
-Although interleaving analysis with transformation is tricky, we have
-isolated the algorithm in the @node@ function:
-\begin{smallfuzzcode}{10.5pt}
-node :: forall e x . (ShapeLifter e x) 
-     => n e x -> f -> m (DG f n e x, Fact x f)
-node n f
- = do { rew <- frewrite pass n f >>= withFuel
-      ; case rew of
-          Nothing -> return (toDg f (toBlock n),
-                             ftransfer pass n f)
-          Just (FwdRew g rw) ->
-            let pass' = pass { fp_rewrite = rw }
-                f'    = fwdEntryFact n f
-            in  arfGraph pass' (maybeEntry n) g f' }
-\end{smallfuzzcode}
-This code is more complicated than the code for @block@ or @graph@, but
-it is still short.
-%
-Functions @`frewrite@, @`ftransfer@, @`toBlock@,
-@`maybeEntry@, and @`fwdEntryFact@ are overloaded based on the
-node's shape, via the (private) @`ShapeLifter@ class.
-We begin by using @frewrite@ to
-extract the
-rewriting function from the @FwdPass@,
-and we apply it to the node~@n@ 
-and the  incoming fact~@f@.  
-
-
-In the @Nothing@ case, no rewrite takes place: fuel is
-exhausted, or the rewrite function
-didn't want a rewrite.
-We~return the single-node
-graph @toDg f (toBlock n)@, decorated with its incoming fact.
-We~also apply the transfer function @ftransfer pass@ 
-to the incoming fact to produce the outgoing fact.
-
-In the @Just@ case, we receive a replacement
-graph~@g@ and a new rewrite function~@rw@.
-We~recursively analyze @g@ with @arfGraph@.  
-This analysis uses @pass'@, which contains the original lattice and transfer
-function from @pass@, together with the new rewrite function~@rw@.
-Function @fwdEntryFact@ converts fact~@f@ from the type~@f@,
-which @node@ expects, to the type @Fact e f@, which @arfGraph@ expects.
-
-%%  And that's it!  If~the client wanted deep rewriting, it is
-%%  implemented by the call to @arfGraph@;
-%%  if the client wanted
-%%  shallow rewriting, the rewrite function will have returned
-%%  @noFwdRw@ as~@rw@, which is implanted in @pass'@
-%%  (\secref{shallow-vs-deep}).
 
 \subsection{Fixed points} \seclabel{arf-body}
 
@@ -2587,7 +2594,7 @@ both forward and backward analyses:
 % defn Direction
 % defn Fwd
 % defn Bwd
-Except for the mysterious @Bool@ passed as the first argument,
+Except for the mysterious @Direction@ passed as the first argument,
 the type signature tells the story.
 The third argument is an extended fact transformer for a single block; 
 @fixpoint@ applies that function successively to all the blocks,
@@ -2978,10 +2985,10 @@ In particular, it forced us to make explicit \emph{exactly} what
 \ourlib\ must know about nodes, and to embody that knowledge in the
 @NonLocal@ type class (\secref{nonlocal-class}). 
 \item
-We are proud of using GADTs to 
-\remark{too much?}
+\remark{too much? Simon: better?}
+The use of GADTs to 
 track the open and closed shapes of nodes, blocks, and graphs at
-compile time. 
+compile time worked out very well. 
 Shapes may
 seem like a small refinement, but they helped tremendously when
 building \hoopl, and we expect them to help clients. 
