@@ -2907,6 +2907,8 @@ How do we evaluate whether \hoopl\ fulfills this goal?
 From a client's perspective,
 the most important question is:
 How easy is it to write an optimization using \hoopl?
+\begin{itemize}
+\item
 One way to evaluate this question is by use cases.
 As~suggested by the constant-propagation example in
 \figref{const-prop}, \hoopl\ makes it easy to implement many standard
@@ -2917,6 +2919,7 @@ and induction-variable elimination
 \cite{cocke-kennedy:operator-strength-reduction} in just a few weeks.
 Students at Yale and at Portland State have also succeeded in building
 a variety of optimizations.
+
 Within GHC, \hoopl's API supports not only
 dataflow optimizations,
 but also optimizations based on control flow,
@@ -2924,6 +2927,7 @@ such as eliminating branch chains.
 We have not contemplated trying
 to extend Hoopl to establish or maintain SSA invariants.
 
+\item
 Another way to evaluate how easy it is to write an optimization
 is to examine the API.
 One good sign about the API is that it supports many higher-order
@@ -2951,6 +2955,7 @@ If~one wished to port \hoopl\ to a language without GADTs,
 many of the benefits could be realized by making the shapes phantom
 types, but without GADTs, pattern matching would be significantly more
 tedious and error-prone.
+\end{itemize}
 
 % An~advantage of our ``shapely'' node API is that a client can
 % write a \emph{single} transfer function that is polymorphic in shape.
@@ -2968,6 +2973,8 @@ of similar ideas.
 % The implementation is more difficult to evaluate than the~API.
 % Previous implementations of similar ideas have rolled the problems
 % into a big ball of mud.
+\begin{itemize}
+\item
 By~decomposing our implementation into @node@, @block@, @body@,
 @graph@, @cat@, @withFuel@, and @fixpoint@, we have clearly separated
 multiple concerns:
@@ -2978,14 +2985,15 @@ computing a fixed point using speculative rewriting.
 Because of this separation of concerns,
 we believe our implementation will be much easier to maintain than
 anything that preceded it.
-But~even within this framework,
-we have great freedom to experiment with alternative implementations;
+\item
+The API gives us great freedom to experiment with alternative implementations;
 % there are possible alternative implementations;
 for example, in addition to ``@concatMap@ style,'' we have also
 written implementations in ``fold style'' and in continuation-passing
 style.
 Which implementation is preferred is a matter of taste, and of course
 there may be performance implications.
+\end{itemize}
 
 
 
