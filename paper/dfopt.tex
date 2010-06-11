@@ -1159,6 +1159,7 @@ Rewrite functions & Us & You & One per \rlap{transformation} \\[3pt]
 Solve-and-rewrite functions & Us & Us & Two (forward, backward) \\
 \end{tabular}%
 }
+\ifpagetuning\vspace*{0.5\baselineskip}\fi
 \caption{Parts of an optimizer built with \ourlib}
 \tablabel{parts}
 \end{table}
@@ -1170,30 +1171,31 @@ Solve-and-rewrite functions & Us & Us & Two (forward, backward) \\
 \seclabel{create-analysis}
 
 Now that we have graphs, how do we optimize them?
-\ourlib{} makes it  easy for a
-client to build a new dataflow analysis and optimization.  
-The client must supply the following pieces:
+\ourlib{} makes it easy to build a new dataflow analysis and optimization.  
+A~client must supply the following pieces:
 \begin{itemize}
-\item \emph{A node type} (\secref{nodes}).  
+\item A \emph{node type} (\secref{nodes}).  
 \ourlib{} supplies the @Block@ and @Graph@ types
 that let the client build control-flow graphs out of nodes.
-\item \emph{A data type of facts} and some operations over 
+\item A \emph{data type of facts} and some operations over 
 those facts (\secref{facts}).
 Each analysis uses facts that are specific to that particular analysis,
 which \ourlib{} accommodates by being polymorphic in 
 the fact type.   
-\item \emph{A transfer function} that takes a node and returns a
+\item A \emph{transfer function} that takes a node and returns a
 \emph{fact transformer}, which takes a fact flowing into the node and
 returns the transformed fact that flows out of the node (\secref{transfers}).  
-\item \emph{A rewrite function} that takes a node and an input fact,
+\item A \emph{rewrite function} that takes a node and an input fact,
 and which returns either @Nothing@
-or @(Just g)@ where @g@~is a graph that should
-replace the node.  
-The ability to replace a \emph{node} by a \emph{graph} that may include
-internal control flow is
-crucial for many code-improving transformations.
-We discuss the rewrite function
-in Sections \ref{sec:rewrites} and \ref{sec:shallow-vs-deep}.
+or @Just (FwdRew g rw)@,
+where @g@~is a graph that should
+replace the node and @rw@ is a new rewrite function
+(\secreftwo{rewrites}{shallow-vs-deep}).
+The ability to replace a \emph{node} by a \emph{graph} 
+%  that may include internal control flow 
+is crucial for many code-improving transformations.
+%We discuss the rewrite function
+%in Sections \ref{sec:rewrites} and \ref{sec:shallow-vs-deep}.
 \end{itemize}
 These requirements are summarized in \tabref{parts}.
 Because facts, transfer functions, and rewrite functions work closely together,
@@ -1210,28 +1212,64 @@ exposition, we present a function that is specialized to a
 closed/closed graph:
 \begin{code}
 `analyzeAndRewriteFwdBody
-  :: ( FuelMonad m    -- Gensym and other state
-     , NonLocal n )   -- Extract non-local flow edges
-  => FwdPass m n f    -- Lattice, transfer, rewrite
-  -> [Label]          -- Entry point(s)
-  -> Graph n C C      -- Input graph
-  -> FactBase f       -- Input fact(s)
-  -> m ( Graph n C C  -- Result graph
-       , FactBase f ) -- ... and its facts
+ :: ( FuelMonad m    -- State for rewriting
+    , NonLocal n )   -- Extract non-local flow edges
+ => FwdPass m n f    -- Lattice, transfer, rewrite
+ -> [Label]          -- Entry point(s)
+ -> Graph n C C      -- Input graph
+ -> FactBase f       -- Input fact(s)
+ -> m ( Graph n C C  -- Result graph
+      , FactBase f ) -- ... and its facts
 \end{code}
-Given a @FwdPass@, the 
+Given a @FwdPass@ and a list of entry points, the 
 analyze-and-rewrite function transforms a graph into
 an optimized graph.
 As its type shows, this function
 is polymorphic in the types of nodes~@n@ and facts~@f@;
-these types are determined entirely by the client.
-The type of the monad~@m@ is also supplied by the client, but it must
-meet certain constraints laid out by \hoopl, as described in
+these types are determined by the client.
+The type of the monad~@m@ is also determined by the client, but it must
+meet the constraints implied by @FuelMonad@, as described in
 \secref{fuel-monad}. 
 %%  
 %%  offer at least the operations of the @FuelMonad@ class (\figref{api-types}),
 %%  namely: the ability to allocate fresh labels (\secref{rewrites}) and to 
 %%  manage ``optimisation fuel'' (\secref{fuel-monad}).
+
+As well as taking and returning a graph, the
+function also takes input facts (the @FactBase@) and produces output facts. 
+A~@FactBase@ is simply a finite mapping from @Label@ to facts;
+if~a @Label@ is not in the domain of the @FactBase@, its fact is the
+bottom element of the lattice.
+For example, in our constant-propagation example from \secref{const-prop-example},
+if the graph
+represents the body of a procedure 
+with parameters $x,y,z$, we would map the entry @Label@ to a fact
+$@x=@\top \land @y=@\top \land @z=@\top$, to specify that the procedure's
+parameters are not known to be constants.
+%%  
+%%  The
+%%  output @FactBase@ maps each @Label@ in the body to its fact
+
+The client's model of how @analyzeAndRewriteFwdBody@ works is as follows:
+\ourlib\ walks forward over each block in the graph.
+At each node, \ourlib\ applies the
+rewrite function to the node and the incoming fact.  If the rewrite
+function returns @Nothing@, the node is retained as part of the output
+graph, the transfer function is used to compute the downstream fact,
+and \ourlib\ moves on to the next node.
+But if the rewrite function returns @Just (FwdRew g rw)@,
+indicating that it wants to rewrite the node to the replacement graph~@g@, then
+\ourlib\ recursively analyzes and rewrites~@g@, using the new rewrite
+function~@rw@, before moving on to the next node. 
+A~node following a rewritten node sees 
+\emph{up-to-date} facts; that is, its input fact is computed by
+analyzing the replacement graph.
+
+Below we flesh out the
+interface to @analyzeAndRewriteFwdBody@, leaving the implementation for
+\secref{engine}.  
+%{\hfuzz=7.2pt\par}
+
 
 \begin{figure}
 \begin{code}
@@ -1259,8 +1297,8 @@ newtype `FwdTransfer n f      -- abstract type
 ------- Rewrites ----------
 newtype `FwdRewrite m n f     -- abstract type
 `mkFRewrite
- :: (forall e x . n e x -> f
-               -> m (Maybe (FwdRew m n f e x)))
+ :: (forall e x . n e x 
+               -> f -> m (Maybe (FwdRew m n f e x)))
  -> FwdRewrite m n f
 
 data `FwdRew m n f e x 
@@ -1291,43 +1329,6 @@ class Monad m => `FuelMonad m where
 %%%%  is not a symmetrical join; we're extending an old fact with a new one.
 %%%%  NR: Yes, but the asymmetry is now explicit in the \emph{type}, so it
 %%%%  needn't also be reflected in the \emph{name}.}
-
-As well as taking and returning a graph with its entry point(s), the
-function also takes input facts (the @FactBase@) and produces output facts. 
-A~@FactBase@ is simply a finite mapping from @Label@ to facts.
-The
-output @FactBase@ maps each @Label@ in the body to its fact; if
-the @Label@ is not in the domain of the @FactBase@, its fact is the
-bottom element of the lattice.
-The point(s) at which control flow may enter the graph are supplied by
-the caller; the input @FactBase@ supplies any
-facts that hold at these points.
-For example, in our constant-propagation example from \secref{const-prop-example},
-if the graph
-represents the body of a procedure 
-with parameters $x,y,z$, we would map the entry @Label@ to a fact
-$@x=@\top \land @y=@\top \land @z=@\top$, to specify that the procedure's
-parameters are not known to be constants.
-
-The client's model of how @analyzeAndRewriteFwdBody@ works is as follows:
-\ourlib\ walks forward over each block in the graph.
-At each node, \ourlib\ applies the
-rewrite function to the node and the incoming fact.  If the rewrite
-function returns @Nothing@, the node is retained as part of the output
-graph, the transfer function is used to compute the downstream fact,
-and \ourlib\ moves on to the next node.
-But if the rewrite function returns @Just (FwdRew g rw)@,
-indicating that it wants to rewrite the node to the replacement graph~@g@, then
-\ourlib\ recursively analyzes and rewrites~@g@, using the new rewrite
-function~@rw@, before moving on to the next node. 
-A~node following a rewritten node sees 
-\emph{up-to-date} facts; that is, its input fact is computed by
-analyzing the replacement graph.
-
-In this section we flesh out the
-interface to @analyzeAndRewriteFwdBody@, leaving the implementation for
-\secref{engine}.  
-{\hfuzz=7.2pt\par}
 
 \subsection{Dataflow lattices} \seclabel{lattices} \seclabel{facts}
 
@@ -1370,14 +1371,15 @@ eventually reach a fixed point.
 %% }
 
 In practice, joins are computed at labels.
-If~$f_{\mathit{old}}$ is the fact currently associated with the
+If~$f_{\mathit{old}}$ is the fact currently associated with a
 label~$L$, 
 and if a transfer function propagates a new fact~$f_{\mathit{new}}$
-into the label~$L$, 
+into label~$L$, 
 the dataflow engine replaces $f_{\mathit{old}}$ with
 the join  $f_{\mathit{old}} \join f_{\mathit{new}}$.
-Furthermore, the dataflow engine wants to know if
-  $f_{\mathit{old}} \join f_{\mathit{new}} = f_{\mathit{old}}$,
+Furthermore, the dataflow engine wants to~know 
+\relax    % the tie (~) above prevents a really wacky-looking paragraph
+if $f_{\mathit{old}} \join f_{\mathit{new}} = f_{\mathit{old}}$,
 because if not, the analysis has not reached a fixed point.
 
 The bottom element and join operation of a lattice of facts of
@@ -1402,17 +1404,17 @@ the result is the same as the old fact, and
 \seclabel{WithTop}
 
 To help clients create lattices and join functions,
-\hoopl\ includes functions and constructors that extend a type~@a@
+\hoopl\ includes functions and constructors that can extend a type~@a@
 with top and bottom elements.
-In this paper, we use only type @`WithTop@, which has value
-constructors with these types:
+In this paper, we use only type @`WithTop@, which comes with value
+constructors that have these types:
 \begin{code}
   `PElem :: a -> WithTop a
   `Top   ::      WithTop a
 \end{code}
 \hoopl\ provides combinators which make it easier to create join
-  functions that use @Top@;
-the most useful is @extendJoinDomain@:
+  functions that use @Top@.
+The most useful is @extendJoinDomain@:
 \begin{smallcode}
 `extendJoinDomain
  :: (OldFact a -> NewFact a -> (ChangeFlag, WithTop a))
@@ -1425,51 +1427,32 @@ in the example of \figref{const-prop} below.
 Calling @extendJoinDomain@ extends the client's function to a proper
 join function on the type @WithTop a@,
 and @extendJoinDomain@ makes sure that joins
-involving the @Top@ element obey all the appropriate algebraic laws.
-\hoopl\ also provides a @`Bot@ constructor and type constructors
-@`WithBot@, and @`WithTopAndBot@, along with similar functions.
-@Top@ and @Bot@ are polymorphic, so for example,
+involving @Top@ obey the appropriate algebraic laws.
+
+\hoopl\ also provides a value constructor @`Bot@ and type constructors
+@`WithBot@ and @`WithTopAndBot@, along with similar functions.
+Constructors @Top@ and @Bot@ are polymorphic, so for example,
 @Top@~also has type @WithTopAndBot a@.
-\john{The previous 3 paragraphs aren't worth their space.
-NR: The issue is how to introduce @WithTop@ and @PElem@, which are used in
-\figref{const-prop}.
-I'd be happy if we could condense.}
 
-
-
-% A~possible representation of the facts needed to implement
-% constant propagation is shown in \figref{const-prop}.
-% A~fact
-% is represented as a finite map from a variable to a value of type
-% @Maybe HasConst@.%
-% A~variable $x$ maps to @Nothing@ iff $x=\bot$;
-% $x$~maps to @Just Top@ iff $x=\top$;
-% and $x$~maps to $@Just@\, (@I@\, k)$ iff $x=k$ (and similarly for
-% Boolean constants).\remark{Ugh}
-% Any one procedure has only
-% finitely many variables; only finitely many facts are computed at any
-% program point; and in this lattice any one fact can increase at most
-% twice.  These properties ensure that the dataflow engine will reach a
-% fixed point.
 
 
 \subsection{The transfer function} \seclabel{transfers}
 
-A~forward transfer function is presented with the dataflow fact(s) on
-the edge(s) coming 
-into a node, and it computes dataflow fact(s) on the outgoing edge(s).
+A~forward transfer function is presented with the dataflow fact
+coming 
+into a node, and it computes dataflow fact(s) on the node's outgoing edge(s).
 In a forward analysis, the dataflow engine starts with the fact at the
 beginning of a block and applies the transfer function to successive 
 nodes in that block until eventually the transfer function for the last node
 computes the facts that are propagated to the block's successors.
 For example, consider doing constant propagation (\secref{constant-propagation}) on 
-this graph, with entry at @L1@:
+the following graph, with entry at @L1@:
 \begin{code}
   L1: x=3; goto L2
   L2: y=x+4; x=x-1; 
       if x>0 then goto L2 else return
 \end{code}
-The forward analysis starts with the bottom fact \{\} at every label.
+Forward analysis starts with the bottom fact \{\} at every label.
 Analyzing @L1@ propagates this fact forward, by applying the transfer 
 function successively to the nodes
 of @L1@, emerging with the fact \{@x=3@\} for @L2@.
@@ -1480,19 +1463,23 @@ Again, the new fact is joined with the existing fact for @L2@, and the process
 is iterated until the facts for each label reach a fixed point.
 
 %%% But wait! % Too breathless ---NR
-A~transfer function has a \emph{dependent} type:
+A~transfer function has an unusual sort of type:
+\remark{John, please read this \P!}
+not quite a dependent type, but not a bog-standard polymorphic type either.
+The result type of the transfer function is \emph{indexed} by the shape (i.e.,
+the type) of the node argument:
 If the node is open on exit, the transfer function produces a single fact.
 But if the node is \emph{closed} on exit,
-the transfer function must
-produce a collection of (@Label@,fact) pairs, one for each outgoing edge.  
+the transfer function 
+produces a collection of (@Label@,fact) pairs, one for each outgoing edge.  
 %
-The dependency can be expressed by Haskell's (recently added) 
+The indexing is expressed by Haskell's (recently added) 
 \emph{indexed type families}.
 The relevant part of \ourlib's interface is given in \figref{transfers}.
 A~forward transfer function supplied by a client, 
-of type \mbox{@FwdTransfer@ @n@ @f@}, 
+which would be passed to @mkFTransfer@,
 is typically a function polymorphic in @e@ and @x@.  
-It takes a 
+It~takes a 
 node of type \mbox{@n@ @e@ @x@}
 and it returns a \emph{fact transformer} of type
 @f -> Fact x f@.
@@ -1501,10 +1488,9 @@ should be thought of as a type-level function: its signature is given in the
 @type family@ declaration, while its definition is given by two @type instance@
 declarations.  The first declaration says that a @Fact O f@, which
 comes out of a node
-\emph{open} on exit is just a fact~@f@. The second declaration says that 
-a @Fact C f@, which
-comes out of a node
-\emph{closed} on exit, is a mapping from @Label@ to facts.
+\emph{open} on exit, is just a fact~@f@. 
+The second declaration says that a @Fact C f@, which comes out of a
+node \emph{closed} on exit, is a mapping from @Label@ to facts.
 
 %%  
 %%  \begin{code}
@@ -1534,10 +1520,10 @@ replace a dead assignment with a no-op.
 
 A @FwdPass@ therefore includes a \emph{rewrite function}, whose
 type, @FwdRewrite@, is abstract (\figref{api-types}).
-A~programmer creating a rewrite function knows the type of a node~@n@ and
+A~programmer creating a rewrite function chooses the type of a node~@n@ and
 a dataflow fact~@f@.
-A~rewrite function might also want to have access to a supply of fresh
-names (e.g., to create new blocks) or to other state (e.g., a~mapping
+A~rewrite function might also want access to fresh
+names (e.g., to label new blocks) or to other state (e.g., a~mapping
 indicating which loops a block is a part of).
 So~that a rewrite function may have access to such state, \hoopl\
 requires that a programmer creating a rewrite function also choose a
@@ -1547,7 +1533,7 @@ may create a monad just for the client,
 or may use a monad supplied by \hoopl. 
 
 
-When these choices are made, the easiest way to create a rewrite
+When these choices are made, the most direct way to create a rewrite
 function is to call the function @mkFRewrite@ in \figref{api-types}.
 The client supplies a function that is specialized to a particular
 node, fact, and (possibly) monad, but is polymorphic in the
@@ -1556,11 +1542,13 @@ The function, which we will call~$r$, takes a node and a fact and returns a mona
 computation, but what is the result of that computation?
 One  might
 expect that the result should be a new node, but that is not enough:
-We~might want to remove a node by returning the empty graph,
+in~general, it must be possible for rewriting to result in a graph.
+For example,
+we might want to remove a node by returning the empty graph,
 or more ambitiously, we might want to replace a high-level operation
 with a tree of conditional branches or a loop, which would entail
 returning a graph containing new blocks with internal control flow.
-In~the general case, it must be possible for rewriting to result in a graph.
+
 
 It~must also be possible for a rewrite function to decide to do nothing.
 The result of the monadic computation returned by~$r$ may therefore be
@@ -1590,9 +1578,8 @@ closed on exit.
 Rewrite functions are potentially more plentiful than transfer
 functions, because
 a~single dataflow fact might justify more than one kind of rewrite.
-\hoopl\ makes it easy for a client to use multiple rewrite functions;
-\hoopl's  function @thenFwdRw@
-combines rewrite functions:
+\hoopl\ makes it easy for a client to combine multiple rewrite
+functions that use the same fact:
 \verbatiminput{comb1}
 % defn thenFwdRw
 Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
@@ -1601,7 +1588,7 @@ then the rewrites of~@r2@.
 \subsection{Shallow vs deep rewriting}
  \seclabel{shallow-vs-deep}
 
-Once the rewrite has been performed, the replacement graph~$g$
+When a node is rewritten, the replacement graph~$g$
 must itself be analyzed, and its nodes may be further rewritten.
 \hoopl\ can make a recursive call to 
 @analyzeAndRewriteFwdBody@---but what @FwdPass@ should it use?
@@ -1661,19 +1648,20 @@ take advantage of \hoopl's support for these two common cases:
 \subsection{When the type of nodes is not known}
 
 We note above (\secref{transfers}) that
-\emph{the type of the transfer function's result 
-depends on the shape of the node's exit}.
-It~is easy for a client to write a dependent transfer function
+the type of the transfer function's result 
+depends on the argument's shape on exit.
+It~is easy for a client to write a type-indexed transfer function,
 because the client defines the constructor and shape for each node.
 The client's transfer functions discriminate on the constructor
-and so can return a result appropriate to each node's shape.
-But what if you want to write a transfer function that
-\emph{does not know the type of the node}?
+and so can return a result that is indexed by each node's shape.
 
+What if you want to write a transfer function that
+{does \emph{not} know the type of the node}?
+%
 For example, a dominator analysis need not scrutinize nodes;
 it needs to know only about
 labels and edges in the graph.
-We~prefer to write a dominator analysis that works
+Ideally, a dominator analysis would work
 with \emph{any} type of node~@n@, 
 provided only that @n@~is an
 instance of the @NonLocal@ type class.
@@ -1681,14 +1669,15 @@ But if we don't know
 the type of~@n@, 
 we can't write a function of type 
 @n e x -> f -> Fact x f@,
-because the only way to get the dependency right is to be able to
+because the only way to get the result type right is to 
 scrutinize the constructors of~@n@.
 
 \seclabel{triple-of-functions}
 
 There is another way;
-instead of providing a single function that is polymorphic in shape,
-the client may provide a triple of monomorphic functions:
+instead of requiring a single function that is polymorphic in shape,
+\hoopl\ will also accept a triple of functions, each of which is
+polymorphic in the node's type but monomorphic in its shape:
 \begin{code}
 `mkFTransfer3 :: (n C O -> f -> Fact O f)
              -> (n O O -> f -> Fact O f)
@@ -1869,17 +1858,24 @@ functions in the \texttt{NonLocal} type class
 % defn constPropPass
 \caption{The client for constant propagation and constant folding\break (extracted automatically from code distributed with Hoopl)}
 \figlabel{const-prop}
+\ifpagetuning\vspace*{-1.0\baselineskip}\fi
 \end{figure}
 
 
 \figref{const-prop} shows client code for
 constant propagation and constant folding.
-For each variable at each point in a graph, the analysis concludes one of three facts:
-the variable holds a constant value (Boolean or integer),
+For each variable, at each program point, the analysis concludes one
+of three facts: 
+the variable holds a constant value of type~@Lit@,
 the variable might hold a non-constant value,
-or nothing is known about what the variable holds.
+or what the variable holds is unknown.
 We~represent these facts using a finite map from a variable to a
 fact of type @WithTop Lit@ (\secref{WithTop}).
+% Any one procedure has only
+% finitely many variables; only finitely many facts are computed at any
+% program point; and in this lattice any one fact can increase at most
+% twice.  These properties ensure that the dataflow engine will reach a
+% fixed point.
 A~variable with a constant value maps to @Just (PElem k)@, where
 @k@~is the constant value; 
 a variable with a non-constant value maps to @Just Top@;
@@ -1889,38 +1885,47 @@ in the domain of the finite map).
 % \afterpage{\clearpage}
 
 The definition of the lattice (@constLattice@) is straightforward.
-The bottom element is an empty map (nothing is known about the contents of any variable).
-We~use the @stdMapJoin@ function to lift the join operation
-for a single variable (@constFactAdd@) up to the map containing facts
-for all variables.
-
+The bottom element is an empty map (nothing is known about what
+any variable holds). 
+%
+The join function is implemented with the help of combinators provided
+by \hoopl.
+The client writes a simple function, @constFactAdd@, which 
+compares two values of type @Lit@ and returns a result of type
+@WithTop Lit@.
+The client uses @extendJoinDomain@ to lift @constFactAdd@ into a join
+function on @WithTop Lit@, then uses
+@stdMapJoin@ to lift \emph{that} join function up to the map
+containing facts for all variables.
+\finalremark{We really should work @stdMapJoin@ into the API somewhere}
 
 % omit stdMapJoin :: Ord k => JoinFun v -> JoinFun (Map.Map k v)
 
 The forward transfer function @varHasLit@ is defined using the
 shape-polymorphic auxiliary function~@ft@.
-There are two interesting kinds of nodes:
-assignment and conditional branch.
-In the first case for assignment, a variable gets a constant value,
-so we produce a dataflow fact mapping the variable to its value.
-In the second case for assignment, the variable gets a non-constant value,
-so we produce a dataflow fact mapping the variable to @Top@.
-The~last interesting case is a conditional branch where the condition
+For most nodes~@n@, @ft n@ simply propagates the input fact forward.
+But for an assignment node, if a variable~@x@ gets a constant value~@k@,
+@ft@ extends the input fact by mapping @x@ to~@PElem k@.
+And if a variable~@x@ is assigned a non-constant value,
+@ft@ extends the input fact by mapping @x@ to~@Top@.
+There is one other interesting case:
+a conditional branch where the condition
 is a variable.
 If the conditional branch flows to the true successor,
-the variable holds @True@, and similarly for the false successor.
-We~update the fact flowing to each successor accordingly.
-(Because function @lt@ scrutinizes a GADT, it cannot
-default the uninteresting cases.)
+the variable holds @True@, and similarly for the false successor,
+\emph{mutatis mutandis}.
+Function @ft@ updates the fact flowing to each successor accordingly.
+\finalremark{Because function @ft@ scrutinizes a GADT, it cannot
+default the uninteresting cases.}
 
-We do not need to consider complicated cases such as
-an assignment @x:=y@ where @y@ holds a constant value @k@.
+The transfer function need not consider complicated cases such as 
+an assignment @x:=y@ where @y@ holds a constant value~@k@.
 Instead, we rely on the interleaving of transformation
 and analysis to first transform the assignment to @x:=k@,
 which is exactly what our simple transfer function expects.
 As we mention in \secref{simple-tx},
 interleaving makes it possible to write
-the simplest imaginable transfer functions, without missing
+very simple transfer functions, without missing
 opportunities to improve the code.
 
 \figref{const-prop}'s rewrite function for constant propagation, @constProp@,
@@ -1938,19 +1943,19 @@ type `MaybeChange a = a -> Maybe a
 The client composes @mapXX@ functions
 to apply @lookup@ to each use of a variable in each kind of node;
 @lookup@ substitutes for each variable that has a constant value.
-Applying @fmap nodeToG@ lifts the final node, if present, into a~@Graph@.
+Applying @liftM nodeToG@ lifts the final node, if present, into a~@Graph@.
 
 
 \figref{const-prop} also gives another, distinct function 
 for constant
 folding: @simplify@.
 This function
-rewrites constant expressions with their values
-and rewrites a conditional branch on a
+rewrites constant expressions to their values,
+and it rewrites a conditional branch on a
 boolean constant to an unconditional branch.
-To rewrite constant expressions, 
+To~rewrite constant expressions, 
 it runs @s_exp@ on every subexpression.
-Function @simplify@ does not need to check whether a variable holds a
+Function @simplify@ does not check whether a variable holds a
 constant value; it relies on @constProp@ to have replaced the
 variable by the constant.
 Indeed, @simplify@ does not consult the
@@ -2021,10 +2026,8 @@ Facts computed by the transfer function depend on graphs produced by the rewrite
 function, which in turn depend on facts computed by the transfer function.
 How~do we know this algorithm is sound, or if it terminates?
 A~proof requires a POPL paper
-\cite{lerner-grove-chambers:2002}, but we can give some
-intuition.
-
-\hoopl\ requires that a client meet these preconditions:
+\cite{lerner-grove-chambers:2002};
+here we merely state the conditions for correctness as applied to \hoopl:
 \begin{itemize}
 \item 
 The lattice must have no \emph{infinite ascending chains}; that is,
@@ -2032,7 +2035,7 @@ every sequence of calls to @fact_join@ must eventually return @NoChange@.
 \item 
 The transfer function must be 
 \emph{monotonic}: given a more informative fact in,
-it should produce a more informative fact out.
+it must produce a more informative fact out.
 \item 
 The rewrite function must be \emph{sound}:
 if it replaces a node @n@ by a replacement graph~@g@, then @g@~must be
@@ -2041,11 +2044,16 @@ assumptions expressed by the incoming dataflow fact~@f@.
 %%\footnote{We do not permit a transformation to change
 %%  the @Label@ of a node. We have not found any optimizations
 %%  that are prevented (or even affected) by this restriction.}
-\item 
-The rewrite function must be \emph{consistent} with the transfer function;
-that is, \mbox{@`transfer n f@ $\sqsubseteq$ @transfer g f@}.
-For example, if the analysis says that @x@ is dead before the node~@n@,
-then it had better still be dead if @n@ is replaced by @g@.
+%
+Moreover, analysis of~@g@ must produce output fact(s)
+that are at least as informative as the fact(s) produced by applying
+the transfer function to~@n@.
+%%  \item 
+%%  The rewrite function must be \emph{consistent} with the transfer function;
+%%  that is, \mbox{@`transfer n f@ $\sqsubseteq$ @transfer g f@}.
+For example, if the transfer function says that @x=7@ after the node~@n@,
+then after analysis of~@g@,
+ @x@~had better still be~@7@.
 \item 
 %  To ensure termination, 
 A transformation that uses deep rewriting

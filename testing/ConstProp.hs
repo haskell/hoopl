@@ -45,7 +45,7 @@ varHasLit = mkFTransfer ft
  where
   ft :: Node e x -> ConstFact -> Fact x ConstFact
   ft (Label _)            f = f
-  ft (Assign x (Lit v))   f = Map.insert x (PElem v) f
+  ft (Assign x (Lit k))   f = Map.insert x (PElem k) f
   ft (Assign x _)         f = Map.insert x Top f
   ft (Store _ _)          f = f
   ft (Branch l)           f = mkFactBase [(l, f)]
