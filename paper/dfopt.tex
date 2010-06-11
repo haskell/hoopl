@@ -2189,8 +2189,11 @@ Finally, the result is a ``decorated graph''
 and if the graph
 is open at the exit, an ``exit  fact'' flowing out.
 
-\simon{I suggest (a) putting the paragraph break one sentence earlier,
-so that this para is all about DGs.}
+%% \simon{I suggest (a) putting the paragraph break one sentence earlier,
+%%% so that this para is all about DGs.}
+%%%  NR: previous para is about the type of arfGraph; I don't want to
+%%%  leave the result type dangling.  I hope the opening sentence of
+%%%  this para suggests that the para is all about DGs.
 A~``decorated graph'' is one in which each block is decorated with the
 fact that holds at the start of the block.
 @DG@ actually shares a representation with @Graph@,
@@ -2338,7 +2341,6 @@ For example, @block@ is implemented thus:
   block (BLast   n)  = node n
   block (BCat b1 b2) = block b1 `cat` block b2
 \end{code}
-The implementation of @graph@ is similar but has more cases.
 The composition function, @cat@, arranges for the functional parts to
 compose and for the decorated graphs to be spliceable.
 It~has a very general type:
@@ -2348,8 +2350,8 @@ cat :: forall m e a x f f1 f2. Monad m
     -> (f1 -> m (DG f n a x, f2))
     -> (f  -> m (DG f n e x, f2))
 `cat ft1 ft2 f = do { (g1,f1) <- ft1 f
-                    ; (g2,f2) <- ft2 f1
-                    ; return (g1 `dgCat` g2, f2) }
+                   ; (g2,f2) <- ft2 f1
+                   ; return (g1 `dgCat` g2, f2) }
 \end{code}
 (Function @`dgCat@ is the same splicing function used for an ordinary
 @Graph@, but it takes a one-line block-concatenation function suitable
@@ -2358,6 +2360,9 @@ The name @cat@ comes from the concatenation of the decorated graphs,
 but it is also appropriate because the style in which it is used is
 reminiscent of @concatMap@, with the @node@ and @block@ functions
 playing the role of @map@.
+
+Function @graph@ is much like @block@, but it has more cases.
+
 
 %%%%    
 %%%%    \begin{itemize} 
@@ -2435,8 +2440,7 @@ playing the role of @map@.
 
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
 
-The @node@ function implements the interleaved rewrite-and-transfer
-algorithm:
+The @node@ function is where we interleave analysis with rewriting:
 \begin{smallfuzzcode}{10.5pt}
 node :: forall e x . (ShapeLifter e x) 
      => n e x -> f -> m (DG f n e x, Fact x f)
@@ -2458,19 +2462,16 @@ class ShapeLifter e x where
  frewrite      :: FwdPass m n f -> n e x
                -> f -> m (Maybe (FwdRew m n f e x))
 \end{smallfuzzcode}
-%
-% Functions @`frewrite@, @`ftransfer@, @`toBlock@,
-% @`maybeEntry@, and @`fwdEntryFact@ are overloaded based on the
-% node's shape, via the (private) @`ShapeLifter@ class.
-It uses @frewrite@ to extract the rewriting function from @pass@,
-and applies it to the node~@n@ and the incoming fact~@f@.
-Ignore the call to @withFuel@ for now; we discuss it next
-in \secref{fuel}.  The result of the rewrite, @res@, is then
+Function @node@ uses @frewrite@ to extract the rewriting function from
+@pass@, 
+and applies the rewriting function to the node~@n@ and the incoming fact~@f@.
+(For now; pretend @withFuel@ is ``@return@;'' we present
+the details next
+in \secref{fuel}.)
+The result of the rewrite, @rew@, is 
 scrutinised by the @case@ expression.
 
-In the @Nothing@ case, no rewrite takes place: either fuel is
-exhausted, or the rewrite function
-didn't want a rewrite.
+In the @Nothing@ case, no rewrite takes place.
 We~return the single-node
 graph @(singletonDG f n)@, decorated with its incoming fact,
 and apply the transfer function @ftransfer pass@ 
@@ -2486,9 +2487,10 @@ which @node@ expects, to the type @Fact e f@, which @arfGraph@ expects.
 
 As you can see, several functions called in @node@ are overloaded over a
 (private) class @ShapeLifter@, because their implementations depend
-on the open/closed shape of the node.  Each call of @node@ (in @block@,
-\secref{block-impl}) has a statically-fixed open/closed shape, so
-this use of @ShapeLifter@ is highly localised, and is specialised
+on the open/closed shape of the node.
+By design, the shape of a node is known statically everywhere @node@
+is called, so
+this use of @ShapeLifter@ is highly localized, and it is specialized
 away by the compiler.
 
 %%  And that's it!  If~the client wanted deep rewriting, it is
