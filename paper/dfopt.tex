@@ -1532,7 +1532,7 @@ turn a conditional branch into an unconditional one.
 Similarly, a liveness analysis may allow us to 
 replace a dead assignment with a no-op.
 
-A @FwdPass@ therefore includes a \emph{rewriting function}, whose
+A @FwdPass@ therefore includes a \emph{rewrite function}, whose
 type, @FwdRewrite@, is abstract (\figref{api-types}).
 A~programmer creating a rewrite function knows the type of a node~@n@ and
 a dataflow fact~@f@.
@@ -1592,7 +1592,7 @@ functions, because
 a~single dataflow fact might justify more than one kind of rewrite.
 \hoopl\ makes it easy for a client to use multiple rewrite functions;
 \hoopl's  function @thenFwdRw@
-combines rewriting functions:
+combines rewrite functions:
 \verbatiminput{comb1}
 % defn thenFwdRw
 Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
@@ -1633,13 +1633,11 @@ as expressed by the
 @FwdRew@ type returned by a @FwdRewrite@ (\figref{api-types}).
 The first component of the @FwdRew@ is the replacement graph, as discussed earlier.
 The second component, $\rw$, is a 
-\emph{new rewriting function} to use when recursively processing
+\emph{new rewrite function} to use when recursively processing
 the replacement graph. 
 For shallow rewriting this new function is
 the constant @Nothing@ function; for deep rewriting it is the original
-rewriting function.
-\john{We inconsistently use both ``rewriting function'' and ``rewrite function.''
-We should pick one. I vote for the latter.}
+rewrite function.
 While @mkFRewrite@ allows for general rewriting, most clients will
 take advantage of \hoopl's support for these two common cases:
 \begin{smallcode}
@@ -1795,7 +1793,7 @@ functions in the \texttt{NonLocal} type class
 %%    \remark{This whole subsection needs to be redone in light of the new
 %%    (triple-based) representation.  It's not pretty any more.}
 %%    For example, here is a function
-%%    that combines two rewriting functions in sequence:
+%%    that combines two rewrite functions in sequence:
 %%    \remark{This code must be improved}
 %%    What a beautiful type @thenFwdRw@ has! 
 %%    \remark{And what an ugly implementation!  Implementations must go.}
@@ -1809,13 +1807,13 @@ functions in the \texttt{NonLocal} type class
 %%    The rewriter @noFwdRw@ is the identity of @thenFwdRw@.
 %%    Finally, @thenFwdRw@ can 
 %%    combine a deep-rewriting function and a shallow-rewriting function,
-%%    to produce a rewriting function that is a combination of deep and shallow.
+%%    to produce a rewrite function that is a combination of deep and shallow.
 %%    %%This is something that the Lerner/Grove/Chambers framework could not do,
 %%    %%because there was a global shallow/deep flag.
 %%    %% Our shortsightedness; Lerner/Grove/Chambers is deep only ---NR
 %%    
 %%    
-%%    A shallow rewriting function can be made deep by iterating
+%%    A shallow rewrite function can be made deep by iterating
 %%    it:\remark{Algebraic law wanted!}
 %%    If we have shallow rewrites $A$~and~$B$ then we can build $AB$,
 %%    $A^*B$, $(AB)^*$, 
@@ -2245,7 +2243,7 @@ and only @body@ knows about fixed points.
 %%  These functions also have access to type variables bound by
 %%  @arfGraph@:
 %%  @n@~is the type of nodes; @f@~is the type of facts;
-%%  @m@~is the monad used in the rewriting functions of the @FwdPass@;
+%%  @m@~is the monad used in the rewrite functions of the @FwdPass@;
 %%  and
 %%  @e@~and~@x@ give the shape of the graph passed to @arfGraph@.
 %%  The types of the inner functions are 
@@ -2469,9 +2467,9 @@ class ShapeLifter e x where
  frewrite      :: FwdPass m n f -> n e x
                -> f -> m (Maybe (FwdRew m n f e x))
 \end{smallfuzzcode}
-Function @node@ uses @frewrite@ to extract the rewriting function from
+Function @node@ uses @frewrite@ to extract the rewrite function from
 @pass@, 
-and applies the rewriting function to the node~@n@ and the incoming fact~@f@.
+and applies the rewrite function to the node~@n@ and the incoming fact~@f@.
 (For now; pretend @withFuel@ is ``@return@;'' we present
 the details next
 in \secref{fuel}.)
