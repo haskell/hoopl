@@ -484,7 +484,7 @@ Although pure functional languages are not obviously suited to writing
 standard algorithms that
 manipulate control-flow graphs,
 the pure functional code is actually easier to write, and far easier
-to write correctly, than code that is mostly functional uses a mutable
+to write correctly, than code that is mostly functional but uses a mutable
 representation of graphs
 \cite{ramsey-dias:applicative-flow-graph}.
 When analysis and rewriting
@@ -506,7 +506,7 @@ We articulate their ideas in a concrete but simple API that hides
 a subtle implementation (Sections \ref{sec:graph-rep} and \ref{sec:using-hoopl}).  
 You provide a representation for assertions, 
 a transfer function that transforms assertions across a node, 
-and a rewrite function that uses a assertion to 
+and a rewrite function that uses an assertion to 
 justify rewriting a node.
 \ourlib\ ``lifts'' these node-level functions to work over
 control-flow graphs, sets up and solves recursion equations,
