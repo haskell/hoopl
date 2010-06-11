@@ -118,12 +118,12 @@ higher-rank any longer).
 % AGraph = graph under construction
 % Graph = replacement graph
 %
-%%%  Hoopl assumes that the replacement graph for a node open at the exit
+%%%  Hoopl assumes that the replacement graph for a node open on exit
 %%%  doesn't contain any additional exits
 %%%  
 %%%  introduce replacement graph in section 3, after graph.
 %%%  it has arbitrarily complicated internal control flow, but only
-%%%  one exit (if open at the exit)
+%%%  one exit (if open on exit)
 %%%  
 %%%  a rquirement on the client that is not checked statically.
 
@@ -540,7 +540,7 @@ and maybe the open/closed story is hard to understand here.}
 % their open or closedness on exit (\secref{graph-rep}). For example, an add instruction is
 % open on entry and exit, while a branch is open on entry and closed on exit.
 % Using these types we can statically guarantee that, say, an add instruction
-% is rewritten to a graph that is also open on both entry and exit; and 
+% is rewritten to a graph that is also open at both entry and exit; and 
 % that the user cannot construct a block where an add instruction follows an
 % unconditional branch.  We know of no other system that offers 
 % static guarantees this strong.
@@ -719,8 +719,8 @@ composed from basic blocks (\secref{graphs}).
 \subsection{Shapes: Open and closed}
 
 Nodes, blocks, and graphs share important properties in common.
-In particular, each can be \emph{open or closed at entry}
-and \emph{open or closed at exit}.  
+In particular, each is \emph{open or closed on entry}
+and \emph{open or closed on exit}.  
 An \emph{open} point is one at which control may implicitly ``fall through;''
 to transfer control at a \emph{closed} point requires an explicit
 control-transfer instruction to a named label.
@@ -733,10 +733,16 @@ to the next instruction).
 control cannot fall through to the next instruction).
 \item A label is closed on entry (because in \ourlib{} we do not allow
 control to fall through into a branch target), but open on exit.
+\item
+A~function call should be closed on exit,
+because control can flow from a call site to multiple points:
+for example, a~return continuation or an exception handler.
+(And~after optimization, distinct call sites may share a return
+continuation.)
 \end{itemize}
 % This taxonomy enables \ourlib{} to enforce invariants:
-% only nodes closed at entry can be the targets of branches, and only nodes closed
-% at exits can transfer control (see also \secref{nonlocal-class}).
+% only nodes closed on entry can be the targets of branches, and only nodes closed
+% on exits can transfer control (see also \secref{nonlocal-class}).
 % As~a consequence, all control transfers originate at control-transfer
 % instructions and terminated at labels; this invariant dramatically
 % simplifies analysis and transformation. 
@@ -755,19 +761,19 @@ In particular, whenever E is a node, block, or graph,
 % : \simon{Removed the claim about a unique entry point.}
 \begin{itemize}
 \item
-If E is open at the entry, it has a unique predecessor; 
+If E is open on entry, it has a unique predecessor; 
 if it is closed, it may have arbitrarily many predecessors---or none.
 \item
-If E is open at the exit, it has a unique successor; 
+If E is open on exit, it has a unique successor; 
 if it is closed, it may have arbitrarily many successors---or none.
 \end{itemize}
 %%%%    
 %%%%    
 %%%%    % \item Regardless of whether E is open or closed, 
 %%%%    % it has a unique entry point where execution begins.
-%%%%    \item If E is closed at exit, control leaves \emph{only}
+%%%%    \item If E is closed on exit, control leaves \emph{only}
 %%%%    by explicit branches from closed-on-exit nodes.
-%%%%    \item If E is open at exit, control \emph{may} leave E
+%%%%    \item If E is open on exit, control \emph{may} leave E
 %%%%    by ``falling through'' from a distinguished exit point.
 %%%%    \remark{If E is a node or block, control \emph{only} leaves E by
 %%%%    falling through, but this isn't so for a graph.  Example: a body of a
@@ -788,7 +794,7 @@ But \ourlib{}'s graph representation is \emph{polymorphic in the node type},
 so each client can define nodes as it likes.
 Because they contain nodes defined by the client,
 graphs can include arbitrary client-specified data, including
-(say) C~statements, method calls in an object-oriented language, or
+(say) method calls, C~statements, stack maps, or
 whatever.
 
 
@@ -807,7 +813,7 @@ data `Node e x where
 \end{figure}
 
 \ourlib{} knows \emph{at compile time} whether a node is open or
-  closed at entry and exit:
+  closed on entry and exit:
 the type of a node has kind @*->*->*@, where the two type parameters
 are type-level flags, one for entry and one for exit.
 Such a type parameter may be instantiated only with type @O@~(for
@@ -823,15 +829,15 @@ the syntax gives the type of each constructor.
 %%% \cite{peyton-jones:unification-based-gadts}.
 For example, constructor @Label@
 takes a @Label@ and returns a node of type @Node C O@, where
-the~``@C@'' says ``closed at entry'' and the~``@O@'' says ``open at exit''.  
+the~``@C@'' says ``closed on entry'' and the~``@O@'' says ``open on exit''.  
 The types @Label@, @O@, and~@C@ are 
 defined by \ourlib{} (\figref{graph}).  
 Similarly, an @Assign@ node takes a variable and an expression, and
-returns a @Node@ open at both entry and exit; the @Store@ node is
+returns a @Node@ open on both entry and exit; the @Store@ node is
 similar.  The types @`Var@ and @`Expr@ are private to the client, and
 \ourlib{} knows nothing of them.  
-Finally, the control-transfer nodes @Branch@ and @CondBranch@ are open at entry
-and closed at exit.  
+Finally, the control-transfer nodes @Branch@ and @CondBranch@ are open on entry
+and closed on exit.  
 
 Nodes closed on entry are the only targets of control transfers;
 nodes open on entry and exit never perform control transfers;
@@ -971,13 +977,13 @@ fields: an optional entry sequence, a body, and an optional exit
 sequence.
 \begin{itemize}
 \item 
-If the graph is open at the entry, it contains an \emph{entry sequence} of type 
+If the graph is open on entry, it contains an \emph{entry sequence} of type 
 @Block n O C@.
 We could represent this sequence as a value of type
 @Maybe (Block n O C)@, but we can do better: 
 a~value of @Maybe@ type requires a \emph{dynamic} test,
 but we know \emph{statically}, at compile time, that the sequence is present if and only
-if the graph is open at the entry.
+if the graph is open on entry.
 We~express our compile-time knowledge by using the type
 @MaybeO e (Block n O C)@, a type-indexed version of @Maybe@
 which is also defined in \figref{graph}:
@@ -1089,7 +1095,7 @@ and returns its @Label@;
 the @successors@ method takes a last node (closed on exit) and returns
 the @Label@s to 
 which it can transfer control.  
-A~middle node, which is open at both entry and exit, transfers control
+A~middle node, which is open on both entry and exit, transfers control
 only locally, to its successor within a basic block,
 so no corresponding interrogation function is needed.
 
@@ -1125,7 +1131,7 @@ Because the functions @entryLabel@ and @successors@ are used to track control
 flow \emph{within} a graph, \ourlib\ does not need to ask for the
 entry label or successors of a @Graph@ itself.
 Indeed, @Graph@ \emph{cannot} be an instance of @NonLocal@, because even
-if a @Graph@ is closed at the entry, it does not have a unique entry label.
+if a @Graph@ is closed on entry, it does not have a unique entry label.
 %
 % A slight infelicity is that we cannot make @Graph@ an instance of @NonLocal@,
 % because a graph closed on entry has no unique label.  Fortunately, we never
@@ -1479,8 +1485,8 @@ is iterated until the facts for each label reach a fixed point.
 
 %%% But wait! % Too breathless ---NR
 A~transfer function has a \emph{dependent} type:
-If the node is open at exit, the transfer function produces a single fact.
-But if the node is \emph{closed} at exit,
+If the node is open on exit, the transfer function produces a single fact.
+But if the node is \emph{closed} on exit,
 the transfer function must
 produce a collection of (@Label@,fact) pairs, one for each outgoing edge.  
 %
@@ -1499,10 +1505,10 @@ should be thought of as a type-level function: its signature is given in the
 @type family@ declaration, while its definition is given by two @type instance@
 declarations.  The first declaration says that a @Fact O f@, which
 comes out of a node
-\emph{open} at the exit is just a fact~@f@. The second declaration says that 
+\emph{open} on exit is just a fact~@f@. The second declaration says that 
 a @Fact C f@, which
 comes out of a node
-\emph{closed} at the exit, is a mapping from @Label@ to facts.
+\emph{closed} on exit, is a mapping from @Label@ to facts.
 
 %%  
 %%  \begin{code}
@@ -1577,7 +1583,7 @@ that
 the replacement graph $\ag$ has
 the \emph{same} open/closed shape as the node being rewritten.
 For example, a branch instruction can be replaced only by a graph 
-closed at the exit.
+closed on exit.
 %%  Moreover, because only an open/open graph can be 
 %%  empty---look at the type of @GNil@ in \figref{graph}---the type 
 %%  of @FwdRewrite@ 
@@ -2157,15 +2163,15 @@ exactly analogous and are included in \hoopl.
 %%  \end{smallcode}
 %%  We analyze graphs of all shapes; a single @FwdPass@ may be used with
 %%  multiple shapes.
-%%  If a graph is closed at the entry, a list of entry points must be
+%%  If a graph is closed on entry, a list of entry points must be
 %%  provided;
-%%  if the graph is open at the entry, it must be the case that the
+%%  if the graph is open on entry, it must be the case that the
 %%  implicit entry point is the only entry point.
 %%  The fact or set of facts flowing into the entries is similarly
 %%  determined by the shape of the entry point.
 %%  Finally, the result is a rewritten graph, a @FactBase@ that gives a
 %%  fixed point of the analysis on the rewritten graph, and if the graph
-%%  is open at the exit, an ``exit  fact'' flowing out.
+%%  is open on exit, an ``exit  fact'' flowing out.
 
 Instead of the interface function @analyzeAndRewriteFwdBody@, we present
 the private function @arfGraph@ (short for ``analyze and rewrite
@@ -2183,16 +2189,16 @@ Function @arfGraph@ has a more general type than
 the function @analyzeAndRewriteFwdBody@ % praying for a decent line break
 because @arfGraph@ is used recursively
 to analyze graphs of all shapes.
-If a graph is closed at the entry, a list of entry points must be
+If a graph is closed on entry, a list of entry points must be
 provided;
-if the graph is open at the entry, it must be the case that the
+if the graph is open on entry, it must be the case that the
 implicit entry point is the only entry point.
 The fact or set of facts flowing into the entries is similarly
 determined by the shape of the entry point.
 Finally, the result is a ``decorated graph''
 @DG f n e x@,
 and if the graph
-is open at the exit, an ``exit  fact'' flowing out.
+is open on exit, an ``exit  fact'' flowing out.
 
 %% \simon{I suggest (a) putting the paragraph break one sentence earlier,
 %%% so that this para is all about DGs.}
@@ -2310,9 +2316,9 @@ that fact.
 \item
 Extended fact transformers for graphs have the most general type,
 which is expressed using the type family @Fact@:
-if the graph is open at the entry, its fact transformer expects a
+if the graph is open on entry, its fact transformer expects a
 single fact;
-if the graph is close at the entry, its fact transformer expects a
+if the graph is closed on entry, its fact transformer expects a
 @FactBase@.
 \item
 Extended fact transformers for bodies have the same type as an
