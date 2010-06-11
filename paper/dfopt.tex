@@ -832,11 +832,12 @@ takes a @Label@ and returns a node of type @Node C O@, where
 the~``@C@'' says ``closed on entry'' and the~``@O@'' says ``open on exit''.  
 The types @Label@, @O@, and~@C@ are 
 defined by \ourlib{} (\figref{graph}).  
-Similarly, an @Assign@ node takes a variable and an expression, and
-returns a @Node@ open on both entry and exit; the @Store@ node is
-similar.  The types @`Var@ and @`Expr@ are private to the client, and
+As another example, constructor @Assign@ takes a variable and an expression, and it
+returns a @Node@ open on both entry and exit; constructor @Store@ is
+similar.
+Types @`Var@ and @`Expr@ are private to the client, and
 \ourlib{} knows nothing of them.  
-Finally, the control-transfer nodes @Branch@ and @CondBranch@ are open on entry
+Finally, control-transfer nodes @Branch@ and @CondBranch@ are open on entry
 and closed on exit.  
 
 Nodes closed on entry are the only targets of control transfers;
@@ -876,8 +877,8 @@ node's representation \emph{and}
 shape?
 Because by making the shape known statically, we simplify the
 implementation of analysis and transformation in 
-\secref{monomorphic-shape-outcome}. 
-\simon{Do we intend that clients
+\secref{dfengine}. 
+\finalremark{SLPJ: Do we intend that clients
 can see the representation of blocks?
 Answer: At present the representation is partially exposed, and we
 have no principled answer to the question.  ---NR
@@ -896,19 +897,13 @@ immediately before an
 @Assign@.  
 Indeed, the @Block@ type statically guarantees that any
 closed/closed @Block@---which compiler writers normally 
-call a ``basic block''---consists of exactly one closed/open node
+call a ``basic block''---consists of exactly one first node
 (such as @Label@ in \figref{cmm-node}), 
-followed by zero or more open/open nodes (@Assign@ or @Store@), 
+followed by zero or more middle nodes (@Assign@ or @Store@), 
 and terminated with exactly one 
-open/closed node (@Branch@ or @CondBranch@).  
+last node (@Branch@ or @CondBranch@).  
 Using GADTs to enforce these invariants is one of 
 \ourlib{}'s innovations.
-% Also notice that the definition of @Block@ guarantees that every @Block@ 
-% has at least one node.
-% SPJ: I think we've agreed to stick with PNil.
-% \remark{So what? Who cares?  Why is it important
-% that no block is empty?  (And if we had an empty block, we could ditch
-% @PNil@ from @PGraph@, which woudl be an improvement.)}
 
 
 \subsection{Control-flow edges and program points} \seclabel{edges}
@@ -917,9 +912,9 @@ In a block, a control-flow edge is implicit in every application of
 the @BCat@ constructor.
 An~implicit edge originates in a first node or a middle node and flows
 to a middle node or a last node.
-\emph{Explicit} edges between blocks are represented by the client's
-node type;
-an~explicit edge originates in a last node and flows to a first node.
+\emph{Explicit} edges between blocks are represented by the client;
+an~explicit edge originates in a last node and flows to a (labelled)
+first node. 
 \hoopl\ discovers explicit edges by using the @successors@ and
 @entryLabel@ functions of the @NonLocal@ class.
 Any~edge, whether implicit or explicit, is considered a program point,
@@ -1000,7 +995,7 @@ sequence, its presence or absence is deducible from the static type of the graph
 
 \seclabel{gSplice}
 
-We can splice graphs together nicely; the cost is logarithmic in the
+Graphs can be spliced together nicely; the cost is logarithmic in the
 number of closed/closed blocks.
 Unlike blocks, two graphs may be spliced together
 not only when they are both open
@@ -1029,8 +1024,8 @@ gSplice (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
 This definition illustrates the power of GADTs: the
 pattern matching is exhaustive, and all the open/closed invariants are
 statically checked.  For example, consider the second-last equation for @gSplice@.
-Since the exit link of the first argument is @JustO x1@,
-we know that type parameter~@a@ is~@O@, and hence the entry link of the second 
+Since the exit sequence of the first argument is @JustO x1@,
+we know that type parameter~@a@ is~@O@, and hence the entry sequence of the second 
 argument must be @JustO e2@.
 Moreover, block~@x1@ must be
 closed/open, and block~@e2@ must be open/closed.  
@@ -1087,7 +1082,8 @@ it~still needs to know how a node may transfer control from one
 block to another.
 \hoopl\ also
 needs to know what @Label@ is on the first node in a block.
-How can \hoopl{} know these things, if it is polymorphic in the node type?
+If \hoopl\ is polymorphic in the node type,
+how can it{} know these things?
 \hoopl\ requires the client to make the node type an instance of 
 \ourlib's @NonLocal@ type class, which is defined in \figref{edges}.
 The @entryLabel@ method takes a first node (one closed on entry, \secref{nodes})
@@ -1116,7 +1112,7 @@ and any attempt to define a case for @Assign@ or @Branch@ would result
 in a type error.
 
 While the client provides this information about
-nodes, it is very convenient for \ourlib\ to get the same information
+nodes, it is convenient for \ourlib\ to get the same information
 about blocks.
 Internally,
 \ourlib{} uses this instance declaration for the @Block@ type:
@@ -1131,7 +1127,7 @@ Because the functions @entryLabel@ and @successors@ are used to track control
 flow \emph{within} a graph, \ourlib\ does not need to ask for the
 entry label or successors of a @Graph@ itself.
 Indeed, @Graph@ \emph{cannot} be an instance of @NonLocal@, because even
-if a @Graph@ is closed on entry, it does not have a unique entry label.
+if a @Graph@ is closed on entry, it need not have a unique entry label.
 %
 % A slight infelicity is that we cannot make @Graph@ an instance of @NonLocal@,
 % because a graph closed on entry has no unique label.  Fortunately, we never
