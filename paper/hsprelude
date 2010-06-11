@@ -51,3 +51,4 @@ Map.Map
 fmap
 concatMap
 Monad
+=<<

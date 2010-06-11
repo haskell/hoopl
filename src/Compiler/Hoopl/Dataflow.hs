@@ -172,7 +172,7 @@ arfGraph pass entries = graph
     block (BClosed h t)= block h  `cat` block t
 
     node n f
-      = do { fwdres <- frewrite pass n f >>= withFuel
+      = do { fwdres <- withFuel =<< frewrite pass n f
            ; case fwdres of
                Nothing -> return (toDg f (toBlock n),
                                   ftransfer pass n f)
@@ -315,7 +315,7 @@ arbGraph pass entries = graph
     block (BClosed h t)= block h  `cat` block t
 
     node n f
-      = do { bwdres <- brewrite pass n f >>= withFuel
+      = do { bwdres <- withFuel =<< brewrite pass n f
            ; case bwdres of
                Nothing -> return (toDg entry_f (toBlock n), entry_f)
                             where entry_f = btransfer pass n f

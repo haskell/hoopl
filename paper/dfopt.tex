@@ -792,7 +792,7 @@ data `Node e x where
   `Store      :: Expr  -> Expr -> Node O O
   `Branch     :: Label -> Node O C
   `CondBranch :: Expr  -> Label -> Label -> Node O C
-    -- ... more constructors ...
+    ... more constructors ...
 \end{fuzzcode}
 \caption{A typical node type as it might be defined by a client} 
 \figlabel{cmm-node}
@@ -935,7 +935,7 @@ data `MaybeO ^ex t where
   `JustO    :: t -> MaybeO O t
   `NothingO ::      MaybeO C t
 
-newtype `Label = Label Int
+newtype `Label -- abstract type
 
 class `NonLocal n where
   `entryLabel :: n C x -> Label
@@ -1256,7 +1256,7 @@ newtype `FwdRewrite m n f     -- abstract type
 data `FwdRew m n f e x 
   = FwdRew (Graph n e x) (FwdRewrite m n f)
 
-------- Fact-like things -------
+------- Fact-like things, aka "fact(s)" -----
 type family   `Fact x f :: *
 type instance Fact O f = f
 type instance Fact C f = FactBase f
@@ -1674,6 +1674,8 @@ we can't write a function of type
 @n e x -> f -> Fact x f@,
 because the only way to get the dependency right is to be able to
 scrutinize the constructors of~@n@.
+
+\seclabel{triple-of-functions}
 
 There is another way;
 instead of providing a single function that is polymorphic in shape,
@@ -2605,9 +2607,11 @@ The extended fact transformer
 iterates over the list of blocks until the Current @FactBase@ reaches
 a fixed point.  
 
-The code for @fixpoint@ is about 70 lines long;
-for completeness, it
-appears in Appendix~\ref{app:fixpoint}.  
+Implementing @fixpoint@ requires about 90 lines,
+formatted narrowly for display in one column.
+%%  
+%%  for completeness, it
+%%  appears in Appendix~\ref{app:fixpoint}.  
 The~code is mostly straightforward, although we try to be clever
 about deciding when a new fact means that another iteration over the
 blocks will be required.

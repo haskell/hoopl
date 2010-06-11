@@ -93,7 +93,8 @@ local function write_defn(id)
 end
 
 local codecontexts =
-  table.set { 'code', 'smallcode', 'numberedcode', 'fuzzcode', 'smallfuzzcode' }
+  table.set { 'code', 'smallcode', 'smallttcode',
+              'numberedcode', 'fuzzcode', 'smallfuzzcode' }
 local codeusewaiting = { }
 
 local function write_use(id)
