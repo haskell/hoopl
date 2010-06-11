@@ -396,7 +396,6 @@ distinguishedEntryFact g f = maybe g
 -----------------------------------------------------------------------------
 --      fixpoint: finding fixed points
 -----------------------------------------------------------------------------
-
 data TxFactBase n f
   = TxFB { tfb_fbase :: FactBase f
          , tfb_rg    :: DG f n C C -- Transformed blocks
@@ -405,7 +404,8 @@ data TxFactBase n f
      -- See Note [TxFactBase invariants]
 
 updateFact :: DataflowLattice f -> LabelSet
-           -> Label -> f -> (ChangeFlag, FactBase f) -> (ChangeFlag, FactBase f)
+           -> Label -> f -> (ChangeFlag, FactBase f)
+           -> (ChangeFlag, FactBase f)
 -- See Note [TxFactBase change flag]
 updateFact lat lbls lbl new_fact (cha, fbase)
   | NoChange <- cha2     = (cha,        fbase)
@@ -423,10 +423,12 @@ updateFact lat lbls lbl new_fact (cha, fbase)
     new_fbase = mapInsert lbl res_fact fbase
 
 {-  this type is too general for the paper :-( 
-fixpoint :: forall m block n f. (FuelMonad m, NonLocal n, NonLocal (block n))
+fixpoint :: forall m block n f. 
+            (FuelMonad m, NonLocal n, NonLocal (block n))
          => Direction
          -> DataflowLattice f
-         -> (block n C C -> FactBase f -> m (DG f n C C, [(Label, f)]))
+         -> (block n C C -> FactBase f
+             -> m (DG f n C C, [(Label, f)]))
          -> [block n C C]
          -> FactBase f 
          -> m (DG f n C C, FactBase f)
@@ -444,47 +446,60 @@ fixpoint direction lat do_block blocks init_fbase
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
-                 map (fst . fst) tagged_blocks `mapDeleteList` tfb_fbase tx_fb ) }
+                 map (fst . fst) tagged_blocks 
+                    `mapDeleteList` tfb_fbase tx_fb ) }
 	     -- The successors of the Graph are the the Labels for which
 	     -- we have facts, that are *not* in the blocks of the graph
   where
     tagged_blocks = map tag blocks
-    is_fwd = case direction of { Fwd -> True; Bwd -> False }
-    tag b = ((entryLabel b, b), if is_fwd then [entryLabel b] else successors b)
-     -- 'tag' adds the in-labels of the block; see Note [TxFactBase invairants]
+    is_fwd = case direction of { Fwd -> True; 
+                                 Bwd -> False }
+    tag b = ((entryLabel b, b), 
+             if is_fwd then [entryLabel b] 
+                        else successors b)
+     -- 'tag' adds the in-labels of the block; 
+     -- see Note [TxFactBase invairants]
 
     tx_blocks :: [((Label, Block n C C), [Label])]   -- I do not understand this type
               -> TxFactBase n f -> m (TxFactBase n f)
     tx_blocks []              tx_fb = return tx_fb
-    tx_blocks (((lbl,blk), in_lbls):bs) tx_fb = tx_block lbl blk in_lbls tx_fb >>= tx_blocks bs
-     -- "in_lbls" == Labels the block may _depend_ upon for facts
+    tx_blocks (((lbl,blk), in_lbls):bs) tx_fb 
+      = tx_block lbl blk in_lbls tx_fb >>= tx_blocks bs
+     -- "in_lbls" == Labels the block may 
+     --                 _depend_ upon for facts
 
     tx_block :: Label -> Block n C C -> [Label]
              -> TxFactBase n f -> m (TxFactBase n f)
-    tx_block lbl blk in_lbls tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
-                                      , tfb_rg = blks, tfb_cha = cha })
+    tx_block lbl blk in_lbls 
+        tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
+                    , tfb_rg = blks, tfb_cha = cha })
       | is_fwd && not (lbl `mapMember` fbase)
-      = return tx_fb {tfb_lbls = lbls `setUnion` setFromList in_lbls}	-- Note [Unreachable blocks]
+      = return (tx_fb {tfb_lbls = lbls'})	-- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
-                   = mapFoldWithKey (updateFact lat lbls) (cha,fbase) out_facts
-                 lbls' = lbls `setUnion` setFromList in_lbls
+                   = mapFoldWithKey (updateFact lat lbls) 
+                          (cha,fbase) out_facts
            ; return (TxFB { tfb_lbls  = lbls'
                           , tfb_rg    = rg `dgCat` blks
-                          , tfb_fbase = fbase', tfb_cha = cha' }) }
+                          , tfb_fbase = fbase'
+                          , tfb_cha = cha' }) }
+      where
+        lbls' = lbls `setUnion` setFromList in_lbls
+        
 
     loop :: Fuel -> FactBase f -> m (TxFactBase n f)
     loop fuel fbase 
-      = do { let init_tx_fb = TxFB { tfb_fbase = fbase
-                                   , tfb_cha   = NoChange
-                                   , tfb_rg    = dgnilC
-                                   , tfb_lbls  = setEmpty }
-           ; tx_fb <- tx_blocks tagged_blocks init_tx_fb
+      = do { let init_tx = TxFB { tfb_fbase = fbase
+                                , tfb_cha   = NoChange
+                                , tfb_rg    = dgnilC
+                                , tfb_lbls  = setEmpty }
+           ; tx_fb <- tx_blocks tagged_blocks init_tx
            ; case tfb_cha tx_fb of
                NoChange   -> return tx_fb
-               SomeChange -> do { setFuel fuel
-                                ; loop fuel (tfb_fbase tx_fb) } }
+               SomeChange 
+                 -> do { setFuel fuel
+                       ; loop fuel (tfb_fbase tx_fb) } }
 
 {-  Note [TxFactBase invariants]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
