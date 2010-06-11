@@ -433,8 +433,7 @@ unusually easy to define new analyses and
 transformations for \emph{any} compiler.
 \ourlib's interface is modular and polymorphic,
 and it offers unusually strong static guarantees.
-The implementation
-is also far from routine: it encapsulates 
+The implementation encapsulates 
 state-of-the-art algorithms (interleaved analysis and rewriting,
 dynamic error isolation), and it cleanly separates their tricky elements
 so that they can be understood independently.
@@ -471,8 +470,8 @@ try to build a single reusable library that embodies the
 subtle ideas, while
 making it easy for clients to instantiate the library for different
 situations.
-Tempting, but difficult.
-Although some such frameworks exist, as we discuss 
+% Tempting, but difficult.
+Although such libraries exist, as we discuss 
 in \secref{related}, they have complex APIs and implementations,
 and none implements the Lerner/Grove/Chambers technique.
 
@@ -494,8 +493,7 @@ When analysis and rewriting
 are interleaved, so that rewriting must be done \emph{speculatively},
 without knowing whether
 the result of the rewrite will be retained or discarded,
-the benefit of a purely functional style is intensified
-(\secref{overview}).
+the benefit of a purely functional style is intensified.
 
 \item
 \ourlib\ is polymorphic. Just as a list library is
@@ -505,19 +503,20 @@ analyses compute over these graphs (\secref{using-hoopl}).
 
 \item
 The paper by Lerner, Grove, and Chambers is inspiring but abstract.
-We articulate their ideas in a concrete but simple API that hides 
-a subtle implementation (Sections \ref{sec:graph-rep} and \ref{sec:using-hoopl}).  
+We articulate their ideas in a concrete, simple API,
+which hides 
+a subtle implementation
+(\secreftwo{graph-rep}{using-hoopl}).  
 You provide a representation for assertions, 
 a transfer function that transforms assertions across a node, 
 and a rewrite function that uses an assertion to 
 justify rewriting a node.
 \ourlib\ ``lifts'' these node-level functions to work over
-control-flow graphs, sets up and solves recursion equations,
+control-flow graphs, solves recursion equations,
 and interleaves rewriting with analysis.
-Designing good abstractions (data types, APIs) is surprisingly
+Designing good APIs is surprisingly
 hard; we have been through over a dozen significantly different
 iterations, and we offer our API as a contribution.
-% ``in its own right''  -- there's an echo in here...
 
 \item
 Because the client
@@ -549,17 +548,12 @@ and maybe the open/closed story is hard to understand here.}
 \item \ourlib{} implements subtle algorithms, including 
 (a)~interleaved analysis and rewriting, (b)~speculative rewriting,
 (c)~computing fixed points, and (d)~dynamic fault isolation.
-\remark{Should we prefigure somehow the ``main goal'' of the
-concluding section?}
 Previous implementations of these algorithms---including three of our
 own---are complicated and hard to understand, because the tricky pieces
 are implemented all together, inseparably. 
-A~significant contribution of this paper is 
-a new way to structure the implementation so that each tricky piece
-is handled in just 
+In~this paper, each tricky piece is handled in just 
 one place, separate from all the others (\secref{engine}). 
-The result is sufficiently elegant that 
-we emphasize the implementation as an object of interest in
+We~emphasize this implementation as an object of interest in
 its own right.
 \end{itemize}
 Our work bridges the gap between abstract, theoretical presentations
@@ -573,7 +567,7 @@ imperative code in GHC's back end.
 The API for \ourlib{} requires
 relatively sophisticated aspects of Haskell's type system, such
 as higher-rank polymorphism, GADTs, and type functions.
-\ourlib{} thereby offers a case study in the utility
+\ourlib{} therefore may also serve as a case study in the utility
 of these features.
 
 
@@ -600,7 +594,8 @@ The goal of dataflow optimization is to compute valid
 then use those assertions to justify code-improving
 transformations (or \emph{rewrites}) on a \emph{control-flow graph}.  
 
-Consider a concrete example: constant propagation with constant folding.
+As~a concrete example, we consider constant propagation with constant
+folding. 
 On the left we have a basic block; in the middle we have
 facts that hold between statements (or \emph{nodes}) 
 in the block; and at
@@ -630,7 +625,7 @@ Given the fact \{@x=7@\} and the node @z:=x>5@, can we make a
 transformation?  Yes: constant propagation can replace the node with @z:=7>5@.
 Now, can we make another transformation?  Yes: constant folding can 
 replace the node with @z:=True@.
-And so the process continues to the end of the block, where we
+The~process continues to the end of the block, where we
 can replace the conditional branch with an unconditional one, @goto L1@.
 
 The example above is simple because the program has only straightline code;
@@ -643,23 +638,23 @@ where we assume @L1@ is the entry point:
   L2: x=7; goto L3
   L3: ...
 \end{verbatim}
-Because control flows to @L3@ from two places,
+Because control flows to @L3@ from two places (@L1@~and~@L2@),
 we must \emph{join} the facts coming from those two places.
 All paths to @L3@ produce the fact @y=@$4$,
-so we can conclude that this fact holds at @L3@.
-But depending on the the path to @L3@, @x@ may have different
+so we can conclude that this fact holds at~@L3@.
+But depending on the the path to~@L3@, @x@~may have different
 values, so we conclude ``@x=@$\top$'',
-meaning that there is no single value held by @x@ at @L3@.%
-\footnote{
-In this example @x@ really does vary at @L3@, but in general
-the analysis might be conservative.}
-The final result of joining the dataflow facts that flow to @L3@
-is the new fact $@x=@\top \land @y=4@ \land @z=@\top$.
+meaning that there is no single value held by~@x@ at~@L3@.
+%\footnote{
+%In this example @x@ really does vary at @L3@, but in general
+%the analysis might be conservative.}
+The final result of joining the dataflow facts that flow to~@L3@
+is the new fact $\mathord{@x=@\top\!} \land \mathord{@y=4@} \land \mathord{@z=@\top}$.
 
 \seclabel{const-prop-example}
 
 \paragraph{Forwards and backwards.}
-Constant propagation works \emph{forwards}, and a fact is typically an
+Constant propagation works \emph{forwards}, and a fact is often an
 assertion about the program state (such as ``variable~@x@ holds value~@7@'').  
 Some useful analyses work \emph{backwards}.
 A~prime example is live-variable analysis, where a fact takes the~form
@@ -696,11 +691,16 @@ It is not necessary to have the more complex rule
 ``if @x@~is live after @x:=y+2@ then @y@ is live before~it,''
 because if @x@~is \emph{not} live after @x:=y+2@,
 the assignment @x:=y+2@ will be eliminated.
-The gain is even more compelling if there are a number of interacting 
-analyses and/or transformations; for more substantial
-examples, consult \citet{lerner-grove-chambers:2002}.
+If~there are a number of interacting 
+analyses and/or transformations,
+the benefit of interleaving them is even more compelling; for more
+substantial examples, consult \citet{lerner-grove-chambers:2002}.
 
-% ----------------------------------------
+
+
+
+
+
 \section{Representing control-flow graphs} \seclabel{graph-rep}
 
 \ourlib{} is a library that makes it easy to define dataflow analyses,
