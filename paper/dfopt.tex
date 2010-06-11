@@ -586,7 +586,7 @@ of these features.
 %%  We begin by setting the scene, introducing some vocabulary, and
 %%  showing a small motivating example.
 A control-flow graph, perhaps representing the body of a procedure,
-is a collection of \emph{basic blocks}---or just ``blocks''.
+is a collection of \emph{basic blocks}---or just ``blocks.''
 Each block is a sequence of instructions,
 beginning with a label and ending with a
 control-transfer instruction that branches to other blocks.
@@ -621,14 +621,14 @@ Constant propagation works
 from top to bottom.  We start with the empty fact.  
 Given the empty fact and the node @x:=3+4@ can we make a (constant-folding)
 transformation?
-Yes!  We can replace the node with @x:=7@.
+Yes: we can replace the node with @x:=7@.
 Now, given this transformed node,
 and the original fact, what fact flows out of the bottom of
 the transformed node?  
 The~fact \{@x=7@\}.  
 Given the fact \{@x=7@\} and the node @z:=x>5@, can we make a
 transformation?  Yes: constant propagation can replace the node with @z:=7>5@.
-Now, can we do another transformation?  Yes: constant folding can 
+Now, can we make another transformation?  Yes: constant folding can 
 replace the node with @z:=True@.
 And so the process continues to the end of the block, where we
 can replace the conditional branch with an unconditional one, @goto L1@.
