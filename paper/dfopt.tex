@@ -2127,7 +2127,7 @@ do not describe their implementation.  We have written
 at least three previous implementations, all of which
 were long and hard to understand, and only one of which
 provided compile-time guarantees about open and closed shapes.
-We are not confident that any of these implementations are correct.
+We are not confident that any of our previous implementations are correct.
 
 In this paper we describe our new implementation.  It is short
 (about a third of the size of our last attempt), elegant, and offers
@@ -2185,8 +2185,8 @@ because @arfGraph@ is used recursively
 to analyze graphs of all shapes.
 If a graph is closed on entry, a list of entry points must be
 provided;
-if the graph is open on entry, it must be the case that the
-implicit entry point is the only entry point.
+if the graph is open on entry,
+the block that is open on entry must be the only entry point.
 The fact or set of facts flowing into the entries is similarly
 determined by the shape of the entry point.
 Finally, the result is a ``decorated graph''
@@ -2214,8 +2214,9 @@ The truth about @Graph@ and @DG@ is as follows:
 % defn DG
 % defn DBlock
 Type~@DG@ is internal to \hoopl; it is not seen by any client.
-Extracting a @Graph@ and a @FactBase@ for @analyzeAndRewriteFwdBody@
-requires a 12-line function:
+To convert a~@DG@ to the @Graph@ and @FactBase@
+that are returned by @analyzeAndRewriteFwdBody@,
+we use a 12-line function:
 \begin{code}
 `normalizeGraph :: NonLocal n
                => DG f n e x
@@ -2328,7 +2329,7 @@ mutual recursion:
 @block@ calls @node@;
 and 
 @node@ calls @arfGraph@.
-Theses five functions do three different kinds of work:
+These five functions do three different kinds of work:
 compose extended fact transformers, analyze and rewrite nodes, and compute
 fixed points.
 
