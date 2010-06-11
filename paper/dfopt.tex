@@ -1610,7 +1610,7 @@ Deep rewriting is essential to achieve the full benefits of
 interleaved analysis and transformation
 \citep{lerner-grove-chambers:2002}.
 But shallow rewriting can be vital as well; 
-for example, a forward dataflow pass that inserts
+for example, a backward dataflow pass that inserts
 a spill before a call must not rewrite the call again, lest it attempt
 to insert infinitely many spills.
 
@@ -2843,9 +2843,9 @@ comparative question, and there isn't much available to compare
 \hoopl\ with.
 For example, \hoopl\ is not a drop-in  replacement for an existing
 component of GHC; instead we introduced \hoopl\ to GHC as part of a
-major refactoring of \hoopl's back end.
+major refactoring of GHC's back end.
 The version of GHC with \hoopl\ seems on the order of 10\%~slower than
-the previous version, but the is a property of the entire back end,
+the previous version, but this is a property of the entire back end,
 not just of~\hoopl.
 
 What we can say is that the costs of using \hoopl\ seem reasonable;
@@ -2889,7 +2889,7 @@ have;
 or we may store a single, polymorphic function.
 If~we use triples throughout, the costs are straightforward, but the
 code is complex.
-If~we use a single, polymorphic function, we also have to use a
+If~we use a single, polymorphic function, we sometimes have to use a
 \emph{shape classifier} (supplied by the client) when composing these
 functions in a way that is independent of the node type.
 Using a shape classifier may introduce extra @case@ discriminations
