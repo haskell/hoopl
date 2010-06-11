@@ -1,3 +1,5 @@
+\newif\ifhaskellworkshop\haskellworkshoptrue
+
 \iffalse
 
 Payload: alternatives for functions polymorphic in node type
@@ -2892,33 +2894,92 @@ will be required.
 
 \section{Discussion}
 
-Regarding use cases, we do support other control-flow algorithms; for
-example, we use Hoopl to compute dominators by a purely functional
-variant of the algorithm of Cooper, Harvey, and Kennedy (2001).
-We have also implemented a small suite of pure control-flow
-optimizations that that do not use any dataflow analysis, such as the
-elimination of branches to branches.  We have not contemplated trying
+Our main goal for \hoopl\ was to combine three good ideas (interleaved
+analysis and transformation, optimization fuel, and an applicative
+control-flow graph) in a way that could easily be reused by many, many
+compiler writers.
+\hoopl\ represents just one point in a very large design space, and 
+even among ourselves we disagree about which nearby points might be
+better.
+How, then, should you evaluate \hoopl?
+
+One way to evaluate \hoopl\ is by use cases.
+As~suggested by the constant-propagation example in
+\figref{const-prop}, \hoopl\ makes it easy to implement many standard
+dataflow analyses.
+Students using \hoopl\ in a class at Tufts were able to implement
+such optimizations as lazy code motion \cite{knoop:lazy-code-motion} 
+or induction-variable elimination
+\cite{cocke-kennedy:operator-strength-reduction} in just a few weeks.
+Students at Yale and at Portland State have also succeeded in building
+a variety of optimizations.
+
+Within GHC, \hoopl's API supports optimizations based on control flow
+as well as on dataflow, such as eliminating branches to branches.
+We have not contemplated trying
 to extend Hoopl to establish or maintain SSA invariants.
 
-HOW FAST/SLOW ARE THE RESULTING OPTIMIZATIONS?
-DO YOU TAKE A BIG HIT BECAUSE OF THE ABSTRACTIONS?
+Another way to evaluate \hoopl\ is to examine the API and its
+implementation.  
+Is~the design harmonious?
+Will~the code be easy to maintain?
+We~can't present enough information for
+you to answer these questions, but we can draw your attention to
+the aspects that seem most important.
 
-Since you
-    given an interface in a library, you could use smart constructors and
-    phantom types to enfore the invariants from the client's point of view,
-    i.e. to force the client to write only meaningful graphs. The GADTs helps
-    you "take advantage" of these invariants knowing that other cases cannot
-    occur.
-
-Your point about GADTs and their utility is well taken: from the
-client's point of view, we could do almost as well with phantom types.
-The major exception is that without GADTs, a client would have to
-provide smart constructors for nodes: the client must ensure that each
-time a node is created with a particular value constructor, it always
-gets the same phantom type.
+One good sign about the API is that it supports many higher-order
+combinators with simple, expressive types.
+We~have had space to mention only a
+few: 
+@extendJoinDomain@, 
+@thenFwdRw@, @deepFwdRw@, @shallowFwdRw@, and @pairFwd@.
 
 
-multiple interfaces for rewrite functions---a subtlety!
+The API's static encoding of open and closed shapes at compile time worked
+out well,
+especially because it applies equally to nodes, blocks, and graphs.
+Shapes may
+seem like a small refinement, but they helped eliminate a number of
+bugs from GHC, and we expect them to help clients. 
+GADTs are a convenient way to express shapes, and for clients
+written in Haskell, they are clearly appropriate.
+If~one wished to port \hoopl\ to a language without GADTs,
+many of the benefits could be realized by making the shapes phantom
+types, but without GADTs, pattern matching would be significantly more
+tedious and error-prone.
+
+An~advantage of our ``shapely'' node API is that a client can
+write a \emph{single} transfer function that is polymorphic in shape.
+To~make this design work, however, we \emph{must} have
+the type-level function 
+@Fact@ (\figref{api-types}), to express how incoming
+and outgoing facts depend on the shape of a node.
+Without type-level functions, we would have had to force clients to
+use \emph{only} the triple-of-functions interface described in
+\secref{triple-of-functions}.
+
+The implementation is more difficult to evaluate than the~API.
+Previous implementations of similar ideas have rolled the problems
+into a big ball of mud.
+By~decomposing our implementation into @node@, @block@, @body@,
+@graph@, @cat@, @withFuel@, and @fixpoint@, we have clearly separated
+multiple concerns:
+interleaving analysis with rewriting,
+throttling rewriting using optimization fuel,
+and 
+computing a fixed point using speculative rewriting.
+Because of this separation of concerns,
+we believe our implementation will be much easier to maintain than
+anything that preceded it.
+But~even within this framework, there are 
+alternative implementations;
+for example, in addition to ``@concatMap@ style,'' we have also
+written implementations in ``fold style'' and in continuation-passing
+style.
+Which implementation is preferred is a matter of taste, and of course
+there may be performance implications.
+
+
 
 
 \iffalse
@@ -2987,10 +3048,9 @@ triple hell
 %%%%    and local rewrites based on those assertions, and ``lifts'' them to entire
 %%%%    function bodies with arbitrary control flow.
 
-Our main goal for \hoopl\ was to combine three good ideas (interleaved
-analysis and transformation, optimization fuel, and an applicative
-control-flow graph) in a way that could easily be reused by many, many
-compiler writers.
+\iffalse
+
+
 Reuse requires abstraction, and as is well known,
 designing good abstractions is challenging. 
 \hoopl's data types and the functions over those types have been
@@ -3051,12 +3111,6 @@ In particular, it forced us to make explicit \emph{exactly} what
 @NonLocal@ type class (\secref{nonlocal-class}). 
 \item
 \remark{too much? Simon: better?}
-The use of GADTs to 
-track the open and closed shapes of nodes, blocks, and graphs at
-compile time worked out very well. 
-Shapes may
-seem like a small refinement, but they helped tremendously when
-building \hoopl, and we expect them to help clients. 
 %
 % this paper is just not about run-time performance ---NR
 %
@@ -3068,52 +3122,61 @@ Giving the \emph{same} shapes
 to nodes, blocks, and graphs helped our
 thinking and helped to structure the implementation.
 \item
-In our earlier designs, graphs were parameterized over \emph{three} node
-types: first, middle, and last nodes.
-Those designs therefore required
-three transfer functions, three rewrite functions, and so~on.
-Moving to a single, ``shapely'' node type was a major breakthrough:
-not only do we have just one node type, but our client need supply only
-one transfer function and one rewrite function.
-To~make this design work, however, we \emph{must} have
-the type-level function for
-@Fact@ (\figref{api-types}), to express how incoming
-and outgoing facts depend on the shape of a node.
 \end{itemize}
 
-Dataflow optimization is usually described as a way to improve imperative
+\fi
+
+In conclusion,
+dataflow optimization is usually described as a way to improve imperative
 programs by mutating control-flow graphs.
 Such transformations appear very different from the tree rewriting
 that functional languages are so well known for, and that makes
-functional languages so attractive for writing other parts of compilers.
+\ifhaskellworkshop
+Haskell
+\else
+functional languages 
+\fi
+so attractive for writing other parts of compilers.
 But even though dataflow optimization looks very different from
 what we are used to,
 writing a dataflow optimizer
-in a pure functional language was a huge win.
+in
+\ifhaskellworkshop
+Haskell
+\else
+a pure functional language 
+\fi
+was a huge win:
 %  We could not possibly have conceived \ourlib{} in C++.
-In~a pure functional language, not only do we know that
-no data structure will be unexpectedly mutated,
 but we are forced to be
 explicit about every input and output, 
 and we are encouraged to implement things compositionally.
-This kind of thinking has helped us make
-significant improvements to the already tricky work of Lerner, Grove,
-and Chambers:
-per-function control of shallow vs deep rewriting 
-(\secref{shallow-vs-deep}),
-combinators for dataflow passes (\secref{combinators}),
-optimization fuel (\secref{fuel}),
-and transparent management of unreachable blocks (\secref{arf-body}).
-We~trust that these improvements are right only because they are
+By~these means we have significantly improved the implementation of
+some very sophisticated ideas.
+%%  
+%%  
+%%  In~a pure functional language, not only do we know that
+%%  no data structure will be unexpectedly mutated,
+%%  but we are forced to be
+%%  explicit about every input and output, 
+%%  and we are encouraged to implement things compositionally.
+%%  This kind of thinking has helped us make
+%%  significant improvements to the already tricky work of Lerner, Grove,
+%%  and Chambers:
+%%  per-function control of shallow vs deep rewriting 
+%%  (\secref{shallow-vs-deep}),
+%%  optimization fuel (\secref{fuel}),
+%%  and transparent management of unreachable blocks (\secref{arf-body}).
+We~trust that the improvements are right only because they are
 implemented in separate 
 parts of the code that cannot interact except through
 explicit function calls.
-%%
-%%An ancestor of \ourlib{} is in the Glasgow Haskell Compiler today,
-%%in version~6.12.
-With this new, improved design in hand, we are now moving back to
-live-compiler mode,  pushing \hoopl\ into version
-6.13 of the Glasgow Haskell Compiler.
+%%  %%
+%%  %%An ancestor of \ourlib{} is in the Glasgow Haskell Compiler today,
+%%  %%in version~6.12.
+%%  With this new, improved design in hand, we are now moving back to
+%%  live-compiler mode,  pushing \hoopl\ into version
+%%  6.13 of the Glasgow Haskell Compiler.
 
 
 \acks
