@@ -2191,8 +2191,11 @@ Finally, the result is a ``decorated graph''
 and if the graph
 is open at the exit, an ``exit  fact'' flowing out.
 
-\simon{I suggest (a) putting the paragraph break one sentence earlier,
-so that this para is all about DGs.}
+%% \simon{I suggest (a) putting the paragraph break one sentence earlier,
+%%% so that this para is all about DGs.}
+%%%  NR: previous para is about the type of arfGraph; I don't want to
+%%%  leave the result type dangling.  I hope the opening sentence of
+%%%  this para suggests that the para is all about DGs.
 A~``decorated graph'' is one in which each block is decorated with the
 fact that holds at the start of the block.
 @DG@ actually shares a representation with @Graph@,
@@ -2340,7 +2343,6 @@ For example, @block@ is implemented thus:
   block (BLast   n)  = node n
   block (BCat b1 b2) = block b1 `cat` block b2
 \end{code}
-The implementation of @graph@ is similar but has more cases.
 The composition function, @cat@, arranges for the functional parts to
 compose and for the decorated graphs to be spliceable.
 It~has a very general type:
@@ -2350,8 +2352,8 @@ cat :: forall m e a x f f1 f2. Monad m
     -> (f1 -> m (DG f n a x, f2))
     -> (f  -> m (DG f n e x, f2))
 `cat ft1 ft2 f = do { (g1,f1) <- ft1 f
-                    ; (g2,f2) <- ft2 f1
-                    ; return (g1 `dgCat` g2, f2) }
+                   ; (g2,f2) <- ft2 f1
+                   ; return (g1 `dgCat` g2, f2) }
 \end{code}
 (Function @`dgCat@ is the same splicing function used for an ordinary
 @Graph@, but it uses a one-line block-concatenation function suitable
@@ -2360,6 +2362,9 @@ The name @cat@ comes from the concatenation of the decorated graphs,
 but it is also appropriate because the style in which it is used is
 reminiscent of @concatMap@, with the @block@ function
 playing the role of @map@.
+
+Function @graph@ is much like @block@, but it has more cases.
+
 
 %%%%    
 %%%%    \begin{itemize} 
@@ -2437,8 +2442,7 @@ playing the role of @map@.
 
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
 
-The @node@ function implements the interleaved rewrite-and-transfer
-algorithm:
+The @node@ function is where we interleave analysis with rewriting:
 \begin{smallfuzzcode}{10.5pt}
 node :: forall e x . (ShapeLifter e x) 
      => n e x -> f -> m (DG f n e x, Fact x f)
@@ -2460,19 +2464,16 @@ class ShapeLifter e x where
  frewrite      :: FwdPass m n f -> n e x
                -> f -> m (Maybe (FwdRew m n f e x))
 \end{smallfuzzcode}
-%
-% Functions @`frewrite@, @`ftransfer@, @`toBlock@,
-% @`maybeEntry@, and @`fwdEntryFact@ are overloaded based on the
-% node's shape, via the (private) @`ShapeLifter@ class.
-It uses @frewrite@ to extract the rewriting function from @pass@,
-and applies it to the node~@n@ and the incoming fact~@f@.
-Ignore the call to @withFuel@ for now; we discuss it next
-in \secref{fuel}.  The result of the rewrite, @res@, is then
+Function @node@ uses @frewrite@ to extract the rewriting function from
+@pass@, 
+and applies the rewriting function to the node~@n@ and the incoming fact~@f@.
+(For now; pretend @withFuel@ is ``@return@;'' we present
+the details next
+in \secref{fuel}.)
+The result of the rewrite, @rew@, is 
 scrutinised by the @case@ expression.
 
-In the @Nothing@ case, no rewrite takes place: either fuel is
-exhausted, or the rewrite function
-didn't want a rewrite.
+In the @Nothing@ case, no rewrite takes place.
 We~return the single-node
 graph @(singletonDG f n)@, decorated with its incoming fact,
 and apply the transfer function @ftransfer pass@ 
@@ -2488,9 +2489,10 @@ which @node@ expects, to the type @Fact e f@, which @arfGraph@ expects.
 
 As you can see, several functions called in @node@ are overloaded over a
 (private) class @ShapeLifter@, because their implementations depend
-on the open/closed shape of the node.  Each call of @node@ (in @block@,
-\secref{block-impl}) has a statically-fixed open/closed shape, so
-this use of @ShapeLifter@ is highly localised, and is specialised
+on the open/closed shape of the node.
+By design, the shape of a node is known statically everywhere @node@
+is called, so
+this use of @ShapeLifter@ is highly localized, and it is specialized
 away by the compiler.
 
 %%  And that's it!  If~the client wanted deep rewriting, it is
@@ -2504,25 +2506,18 @@ away by the compiler.
 \seclabel{vpoiso}
 \seclabel{fuel}
 
-The call to @withFuel@ in function @node@ allows us to set as
-limit on the number of permitted rewrites.
-This is useful when debugging:
-when an optimizer produces a faulty program,
-the blame could lie with any of many hundreds of rewrites.
-To~find the first rewrite that 
-transforms a program from working code to faulty code,
-we use Whalley's
-\citeyearpar{whalley:isolation} powerful fault-isolation technique.
-
-Whalley's technique uses a limit on the number of rewrites
-the optimizer may perform;
-in~\hoopl, we call the limit
-\emph{optimization fuel}.
+The call to @withFuel@ in function @node@ enables us to 
+set a limit on the number of nodes rewritten.
+We~call the limit \emph{optimization fuel}.
 Each rewrite costs one unit of fuel,
 and when the fuel is exhausted, no more rewrites are permitted.
 Because each rewrite leaves the observable behavior of the
 program unchanged, it is safe to stop rewriting at any point.
-%
+
+Optimization fuel is used when debugging the optimizer:
+when an optimizer produces a faulty program,
+we use Whalley's
+\citeyearpar{whalley:isolation} powerful fault-isolation technique:
 Given a program that fails when compiled with optimization,
 a test infrastructure uses binary search on the amount of
 optimization fuel, until
@@ -2538,10 +2533,10 @@ The throttling mechanism is isolated in a single function:
 \begin{code}
 `withFuel :: FuelMonad m => m (Maybe a) -> m (Maybe a)
 \end{code}
-If @withFuel@'s argument returns @Nothing@, \emph{or} if we have run out of
-optimization fuel, @withFuel@ returns @Nothing@.
-Otherwise, @withFuel@ consumes one unit of fuel and returns its
-argument (which will be a @Just@).  
+If~fuel is available, @withFuel@ @return@s its argument,
+consuming a unit of fuel if the argument is a @Just@.
+If~fuel is exhaused, @withFuel@ @return@s @Nothing@, independent of
+its argument.
 A~@FuelMonad@ is simply a state monad that provides operations
  @getFuel@ and @setFuel@, as shown in \figref{api-types}.
 
@@ -2824,6 +2819,76 @@ but it is also shorter:
 our new implementation is about a third as long
 as the previous version, which is part of GHC, version 6.12.
 
+
+
+
+\section{Performance considerations}
+
+Our work on \hoopl\ is too preliminary for us to be able to say much
+about performance.
+It's~important to know how well \hoopl\ performs, but this is a
+comparative question, and there isn't much available to compare
+\hoopl\ with.
+For example, \hoopl\ is not a drop-in  replacement for an existing
+component of GHC; instead we introduced \hoopl\ to GHC as part of a
+major refactoring of \hoopl's back end.
+The version of GHC with \hoopl\ seems on the order of 10\%~slower than
+the previous version, but the is a property of the entire back end,
+not just of~\hoopl.
+
+What we can say is that the costs of using \hoopl\ seem reasonable;
+there is no ``big performance hit.''
+And~a somewhat similar library, written in an \emph{impure} functional
+language, actually improved performance in an apples-to-apples
+comparison with a library using a mutable control-flow graph
+\cite{ramsey-dias:applicative-flow-graph}. 
+
+A~thorough evaluation of \hoopl's performance must await future work.
+Here we enumerate some of the design decisions that affect
+performance.
+\begin{itemize}
+\item
+In \figref{graph}, we show a single concatenation operator for blocks.
+Using this representation, a block of $N$~nodes is represented using
+$2N-1$ heap objects.
+We~have also implemented a representation of blocks that include
+``cons-like'' and ``snoc-like'' constructors;
+this representation requires only $N+1$ heap objects.
+We~don't know what difference this choice makes to performance.
+\item
+In \secref{engine}, the @body@ function analyzes and (speculatively)
+rewrites the body of a control-flow graph, and @fixpoint@ iterates
+this analysis until it reaches a fixed point.
+The decorated graphs computed on earlier iterations are thrown away.
+But for each decorated graph of $N$~nodes, it is necessary to allocate
+at least $2N-1$~thunks.
+We~have written a version of \hoopl\ in which this overhead is
+eliminated by defining two separate functions: one to compute the
+fixed point, and the other to produce the rewritten graph.
+The version we present in \secref{engine} is much simpler and easier
+to maintain, but we don't know the real cost of the additional
+allocations.
+\item
+The representation of a forward-transfer function is private to
+\hoopl.
+Two representations are possible:
+we may store a triple of functions, one for each shape a node may
+have;
+or we may store a single, polymorphic function.
+If~we use triples throughout, the costs are straightforward, but the
+code is complex.
+If~we use a single, polymorphic function, we also have to use a
+\emph{shape classifier} (supplied by the client) when composing these
+functions in a way that is independent of the node type.
+Using a shape classifier may introduce extra @case@ discriminations
+every time a transfer function or rewrite function is applied to a
+node.
+We~don't know what effect these extra discriminations might have on
+performance.
+\end{itemize}
+In summary, \hoopl\ performs well enough for use in~GHC,
+but there is a great deal we don't know, and systematic investigation
+will be required.
 
 
 
