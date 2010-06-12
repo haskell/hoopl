@@ -2850,18 +2850,19 @@ for a phase distinction.
 
 \section{Performance considerations}
 
-Our work on \hoopl\ is too preliminary for us to be able to say much
+Our work on \hoopl\ is too new for us to be able to say much
 about performance.
-It's~important to know how well \hoopl\ performs, but this is a
-comparative question, and there isn't much available to compare
+It's~important to know how well \hoopl\ performs, but the
+question is comparative, and there isn't another library we can compare
 \hoopl\ with.
 For example, \hoopl\ is not a drop-in  replacement for an existing
-component of GHC; instead we introduced \hoopl\ to GHC as part of a
+component of GHC; we introduced \hoopl\ to GHC as part of a
 major refactoring of GHC's back end.
-The version of GHC with \hoopl\ seems on the order of 15\%~slower than
-the previous version, but this is a property of the entire back end,
-not just of~\hoopl.
-
+The version of GHC with \hoopl\ seems about 15\%~slower than
+the previous version, and we
+don't know what portion of the slowdown can be attributed to the
+optimizer.
+%
 What we can say is that the costs of using \hoopl\ seem reasonable;
 there is no ``big performance hit.''
 And~a somewhat similar library, written in an \emph{impure} functional
@@ -2869,8 +2870,8 @@ language, actually improved performance in an apples-to-apples
 comparison with a library using a mutable control-flow graph
 \cite{ramsey-dias:applicative-flow-graph}. 
 
-A~thorough evaluation of \hoopl's performance must await future work.
-Here we enumerate some of the design decisions that affect
+Although a~thorough evaluation of \hoopl's performance must await
+future work, we can identify some design decisions that affect
 performance.
 \begin{itemize}
 \item
@@ -2885,15 +2886,16 @@ We~don't know what difference this choice makes to performance.
 In \secref{engine}, the @body@ function analyzes and (speculatively)
 rewrites the body of a control-flow graph, and @fixpoint@ iterates
 this analysis until it reaches a fixed point.
-The decorated graphs computed on earlier iterations are thrown away.
-But for each decorated graph of $N$~nodes, it is necessary to allocate
-at least $2N-1$~thunks.
-We~have written a version of \hoopl\ in which this overhead is
-eliminated by defining two separate functions: one to compute the
+Decorated graphs computed on earlier iterations are thrown away.
+But~for each decorated graph of $N$~nodes, it is necessary to allocate
+at least $2N-1$~thunks, which correspond to applications of
+@singledtonDG@ in~@node@ and of @dgSplice@ in~@cat@.
+In~an earlier version of \hoopl, this overhead was
+eliminated by splitting @arfGraph@ into two functions: one to compute the
 fixed point, and the other to produce the rewritten graph.
-The version we present in \secref{engine} is much simpler and easier
-to maintain, but we don't know the real cost of the additional
-allocations.
+Having a single version of @arfGraph@ is much simpler and easier
+to maintain, but we don't know the cost of allocating the
+additional thunks.
 \item
 The representation of a forward-transfer function is private to
 \hoopl.
@@ -2904,17 +2906,17 @@ or we may store a single, polymorphic function.
 If~we use triples throughout, the costs are straightforward, but the
 code is complex.
 If~we use a single, polymorphic function, we sometimes have to use a
-\emph{shape classifier} (supplied by the client) when composing these
-functions in a way that is independent of the node type.
+\emph{shape classifier} (supplied by the client) when composing
+transfer functions.
 Using a shape classifier may introduce extra @case@ discriminations
 every time a transfer function or rewrite function is applied to a
 node.
-We~don't know what effect these extra discriminations might have on
+We~don't know now these extra discriminations might affect
 performance.
 \end{itemize}
 In summary, \hoopl\ performs well enough for use in~GHC,
-but there is a great deal we don't know, and systematic investigation
-will be required.
+but there is much we don't know. Systematic investigation
+is indicated.
 
 
 
@@ -3220,7 +3222,7 @@ some very sophisticated ideas.
 \acks
 
 Several anonymous reviewers provided helpful feedback, especially
-reviewer~C, who gave us better language with which to describe our
+reviewer~C, who suggested better language with which to describe our
 work. 
 
 The first and second authors were funded 
