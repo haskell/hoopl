@@ -1169,6 +1169,7 @@ Solve-and-rewrite functions & Us & Us & Two (forward, backward) \\
 \section {Using \ourlib{} to analyze and transform graphs} \seclabel{using-hoopl}
 \seclabel{making-simple}
 \seclabel{create-analysis}
+\seclabel{api}
 
 Now that we have graphs, how do we optimize them?
 \ourlib{} makes it easy to build a new dataflow analysis and optimization.  
@@ -2922,18 +2923,16 @@ is indicated.
 
 \section{Discussion}
 
-Our main goal for \hoopl\ was to combine three good ideas (interleaved
+We built \hoopl\ in order to combine three good ideas (interleaved
 analysis and transformation, optimization fuel, and an applicative
 control-flow graph) in a way that could easily be reused by many, many
 compiler writers.
-How do we evaluate whether \hoopl\ fulfills this goal?
+To~evaluate how well we succeeded, we examine how \hoopl\ has been
+used,
+we~examine the API, and we examine the implementation.
 
-From a client's perspective,
-the most important question is:
-How easy is it to write an optimization using \hoopl?
-\begin{itemize}
-\item
-One way to evaluate this question is by use cases.
+\paragraph{Using \hoopl}
+
 As~suggested by the constant-propagation example in
 \figref{const-prop}, \hoopl\ makes it easy to implement many standard
 dataflow analyses.
@@ -2944,41 +2943,40 @@ and induction-variable elimination
 Students at Yale and at Portland State have also succeeded in building
 a variety of optimizations.
 
-Within GHC, \hoopl's API supports not only
-dataflow optimizations,
-but also optimizations based on control flow,
+\hoopl's data types can support optimizations beyond classic
+dataflow. 
+For example, within GHC, \hoopl's  graphs are used 
+to implement optimizations based on control flow,
 such as eliminating branch chains.
-We have not tried
-to~extend Hoopl to establish or maintain SSA invariants.
+There are other kinds of optimizations that have not been tried;
+for example, we know of no attempt
+to extend Hoopl to establish or maintain SSA invariants.
 
-\item
-Another way is to examine the API.
-One good sign about the API is that it supports many higher-order
+\paragraph{Examining the API}
+
+We hope the our presentation of the API in \secref{api} speaks for
+itself,
+but there are a couple of properties we think are worth highlighting.
+First, it's a good sign that the API provides many higher-order
 combinators that make it easier to write client code. % with simple, expressive types.
 We~have had space to mention only a few: 
 @extendJoinDomain@, 
 @thenFwdRw@, @deepFwdRw@, @shallowFwdRw@, and @pairFwd@.
 
-% Is~the design harmonious?
-% Will~the code be easy to maintain?
-% We~can't present enough information for
-% you to answer these questions, but we can draw your attention to
-% the aspects that seem most important.
-
-
-The API's static encoding of open and closed shapes at compile time worked
-out well;
+Second,
+the static encoding of open and closed shapes at compile time worked
+out well.
 % especially because it applies equally to nodes, blocks, and graphs.
-shapes may
+Shapes may
 seem like a small refinement, but they helped eliminate a number of
-bugs from GHC, and we expect them to help other clients as well.
+bugs from GHC, and we expect them to help other clients too.
 GADTs are a convenient way to express shapes, and for clients
 written in Haskell, they are clearly appropriate.
 If~one wished to port \hoopl\ to a language without GADTs,
 many of the benefits could be realized by making the shapes phantom
 types, but without GADTs, pattern matching would be significantly more
 tedious and error-prone.
-\end{itemize}
+
 
 % An~advantage of our ``shapely'' node API is that a client can
 % write a \emph{single} transfer function that is polymorphic in shape.
@@ -2990,14 +2988,17 @@ tedious and error-prone.
 % use \emph{only} the triple-of-functions interface described in
 % \secref{triple-of-functions}.
 
-From the perspective of maintaining \hoopl,
-the implementation is a clear improvement over previous implementations
+\paragraph{Examining the implementation}
+
+If you are thinking of adopting \hoopl, you had better consider not
+only whether you like the API, but whether, in case of emergency, you
+could maintain the implementation.
+We~believe that \secref{dfengine} sketches enough to show that \hoopl's
+implementation is a clear improvement over previous implementations
 of similar ideas.
 % The implementation is more difficult to evaluate than the~API.
 % Previous implementations of similar ideas have rolled the problems
 % into a big ball of mud.
-\begin{itemize}
-\item
 By~decomposing our implementation into @node@, @block@, @body@,
 @graph@, @cat@, @withFuel@, and @fixpoint@, we have clearly separated
 multiple concerns:
@@ -3008,15 +3009,14 @@ computing a fixed point using speculative rewriting.
 Because of this separation of concerns,
 we believe our implementation will be much easier to maintain than
 anything that preceded it.
-\item
-The API gives us great freedom to experiment with alternative implementations;
-% there are possible alternative implementations;
-for example, in addition to ``@concatMap@ style,'' we have also
-written implementations in ``fold style'' and in continuation-passing
+
+Another good sign is that we have been able to make substantial
+changes in the implementation without changing the API.
+For example, in addition to ``@concatMap@ style,'' we have also
+implemented @arfGraph@ in ``fold style'' and in continuation-passing
 style.
-Which implementation is preferred is a matter of taste, and of course
-there may be performance implications.
-\end{itemize}
+Which style is preferred is a matter of taste, and possibly
+a matter of  performance.
 
 
 
@@ -3165,8 +3165,9 @@ thinking and helped to structure the implementation.
 
 \fi
 
-In conclusion,
-dataflow optimization is usually described as a way to improve imperative
+\paragraph{Final remarks}
+
+Dataflow optimization is usually described as a way to improve imperative
 programs by mutating control-flow graphs.
 Such transformations appear very different from the tree rewriting
 that functional languages are so well known for, and that makes
@@ -3185,12 +3186,11 @@ Haskell
 \else
 a pure functional language 
 \fi
-was a huge win:
+was a win:
 %  We could not possibly have conceived \ourlib{} in C++.
-we are forced to be
-explicit about every input and output, 
-and we are encouraged to implement things compositionally.
-By~these means we have significantly improved the implementation of
+we had to make every input and output explicit,
+and we had a strong incentive to implement things compositionally.
+Using Haskell helped us make real improvements in the implementation of
 some very sophisticated ideas.
 % %%  
 % %%  
