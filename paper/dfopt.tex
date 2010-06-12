@@ -351,8 +351,8 @@ higher-rank any longer).
 
 \usepackage{code}   % At-sign notation
 
+\IfFileExists{timestamp.tex}{\input{timestamp}}{}
 \iftimestamp
-\input{timestamp}
 \preprintfooter{\mdfivestamp}
 \fi
 
@@ -368,12 +368,12 @@ higher-rank any longer).
 %\title{Implementing Dataflow Analysis and Optimization by Lifting Node Functions to Basic Blocks and Control-Flow Graphs}
 %\subtitle{Programming pearl}
 
-%%  \titlebanner{\textsf{\mdseries\itshape
-%%  Under consideration for publication in the ACM Haskell Symposium.
-%%  Comments
-%%  are welcome; please identify this version by the words
-%%  \textbf{\mdfivewords}.
-%%  }}
+\titlebanner{\textsf{\mdseries\itshape
+Under consideration for publication in the ACM Haskell Symposium.
+Comments
+are welcome; please identify this version by the words
+\textbf{\mdfivewords}.
+}}
 
 \ifnoauthornotes
 \makeatletter

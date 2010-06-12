@@ -4,8 +4,8 @@
 <./bitly.$USER.mk
 
 
-LASTPAGE=
 LASTPAGE=12  # use this for submission
+LASTPAGE=
 
 TGT=dfopt
 
