@@ -2891,9 +2891,9 @@ But~for each decorated graph of $N$~nodes, it is necessary to allocate
 at least $2N-1$~thunks, which correspond to applications of
 @singledtonDG@ in~@node@ and of @dgSplice@ in~@cat@.
 In~an earlier version of \hoopl, this overhead was
-eliminated by splitting @arfGraph@ into two functions: one to compute the
+eliminated by splitting @arfGraph@ into two very similar functions: one to compute the
 fixed point, and the other to produce the rewritten graph.
-Having a single version of @arfGraph@ is much simpler and easier
+Having a single version of @arfGraph@ is simpler and easier
 to maintain, but we don't know the cost of allocating the
 additional thunks.
 \item
@@ -2948,12 +2948,11 @@ Within GHC, \hoopl's API supports not only
 dataflow optimizations,
 but also optimizations based on control flow,
 such as eliminating branch chains.
-We have not contemplated trying
-to extend Hoopl to establish or maintain SSA invariants.
+We have not tried
+to~extend Hoopl to establish or maintain SSA invariants.
 
 \item
-Another way to evaluate how easy it is to write an optimization
-is to examine the API.
+Another way is to examine the API.
 One good sign about the API is that it supports many higher-order
 combinators that make it easier to write client code. % with simple, expressive types.
 We~have had space to mention only a few: 
@@ -2972,7 +2971,7 @@ out well;
 % especially because it applies equally to nodes, blocks, and graphs.
 shapes may
 seem like a small refinement, but they helped eliminate a number of
-bugs from GHC, and we expect them to help clients. 
+bugs from GHC, and we expect them to help other clients as well.
 GADTs are a convenient way to express shapes, and for clients
 written in Haskell, they are clearly appropriate.
 If~one wished to port \hoopl\ to a language without GADTs,
@@ -2991,7 +2990,7 @@ tedious and error-prone.
 % use \emph{only} the triple-of-functions interface described in
 % \secref{triple-of-functions}.
 
-From the perspective of a maintainer of \hoopl,
+From the perspective of maintaining \hoopl,
 the implementation is a clear improvement over previous implementations
 of similar ideas.
 % The implementation is more difficult to evaluate than the~API.
