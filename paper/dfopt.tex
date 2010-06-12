@@ -2129,18 +2129,18 @@ sound.
 gives a client's-eye view of \hoopl, showing how to use 
 it to create analyses and transformations.
 \hoopl's interface is simple, but 
-the \emph{implementation} of interleaved analysis and rewriting is 
-quite complicated.  \citet{lerner-grove-chambers:2002} 
+the \emph{implementation} of interleaved analysis and rewriting is~not.  
+\citet{lerner-grove-chambers:2002} 
 do not describe their implementation.  We have written
 at least three previous implementations, all of which
 were long and hard to understand, and only one of which
 provided compile-time guarantees about open and closed shapes.
 We are not confident that any of our previous implementations are correct.
 
-In this paper we describe our new implementation.  It is short
-(about a third of the size of our last attempt), elegant, and offers
-strong static shape guarantees.  
-\remark{Wanted: enumerate the critical components and give each one's size}
+In this paper we describe a new implementation.  It is elegant and short
+(about a third of the size of our last attempt), and it offers
+strong compile-time guarantees about shapes.  
+\finalremark{Wanted: enumerate the critical components and give each one's size}
 
 We describe the implementation of \emph{forward} 
 analysis and transformation.
@@ -2194,9 +2194,9 @@ to analyze graphs of all shapes.
 If a graph is closed on entry, a list of entry points must be
 provided;
 if the graph is open on entry,
-the block that is open on entry must be the only entry point.
-The fact or set of facts flowing into the entries is similarly
-determined by the shape of the entry point.
+the graph's entry sequence must be the only entry point.
+The~graph's shape on entry also determines the type of fact or facts
+flowing in.
 Finally, the result is a ``decorated graph''
 @DG f n e x@,
 and if the graph
@@ -2222,14 +2222,13 @@ The truth about @Graph@ and @DG@ is as follows:
 % defn DG
 % defn DBlock
 Type~@DG@ is internal to \hoopl; it is not seen by any client.
-To convert a~@DG@ to the @Graph@ and @FactBase@
-that are returned by @analyzeAndRewriteFwdBody@,
+To~convert a~@DG@ to the @Graph@ and @FactBase@
+that are returned by the API function @analyzeAndRewriteFwdBody@,
 we use a 12-line function:
-\begin{code}
-`normalizeGraph :: NonLocal n
-               => DG f n e x
-               -> (Graph n e x, FactBase f)
-\end{code}
+\begin{smallcode}
+`normalizeGraph
+ :: NonLocal n => DG f n e x -> (Graph n e x, FactBase f)
+\end{smallcode}
 
 Function @arfGraph@ is implemented as follows:
 \begin{smallcode}
@@ -2258,7 +2257,7 @@ and only @body@ knows about fixed points.
 %%  The types of the inner functions are 
 %%  \begin{smallcode}
 %%  \end{smallcode}
-Each function works the same way: it takes a ``thing'' and
+Each auxiliary function works the same way: it~takes a ``thing'' and
 returns an \emph{extended fact transformer}.
 An~extended fact transformer takes dataflow fact(s) coming into
 the ``thing,'' and it returns an output fact.
@@ -2269,7 +2268,6 @@ by the client,
 may wish to consult state provided by the client, 
 or may consume ``optimization fuel'' (\secref{fuel}),
 every extended fact transformer is monadic.
-\remark{duplicate text in \secref{rewrites}}
 
 %%%%    \begin{figure}
 %%%%    SIMON HAS ASKED IF TYPE SYNONYMS MIGHT IMPROVE THINGS FOR EXTENDED
@@ -2310,23 +2308,26 @@ identical:
 \begin{itemize}
 \item
 Extended fact transformers for nodes and blocks have the same type;
+like forward transfer functions,
 they expect a fact~@f@ rather than the more general @Fact e f@
 required for a graph.
-We~made a similar design choice in the interface for transfer
-functions (\figref{api-types}): because a node or a block has
+Because a node or a block has
 exactly one fact flowing into the entry, it is easiest  simply to pass
 that fact.
 \item
 Extended fact transformers for graphs have the most general type,
-which is expressed using the type family @Fact@:
+as expressed using @Fact@:
 if the graph is open on entry, its fact transformer expects a
 single fact;
 if the graph is closed on entry, its fact transformer expects a
 @FactBase@.
 \item
-Extended fact transformers for bodies have the same type as an
-extended fact transformer for a closed/closed graph.
+Extended fact transformers for bodies have the same type as 
+extended fact transformers for closed/closed graphs.
 \end{itemize}
+
+\ifpagetuning
+
 
 
 Function @arfGraph@ and its four auxiliary functions comprise a cycle of
@@ -2342,11 +2343,13 @@ compose extended fact transformers, analyze and rewrite nodes, and compute
 fixed points.
 
 
+
 \subsection{Analyzing blocks and graphs by composing extended fact transformers}
 \seclabel{block-impl}
 
 Extended fact transformers compose nicely.
 For example, @block@ is implemented thus:
+\ifpagetuning\par\vfilbreak[1in]\fi  % horrible page break
 \begin{code}
   `block :: forall e x .
     Block n e x -> f -> m (DG f n e x, Fact x f)
@@ -2355,8 +2358,8 @@ For example, @block@ is implemented thus:
   block (BLast   n)  = node n
   block (BCat b1 b2) = block b1 `cat` block b2
 \end{code}
-The composition function, @cat@, arranges for the functional parts to
-compose and for the decorated graphs to be spliceable.
+The composition function @cat@ feeds facts from one extended fact
+transformer to another, and it splices decorated graphs.
 It~has a very general type:
 \begin{code}
 cat :: forall m e a x f f1 f2. Monad m 
@@ -2365,9 +2368,9 @@ cat :: forall m e a x f f1 f2. Monad m
     -> (f  -> m (DG f n e x, f2))
 `cat ft1 ft2 f = do { (g1,f1) <- ft1 f
                    ; (g2,f2) <- ft2 f1
-                   ; return (g1 `dgCat` g2, f2) }
+                   ; return (g1 `dgSplice` g2, f2) }
 \end{code}
-(Function @`dgCat@ is the same splicing function used for an ordinary
+(Function @`dgSplice@ is the same splicing function used for an ordinary
 @Graph@, but it uses a one-line block-concatenation function suitable
 for @DBlock@s.)
 The name @cat@ comes from the concatenation of the decorated graphs,
@@ -2456,7 +2459,7 @@ Function @graph@ is much like @block@, but it has more cases.
 
 The @node@ function is where we interleave analysis with rewriting:
 \begin{smallfuzzcode}{10.5pt}
-node :: forall e x . (ShapeLifter e x) 
+node :: forall e x . (ShapeLifter e x, FuelMonad m) 
      => n e x -> f -> m (DG f n e x, Fact x f)
 node n f
  = do { rew <- withFuel =<< frewrite pass n f
@@ -2467,6 +2470,8 @@ node n f
             let pass' = pass { fp_rewrite = rw }
                 f'    = fwdEntryFact n f
             in  arfGraph pass' (fwdEntryLabel n) g f' }
+
+`withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
 
 class ShapeLifter e x where
  singletonDG   :: f -> n e x -> DG f n e x
@@ -2479,17 +2484,18 @@ class ShapeLifter e x where
 Function @node@ uses @frewrite@ to extract the rewrite function from
 @pass@, 
 and applies the rewrite function to the node~@n@ and the incoming fact~@f@.
-(For now; pretend @withFuel@ is ``@return@;'' we present
-the details next
-in \secref{fuel}.)
-The result of the rewrite, @rew@, is 
-scrutinised by the @case@ expression.
+The result of the rewrite is passed to @withFuel@, but for now, 
+pretend @withFuel@ is ``@return@;'' we present
+the details below
+in \secref{fuel}.
+The result from @withFuel@, @rew@, is 
+scrutinized by the @case@ expression.
 
 In the @Nothing@ case, no rewrite takes place.
-We~return the single-node
-graph @(singletonDG f n)@, decorated with its incoming fact,
-and apply the transfer function @ftransfer pass@ 
-to the incoming fact to produce the outgoing fact.
+We~return node~@n@ and its incoming fact~@f@
+as the decorated graph @singletonDG f n@.
+To produce the outgoing fact, we apply the transfer function
+@ftransfer pass@ to @n@~and~@f@.
 
 In the @Just@ case, we receive a replacement
 graph~@g@ and a new rewrite function~@rw@.
@@ -2499,12 +2505,12 @@ function from @pass@, together with the new rewrite function~@rw@.
 Function @fwdEntryFact@ converts fact~@f@ from the type~@f@,
 which @node@ expects, to the type @Fact e f@, which @arfGraph@ expects.
 
-As you can see, several functions called in @node@ are overloaded over a
+As you see, several functions called in @node@ are overloaded over a
 (private) class @ShapeLifter@, because their implementations depend
 on the open/closed shape of the node.
 By design, the shape of a node is known statically everywhere @node@
 is called, so
-this use of @ShapeLifter@ is highly localized, and it is specialized
+this use of @ShapeLifter@ is specialized
 away by the compiler.
 
 %%  And that's it!  If~the client wanted deep rewriting, it is
@@ -2518,22 +2524,20 @@ away by the compiler.
 \seclabel{vpoiso}
 \seclabel{fuel}
 
-The call to @withFuel@ in function @node@ may prevent a node from
+In function @node@, the call to
+@withFuel@ may prevent a node from
 being rewritten.
-It~uses a mechanism we call \emph{optimization fuel},
-which is stored in a @FuelMonad@ (\figref{api-types}):
-\begin{code}
- `withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
-\end{code}
-If @withFuel@ is passed a @Just@, a rewrite is being requested.
-If~fuel is available, @withFuel@ @return@s its argument,
+Function @withFuel@ inspects a supply of \emph{optimization fuel},
+which is stored in a @FuelMonad@ (\figref{api-types}).
+If~@withFuel@ is passed a @Just@, a rewrite is being requested, and
+if~fuel is available, @withFuel@ @return@s the @Just@,
 reducing the supply of fuel by one unit.
 In~all other cases, including when fuel is exhausted, @withFuel@
-@return@s @Nothing@. 
+has no effect on the @FuelMonad@ and @return@s @Nothing@. 
 
 
 Optimization fuel is used to debug the optimizer:
-when an optimizer produces a faulty program,
+when optimization produces a faulty program,
 we use Whalley's
 \citeyearpar{whalley:isolation} technique to find the fault.
 Given a program that fails when compiled with optimization,
@@ -2552,7 +2556,8 @@ The $n$th rewrite is faulty.
 
 \subsection{Fixed points} \seclabel{arf-body}
 
-Lastly, the @body@ function iterates to a fixed point.
+The fourth and final auxiliary function of @arfGraph@ is
+@body@, which iterates to a fixed point.
 This part of the implementation is the only really tricky part, and it is
 cleanly separated from everything else:
 \smallverbatiminput{bodyfun}
@@ -2564,7 +2569,9 @@ cleanly separated from everything else:
 % local entries
 % local init_fbase
 % local blockmap
-Function @getFact@ looks up a fact, and if the fact is not found, uses
+Function @getFact@ looks up a fact by its lable.
+If the label is not found,
+@getFact@ returns
 the bottom element of the lattice: 
 \begin{smallcode}
 `getFact :: DataflowLattice f -> Label -> FactBase f -> f
@@ -2572,11 +2579,14 @@ the bottom element of the lattice:
 Function @forwardBlockList@ takes a list of possible entry points and 
 a finite map from labels to blocks.
 It returns a list of
-blocks, sorted into an order that makes forward dataflow efficient:
+blocks, sorted into an order that makes forward dataflow efficient.\footnote
+{The order of the blocks does not affect the fixed point or any other
+part of the answer; it affects only the number of iterations needed to
+reach the fixed point.}
 \begin{smallcode}
-`forwardBlockList 
-  :: NonLocal n 
-  => [Label] -> LabelMap (Block n C C) -> [Block n C C]
+ `forwardBlockList 
+   :: NonLocal n 
+   => [Label] -> LabelMap (Block n C C) -> [Block n C C]
 \end{smallcode}
 For
 example, if the entry point is at~@L2@, and the block at~@L2@ 
@@ -2590,9 +2600,6 @@ perform a reverse postorder depth-first traversal of the control-flow graph.
 %%@`arfThing@ functions.
 %%  paragraph carrying too much freight
 %%
-(The order of the blocks does not affect the fixed point or any other
-part of the answer; it affects only the number of iterations needed to
-reach the fixed point.)
 
 The rest of the work is done by @fixpoint@, which is shared by
 both forward and backward analyses:
@@ -2600,23 +2607,31 @@ both forward and backward analyses:
 % defn Direction
 % defn Fwd
 % defn Bwd
-Except for the mysterious @Direction@ passed as the first argument,
+Except for the @Direction@ passed as the first argument,
 the type signature tells the story.
 The third argument is an extended fact transformer for a single block; 
-@fixpoint@ applies that function successively to all the blocks,
-which are passed as the fourth argument.
-The result is an extended fact transformer for the blocks.
+@fixpoint@ applies that function successively to each block in the list
+passed as the fourth argument.
+The result is an extended fact transformer for the list.
 
 The extended fact transformer returned by @fixpoint@
  maintains a
- ``Current @FactBase@''
+ ``current @FactBase@''
 which grows monotonically:
-its initial value is the input @FactBase@, and it is
-augmented with the new facts that flow
-out of each @Block@ as it is analyzed.
-The extended fact transformer
-iterates over the list of blocks until the Current @FactBase@ reaches
-a fixed point.  
+as each block is analyzed,
+the block's input fact is taken from
+the current @FactBase@,
+and the current @FactBase@
+is
+augmented with the facts that flow out of the block.
+%
+The initial value of the current @FactBase@ is the input @FactBase@, 
+and
+the extended fact transformer
+iterates over the blocks until the current @FactBase@ 
+stops changing.
+
+
 
 Implementing @fixpoint@ requires about 90 lines,
 formatted narrowly for display in one column.
@@ -2626,7 +2641,7 @@ formatted narrowly for display in one column.
 The~code is mostly straightforward, although we try to be clever
 about deciding when a new fact means that another iteration over the
 blocks will be required.
-\remark{Rest of this \S\ is a candidate to be cut}
+\finalremark{Rest of this \S\ is a candidate to be cut}
 There is one more subtle point worth mentioning, which we highlight by 
 considering a forward analysis of this graph, where execution starts at~@L1@:
 \begin{code}
@@ -2643,11 +2658,10 @@ Given @x=@$\top$, the
 conditional in @L4@ cannot be rewritten, and @L2@~seems reachable.  We have
 lost a good optimization.
 
-Our implementation solves this problem through a trick that is
-safe only for a forward analysis;
-@fixpoint@ analyzes a block only if the block is
+Function @fixpoint@ solves this problem 
+by analyzing a block only if the block is
 reachable from an entry point.
-This trick is not safe for a backward analysis, which
+This trick is safe only for a forward analysis, which
  is why
 @fixpoint@ takes a @Direction@ as its first argument.
 

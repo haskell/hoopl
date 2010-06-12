@@ -185,7 +185,7 @@ arfGraph pass entries = graph
     {-# INLINE cat #-} 
     cat ft1 ft2 f = do { (g1,f1) <- ft1 f
                        ; (g2,f2) <- ft2 f1
-                       ; return (g1 `dgCat` g2, f2) }
+                       ; return (g1 `dgSplice` g2, f2) }
 
     arfx :: forall thing x .
             NonLocal thing
@@ -329,7 +329,7 @@ arbGraph pass entries = graph
     {-# INLINE cat #-} 
     cat ft1 ft2 f = do { (g2,f2) <- ft2 f
                        ; (g1,f1) <- ft1 f2
-                       ; return (g1 `dgCat` g2, f1) }
+                       ; return (g1 `dgSplice` g2, f1) }
 
     arbx :: forall thing x .
             NonLocal thing
@@ -481,7 +481,7 @@ fixpoint direction lat do_block blocks init_fbase
                    = mapFoldWithKey (updateFact lat lbls) 
                           (cha,fbase) out_facts
            ; return (TxFB { tfb_lbls  = lbls'
-                          , tfb_rg    = rg `dgCat` blks
+                          , tfb_rg    = rg `dgSplice` blks
                           , tfb_fbase = fbase'
                           , tfb_cha = cha' }) }
       where
@@ -577,7 +577,7 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 
 -- @ start dg.tex
 type Graph = Graph' Block
-type DG     f n e x = Graph'   (DBlock f) n e x
+type DG f  = Graph' (DBlock f)
 data DBlock f n e x = DBlock f (Block n e x) -- ^ block decorated with fact
 toDg :: NonLocal n => f -> Block n e x -> DG f n e x
 -- @ end dg.tex
@@ -589,7 +589,7 @@ instance NonLocal n => NonLocal (DBlock f n) where
 
 dgnil  :: DG f n O O
 dgnilC :: DG f n C C
-dgCat  :: NonLocal n => DG f n e a -> DG f n a x -> DG f n e x
+dgSplice  :: NonLocal n => DG f n e a -> DG f n a x -> DG f n e x
 
 ---- observers
 
@@ -626,7 +626,7 @@ toDg f b@(BHead {})   = gUnitCO (DBlock f b)
 toDg f b@(BTail {})   = gUnitOC (DBlock f b)
 toDg f b@(BClosed {}) = gUnitCC (DBlock f b)
 
-dgCat = U.splice fzCat
+dgSplice = U.splice fzCat
   where fzCat (DBlock f b1) (DBlock _ b2) = DBlock f (b1 `U.cat` b2)
 
 ----------------------------------------------------------------
