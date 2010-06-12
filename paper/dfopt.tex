@@ -2543,7 +2543,7 @@ we use Whalley's
 Given a program that fails when compiled with optimization,
 a binary search on the amount of
 optimization fuel
-finds an~$n$ such that program works correctly after $n-1$ rewrites
+finds an~$n$ such that the program works correctly after $n-1$ rewrites
 but fails 
 after $n$~rewrites.
 The $n$th rewrite is faulty.
@@ -2730,21 +2730,6 @@ We~describe  two representative
 designs, then move on to the prior frameworks that support interleaved
 analysis and transformation.
 
-The CIL toolkit \cite{necula:cil:2002}\finalremark{No good citation
-for same reason as Soot below ---JD}
-supports both analysis and rewriting of C~programs,
-but rewriting is clearly distinct from analysis:
-one runs an analysis to completion and then rewrites based on the
-results. 
-The framework is limited to one representation of control-flow graphs
-and one representation of instructions, both of which are provided by
-the framework.
-The~API is complicated;
-much of the complexity is needed to enable the client to
-affect which instructions 
-the analysis iterates over.
-
-
 The Soot framework is designed for analysis of Java programs
 \cite{hendren:soot:2000}.\finalremark{This citation is probably the
 best for Soot in general, but there doesn't appear 
@@ -2759,7 +2744,21 @@ Soot's interface for defining lattice and analysis functions is
 like our own, 
 although because Soot is implemented in an imperative style, 
 additional functions are needed to copy lattice elements.
-Like CIL, Soot provides only analysis, not transformation.
+
+
+The CIL toolkit \cite{necula:cil:2002}\finalremark{No good citation
+for same reason as Soot below ---JD}
+supports both analysis and rewriting of C~programs,
+but rewriting is clearly distinct from analysis:
+one runs an analysis to completion and then rewrites based on the
+results. 
+The framework is limited to one representation of control-flow graphs
+and one representation of instructions, both of which are provided by
+the framework.
+The~API is complicated;
+much of the complexity is needed to enable the client to
+affect which instructions 
+the analysis iterates over.
 
 
 \finalremark{FYI, LLVM has Pass Managers that try to control the order of passes,
