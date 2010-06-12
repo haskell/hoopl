@@ -91,7 +91,7 @@ the following observations:
            debug :: (Show n, Show f)
                  => TraceFn -> WhatToTrace -> FwdPass n f -> FwdPass n f
 
-      - One can't write a cominator of type
+      - One can't write a combinator of type
 
            product :: FwdPass n f -> FwdPass n f' -> FwdPass n (f, f')
 
@@ -2889,7 +2889,7 @@ this analysis until it reaches a fixed point.
 Decorated graphs computed on earlier iterations are thrown away.
 But~for each decorated graph of $N$~nodes, it is necessary to allocate
 at least $2N-1$~thunks, which correspond to applications of
-@singledtonDG@ in~@node@ and of @dgSplice@ in~@cat@.
+@singletonDG@ in~@node@ and of @dgSplice@ in~@cat@.
 In~an earlier version of \hoopl, this overhead was
 eliminated by splitting @arfGraph@ into two very similar functions: one to compute the
 fixed point, and the other to produce the rewritten graph.
@@ -3038,7 +3038,7 @@ a little less intuitive, we are sticking with @concatMap@ style for now.)
  >   - prettyprinting block)
 
 
-type-parameter hell, newtype hell, typechekcing hell, instance hell,
+type-parameter hell, newtype hell, typechecking hell, instance hell,
 triple hell
 
 \fi
