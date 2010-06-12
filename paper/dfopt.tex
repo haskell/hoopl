@@ -1465,7 +1465,6 @@ is iterated until the facts for each label reach a fixed point.
 
 %%% But wait! % Too breathless ---NR
 A~transfer function has an unusual sort of type:
-\remark{John, please read this \P!}
 not quite a dependent type, but not a bog-standard polymorphic type either.
 The result type of the transfer function is \emph{indexed} by the shape (i.e.,
 the type) of the node argument:
@@ -2570,7 +2569,7 @@ cleanly separated from everything else:
 % local entries
 % local init_fbase
 % local blockmap
-Function @getFact@ looks up a fact by its lable.
+Function @getFact@ looks up a fact by its label.
 If the label is not found,
 @getFact@ returns
 the bottom element of the lattice: 
@@ -2912,7 +2911,7 @@ transfer functions.
 Using a shape classifier may introduce extra @case@ discriminations
 every time a transfer function or rewrite function is applied to a
 node.
-We~don't know now these extra discriminations might affect
+We~don't know how these extra discriminations might affect
 performance.
 \end{itemize}
 In summary, \hoopl\ performs well enough for use in~GHC,
