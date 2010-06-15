@@ -20,7 +20,6 @@ import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph (Graph, C, O)
 import Compiler.Hoopl.Label
 
-type FR m n f = FwdRewrite m n f
 type BR m n f = BwdRewrite m n f
 
 type FromFwdRw3 m n f a 
@@ -28,11 +27,6 @@ type FromFwdRw3 m n f a
             -> (n O O -> f -> m (Maybe (Graph n O O)))
             -> (n O C -> f -> m (Maybe (Graph n O C)))
             -> a
-
-type FRW  m n f e x = n e x -> f -> m (Maybe (FwdRew m n f e x))
-type ExTriple a = (a C O, a O O, a O C) -- ^ entry/exit triple
-type MapFRW  m n f e x = FRW  m n f e x -> FRW m n f e x
-type MapFRW2 m n f e x = FRW  m n f e x -> FRW m n f e x -> FRW m n f e x
 
 ----------------------------------------------------------------
 -- common operations on triples
@@ -46,26 +40,6 @@ applyBinary (f1, f2, f3) (x1, x2, x3) (y1, y2, y3) = (f1 x1 y1, f2 x2 y2, f3 x3 
 
 
 ----------------------------------------------------------------
-
-wrapFRewrite3 :: ExTriple (MapFRW m n f) -> FR m n f -> FR m n f
-wrapFRewrite3 map frw = FwdRewrite3 $ apply map $ getFRewrite3 frw
-
-wrapFRewrites23 :: ExTriple (MapFRW2 m n f) -> FR m n f -> FR m n f -> FR m n f
-wrapFRewrites23 map frw1 frw2 =
-  FwdRewrite3 $ (applyBinary map `on` getFRewrite3) frw1 frw2
-
-wrapFRewrites :: (forall e x . MapFRW m n f e x) -> FR m n f -> FR m n f
-wrapFRewrites map = wrapFRewrite3 (map, map, map)
--- It's ugly that we can't use
---    wrapFRewrites' = mkFRewrite'
--- Would be nice to refactor here XXX  ---NR
-
-
-wrapFRewrites2 :: (forall e x . MapFRW2 m n f e x) -> FR m n f -> FR m n f -> FR m n f
-wrapFRewrites2 map = wrapFRewrites23 (map, map, map)
-
-----------------------------------------------------------------
-
 
 deepFwdRw3 :: FuelMonad m => FromFwdRw3 m n f (FwdRewrite m n f)
 deepFwdRw :: FuelMonad m
@@ -81,7 +55,8 @@ thenFwdRw :: Monad m
           -> FwdRewrite m n f 
           -> FwdRewrite m n f
 -- @ end comb1.tex
-thenFwdRw rw3 rw3' = wrapFRewrites2 thenrw rw3 rw3'
+thenFwdRw rw3 rw3' =
+  FwdRewrite3 $ (applyBinary (thenrw, thenrw, thenrw) `on` getFRewrite3) rw3 rw3'
  where
   thenrw rw rw' n f = rw n f >>= fwdRes
      where fwdRes Nothing = rw' n f
@@ -93,7 +68,7 @@ iterFwdRw :: Monad m
           => FwdRewrite m n f 
           -> FwdRewrite m n f
 -- @ end iterf.tex
-iterFwdRw rw3 = wrapFRewrites iter rw3
+iterFwdRw rw3 = FwdRewrite3 . apply (iter, iter, iter) . getFRewrite3 $ rw3
  where
     iter rw n f = liftM (liftM fwdRes) (rw n f)
     fwdRes (FwdRew g rw3a) = 
@@ -107,24 +82,14 @@ type FromBwdRw3 m n f a
             -> a
 
 type BRW  m n f e x = n e x -> Fact x f -> m (Maybe (BwdRew m n f e x))
-type MapBRW  m n f e x = BRW  m n f e x -> BRW m n f e x
 type MapBRW2 m n f e x = BRW  m n f e x -> BRW m n f e x -> BRW m n f e x
 
 ----------------------------------------------------------------
 
-wrapBRewrite3 :: ExTriple (MapBRW m n f) -> BwdRewrite m n f -> BwdRewrite m n f
-wrapBRewrite3 map rw = BwdRewrite3 $ apply map $ getBRewrite3 rw
-
-wrapBRewrites2 :: ExTriple (MapBRW2 m n f) -> BR m n f -> BR m n f -> BR m n f
-wrapBRewrites2 map rw1 rw2 =
-  BwdRewrite3 $ (applyBinary map `on` getBRewrite3) rw1 rw2
-
-wrapBRewrites' :: (forall e x . MapBRW m n f e x) -> BwdRewrite m n f -> BwdRewrite m n f
-wrapBRewrites' map = wrapBRewrite3 (map, map, map)
-
-wrapBRewrites2' :: (forall e x . MapBRW2 m n f e x) -> BR m n f -> BR m n f -> BR m n f
-wrapBRewrites2' map = wrapBRewrites2 (map, map, map)
-
+wrapBRewrites2 :: (forall e x . MapBRW2 m n f e x) -> BR m n f -> BR m n f -> BR m n f
+wrapBRewrites2 map = w2 (map, map, map)
+  where w2 map rw1 rw2 =
+            BwdRewrite3 $ (applyBinary map `on` getBRewrite3) rw1 rw2
 
 ----------------------------------------------------------------
 
@@ -136,7 +101,7 @@ deepBwdRw  f = deepBwdRw3 f f f
 
 
 thenBwdRw :: Monad m => BwdRewrite m n f -> BwdRewrite m n f -> BwdRewrite m n f
-thenBwdRw rw1 rw2 = wrapBRewrites2' f rw1 rw2
+thenBwdRw rw1 rw2 = wrapBRewrites2 f rw1 rw2
   where f rw1 rw2' n f = do
           res1 <- rw1 n f
           case res1 of
@@ -144,7 +109,7 @@ thenBwdRw rw1 rw2 = wrapBRewrites2' f rw1 rw2
             Just (BwdRew g rw1a) -> return $ Just $ BwdRew g (rw1a `thenBwdRw` rw2)
 
 iterBwdRw :: Monad m => BwdRewrite m n f -> BwdRewrite m n f
-iterBwdRw rw = wrapBRewrites' f rw
+iterBwdRw rw = BwdRewrite3 . apply (f, f, f) . getBRewrite3 $ rw
   where f rw' n f = liftM (liftM iterRewrite) (rw' n f)
         iterRewrite (BwdRew g rw2) = BwdRew g (rw2 `thenBwdRw` iterBwdRw rw)
 
