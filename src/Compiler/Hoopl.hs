@@ -17,7 +17,7 @@ where
 
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Combinators
-import Compiler.Hoopl.Dataflow
+import Compiler.Hoopl.Dataflow hiding (FwdRew(..), BwdRew(..), FwdRewrite3, BwdRewrite3)
 import Compiler.Hoopl.Debug
 import Compiler.Hoopl.Fuel hiding (withFuel, getFuel, setFuel, FuelMonadT)
 import Compiler.Hoopl.Graph hiding 

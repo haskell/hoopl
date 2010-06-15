@@ -3,14 +3,17 @@
 module Compiler.Hoopl.Dataflow
   ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..), Fact
   , ChangeFlag(..), changeIf
+  , FwdRewrite(FwdRewrite3) --- temporary??
+  , BwdRewrite(BwdRewrite3) --- temporary??
   , FwdPass(..), FwdTransfer, mkFTransfer, mkFTransfer3, getFTransfer3
-  , FwdRew(..),  FwdRewrite,  mkFRewrite,  mkFRewrite3,  getFRewrite3
+  , FwdRew(..),  FwdRewrite,  mkFRewrite,  mkFRewrite3,  getFRewrite3, noFwdRewrite
   , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer3, getBTransfer3
-  , BwdRew(..),  BwdRewrite,  mkBRewrite,  mkBRewrite3,  getBRewrite3
+  , BwdRew(..),  BwdRewrite,  mkBRewrite,  mkBRewrite3,  getBRewrite3, noBwdRewrite
   , analyzeAndRewriteFwd,  analyzeAndRewriteBwd
   )
 where
 
+import Control.Monad
 import Data.Maybe
 
 import Compiler.Hoopl.Collections
@@ -80,15 +83,26 @@ mkFTransfer3 f m l = FwdTransfer3 (f, m, l)
 mkFTransfer :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
 mkFTransfer f = FwdTransfer3 (f, f, f)
 
-mkFRewrite3 :: (n C O -> f -> m (Maybe (FwdRew m n f C O)))
-            -> (n O O -> f -> m (Maybe (FwdRew m n f O O)))
-            -> (n O C -> f -> m (Maybe (FwdRew m n f O C)))
+mkFRewrite3 :: FuelMonad m
+            => (n C O -> f -> m (Maybe (Graph n C O)))
+            -> (n O O -> f -> m (Maybe (Graph n O O)))
+            -> (n O C -> f -> m (Maybe (Graph n O C)))
             -> FwdRewrite m n f
-mkFRewrite3 f m l = FwdRewrite3 (f, m, l)
+mkFRewrite3 f m l = FwdRewrite3 (lift f, lift m, lift l)
+  where lift rw node fact = liftM (liftM asRew) (withFuel =<< rw node fact)
+        asRew g = FwdRew g noFwdRewrite
 
-mkFRewrite :: (forall e x . n e x -> f -> m (Maybe (FwdRew m n f e x)))
+noFwdRewrite :: Monad m => FwdRewrite m n f
+noFwdRewrite = FwdRewrite3 (noRewrite, noRewrite, noRewrite)
+
+noRewrite :: Monad m => a -> b -> m (Maybe c)
+noRewrite _ _ = return Nothing
+
+                               
+
+mkFRewrite :: FuelMonad m => (forall e x . n e x -> f -> m (Maybe (Graph n e x)))
            -> FwdRewrite m n f
-mkFRewrite f = FwdRewrite3 (f, f, f)
+mkFRewrite f = mkFRewrite3 f f f
 
 
 type family   Fact x f :: *
@@ -256,11 +270,17 @@ mkBTransfer3 f m l = BwdTransfer3 (f, m, l)
 mkBTransfer :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
 mkBTransfer f = BwdTransfer3 (f, f, f)
 
-mkBRewrite3 :: (n C O -> f          -> m (Maybe (BwdRew m n f C O)))
-            -> (n O O -> f          -> m (Maybe (BwdRew m n f O O)))
-            -> (n O C -> FactBase f -> m (Maybe (BwdRew m n f O C)))
+mkBRewrite3 :: FuelMonad m
+            => (n C O -> f          -> m (Maybe (Graph n C O)))
+            -> (n O O -> f          -> m (Maybe (Graph n O O)))
+            -> (n O C -> FactBase f -> m (Maybe (Graph n O C)))
             -> BwdRewrite m n f
-mkBRewrite3 f m l = BwdRewrite3 (f, m, l)
+mkBRewrite3 f m l = BwdRewrite3 (lift f, lift m, lift l)
+  where lift rw node fact = liftM (liftM asRew) (withFuel =<< rw node fact)
+        asRew g = BwdRew g noBwdRewrite
+
+noBwdRewrite :: Monad m => BwdRewrite m n f
+noBwdRewrite = BwdRewrite3 (noRewrite, noRewrite, noRewrite)
 
 mkBRewrite :: (forall e x . n e x -> Fact x f -> m (Maybe (BwdRew m n f e x)))
            -> BwdRewrite m n f

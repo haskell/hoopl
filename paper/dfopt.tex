@@ -1188,9 +1188,9 @@ the fact type.
 returns the transformed fact that flows out of the node (\secref{transfers}).  
 \item A \emph{rewrite function} that takes a node and an input fact,
 and which returns either @Nothing@
-or @Just (FwdRew g rw)@,
+or @Just g@,
 where @g@~is a graph that should
-replace the node and @rw@ is a new rewrite function
+replace the node
 (\secreftwo{rewrites}{shallow-vs-deep}).
 The ability to replace a \emph{node} by a \emph{graph} 
 %  that may include internal control flow 
@@ -1297,13 +1297,12 @@ newtype `FwdTransfer n f      -- abstract type
 
 ------- Rewrites ----------
 newtype `FwdRewrite m n f     -- abstract type
-`mkFRewrite
- :: (forall e x . n e x 
-               -> f -> m (Maybe (FwdRew m n f e x)))
+`mkFRewrite :: FuelMonad m 
+ => (forall e x . n e x -> f -> m (Maybe (Graph n e x)))
  -> FwdRewrite m n f
-
-data `FwdRew m n f e x 
-  = FwdRew (Graph n e x) (FwdRewrite m n f)
+thenFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
+ -> FwdRewrite m n f
+iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
 
 ------- Fact-like things, aka "fact(s)" -----
 type family   `Fact x f :: *
@@ -1532,8 +1531,7 @@ The programmer may write code that works with any monad,
 may create a monad just for the client,
 or may use a monad supplied by \hoopl. 
 
-
-When these choices are made, the most direct way to create a rewrite
+When these choices are made, the easy way to create a rewrite
 function is to call the function @mkFRewrite@ in \figref{api-types}.
 The client supplies a function that is specialized to a particular
 node, fact, and (possibly) monad, but is polymorphic in the
@@ -1554,12 +1552,12 @@ It~must also be possible for a rewrite function to decide to do nothing.
 The result of the monadic computation returned by~$r$ may therefore be
 @Nothing@, indicating that the node should
 not be rewritten,
-or $@Just (FwdRew@\;\ag\;\rw@)@$, indicating that the node should
+or $@Just@\;\ag$, indicating that the node should
 be replaced with~\ag: the replacement graph. 
-The additional value $\rw$ tells \hoopl\ whether
-and how the replacement graph~$\ag$ should be analyzed and rewritten
-further;
-we explain~$\rw$ in \secref{shallow-vs-deep}.
+%%The additional value $\rw$ tells \hoopl\ whether
+%%and how the replacement graph~$\ag$ should be analyzed and rewritten
+%%further;
+%%we explain~$\rw$ in \secref{shallow-vs-deep}.
 
 
 The type of @mkFRewrite@ in \figref{api-types} guarantees
@@ -1575,17 +1573,8 @@ closed on exit.
 %%  or tail of a block (open/closed) can ever be deleted by being
 %%  rewritten to an empty graph.
 
-Rewrite functions are potentially more plentiful than transfer
-functions, because
-a~single dataflow fact might justify more than one kind of rewrite.
-\hoopl\ makes it easy for a client to combine multiple rewrite
-functions that use the same fact:
-\verbatiminput{comb1}
-% defn thenFwdRw
-Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
-then the rewrites of~@r2@.
+\subsection{Shallow rewriting, deep rewriting, and rewriting combinators}
 
-\subsection{Shallow vs deep rewriting}
  \seclabel{shallow-vs-deep}
 
 When a node is rewritten, the replacement graph~$g$
@@ -1614,25 +1603,29 @@ for example, a backward dataflow pass that inserts
 a spill before a call must not rewrite the call again, lest it attempt
 to insert infinitely many spills.
 
+
+
 An~innovation of \hoopl\ is to build the choice of shallow or deep
-rewriting into each rewrite function, 
-as expressed by the
-@FwdRew@ type returned by a @FwdRewrite@ (\figref{api-types}).
-The first component of the @FwdRew@ is the replacement graph, as discussed earlier.
-The second component, $\rw$, is a 
-\emph{new rewrite function} to use when recursively processing
-the replacement graph. 
-For shallow rewriting this new function is
-the constant @Nothing@ function; for deep rewriting it is the original
-rewrite function.
-While @mkFRewrite@ allows for general rewriting, most clients will
-take advantage of \hoopl's support for these two common cases:
-\begin{smallcode}
-`deepFwdRw, `shallowFwdRw
-   :: Monad m 
-   => (forall e x . n e x -> f -> m (Maybe (Graph n e x)) 
-   -> FwdRewrite m n f
-\end{smallcode}
+rewriting into each rewrite function, through the use of combinators.
+A~function returned by @mkFRewrite@ is shallow by default, but it can
+be made deep by
+\begin{code}
+  `iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
+\end{code}
+Another useful combinator enables \hoopl\ to try any number of functions to
+rewrite a node, provided only that they all use the same fact:
+\verbatiminput{comb1}
+% defn thenFwdRw
+Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
+then the rewrites of~@r2@.
+%%  
+%%  
+%%  by using
+%%  Rewrite functions are potentially more plentiful than transfer
+%%  functions, because
+%%  a~single dataflow fact might justify more than one kind of rewrite.
+%%  \hoopl\ makes it easy for a client to combine multiple rewrite
+%%  functions that use the same fact:
 
 
 
@@ -2146,6 +2139,30 @@ We describe the implementation of \emph{forward}
 analysis and transformation.
 The implementations of backward analysis and transformation are
 exactly analogous and are included in \hoopl.
+
+
+
+\subsection{Rewrite functions}
+
+
+
+as expressed by the
+@FwdRew@ type returned by a @FwdRewrite@ (\figref{api-types}).
+The first component of the @FwdRew@ is the replacement graph, as discussed earlier.
+The second component, $\rw$, is a 
+\emph{new rewrite function} to use when recursively processing
+the replacement graph. 
+For shallow rewriting this new function is
+the constant @Nothing@ function; for deep rewriting it is the original
+rewrite function.
+While @mkFRewrite@ allows for general rewriting, most clients will
+take advantage of \hoopl's support for these two common cases:
+\begin{smallcode}
+`deepFwdRw, `shallowFwdRw
+   :: Monad m 
+   => (forall e x . n e x -> f -> m (Maybe (Graph n e x)) 
+   -> FwdRewrite m n f
+\end{smallcode}
 
 
 
