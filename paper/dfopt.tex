@@ -2231,19 +2231,22 @@ we use a 12-line function:
 \end{smallcode}
 
 Function @arfGraph@ is implemented as follows:
-\begin{smallcode}
+\begingroup
+\newcommand\cnl{\\[-6pt]}%
+\begin{smallttcode}
 arfGraph pass entries = graph
- where
+ where\cnl
  node :: forall e x . (ShapeLifter e x) 
-      => n e x       -> f        -> m (DG f n e x, Fact x f)
+      => n e x       -> f        -> m (DG f n e x, Fact x f)\cnl
  block:: forall e x . 
-         Block n e x -> f        -> m (DG f n e x, Fact x f)
+         Block n e x -> f        -> m (DG f n e x, Fact x f)\cnl
  body :: [Label] -> LabelMap (Block n C C)
-                     -> Fact C f -> m (DG f n C C, Fact C f)
- `graph:: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
+                     -> Fact C f -> m (DG f n C C, Fact C f)\cnl
+ `graph:: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)\cnl
  ... definitions of 'node', 'block', 'body', and 'graph' ...
-\end{smallcode}
+\end{smallttcode}
 The four auxiliary functions help us separate concerns: for example, only 
+\endgroup
 @node@ knows about rewrite functions;
 and only @body@ knows about fixed points.
 %%  All four functions have access to the @FwdPass@ and any entry points
