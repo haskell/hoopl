@@ -37,11 +37,6 @@ type MapFRW2 m n f e x = FRW  m n f e x -> FRW m n f e x -> FRW m n f e x
 ----------------------------------------------------------------
 -- common operations on triples
 
-{-
-uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
-uncurry3 f (a, b, c) = f a b c
--}
-
 apply :: (a -> b, d -> e, g -> h) -> (a, d, g) -> (b, e, h)
 apply (f1, f2, f3) (x1, x2, x3) = (f1 x1, f2 x2, f3 x3)
 
@@ -52,24 +47,12 @@ applyBinary (f1, f2, f3) (x1, x2, x3) (y1, y2, y3) = (f1 x1 y1, f2 x2 y2, f3 x3 
 
 ----------------------------------------------------------------
 
-{-
-wrapSFRewrite3 :: ExTriple (LiftFRW m n f) -> SimpleFwdRewrite3 m n f -> FR m n f
-wrapSFRewrite3 lift rw = uncurry3 mkFRewrite3 $ apply lift rw
--}
-
 wrapFRewrite3 :: ExTriple (MapFRW m n f) -> FR m n f -> FR m n f
 wrapFRewrite3 map frw = FwdRewrite3 $ apply map $ getFRewrite3 frw
 
 wrapFRewrites23 :: ExTriple (MapFRW2 m n f) -> FR m n f -> FR m n f -> FR m n f
 wrapFRewrites23 map frw1 frw2 =
   FwdRewrite3 $ (applyBinary map `on` getFRewrite3) frw1 frw2
-
-
-{-
--- Combinators for higher-rank rewriting functions:
-wrapSFRewrites' :: (forall e x . LiftFRW m n f e x) -> SimpleFwdRewrite3 m n f -> FR m n f
-wrapSFRewrites' lift = wrapSFRewrite3 (lift, lift, lift)
--}
 
 wrapFRewrites :: (forall e x . MapFRW m n f e x) -> FR m n f -> FR m n f
 wrapFRewrites map = wrapFRewrite3 (map, map, map)
@@ -129,23 +112,12 @@ type MapBRW2 m n f e x = BRW  m n f e x -> BRW m n f e x -> BRW m n f e x
 
 ----------------------------------------------------------------
 
-{-
-wrapSBRewrite3 :: ExTriple (LiftBRW m n f) -> SimpleBwdRewrite3 m n f -> BwdRewrite m n f
-wrapSBRewrite3 lift rw = uncurry3 mkBRewrite3 $ apply lift rw
--}
-
 wrapBRewrite3 :: ExTriple (MapBRW m n f) -> BwdRewrite m n f -> BwdRewrite m n f
 wrapBRewrite3 map rw = BwdRewrite3 $ apply map $ getBRewrite3 rw
 
 wrapBRewrites2 :: ExTriple (MapBRW2 m n f) -> BR m n f -> BR m n f -> BR m n f
 wrapBRewrites2 map rw1 rw2 =
   BwdRewrite3 $ (applyBinary map `on` getBRewrite3) rw1 rw2
-
-{-
--- Combinators for higher-rank rewriting functions:
-wrapSBRewrites' :: (forall e x . LiftBRW m n f e x) -> SimpleBwdRewrite3 m n f -> BR m n f
-wrapSBRewrites' lift = wrapSBRewrite3 (lift, lift, lift)
--}
 
 wrapBRewrites' :: (forall e x . MapBRW m n f e x) -> BwdRewrite m n f -> BwdRewrite m n f
 wrapBRewrites' map = wrapBRewrite3 (map, map, map)
