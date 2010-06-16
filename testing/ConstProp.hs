@@ -63,8 +63,8 @@ varHasLit = mkFTransfer ft
 -- @ start cprop.tex
 --------------------------------------------------
 -- Rewriting: propagate and fold constants
-constProp :: Monad m => FwdRewrite m Node ConstFact
-constProp = shallowFwdRw cp
+constProp :: FuelMonad m => FwdRewrite m Node ConstFact
+constProp = mkFRewrite cp
  where
    cp node f
      = return $ liftM nodeToG $ mapVN (lookup f) node

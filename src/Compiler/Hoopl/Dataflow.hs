@@ -3,11 +3,14 @@
 module Compiler.Hoopl.Dataflow
   ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..), Fact
   , ChangeFlag(..), changeIf
-  , FwdRewrite(FwdRewrite3) --- temporary??
-  , BwdRewrite(BwdRewrite3) --- temporary??
   , FwdPass(..), FwdTransfer, mkFTransfer, mkFTransfer3, getFTransfer3
+  -- * Respecting Fuel
+
+  -- $fuel
   , FwdRew(..),  FwdRewrite,  mkFRewrite,  mkFRewrite3,  getFRewrite3, noFwdRewrite
+  , wrapFR, wrapFR2
   , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer3, getBTransfer3
+  , wrapBR, wrapBR2
   , BwdRew(..),  BwdRewrite,  mkBRewrite,  mkBRewrite3,  getBRewrite3, noBwdRewrite
   , analyzeAndRewriteFwd,  analyzeAndRewriteBwd
   )
@@ -64,15 +67,33 @@ newtype FwdTransfer n f
                      , n O C -> f -> FactBase f
                      ) }
 
-newtype FwdRewrite m n f 
+newtype FwdRewrite m n f   -- see Note [Respects Fuel]
   = FwdRewrite3 { getFRewrite3 ::
                     ( n C O -> f -> m (Maybe (FwdRew m n f C O))
                     , n O O -> f -> m (Maybe (FwdRew m n f O O))
                     , n O C -> f -> m (Maybe (FwdRew m n f O C))
                     ) }
 data FwdRew m n f e x = FwdRew (Graph n e x) (FwdRewrite m n f)
-
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
+
+wrapFR :: (forall e x . (n  e x -> f  -> m  (Maybe (FwdRew m  n  f  e x))) ->
+                        (n' e x -> f' -> m' (Maybe (FwdRew m' n' f' e x))))
+            -- ^ This argument may assume that any function passed to it
+            -- respects fuel, and it must return a result that respects fuel.
+       -> FwdRewrite m  n  f 
+       -> FwdRewrite m' n' f'      -- see Note [Respects Fuel]
+wrapFR wrap (FwdRewrite3 (f, m, l)) = FwdRewrite3 (wrap f, wrap m, wrap l)
+wrapFR2 :: (forall e x . (n1 e x -> f1 -> m1 (Maybe (FwdRew m1 n1 f1 e x))) ->
+                         (n2 e x -> f2 -> m2 (Maybe (FwdRew m2 n2 f2 e x))) ->
+                         (n3 e x -> f3 -> m3 (Maybe (FwdRew m3 n3 f3 e x))))
+            -- ^ This argument may assume that any function passed to it
+            -- respects fuel, and it must return a result that respects fuel.
+        -> FwdRewrite m1 n1 f1
+        -> FwdRewrite m2 n2 f2
+        -> FwdRewrite m3 n3 f3      -- see Note [Respects Fuel]
+wrapFR2 wrap2 (FwdRewrite3 (f1, m1, l1)) (FwdRewrite3 (f2, m2, l2)) =
+    FwdRewrite3 (wrap2 f1 f2, wrap2 m1 m2, wrap2 l1 l2)
+
 
 mkFTransfer3 :: (n C O -> f -> f)
              -> (n O O -> f -> f)
@@ -83,6 +104,8 @@ mkFTransfer3 f m l = FwdTransfer3 (f, m, l)
 mkFTransfer :: (forall e x . n e x -> f -> Fact x f) -> FwdTransfer n f
 mkFTransfer f = FwdTransfer3 (f, f, f)
 
+-- | Functions passed to 'mkFRewrite3' should not be aware of the fuel supply.
+-- The result returned by 'mkFRewrite3' respects fuel.
 mkFRewrite3 :: FuelMonad m
             => (n C O -> f -> m (Maybe (Graph n C O)))
             -> (n O O -> f -> m (Maybe (Graph n O O)))
@@ -100,6 +123,8 @@ noRewrite _ _ = return Nothing
 
                                
 
+-- | Functions passed to 'mkFRewrite' should not be aware of the fuel supply.
+-- The result returned by 'mkFRewrite' respects fuel.
 mkFRewrite :: FuelMonad m => (forall e x . n e x -> f -> m (Maybe (Graph n e x)))
            -> FwdRewrite m n f
 mkFRewrite f = mkFRewrite3 f f f
@@ -186,7 +211,7 @@ arfGraph pass entries = graph
     block (BClosed h t)= block h  `cat` block t
 
     node n f
-      = do { fwdres <- withFuel =<< frewrite pass n f
+      = do { fwdres <- frewrite pass n f
            ; case fwdres of
                Nothing -> return (toDg f (toBlock n),
                                   ftransfer pass n f)
@@ -262,6 +287,28 @@ newtype BwdRewrite m n f
                     ) }
 data BwdRew m n f e x = BwdRew (Graph n e x) (BwdRewrite m n f)
 
+wrapBR :: (forall e x . Shape x 
+                      -> (n  e x -> Fact x f  -> m  (Maybe (BwdRew m  n  f  e x)))
+                      -> (n' e x -> Fact x f' -> m' (Maybe (BwdRew m' n' f' e x))))
+            -- ^ This argument may assume that any function passed to it
+            -- respects fuel, and it must return a result that respects fuel.
+       -> BwdRewrite m  n  f 
+       -> BwdRewrite m' n' f'      -- see Note [Respects Fuel]
+wrapBR wrap (BwdRewrite3 (f, m, l)) = BwdRewrite3 (wrap Open f, wrap Open m, wrap Closed l)
+
+wrapBR2 :: (forall e x . Shape x
+                       -> (n1 e x -> Fact x f1 -> m1 (Maybe (BwdRew m1 n1 f1 e x)))
+                       -> (n2 e x -> Fact x f2 -> m2 (Maybe (BwdRew m2 n2 f2 e x)))
+                       -> (n3 e x -> Fact x f3 -> m3 (Maybe (BwdRew m3 n3 f3 e x))))
+            -- ^ This argument may assume that any function passed to it
+            -- respects fuel, and it must return a result that respects fuel.
+        -> BwdRewrite m1 n1 f1
+        -> BwdRewrite m2 n2 f2
+        -> BwdRewrite m3 n3 f3      -- see Note [Respects Fuel]
+wrapBR2 wrap2 (BwdRewrite3 (f1, m1, l1)) (BwdRewrite3 (f2, m2, l2)) =
+    BwdRewrite3 (wrap2 Open f1 f2, wrap2 Open m1 m2, wrap2 Closed l1 l2)
+
+
 
 mkBTransfer3 :: (n C O -> f -> f) -> (n O O -> f -> f) ->
                 (n O C -> FactBase f -> f) -> BwdTransfer n f
@@ -270,6 +317,8 @@ mkBTransfer3 f m l = BwdTransfer3 (f, m, l)
 mkBTransfer :: (forall e x . n e x -> Fact x f -> f) -> BwdTransfer n f
 mkBTransfer f = BwdTransfer3 (f, f, f)
 
+-- | Functions passed to 'mkBRewrite3' should not be aware of the fuel supply.
+-- The result returned by 'mkBRewrite3' respects fuel.
 mkBRewrite3 :: FuelMonad m
             => (n C O -> f          -> m (Maybe (Graph n C O)))
             -> (n O O -> f          -> m (Maybe (Graph n O O)))
@@ -282,9 +331,12 @@ mkBRewrite3 f m l = BwdRewrite3 (lift f, lift m, lift l)
 noBwdRewrite :: Monad m => BwdRewrite m n f
 noBwdRewrite = BwdRewrite3 (noRewrite, noRewrite, noRewrite)
 
-mkBRewrite :: (forall e x . n e x -> Fact x f -> m (Maybe (BwdRew m n f e x)))
+-- | Functions passed to 'mkBRewrite' should not be aware of the fuel supply.
+-- The result returned by 'mkBRewrite' respects fuel.
+mkBRewrite :: FuelMonad m 
+           => (forall e x . n e x -> Fact x f -> m (Maybe (Graph n e x)))
            -> BwdRewrite m n f
-mkBRewrite f = BwdRewrite3 (f, f, f)
+mkBRewrite f = mkBRewrite3 f f f
 
 
 -----------------------------------------------------------------------------
@@ -335,7 +387,7 @@ arbGraph pass entries = graph
     block (BClosed h t)= block h  `cat` block t
 
     node n f
-      = do { bwdres <- withFuel =<< brewrite pass n f
+      = do { bwdres <- brewrite pass n f
            ; case bwdres of
                Nothing -> return (toDg entry_f (toBlock n), entry_f)
                             where entry_f = btransfer pass n f
@@ -703,3 +755,24 @@ instance ShapeLifter O C where
 getFact  :: DataflowLattice f -> Label -> FactBase f -> f
 getFact lat l fb = case lookupFact l fb of Just  f -> f
                                            Nothing -> fact_bot lat
+
+
+
+{-  Note [Respects fuel]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-}
+-- $fuel
+-- A value of type 'FwdRewrite' or 'BwdRewrite' /respects fuel/ if 
+-- any function contained within the value satisfies the following properties:
+--
+--   * When fuel is exhausted, it always returns 'Nothing'.
+--
+--   * When it returns @Just g rw@, it consumes /exactly/ one unit
+--     of fuel, and new rewrite 'rw' also respects fuel.
+--
+-- Provided that functions passed to 'mkFRewrite', 'mkFRewrite3', 
+-- 'mkBRewrite', and 'mkBRewrite3' are not aware of the fuel supply,
+-- the results respect fuel.
+--
+-- It is an /unchecked/ run-time error for the argument passed to 'wrapFR',
+-- 'wrapFR2', 'wrapBR', or 'warpBR2' to return a function that does not respect fuel.

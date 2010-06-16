@@ -37,10 +37,10 @@ liveness = mkBTransfer live
     addVar s (Var v) = S.insert v s
     addVar s _       = s
      
-deadAsstElim :: forall m . Monad m => BwdRewrite m Insn Live
-deadAsstElim = shallowBwdRw d
+deadAsstElim :: forall m . FuelMonad m => BwdRewrite m Insn Live
+deadAsstElim = mkBRewrite d
   where
-    d :: SimpleBwdRewrite m Insn Live
-    d (Assign x _) live = if x `S.member` live then return Nothing
-                                               else return $ Just emptyGraph
+    d :: Insn e x -> Fact x Live -> m (Maybe (Graph Insn e x))
+    d (Assign x _) live
+        | not (x `S.member` live) = return $ Just emptyGraph
     d _ _ = return Nothing

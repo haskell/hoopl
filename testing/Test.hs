@@ -60,7 +60,7 @@ optTest' file text =
     bwd  = BwdPass { bp_lattice = liveLattice, bp_transfer = liveness
                    , bp_rewrite = deadAsstElim }
 
-constPropPass :: Monad m => FwdPass m Insn ConstFact
+constPropPass :: FuelMonad m => FwdPass m Insn ConstFact
 -- @ start cprop.tex
 
 ----------------------------------------

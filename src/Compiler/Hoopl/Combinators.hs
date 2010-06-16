@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, LiberalTypeSynonyms, ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes, LiberalTypeSynonyms, ScopedTypeVariables, GADTs #-}
 
 module Compiler.Hoopl.Combinators
   ( thenFwdRw
@@ -11,37 +11,21 @@ module Compiler.Hoopl.Combinators
 where
 
 import Control.Monad
-import Data.Function
 import Data.Maybe
 
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Fuel
-import Compiler.Hoopl.Graph (Graph, C, O)
+import Compiler.Hoopl.Graph (Graph, C, O, Shape(..))
 import Compiler.Hoopl.Label
 
-type BR m n f = BwdRewrite m n f
-
-type FromFwdRw3 m n f a 
-            =  (n C O -> f -> m (Maybe (Graph n C O)))
-            -> (n O O -> f -> m (Maybe (Graph n O O)))
-            -> (n O C -> f -> m (Maybe (Graph n O C)))
-            -> a
-
-----------------------------------------------------------------
--- common operations on triples
-
-apply :: (a -> b, d -> e, g -> h) -> (a, d, g) -> (b, e, h)
-apply (f1, f2, f3) (x1, x2, x3) = (f1 x1, f2 x2, f3 x3)
-
-applyBinary :: (a -> b -> c, d -> e -> f, g -> h -> i)
-            -> (a, d, g) -> (b, e, h) -> (c, f, i)
-applyBinary (f1, f2, f3) (x1, x2, x3) (y1, y2, y3) = (f1 x1 y1, f2 x2 y2, f3 x3 y3)
-
-
 ----------------------------------------------------------------
 
-deepFwdRw3 :: FuelMonad m => FromFwdRw3 m n f (FwdRewrite m n f)
+deepFwdRw3 :: FuelMonad m
+           => (n C O -> f -> m (Maybe (Graph n C O)))
+           -> (n O O -> f -> m (Maybe (Graph n O O)))
+           -> (n O C -> f -> m (Maybe (Graph n O C)))
+           -> (FwdRewrite m n f)
 deepFwdRw :: FuelMonad m
           => (forall e x . n e x -> f -> m (Maybe (Graph n e x))) -> FwdRewrite m n f
 deepFwdRw3 f m l = iterFwdRw $ mkFRewrite3 f m l
@@ -55,8 +39,7 @@ thenFwdRw :: Monad m
           -> FwdRewrite m n f 
           -> FwdRewrite m n f
 -- @ end comb1.tex
-thenFwdRw rw3 rw3' =
-  FwdRewrite3 $ (applyBinary (thenrw, thenrw, thenrw) `on` getFRewrite3) rw3 rw3'
+thenFwdRw rw3 rw3' = wrapFR2 thenrw rw3 rw3'
  where
   thenrw rw rw' n f = rw n f >>= fwdRes
      where fwdRes Nothing = rw' n f
@@ -68,49 +51,37 @@ iterFwdRw :: Monad m
           => FwdRewrite m n f 
           -> FwdRewrite m n f
 -- @ end iterf.tex
-iterFwdRw rw3 = FwdRewrite3 . apply (iter, iter, iter) . getFRewrite3 $ rw3
+iterFwdRw rw3 = wrapFR iter rw3
  where
     iter rw n f = liftM (liftM fwdRes) (rw n f)
     fwdRes (FwdRew g rw3a) = 
       FwdRew g (rw3a `thenFwdRw` iterFwdRw rw3)
 
 ----------------------------------------------------------------
-type FromBwdRw3 m n f a 
-            =  (n C O -> f          -> m (Maybe (Graph n C O)))
-            -> (n O O -> f          -> m (Maybe (Graph n O O)))
-            -> (n O C -> FactBase f -> m (Maybe (Graph n O C)))
-            -> a
 
-type BRW  m n f e x = n e x -> Fact x f -> m (Maybe (BwdRew m n f e x))
-type MapBRW2 m n f e x = BRW  m n f e x -> BRW m n f e x -> BRW m n f e x
-
-----------------------------------------------------------------
-
-wrapBRewrites2 :: (forall e x . MapBRW2 m n f e x) -> BR m n f -> BR m n f -> BR m n f
-wrapBRewrites2 map = w2 (map, map, map)
-  where w2 map rw1 rw2 =
-            BwdRewrite3 $ (applyBinary map `on` getBRewrite3) rw1 rw2
-
-----------------------------------------------------------------
-
-deepBwdRw3 :: FuelMonad m => FromBwdRw3 m n f (BwdRewrite m n f)
+deepBwdRw3 :: FuelMonad m
+           => (n C O -> f          -> m (Maybe (Graph n C O)))
+           -> (n O O -> f          -> m (Maybe (Graph n O O)))
+           -> (n O C -> FactBase f -> m (Maybe (Graph n O C)))
+           -> (BwdRewrite m n f)
 deepBwdRw  :: FuelMonad m
-           => (forall e x . n e x -> Fact x f -> m (Maybe (Graph n e x))) -> BwdRewrite m n f
+           => (forall e x . n e x -> Fact x f -> m (Maybe (Graph n e x)))
+           -> BwdRewrite m n f
 deepBwdRw3 f m l = iterBwdRw $ mkBRewrite3 f m l
 deepBwdRw  f = deepBwdRw3 f f f
 
 
 thenBwdRw :: Monad m => BwdRewrite m n f -> BwdRewrite m n f -> BwdRewrite m n f
-thenBwdRw rw1 rw2 = wrapBRewrites2 f rw1 rw2
-  where f rw1 rw2' n f = do
+thenBwdRw rw1 rw2 = wrapBR2 f rw1 rw2
+  where f _ rw1 rw2' n f = do
           res1 <- rw1 n f
           case res1 of
             Nothing              -> rw2' n f
             Just (BwdRew g rw1a) -> return $ Just $ BwdRew g (rw1a `thenBwdRw` rw2)
 
 iterBwdRw :: Monad m => BwdRewrite m n f -> BwdRewrite m n f
-iterBwdRw rw = BwdRewrite3 . apply (f, f, f) . getBRewrite3 $ rw
-  where f rw' n f = liftM (liftM iterRewrite) (rw' n f)
+iterBwdRw rw = wrapBR f rw
+  where f _ rw' n f = liftM (liftM iterRewrite) (rw' n f)
         iterRewrite (BwdRew g rw2) = BwdRew g (rw2 `thenBwdRw` iterBwdRw rw)
 
 -- @ start pairf.tex
@@ -132,12 +103,11 @@ pairFwd pass1 pass2 = FwdPass lattice transfer rewrite
                 bot2 = fact_bot (fp_lattice pass2)
         (tf1, tm1, tl1) = getFTransfer3 (fp_transfer pass1)
         (tf2, tm2, tl2) = getFTransfer3 (fp_transfer pass2)
-    rewrite = liftRW (fp_rewrite pass1) fst `thenFwdRw` liftRW (fp_rewrite pass2) snd
+    rewrite = lift fst (fp_rewrite pass1) `thenFwdRw` lift snd (fp_rewrite pass2) 
       where
-        liftRW rws proj = FwdRewrite3 (lift f, lift m, lift l)
-          where lift rw n f = liftM (liftM projRewrite) $ rw n (proj f)
-                projRewrite (FwdRew g rws') = FwdRew g $ liftRW rws' proj
-                (f, m, l) = getFRewrite3 rws
+        lift proj = wrapFR project
+          where project rw = \n pair -> liftM (liftM repair) $ rw n (proj pair)
+                repair (FwdRew g rw') = FwdRew g (lift proj rw')
 
 pairBwd :: forall m n f f' . Monad m => BwdPass m n f -> BwdPass m n f' -> BwdPass m n (f, f')
 pairBwd pass1 pass2 = BwdPass lattice transfer rewrite
@@ -149,13 +119,18 @@ pairBwd pass1 pass2 = BwdPass lattice transfer rewrite
         tfb t1 t2 n fb = (t1 n $ mapMap fst fb, t2 n $ mapMap snd fb)
         (tf1, tm1, tl1) = getBTransfer3 (bp_transfer pass1)
         (tf2, tm2, tl2) = getBTransfer3 (bp_transfer pass2)
-    rewrite = liftRW (bp_rewrite pass1) fst `thenBwdRw` liftRW (bp_rewrite pass2) snd
+    rewrite = lift fst (bp_rewrite pass1) `thenBwdRw` lift snd (bp_rewrite pass2) 
       where
-        liftRW :: forall f1 . BwdRewrite m n f1 -> ((f, f') -> f1) -> BwdRewrite m n (f, f')
-        liftRW rws proj = BwdRewrite3 (lift proj f, lift proj m, lift (mapMap proj) l)
-          where lift proj' rw n f = liftM (liftM projRewrite) $ rw n (proj' f)
-                projRewrite (BwdRew g rws') = BwdRew g $ liftRW rws' proj
-                (f, m, l) = getBRewrite3 rws
+        lift :: forall f1 .
+                ((f, f') -> f1) -> BwdRewrite m n f1 -> BwdRewrite m n (f, f')
+        lift proj = wrapBR project
+            where project :: forall e x . Shape x 
+                      -> (n e x -> Fact x f1 -> m (Maybe (BwdRew m n f1 e x)))
+                      -> (n e x -> Fact x (f,f') -> m (Maybe (BwdRew m n (f,f') e x)))
+                  project Open = \rw n pair -> liftM (liftM repair) $ rw n (proj pair)
+                  project Closed = 
+                       \rw n pair -> liftM (liftM repair) $ rw n (mapMap proj pair)
+                  repair (BwdRew g rw') = BwdRew g (lift proj rw')
 
 pairLattice :: forall f f' . DataflowLattice f -> DataflowLattice f' -> DataflowLattice (f, f')
 pairLattice l1 l2 =

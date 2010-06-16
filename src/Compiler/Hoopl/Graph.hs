@@ -2,7 +2,7 @@
 
 module Compiler.Hoopl.Graph 
   ( O, C, Block(..), Body, Body'(..), Graph, Graph'(..)
-  , MaybeO(..), MaybeC(..), EitherCO
+  , MaybeO(..), MaybeC(..), Shape(..), IndexedCO
   , NonLocal(entryLabel, successors)
   , emptyBody, addBlock, bodyList
   )
@@ -71,10 +71,15 @@ data MaybeC ex t where
   JustC    :: t -> MaybeC C t
   NothingC ::      MaybeC O t
 
+-- | Dynamic shape value
+data Shape ex where
+  Closed :: Shape C
+  Open   :: Shape O
+
 -- | Either type indexed by closed/open using type families
-type family   EitherCO e a b :: *
-type instance EitherCO C a b = a
-type instance EitherCO O a b = b
+type family IndexedCO ex a b :: *
+type instance IndexedCO C a b = a
+type instance IndexedCO O a b = b
 
 instance Functor (MaybeO ex) where
   fmap _ NothingO = NothingO

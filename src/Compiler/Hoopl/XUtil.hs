@@ -148,16 +148,16 @@ joinOutFacts lat n f = foldr join (fact_bot lat) facts
   where join (lbl, new) old = snd $ fact_join lat lbl (OldFact old) (NewFact new)
         facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
 
--- | A fold function that relies on the EitherCO type function.
+-- | A fold function that relies on the IndexedCO type function.
 --   Note that the type parameter e is available to the functions
 --   that are applied to the middle and last nodes.
 tfFoldBlock :: forall n bc bo c e x .
                ( n C O -> bc
-               , n O O -> EitherCO e bc bo -> EitherCO e bc bo
-               , n O C -> EitherCO e bc bo -> c)
-            -> (Block n e x -> bo -> EitherCO x c (EitherCO e bc bo))
+               , n O O -> IndexedCO e bc bo -> IndexedCO e bc bo
+               , n O C -> IndexedCO e bc bo -> c)
+            -> (Block n e x -> bo -> IndexedCO x c (IndexedCO e bc bo))
 tfFoldBlock (f, m, l) bl bo = block bl
-  where block :: forall x . Block n e x -> EitherCO x c (EitherCO e bc bo)
+  where block :: forall x . Block n e x -> IndexedCO x c (IndexedCO e bc bo)
         block (BFirst  n)       = f n
         block (BMiddle n)       = m n bo
         block (BLast   n)       = l n bo
@@ -165,7 +165,7 @@ tfFoldBlock (f, m, l) bl bo = block bl
         block (b1 `BClosed` b2) = oblock b2 $ block b1
         block (b1 `BHead` n)    = m n $ block b1
         block (n `BTail` b2)    = oblock b2 $ m n bo
-        oblock :: forall x . Block n O x -> EitherCO e bc bo -> EitherCO x c (EitherCO e bc bo)
+        oblock :: forall x . Block n O x -> IndexedCO e bc bo -> IndexedCO x c (IndexedCO e bc bo)
         oblock (BMiddle n)       = m n
         oblock (BLast   n)       = l n
         oblock (b1 `BCat`    b2) = oblock b1 `cat` oblock b2
@@ -175,8 +175,8 @@ tfFoldBlock (f, m, l) bl bo = block bl
 
 type NodeList' e x n = (MaybeC e (n C O), [n O O], MaybeC x (n O C))
 blockToNodeList''' ::
-  forall n e x. ( EitherCO e (NodeList' C O n) (NodeList' O O n) ~ NodeList' e O n
-                , EitherCO x (NodeList' e C n) (NodeList' e O n) ~ NodeList' e x n) =>
+  forall n e x. ( IndexedCO e (NodeList' C O n) (NodeList' O O n) ~ NodeList' e O n
+                , IndexedCO x (NodeList' e C n) (NodeList' e O n) ~ NodeList' e x n) =>
     Block n e x -> NodeList' e x n
 blockToNodeList''' b = (h, reverse ms', t)
   where
@@ -259,14 +259,14 @@ fbnf3 :: forall n a b c .
          ( n C O       -> a -> b
          , n O O       -> b -> b
          , n O C       -> b -> c)
-      -> (forall e x . Block n e x -> EitherCO e a b -> EitherCO x c b)
+      -> (forall e x . Block n e x -> IndexedCO e a b -> IndexedCO x c b)
 fbnf3 (ff, fm, fl) block = unFF3 $ scottFoldBlock (ScottBlock f m l cat) block
     where f n = FF3 $ ff n
           m n = FF3 $ fm n
           l n = FF3 $ fl n
           FF3 f `cat` FF3 f' = FF3 $ f' . f
 
-newtype FF3 a b c e x = FF3 { unFF3 :: EitherCO e a b -> EitherCO x c b }
+newtype FF3 a b c e x = FF3 { unFF3 :: IndexedCO e a b -> IndexedCO x c b }
 
 blockToNodeList'' :: Block n e x -> (MaybeC e (n C O), [n O O], MaybeC x (n O C))
 blockToNodeList'' = finish . unList . scottFoldBlock (ScottBlock f m l cat)
@@ -349,18 +349,18 @@ foldBlockNodesF3 :: forall n a b c .
                    ( n C O       -> a -> b
                    , n O O       -> b -> b
                    , n O C       -> b -> c)
-                 -> (forall e x . Block n e x -> EitherCO e a b -> EitherCO x c b)
+                 -> (forall e x . Block n e x -> IndexedCO e a b -> IndexedCO x c b)
 foldBlockNodesF  :: forall n a .
                     (forall e x . n e x       -> a -> a)
-                 -> (forall e x . Block n e x -> EitherCO e a a -> EitherCO x a a)
+                 -> (forall e x . Block n e x -> IndexedCO e a a -> IndexedCO x a a)
 foldBlockNodesB3 :: forall n a b c .
                    ( n C O       -> b -> c
                    , n O O       -> b -> b
                    , n O C       -> a -> b)
-                 -> (forall e x . Block n e x -> EitherCO x a b -> EitherCO e c b)
+                 -> (forall e x . Block n e x -> IndexedCO x a b -> IndexedCO e c b)
 foldBlockNodesB  :: forall n a .
                     (forall e x . n e x       -> a -> a)
-                 -> (forall e x . Block n e x -> EitherCO x a a -> EitherCO e a a)
+                 -> (forall e x . Block n e x -> IndexedCO x a a -> IndexedCO e a a)
 -- | Fold a function over every node in a graph.
 -- The fold function must be polymorphic in the shape of the nodes.
 
@@ -370,7 +370,7 @@ foldGraphNodes :: forall n a .
 
 
 foldBlockNodesF3 (ff, fm, fl) = block
-  where block :: forall e x . Block n e x -> EitherCO e a b -> EitherCO x c b
+  where block :: forall e x . Block n e x -> IndexedCO e a b -> IndexedCO x c b
         block (BFirst  node)    = ff node
         block (BMiddle node)    = fm node
         block (BLast   node)    = fl node
@@ -382,7 +382,7 @@ foldBlockNodesF3 (ff, fm, fl) = block
 foldBlockNodesF f = foldBlockNodesF3 (f, f, f)
 
 foldBlockNodesB3 (ff, fm, fl) = block
-  where block :: forall e x . Block n e x -> EitherCO x a b -> EitherCO e c b
+  where block :: forall e x . Block n e x -> IndexedCO x a b -> IndexedCO e c b
         block (BFirst  node)    = ff node
         block (BMiddle node)    = fm node
         block (BLast   node)    = fl node
@@ -417,7 +417,7 @@ foldGraphNodes f = graph
 -- is or is not present depending on the shape of the block.
 --
 -- The blockToNodeList function cannot be currently expressed using
--- foldBlockNodesB, because it returns EitherCO e a b, which means
+-- foldBlockNodesB, because it returns IndexedCO e a b, which means
 -- two different types depending on the shape of the block entry.
 -- But blockToNodeList returns one of four possible types, depending
 -- on the shape of the block entry *and* exit.

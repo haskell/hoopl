@@ -2146,6 +2146,11 @@ exactly analogous and are included in \hoopl.
 
 
 
+\begin{code}
+`withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
+\end{code}
+
+
 as expressed by the
 @FwdRew@ type returned by a @FwdRewrite@ (\figref{api-types}).
 The first component of the @FwdRew@ is the replacement graph, as discussed earlier.
@@ -2482,7 +2487,7 @@ The @node@ function is where we interleave analysis with rewriting:
 node :: forall e x . (ShapeLifter e x, FuelMonad m) 
      => n e x -> f -> m (DG f n e x, Fact x f)
 node n f
- = do { rew <- withFuel =<< frewrite pass n f
+ = do { rew <- frewrite pass n f
       ; case rew of
           Nothing -> return (singletonDG f n,
                              ftransfer pass n f)
@@ -2490,8 +2495,6 @@ node n f
             let pass' = pass { fp_rewrite = rw }
                 f'    = fwdEntryFact n f
             in  arfGraph pass' (fwdEntryLabel n) g f' }
-
-`withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
 
 class ShapeLifter e x where
  singletonDG   :: f -> n e x -> DG f n e x

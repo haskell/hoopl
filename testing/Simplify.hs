@@ -14,7 +14,7 @@ type Node = Insn
 
 --------------------------------------------------
 -- Simplification ("constant folding")
-simplify :: Monad m => FwdRewrite m Node f
+simplify :: FuelMonad m => FwdRewrite m Node f
 simplify = deepFwdRw simp
  where
   simp node _ = return $ liftM nodeToG $ s_node node

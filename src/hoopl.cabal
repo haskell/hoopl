@@ -1,5 +1,5 @@
 Name:                hoopl
-Version:             3.8.3.0
+Version:             3.8.4.0
 Description:         Higher-order optimization library
 License:             BSD3
 License-file:        LICENSE
@@ -16,6 +16,7 @@ Extra-source-files:  README, hoopl.pdf, CHANGES, FAQ
 Library
   Build-Depends:     base >= 3 && < 5, containers
   Exposed-modules:   Compiler.Hoopl,
+                     Compiler.Hoopl.Wrappers,
                      Compiler.Hoopl.Passes.Dominator,
                      Compiler.Hoopl.Passes.DList,
 --                       Compiler.Hoopl.DataflowFold,
