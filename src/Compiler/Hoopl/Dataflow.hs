@@ -573,6 +573,83 @@ fixpoint direction lat do_block blocks init_fbase
                  -> do { setFuel fuel
                        ; loop fuel (tfb_fbase tx_fb) } }
 
+
+class Monad m => FixpointMonad m where
+  observeChangedFactBase :: m (Maybe (FactBase f)) -> Maybe (FactBase f)
+
+
+fixpoint' :: forall m n f. (FixpointMonad m, NonLocal n)
+ => Direction
+ -> DataflowLattice f
+ -> (Block n C C -> Fact C f -> m (DG f n C C, Fact C f))
+ -> [Block n C C]
+ -> (Fact C f -> m (DG f n C C, Fact C f))
+-- @ end fptype.tex
+fixpoint' direction lat do_block blocks init_fbase
+  = do { tx_fb <- loop init_fbase
+       ; return (tfb_rg tx_fb, 
+                 map (fst . fst) tagged_blocks 
+                    `mapDeleteList` tfb_fbase tx_fb ) }
+	     -- The successors of the Graph are the the Labels for which
+	     -- we have facts, that are *not* in the blocks of the graph
+  where
+    tagged_blocks = map tag blocks
+    is_fwd = case direction of { Fwd -> True; 
+                                 Bwd -> False }
+    tag b = ((entryLabel b, b), 
+             if is_fwd then [entryLabel b] 
+                        else successors b)
+     -- 'tag' adds the in-labels of the block; 
+     -- see Note [TxFactBase invairants]
+
+    tx_blocks :: [((Label, Block n C C), [Label])]   -- I do not understand this type
+              -> TxFactBase n f -> m (TxFactBase n f)
+    tx_blocks []              tx_fb = return tx_fb
+    tx_blocks (((lbl,blk), in_lbls):bs) tx_fb 
+      = tx_block lbl blk in_lbls tx_fb >>= tx_blocks bs
+     -- "in_lbls" == Labels the block may 
+     --                 _depend_ upon for facts
+
+    tx_block :: Label -> Block n C C -> [Label]
+             -> TxFactBase n f -> m (TxFactBase n f)
+    tx_block lbl blk in_lbls 
+        tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
+                    , tfb_rg = blks, tfb_cha = cha })
+      | is_fwd && not (lbl `mapMember` fbase)
+      = return (tx_fb {tfb_lbls = lbls'})	-- Note [Unreachable blocks]
+      | otherwise
+      = do { (rg, out_facts) <- do_block blk fbase
+           ; let (cha',fbase') 
+                   = mapFoldWithKey (updateFact lat lbls) 
+                          (cha,fbase) out_facts
+           ; return (TxFB { tfb_lbls  = lbls'
+                          , tfb_rg    = rg `dgSplice` blks
+                          , tfb_fbase = fbase'
+                          , tfb_cha = cha' }) }
+      where
+        lbls' = lbls `setUnion` setFromList in_lbls
+        
+
+    loop :: FactBase f -> m (TxFactBase n f)
+    loop fbase = case changedFactBase iteration of
+                        Nothing -> iteration
+                        Just fb -> loop fb
+      where
+        iteration :: m (TxFactBase n f)
+        iteration
+         = do { let init_tx = TxFB { tfb_fbase = fbase
+                                   , tfb_cha   = NoChange
+                                   , tfb_rg    = dgnilC
+                                   , tfb_lbls  = setEmpty }
+              ; tx_blocks tagged_blocks init_tx }
+        changedFactBase :: m (TxFactBase n f) -> Maybe (FactBase f)
+        changedFactBase iteration = observeChangedFactBase $
+           do { tx_fb <- iteration
+              ; case tfb_cha tx_fb of
+                  NoChange -> return Nothing
+                  SomeChange -> return $ Just (tfb_fbase tx_fb) }
+
+
 {-  Note [TxFactBase invariants]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 The TxFactBase is used only during a fixpoint iteration (or "sweep"),
