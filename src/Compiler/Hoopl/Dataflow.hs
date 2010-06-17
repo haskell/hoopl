@@ -19,6 +19,7 @@ where
 import Control.Monad
 import Data.Maybe
 
+import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph hiding (Graph) -- hiding so we can redefine
@@ -137,7 +138,7 @@ type instance Fact O f = f
 -- | if the graph being analyzed is open at the entry, there must
 --   be no other entry point, or all goes horribly wrong...
 analyzeAndRewriteFwd
-   :: forall m n f e x entries. (FuelMonad m, NonLocal n, LabelsPtr entries)
+   :: forall m n f e x entries. (CheckpointMonad m, NonLocal n, LabelsPtr entries)
    => FwdPass m n f
    -> MaybeC e entries
    -> Graph n e x -> Fact e f
@@ -162,7 +163,7 @@ distinguishedExitFact g f = maybe g
 type Entries e = MaybeC e [Label]
 
 arfGraph :: forall m n f e x .
-            (NonLocal n, FuelMonad m) => FwdPass m n f -> 
+            (NonLocal n, CheckpointMonad m) => FwdPass m n f -> 
             Entries e -> Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
 arfGraph pass entries = graph
   where
@@ -241,7 +242,7 @@ arfGraph pass entries = graph
                     -- the Body are in the 'DG f n C C'
 -- @ start bodyfun.tex
     body entries blockmap init_fbase
-      = fixpoint Fwd lattice do_block blocks init_fbase
+      = fixpoint' Fwd lattice do_block blocks init_fbase
       where
         blocks  = forwardBlockList entries blockmap
         lattice = fp_lattice pass
@@ -344,7 +345,7 @@ mkBRewrite f = mkBRewrite3 f f f
 -----------------------------------------------------------------------------
 
 arbGraph :: forall m n f e x .
-            (NonLocal n, FuelMonad m) => BwdPass m n f -> 
+            (NonLocal n, CheckpointMonad m) => BwdPass m n f -> 
             Entries e -> Graph n e x -> Fact x f -> m (DG f n e x, Fact e f)
 arbGraph pass entries = graph
   where
@@ -418,7 +419,7 @@ arbGraph pass entries = graph
     		    -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
     body entries blockmap init_fbase
-      = fixpoint Bwd (bp_lattice pass) do_block blocks init_fbase
+      = fixpoint' Bwd (bp_lattice pass) do_block blocks init_fbase
       where
         blocks = backwardBlockList entries blockmap
         do_block b f = do (g, f) <- block b f
@@ -448,7 +449,7 @@ effects.)
 -- | if the graph being analyzed is open at the exit, I don't
 --   quite understand the implications of possible other exits
 analyzeAndRewriteBwd
-   :: (FuelMonad m, NonLocal n, LabelsPtr entries)
+   :: (CheckpointMonad m, NonLocal n, LabelsPtr entries)
    => BwdPass m n f
    -> MaybeC e entries -> Graph n e x -> Fact x f
    -> m (Graph n e x, FactBase f, MaybeO e f)
@@ -507,14 +508,14 @@ fixpoint :: forall m block n f.
 -}
 -- @ start fptype.tex
 data Direction = Fwd | Bwd
-fixpoint :: forall m n f. (FuelMonad m, NonLocal n)
+_fixpoint :: forall m n f. (FuelMonad m, NonLocal n)
  => Direction
  -> DataflowLattice f
  -> (Block n C C -> Fact C f -> m (DG f n C C, Fact C f))
  -> [Block n C C]
  -> (Fact C f -> m (DG f n C C, Fact C f))
 -- @ end fptype.tex
-fixpoint direction lat do_block blocks init_fbase
+_fixpoint direction lat do_block blocks init_fbase
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
        ; return (tfb_rg tx_fb, 
@@ -574,11 +575,15 @@ fixpoint direction lat do_block blocks init_fbase
                        ; loop fuel (tfb_fbase tx_fb) } }
 
 
+
+
+{-
+-- this doesn't work because it can't be implemented
 class Monad m => FixpointMonad m where
   observeChangedFactBase :: m (Maybe (FactBase f)) -> Maybe (FactBase f)
+-}
 
-
-fixpoint' :: forall m n f. (FixpointMonad m, NonLocal n)
+fixpoint' :: forall m n f. (CheckpointMonad m, NonLocal n)
  => Direction
  -> DataflowLattice f
  -> (Block n C C -> Fact C f -> m (DG f n C C, Fact C f))
@@ -631,6 +636,21 @@ fixpoint' direction lat do_block blocks init_fbase
         
 
     loop :: FactBase f -> m (TxFactBase n f)
+    loop fbase 
+      = do { s <- checkpoint
+           ; let init_tx = TxFB { tfb_fbase = fbase
+                                , tfb_cha   = NoChange
+                                , tfb_rg    = dgnilC
+                                , tfb_lbls  = setEmpty }
+           ; tx_fb <- tx_blocks tagged_blocks init_tx
+           ; case tfb_cha tx_fb of
+               NoChange   -> return tx_fb
+               SomeChange 
+                 -> do { restart s
+                       ; loop (tfb_fbase tx_fb) } }
+           
+
+{-
     loop fbase = case changedFactBase iteration of
                         Nothing -> iteration
                         Just fb -> loop fb
@@ -648,6 +668,7 @@ fixpoint' direction lat do_block blocks init_fbase
               ; case tfb_cha tx_fb of
                   NoChange -> return Nothing
                   SomeChange -> return $ Just (tfb_fbase tx_fb) }
+-}
 
 
 {-  Note [TxFactBase invariants]

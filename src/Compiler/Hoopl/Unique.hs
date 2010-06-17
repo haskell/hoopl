@@ -11,6 +11,7 @@ module Compiler.Hoopl.Unique
 
 where
 
+import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Collections
 
 import qualified Data.IntMap as M
@@ -106,6 +107,11 @@ instance Monad SimpleUniqueMonad where
 
 instance UniqueMonad SimpleUniqueMonad where
   freshUnique = SUM $ \(u:us) -> (u, us)
+
+instance CheckpointMonad SimpleUniqueMonad where
+  type Checkpoint SimpleUniqueMonad = [Unique]
+  checkpoint = SUM $ \us -> (us, us)
+  restart us = SUM $ \_  -> ((), us)
 
 runSimpleUniqueMonad :: SimpleUniqueMonad a -> a
 runSimpleUniqueMonad m = fst (unSUM m allUniques)

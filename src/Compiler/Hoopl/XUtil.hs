@@ -26,9 +26,9 @@ where
 
 import Data.Maybe
 
+import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Dataflow
-import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.Label
 import Compiler.Hoopl.Util
@@ -38,7 +38,7 @@ import Compiler.Hoopl.Util
 -- A set of entry points must be supplied; blocks not reachable from
 -- the set are thrown away.
 analyzeAndRewriteFwdBody
-   :: forall m n f entries. (FuelMonad m, NonLocal n, LabelsPtr entries)
+   :: forall m n f entries. (CheckpointMonad m, NonLocal n, LabelsPtr entries)
    => FwdPass m n f
    -> entries -> Body n -> FactBase f
    -> m (Body n, FactBase f)
@@ -47,7 +47,7 @@ analyzeAndRewriteFwdBody
 -- A set of entry points must be supplied; blocks not reachable from
 -- the set are thrown away.
 analyzeAndRewriteBwdBody
-   :: forall m n f entries. (FuelMonad m, NonLocal n, LabelsPtr entries)
+   :: forall m n f entries. (CheckpointMonad m, NonLocal n, LabelsPtr entries)
    => BwdPass m n f 
    -> entries -> Body n -> FactBase f 
    -> m (Body n, FactBase f)
@@ -82,7 +82,7 @@ mapBodyFacts anal b f = anal (GMany NothingO b NothingO) f >>= bodyFacts
 -- from having to specify a type signature for 'NothingO', which beginners
 -- might find confusing and experts might find annoying.
 analyzeAndRewriteFwdOx
-   :: forall m n f x. (FuelMonad m, NonLocal n)
+   :: forall m n f x. (CheckpointMonad m, NonLocal n)
    => FwdPass m n f -> Graph n O x -> f -> m (Graph n O x, FactBase f, MaybeO x f)
 
 -- | Backward dataflow analysis and rewriting for the special case of a 
@@ -90,7 +90,7 @@ analyzeAndRewriteFwdOx
 -- from having to specify a type signature for 'NothingO', which beginners
 -- might find confusing and experts might find annoying.
 analyzeAndRewriteBwdOx
-   :: forall m n f x. (FuelMonad m, NonLocal n)
+   :: forall m n f x. (CheckpointMonad m, NonLocal n)
    => BwdPass m n f -> Graph n O x -> Fact x f -> m (Graph n O x, FactBase f, f)
 
 -- | A value that can be used for the entry point of a graph open at the entry.

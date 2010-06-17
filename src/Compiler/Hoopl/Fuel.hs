@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeFamilies #-}
+
 -----------------------------------------------------------------------------
 --		The fuel monad
 -----------------------------------------------------------------------------
@@ -13,6 +15,7 @@ module Compiler.Hoopl.Fuel
   )
 where
 
+import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Unique
 
 class Monad m => FuelMonad m where
@@ -46,6 +49,12 @@ instance Monad m => Monad (CheckingFuelMonad m) where
   return a = FM (\f -> return (a, f))
   fm >>= k = FM (\f -> do { (a, f') <- unFM fm f; unFM (k a) f' })
 
+instance CheckpointMonad m => CheckpointMonad (CheckingFuelMonad m) where
+  type Checkpoint (CheckingFuelMonad m) = (Fuel, Checkpoint m)
+  checkpoint = FM $ \fuel -> do { s <- checkpoint
+                                ; return ((fuel, s), fuel) }
+  restart (fuel, s) = FM $ \_ -> do { restart s; return ((), fuel) }
+
 instance UniqueMonad m => UniqueMonad (CheckingFuelMonad m) where
   freshUnique = FM (\f -> do { l <- freshUnique; return (l, f) })
 
@@ -69,6 +78,13 @@ instance UniqueMonad m => UniqueMonad (InfiniteFuelMonad m) where
 instance Monad m => FuelMonad (InfiniteFuelMonad m) where
   getFuel   = return infiniteFuel
   setFuel _ = return ()
+
+instance CheckpointMonad m => CheckpointMonad (InfiniteFuelMonad m) where
+  type Checkpoint (InfiniteFuelMonad m) = Checkpoint m
+  checkpoint = IFM checkpoint
+  restart s  = IFM $ restart s
+
+
 
 instance FuelMonadT InfiniteFuelMonad where
   runWithFuel _ = unIFM
