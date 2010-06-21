@@ -31,11 +31,14 @@ Library
                        Compiler.Hoopl.Dataflow,
                        Compiler.Hoopl.Debug,
                        Compiler.Hoopl.Graph, 
+                       Compiler.Hoopl.Label,
                        Compiler.Hoopl.MkGraph,
                        Compiler.Hoopl.Fuel,
                        Compiler.Hoopl.Pointed,
-                       Compiler.Hoopl.Unique, Compiler.Hoopl.Label,
-                       Compiler.Hoopl.Show, Compiler.Hoopl.Util
+                       Compiler.Hoopl.Shape,
+                       Compiler.Hoopl.Show, 
+                       Compiler.Hoopl.Unique, 
+                       Compiler.Hoopl.Util
                        Compiler.Hoopl.XUtil
   ghc-options:       -Wall -fno-warn-name-shadowing
 
