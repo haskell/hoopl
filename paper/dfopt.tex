@@ -1664,6 +1664,15 @@ then the rewrites of~@r2@.
 %%  \hoopl\ makes it easy for a client to combine multiple rewrite
 %%  functions that use the same fact:
 
+These combinators satisfy the algebraic law
+\begin{code}
+  iterFwdRw r = r `thenFwdRw` iterFwdRw r
+\end{code}
+but unfortunately, this equation cannot be used to \emph{define}
+@iterFwdRw@:
+if~we used this equation to define @iterFwdRw@, then when @r@ declined
+to rewrite, @iterFwdRw r@ would diverge.
+
 
 
 %%%%  \hoopl\ provides
@@ -3338,7 +3347,9 @@ some very sophisticated ideas.
 
 \acks
 
-Several anonymous reviewers provided helpful feedback, especially
+Brian Huffman and Graham Hutton helped with algebraic laws.
+Several anonymous reviewers helped improve the
+presentation, especially 
 reviewer~C, who suggested better language with which to describe our
 work. 
 
