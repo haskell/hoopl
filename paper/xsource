@@ -29,7 +29,8 @@ for _, file in ipairs(arg) do
       assert(outfile == nil)
       outfile = filename
     elseif action == 'stop' or action == 'end' then
-      assert(outfile == filename)
+      assert(outfile, '@stop without @start: ' .. l)
+      assert(outfile == filename, l .. 'does not match @start ' .. outfile)
       outfile = nil
     elseif action ~= nil then
       error("Unknown action '" .. action .. "' in line " .. l)
