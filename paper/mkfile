@@ -47,9 +47,9 @@ timestamp.tex: $TGT.tex
 	signature=""
 	if [ -x $HOME/bin/md5words ]; then
 	  words="`md5words $prereq`"
-          signature=" [MD5: \\mbox{$words}]"
-        else
-          words="(could not compute signature words)"
+      signature=" [MD5: \\mbox{$words}]"
+    else
+      words="(could not compute signature words)"
 	fi
 	date -d "$date" "+\def\mdfivestamp{\\rlap{\\textbf{%a %e %b %Y, %l:%M %p$signature}}}\def\mdfivewords{$words}" > $target
 
