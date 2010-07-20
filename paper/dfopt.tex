@@ -325,6 +325,9 @@ higher-rank any longer).
   \def\authornote#1{\unskip\relax}
 \fi
 
+\long\def\newtext#1{{\mbox{$\clubsuit$}}{\slshape\ignorespaces#1}{\mbox{$\clubsuit$}}}
+\newenvironment{ntext}{\mbox{$\clubsuit$}\slshape\ignorespaces}{\mbox{$\clubsuit$}}
+
 \newcommand{\simon}[1]{\authornote{SLPJ: #1}}
 \newcommand{\norman}[1]{\authornote{NR: #1}}
 \let\remark\norman
@@ -699,9 +702,16 @@ If~there are a number of interacting
 analyses and/or transformations,
 the benefit of interleaving them is even more compelling; for more
 substantial examples, consult \citet{lerner-grove-chambers:2002}.
-
-
-
+\newtext{
+But the compelling benefits come at a cost:
+in~programs that have loops, it is impossible to analyze every block
+after all its predecessors, and it is possible that the fact
+justifying a program transformation in a block~@L@ may be invalidated
+by later analysis of one of @L@'s predecessors.
+For~this reason, for safety's sake, transformations must be
+\emph{speculative}.
+\hoopl~manages speculation on the client's behalf (\secref{speculative-transform}). 
+}
 
 
 
@@ -1217,7 +1227,7 @@ exposition, we present a function that is specialized to a
 closed/closed graph:
 \begin{code}
 `analyzeAndRewriteFwdBody
- :: ( FuelMonad m    -- State for rewriting
+ :: ( CkpointMonad m -- Roll back speculative actions
     , NonLocal n )   -- Extract non-local flow edges
  => FwdPass m n f    -- Lattice, transfer, rewrite
  -> [Label]          -- Entry point(s)
@@ -1270,6 +1280,20 @@ A~node following a rewritten node sees
 \emph{up-to-date} facts; that is, its input fact is computed by
 analyzing the replacement graph.
 
+\newtext{The rewrite function may take any action that is justified by
+the incoming fact.
+If~further analysis turns out to invalidate the fact, \hoopl\ rolls
+back the action.
+\hoopl\ can roll back the graph easily enough because the graph is a
+purely functional data structure. 
+But in addition to changing the graph, 
+a~rewrite function may take action in an arbitrary monad defined by
+the client.\remark{This is the key bit that is not explained---why?}
+To~enable \hoopl\ to roll back any actions in this monad, the monad
+must satisfy the @CkpointMonad@ and its associated algebraic law, as
+described in \secref{ckpoint-monad} below.
+}
+
 Below we flesh out the
 interface to @analyzeAndRewriteFwdBody@, leaving the implementation for
 \secref{engine}.  
@@ -1307,6 +1331,7 @@ newtype `FwdRewrite m n f     -- abstract type
 thenFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
  -> FwdRewrite m n f
 iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
+noFwdRw   :: Monad m          => FwdRewrite m n f
 
 ------- Fact-like things, aka "fact(s)" -----
 type family   `Fact x f :: *
@@ -1317,7 +1342,13 @@ type instance Fact C f = FactBase f
 type `FactBase f = LabelMap f
  -- A finite mapping from Labels to facts f
 
-------- Optimization Fuel ----
+------- Monadic rewrites, speculatively ----
+class Monad m => CkpointMonad m where
+  type Checkpoint m
+  checkpoint :: m (Checkpoint m)
+  restart    :: Checkpoint m -> m () 
+
+------- Optimization fuel ----
 type `Fuel = Int
 class Monad m => `FuelMonad m where
   `getFuel :: m Fuel
@@ -1507,7 +1538,7 @@ node \emph{closed} on exit, is a mapping from @Label@ to facts.
 %%  
 
 
-\subsection{The rewrite function} 
+\subsection{The rewrite function and the client's monad} 
  \seclabel{rewrites} 
  \seclabel{example-rewrites}
 
@@ -1530,8 +1561,10 @@ names (e.g., to label new blocks) or to other state (e.g., a~mapping
 indicating which loops a block is a part of).
 So~that a rewrite function may have access to such state, \hoopl\
 requires that a programmer creating a rewrite function also choose a
-monad~@m@. 
-The programmer may write code that works with any monad,
+monad~@m@.\remark{Looking for better/more in this~\P}
+\newtext{So that \hoopl\ may roll back speculative rewrites, the monad
+must satisfy the constraint @CkpointMonad m@.}
+The programmer may write code that works with any such monad,
 may create a monad just for the client,
 or may use a monad supplied by \hoopl. 
 
@@ -2015,6 +2048,68 @@ to
 %%%%    But  with an immutable graph, implementing the algorithm
 %%%%    is trivially easy: we simply revert to the original graph at the start
 %%%%    of each fixed-point iteration.
+
+\subsection{Checkpointing the client's monad}
+
+\seclabel{ckpoint-monad} \seclabel{checkpoint-monad}
+
+\begin{ntext}
+In the presence of loops, a rewrite function could make a change
+that later has to be rolled back.
+For example, consider constant propagation in this loop, which
+computes factorial: 
+\begin{code}
+     i = 1; prod = 1;
+ L1: if (i >= n) goto L3 else goto L2;
+ L2: i = i + 1; prod = prod * i;
+     goto L1;
+ L3: ...
+\end{code}
+Function @analyzeAndRewriteFwdBody@ iterates through this graph until
+the dataflow facts stop changing.
+On~the first iteration, the assignment @i = i + 1@ will 
+be analyzed with an incoming fact @i=0@, and the assignment will be
+rewritten to the graph @i = 1@.
+But~on a later iteration, the incoming fact will increase to @i=Top@,
+and the rewrite will no longer be justified.
+After each iteration, \hoopl\ starts the next iteration with
+\emph{new} facts but with the \emph{original} graph---simply by virtue
+of using purely functional data structures, rewrites from
+previous iterations are automatically ``rolled back.''
+\emph{But a rewrite function doesn't only produce new graphs.}
+A~rewrite function can also take a \emph{monadic action}, such as
+acquiring a fresh name.
+These actions must also be rolled back, and because the client chooses
+the monad in which the actions take place, the client must provide the
+means to roll them back.
+
+\hoopl\ defines the \emph{interface} that a client must use to roll
+back monadic actions.
+The~interface is defined by the type class @CkpointMonad@ in
+\figref{api}:
+\begin{code}
+class Monad m => `CkpointMonad m where
+  type `Checkpoint m
+  `checkpoint :: m (Checkpoint m)
+  `restart    :: Checkpoint m -> m () 
+\end{code}
+\hoopl\ calls the @checkpoint@ method at the beginning of an
+iteration, then calls the @restart@ method if another iteration is
+necessary. 
+These operations must obey the following algebraic law:
+\begin{code}
+  do { s <- checkpoint; m; restart s } == return ()
+\end{code}
+where @m@~represents any combination of monadic actions that might be
+taken by rewrite functions.
+(The safest course is to make sure the law holds throughout the entire
+monad.)
+The~type of the saved checkpoint~@s@ is entirely up to the client;
+it is defined using SIMON, WHAT ARE THE RIGHT WORDS TO DESCRIBE THIS
+HASKELL FEATURE??.
+\end{ntext}
+
+
 
 \subsection{Correctness} \seclabel{correctness}
 
