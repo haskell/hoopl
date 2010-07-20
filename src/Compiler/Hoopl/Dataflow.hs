@@ -295,7 +295,8 @@ wrapBR :: (forall e x . Shape x
             -- respects fuel, and it must return a result that respects fuel.
        -> BwdRewrite m  n  f 
        -> BwdRewrite m' n' f'      -- see Note [Respects Fuel]
-wrapBR wrap (BwdRewrite3 (f, m, l)) = BwdRewrite3 (wrap Open f, wrap Open m, wrap Closed l)
+wrapBR wrap (BwdRewrite3 (f, m, l)) = 
+  BwdRewrite3 (wrap Open f, wrap Open m, wrap Closed l)
 
 wrapBR2 :: (forall e x . Shape x
                        -> (n1 e x -> Fact x f1 -> m1 (Maybe (BwdRew m1 n1 f1 e x)))
@@ -589,7 +590,6 @@ fixpoint' :: forall m n f. (CheckpointMonad m, NonLocal n)
  -> (Block n C C -> Fact C f -> m (DG f n C C, Fact C f))
  -> [Block n C C]
  -> (Fact C f -> m (DG f n C C, Fact C f))
--- @ end fptype.tex
 fixpoint' direction lat do_block blocks init_fbase
   = do { tx_fb <- loop init_fbase
        ; return (tfb_rg tx_fb, 

@@ -109,7 +109,8 @@ pairFwd pass1 pass2 = FwdPass lattice transfer rewrite
           where project rw = \n pair -> liftM (liftM repair) $ rw n (proj pair)
                 repair (FwdRew g rw') = FwdRew g (lift proj rw')
 
-pairBwd :: forall m n f f' . Monad m => BwdPass m n f -> BwdPass m n f' -> BwdPass m n (f, f')
+pairBwd :: forall m n f f' . 
+           Monad m => BwdPass m n f -> BwdPass m n f' -> BwdPass m n (f, f')
 pairBwd pass1 pass2 = BwdPass lattice transfer rewrite
   where
     lattice = pairLattice (bp_lattice pass1) (bp_lattice pass2)
@@ -125,12 +126,16 @@ pairBwd pass1 pass2 = BwdPass lattice transfer rewrite
                 ((f, f') -> f1) -> BwdRewrite m n f1 -> BwdRewrite m n (f, f')
         lift proj = wrapBR project
             where project :: forall e x . Shape x 
-                      -> (n e x -> Fact x f1 -> m (Maybe (BwdRew m n f1 e x)))
+                      -> (n e x -> Fact x f1     -> m (Maybe (BwdRew m n f1     e x)))
                       -> (n e x -> Fact x (f,f') -> m (Maybe (BwdRew m n (f,f') e x)))
-                  project Open = \rw n pair -> liftM (liftM repair) $ rw n (proj pair)
+                  project Open = 
+                     \rw n pair -> liftM (liftM repair) $ rw n (       proj pair)
                   project Closed = 
-                       \rw n pair -> liftM (liftM repair) $ rw n (mapMap proj pair)
+                     \rw n pair -> liftM (liftM repair) $ rw n (mapMap proj pair)
                   repair (BwdRew g rw') = BwdRew g (lift proj rw')
+                    -- XXX specialize repair so that the cost
+                    -- of discriminating is one per combinator not one
+                    -- per rewrite
 
 pairLattice :: forall f f' . DataflowLattice f -> DataflowLattice f' -> DataflowLattice (f, f')
 pairLattice l1 l2 =
