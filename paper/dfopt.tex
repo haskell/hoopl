@@ -703,13 +703,16 @@ analyses and/or transformations,
 the benefit of interleaving them is even more compelling; for more
 substantial examples, consult \citet{lerner-grove-chambers:2002}.
 \newtext{
-But the compelling benefits come at a cost:
-in~programs that have loops, it is impossible to analyze every block
-after all its predecessors, and it is possible that the fact
-justifying a program transformation in a block~@L@ may be invalidated
-by later analysis of one of @L@'s predecessors.
-For~this reason, for safety's sake, transformations must be
-\emph{speculative}.
+But the compelling benefits come at a cost.
+To~compute valid facts for a program that has loops,
+an analysis may require multiple iterations over the program.
+Before the final iteration, the analysis may
+compute a~fact that is invalid,
+and a transformation may use the invalid fact to rewrite the program
+(see example in \secref{ckpoint-monad}).
+To~avoid incorrect rewrites,
+any rewrite based on an invalid fact must be rolled back,
+which means that transformations must be \emph{speculative}.
 \hoopl~manages speculation on the client's behalf (\secref{speculative-transform}). 
 }
 
