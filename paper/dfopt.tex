@@ -354,7 +354,7 @@ higher-rank any longer).
 \newcommand{\norman}[1]{\authornote{NR: #1}}
 \let\remark\norman
 \def\finalremark#1{\relax}
-% \let \finalremark \remark % uncomment after submission
+\let \finalremark \remark % uncomment after submission
 \newcommand{\john}[1]{\authornote{JD: #1}}
 \newcommand{\todo}[1]{\textbf{To~do:} \emph{#1}}
 \newcommand\delendum[1]{\relax\ifvmode\else\unskip\fi\relax}
@@ -1085,8 +1085,13 @@ we know that type parameter~@a@ is~@O@, and hence the entry sequence of the seco
 argument must be @JustO e2@.
 Moreover, block~@x1@ must be
 closed/open, and block~@e2@ must be open/closed.  
-We can therefore concatenate them
-with @BCat@ to produce a closed/closed block, which is
+We can therefore concatenate 
+\ifpagetuning
+@x1@~and~@e2@
+\else
+them
+\fi
+with @BCat@ to produce a closed/closed block~@b@, which is
 added to the body of the result.
 
 The representation of @Graph@s is exposed to \hoopl's clients.
@@ -2509,7 +2514,7 @@ fixed points.
 
 Extended fact transformers compose nicely.
 For example, @block@ is implemented thus:
-\ifpagetuning\par\vfilbreak[1in]\fi  % horrible page break
+%\ifpagetuning\par\vfilbreak[1in]\fi  % horrible page break
 \begin{smallcode}
   `block :: forall e x .
     Block n e x -> f -> m (DG f n e x, Fact x f)
