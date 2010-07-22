@@ -242,7 +242,7 @@ arfGraph pass entries = graph
                     -- the Body are in the 'DG f n C C'
 -- @ start bodyfun.tex
     body entries blockmap init_fbase
-      = fixpoint' Fwd lattice do_block blocks init_fbase
+      = fixpoint Fwd lattice do_block blocks init_fbase
       where
         blocks  = forwardBlockList entries blockmap
         lattice = fp_lattice pass
@@ -420,7 +420,7 @@ arbGraph pass entries = graph
     		    -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
     body entries blockmap init_fbase
-      = fixpoint' Bwd (bp_lattice pass) do_block blocks init_fbase
+      = fixpoint Bwd (bp_lattice pass) do_block blocks init_fbase
       where
         blocks = backwardBlockList entries blockmap
         do_block b f = do (g, f) <- block b f
@@ -507,15 +507,12 @@ fixpoint :: forall m block n f.
          -> FactBase f 
          -> m (DG f n C C, FactBase f)
 -}
--- @ start fptype.tex
-data Direction = Fwd | Bwd
 _fixpoint :: forall m n f. (FuelMonad m, NonLocal n)
  => Direction
  -> DataflowLattice f
  -> (Block n C C -> Fact C f -> m (DG f n C C, Fact C f))
  -> [Block n C C]
  -> (Fact C f -> m (DG f n C C, Fact C f))
--- @ end fptype.tex
 _fixpoint direction lat do_block blocks init_fbase
   = do { fuel <- getFuel  
        ; tx_fb <- loop fuel init_fbase
@@ -584,13 +581,16 @@ class Monad m => FixpointMonad m where
   observeChangedFactBase :: m (Maybe (FactBase f)) -> Maybe (FactBase f)
 -}
 
-fixpoint' :: forall m n f. (CheckpointMonad m, NonLocal n)
+-- @ start fptype.tex
+data Direction = Fwd | Bwd
+fixpoint :: forall m n f. (CheckpointMonad m, NonLocal n)
  => Direction
  -> DataflowLattice f
  -> (Block n C C -> Fact C f -> m (DG f n C C, Fact C f))
  -> [Block n C C]
  -> (Fact C f -> m (DG f n C C, Fact C f))
-fixpoint' direction lat do_block blocks init_fbase
+-- @ end fptype.tex
+fixpoint direction lat do_block blocks init_fbase
   = do { tx_fb <- loop init_fbase
        ; return (tfb_rg tx_fb, 
                  map (fst . fst) tagged_blocks 
