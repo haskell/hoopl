@@ -136,7 +136,7 @@ higher-rank any longer).
 
 \newif\iftimestamp\timestamptrue  % show MD5 stamp of paper
 
-\timestampfalse % it's post-submission time
+% \timestampfalse % it's post-submission time
 
 \IfFileExists{timestamp.tex}{}{\timestampfalse}
 
@@ -150,7 +150,7 @@ higher-rank any longer).
 \newif\ifnotesinmargin \notesinmarginfalse
 \IfFileExists{notesinmargin.tex}{\notesinmargintrue}{\relax}
 
-\documentclass[blockstyle,natbib]{sigplanconf}
+\documentclass[blockstyle,natbib,preprint]{sigplanconf}
 
 \newcommand\ourlib{Hoopl}
    % higher-order optimization library
