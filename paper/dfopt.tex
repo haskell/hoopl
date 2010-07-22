@@ -1583,22 +1583,22 @@ may create a monad just for the client,
 or may use a monad supplied by \hoopl. 
 
 \newtext{
-\john{Obviously this belongs elsewhere, e.g. the Discussion section}
-Allowing the client to~define a monad that satisfies the requirements
-of both the @CkpointMonad@ and the @FuelMonad@ is potentially dangerous, but very convenient.
+\john{Obviously this belongs elsewhere}
+Allowing the client to~define the monad @m@ 
+is potentially dangerous, but very convenient.
 The danger is that the~client might define an instance that does not
-respect the invariants of checkpointing or fuel;
+respect the invariants of checkpointing or fuel;\john{Is fuel even defined yet?}
 for example, the client's monad might allow a rewrite
 to change the quantity of~fuel, which would make it impossible
 to debug the optimization using the technique in \secref{vpoiso}.
 We~considered eliminating these dangers by defining a single @HooplM@ monad,
-which implements the fuel monad and provides a source of unique values.
+which provides checkpointing, optimization fuel, and a source of unique values.
 But in our experience, the dangers are easily avoided,
-and the convenience of defining your own monad is well worth the price.
+and the convenience of defining your own monad is well worth the~price.
 For example, you might want to write a monad that logs each time
-an optimization improves the program;
-this kind of logging is easily implemented in a client-defined monad,
-and the client can rely on the checkpointing mechanism
+an optimization improves the program.
+This kind of logging is easily implemented in a client-defined monad,
+and the client can rely on checkpointing
 to~ensure that a speculative rewrite is not accidentally logged.
 
 % For example, you might want your compiler to use different types of uniques
