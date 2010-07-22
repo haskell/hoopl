@@ -739,6 +739,9 @@ which means that transformations must be \emph{speculative}.
 }
 
 \paragraph{Debugging faulty optimizers.}
+
+\seclabel{debugging-introduced}
+
 \newtext{
 While it is wonderful to be able to implement complex optimizations by
 composing very simple analyses or transformations,
@@ -1282,12 +1285,8 @@ As its type shows, this function
 is polymorphic in the types of nodes~@n@ and facts~@f@;
 these types are determined by the client.
 The type of the monad~@m@ is also determined by the client, but it must
-meet the constraints implied by @FuelMonad@, as described in
-\secref{fuel-monad}. 
-%%  
-%%  offer at least the operations of the @FuelMonad@ class (\figref{api-types}),
-%%  namely: the ability to allocate fresh labels (\secref{rewrites}) and to 
-%%  manage ``optimisation fuel'' (\secref{fuel-monad}).
+meet the constraints implied by @CkpointMonad@, as described in
+\secref{checkpoint-monad}. 
 
 As well as taking and returning a graph, the
 function also takes input facts (the @FactBase@) and produces output facts. 
@@ -1342,7 +1341,7 @@ compilers, it won't be used.
 \john{There's a relevant paragraph on the next page; not sure it belongs there}
 To~enable \hoopl\ to roll back any actions in this monad, the monad
 must satisfy the @CkpointMonad@ and its associated algebraic law, as
-described in \secref{ckpoint-monad} below.
+described in \secref{ckpoint-monad}.
 }
 
 Below we flesh out the
@@ -2337,42 +2336,17 @@ In this paper we describe a new implementation.  It is elegant and short
 (about a third of the size of our last attempt), and it offers
 strong compile-time guarantees about shapes.  
 \finalremark{Wanted: enumerate the critical components and give each one's size}
-
+%
 We describe the implementation of \emph{forward} 
 analysis and transformation.
 The implementations of backward analysis and transformation are
 exactly analogous and are included in \hoopl.
 
+We~also, starting in \secref{first-debugging-section}, explain how we
+isolate errors in faulty optimizers, and how the fault-isolation
+machinery is integrated with the rest of the implementation.
 
 
-\begin{ntext}
-\subsection{Rewrite functions}
-
-
-
-\begin{code}
-`withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
-\end{code}
-
-
-as expressed by the
-@FwdRew@ type returned by a @FwdRewrite@ (\figref{api-types}).
-The first component of the @FwdRew@ is the replacement graph, as discussed earlier.
-The second component, $\rw$, is a 
-\emph{new rewrite function} to use when recursively processing
-the replacement graph. 
-For shallow rewriting this new function is
-the constant @Nothing@ function; for deep rewriting it is the original
-rewrite function.
-While @mkFRewrite@ allows for general rewriting, most clients will
-take advantage of \hoopl's support for these two common cases:
-\begin{smallcode}
-`deepFwdRw, `shallowFwdRw
-   :: Monad m 
-   => (forall e x . n e x -> f -> m (Maybe (Graph n e x)) 
-   -> FwdRewrite m n f
-\end{smallcode}
-\end{ntext}
 
 
 
@@ -2745,39 +2719,6 @@ away by the compiler.
 %%  @noFwdRw@ as~@rw@, which is implanted in @pass'@
 %%  (\secref{shallow-vs-deep}).
 
-\subsection{Throttling rewriting using ``optimization fuel''}
-\seclabel{vpoiso}
-\seclabel{fuel}
-
-In function @node@, the call to
-@withFuel@ may prevent a node from
-being rewritten.
-Function @withFuel@ inspects a supply of \emph{optimization fuel},
-which is stored in a @FuelMonad@ (\figref{api-types}).
-If~@withFuel@ is passed a @Just@, a rewrite is being requested, and
-if~fuel is available, @withFuel@ @return@s the @Just@,
-reducing the supply of fuel by one unit.
-In~all other cases, including when fuel is exhausted, @withFuel@
-has no effect on the @FuelMonad@ and @return@s @Nothing@. 
-
-
-Optimization fuel is used to debug the optimizer:
-when optimization produces a faulty program,
-we use Whalley's
-\citeyearpar{whalley:isolation} technique to find the fault.
-Given a program that fails when compiled with optimization,
-a binary search on the amount of
-optimization fuel
-finds an~$n$ such that the program works correctly after $n-1$ rewrites
-but fails 
-after $n$~rewrites.
-The $n$th rewrite is faulty.
-
-
-
-\seclabel{fuel-monad}
-
-
 
 \subsection{Fixed points} \seclabel{arf-body}
 
@@ -2894,6 +2835,77 @@ This trick is safe only for a forward analysis, which
 %%  code, the reasoning behind it is quite subtle---exactly the sort of
 %%  thing that should be implemented once in \hoopl, so clients don't have
 %%  to worry about it.
+
+
+\subsection{Throttling rewriting using ``optimization fuel''}
+\seclabel{vpoiso}
+\seclabel{fuel}
+\seclabel{whalley-from-s2}
+\seclabel{first-debugging-section}
+
+Function @mkFRewrite@ in \figref{api-types} has a mysterious type qualifier:
+the client's monad~@m@ must satisfy the type-class constraint @FuelMonad m@.
+The @FuelMonad@ type class also appears in \figref{api-types}, and it
+encapsulates a supply of \emph{optimization fuel}.
+Every function passed to @mkFRewrite@ is wrapped in another function
+so that it meets this contract:
+\begin{itemize}
+\item 
+If the fuel supply is empty, the wrapped function always returns
+@Nothing@. 
+\item
+If the wrapped function returns @Some g@, it has the monadic effect of
+reducing the fuel supply by one unit.
+\end{itemize}
+%
+Optimization fuel is used to debug the optimizer:
+when optimization produces a faulty program,
+we use Whalley's
+\citeyearpar{whalley:isolation} technique to find the fault.
+Given a program that fails when compiled with optimization,
+a binary search on the amount of
+optimization fuel
+finds an~$n$ such that the program works correctly after $n-1$ rewrites
+but fails 
+after $n$~rewrites.
+The $n$th rewrite is faulty.
+As~alluded to at the end of \secref{debugging-introduced}, this
+technique enables us to debug even very complex optimizations by
+identifying one single rewrite that is definitely faulty.
+
+
+%%%%    \seclabel{fuel-monad}
+%%%%    
+%%%%    \begin{ntext}
+%%%%    \subsection{Rewrite functions}
+%%%%    
+%%%%    
+%%%%    
+%%%%    \begin{code}
+%%%%    `withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
+%%%%    \end{code}
+%%%%    
+%%%%    
+%%%%    as expressed by the
+%%%%    @FwdRew@ type returned by a @FwdRewrite@ (\figref{api-types}).
+%%%%    The first component of the @FwdRew@ is the replacement graph, as discussed earlier.
+%%%%    The second component, $\rw$, is a 
+%%%%    \emph{new rewrite function} to use when recursively processing
+%%%%    the replacement graph. 
+%%%%    For shallow rewriting this new function is
+%%%%    the constant @Nothing@ function; for deep rewriting it is the original
+%%%%    rewrite function.
+%%%%    While @mkFRewrite@ allows for general rewriting, most clients will
+%%%%    take advantage of \hoopl's support for these two common cases:
+%%%%    \begin{smallcode}
+%%%%    `deepFwdRw, `shallowFwdRw
+%%%%       :: Monad m 
+%%%%       => (forall e x . n e x -> f -> m (Maybe (Graph n e x)) 
+%%%%       -> FwdRewrite m n f
+%%%%    \end{smallcode}
+%%%%    \end{ntext}
+
+
 
 \section {Related work} \seclabel{related}
 
