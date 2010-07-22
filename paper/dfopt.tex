@@ -2133,25 +2133,25 @@ computes factorial:
 Function @analyzeAndRewriteFwdBody@ iterates through this graph until
 the dataflow facts stop changing.
 On~the first iteration, the assignment @i = i + 1@ will 
-be analyzed with an incoming fact @i=0@, and the assignment will be
-rewritten to the graph @i = 1@.
-But~on a later iteration, the incoming fact will increase to @i=Top@,
-and the rewrite will no longer be justified.
+be analyzed with an incoming fact @i=1@, and the assignment will be
+rewritten to the graph @i = 2@.
+But~on a later iteration, the incoming fact will increase to @i=@$\top$,
+and the~rewrite will no longer be justified.
 After each iteration, \hoopl\ starts the next iteration with
-\emph{new} facts but with the \emph{original} graph---simply by virtue
+\emph{new} facts but with the \emph{original} graph---by~virtue
 of using purely functional data structures, rewrites from
 previous iterations are automatically ``rolled back.''
 \emph{But a rewrite function doesn't only produce new graphs.}
 A~rewrite function can also take a \emph{monadic action}, such as
 acquiring a fresh name.
-These actions must also be rolled back, and because the client chooses
+These~actions must also be rolled back, and because the~client chooses
 the monad in which the actions take place, the client must provide the
 means to roll them back.
 
 \hoopl\ defines the \emph{interface} that a client must use to roll
 back monadic actions.
 The~interface is defined by the type class @CkpointMonad@ in
-\figref{api}:
+\figref{api-types}:
 \begin{code}
 class Monad m => `CkpointMonad m where
   type `Checkpoint m
