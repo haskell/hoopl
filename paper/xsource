@@ -17,6 +17,7 @@ local function add_modified_line(lines, l)
   l = l:gsub('^(%s*),( fact_bot)', '%1{%2')
 --  l = l:gsub('^(%s*, fact_join = .*)$', '%1 }')
   l = l:gsub('%s*%-%-%s%^.*$', '')
+  l = l:gsub('CheckpointMonad', 'CkpointMonad')
   return table.insert(lines, l)
 end
 
