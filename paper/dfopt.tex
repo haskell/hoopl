@@ -3083,9 +3083,15 @@ dataflow.
 For example, within GHC, \hoopl's  graphs are used 
 to implement optimizations based on control flow,
 such as eliminating branch chains.
-There are other kinds of optimizations that have not been tried;
-for example, we know of no attempt
-to extend Hoopl to establish or maintain SSA invariants.
+
+\hoopl\ has not yet been used to implement SSA optimizations.
+\hoopl\ is SSA-neutral:
+although we know of no attempt to use
+\hoopl\ to establish or enforce SSA~invariants,
+\hoopl\ makes it easy to include $\phi$-functions in the
+representation of first nodes,
+and if a transformation preserves SSA~invariants, it will continue to do
+so when implemented in \hoopl.
 
 \paragraph{Examining the API}
 
