@@ -2406,7 +2406,7 @@ as an additional parameter.
 higher-order function that takes a block-concatenation function as a
 parameter.) 
 The truth about @Graph@ and @DG@ is as follows:
-\verbatiminput{dg}
+\smallverbatiminput{dg}
 % defn DG
 % defn DBlock
 Type~@DG@ is internal to \hoopl; it is not seen by any client.
@@ -2538,18 +2538,18 @@ fixed points.
 Extended fact transformers compose nicely.
 For example, @block@ is implemented thus:
 \ifpagetuning\par\vfilbreak[1in]\fi  % horrible page break
-\begin{code}
+\begin{smallcode}
   `block :: forall e x .
     Block n e x -> f -> m (DG f n e x, Fact x f)
   block (BFirst  n)  = node n
   block (BMiddle n)  = node n
   block (BLast   n)  = node n
   block (BCat b1 b2) = block b1 `cat` block b2
-\end{code}
+\end{smallcode}
 The composition function @cat@ feeds facts from one extended fact
 transformer to another, and it splices decorated graphs.
 It~has a very general type:
-\begin{code}
+\begin{smallcode}
 cat :: forall m e a x f f1 f2. Monad m 
     => (f  -> m (DG f n e a, f1))
     -> (f1 -> m (DG f n a x, f2))
@@ -2557,7 +2557,7 @@ cat :: forall m e a x f f1 f2. Monad m
 `cat ft1 ft2 f = do { (g1,f1) <- ft1 f
                    ; (g2,f2) <- ft2 f1
                    ; return (g1 `dgSplice` g2, f2) }
-\end{code}
+\end{smallcode}
 (Function @`dgSplice@ is the same splicing function used for an ordinary
 @Graph@, but it uses a one-line block-concatenation function suitable
 for @DBlock@s.)
