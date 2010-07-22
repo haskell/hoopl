@@ -735,6 +735,20 @@ For~this reason, for safety's sake, transformations must be
 \hoopl~manages speculation on the client's behalf (\secref{speculative-transform}). 
 }
 
+\paragraph{Debugging faulty optimizers.}
+\newtext{
+While it is wonderful to be able to implement complex optimizations by
+composing very simple analyses or transformations,
+it~necessarily follows that very simple analyses or transformations,
+when composed, can exhibit complex emergent behavior.
+Such behavior is not easily predicted, so it is essential to have good
+tools for debugging~it.
+\hoopl's primary debugging tool is an implementation of
+Whalley's \citeyearpar{whalley:isolation} technique for
+isolating faults (\secref{whalley-from-s2}).\remark{Perhaps say more
+about the implementation here?}
+}
+
 
 
 \section{Representing control-flow graphs} \seclabel{graph-rep}
