@@ -195,8 +195,30 @@ higher-rank any longer).
 
 \makeatletter
 
+\def \@copyrightspace {%
+ \@float{copyrightbox}[b]%
+ \vbox to 0.8in{%  less than 1in, please
+   \vfill
+   \parbox[b]{20pc}{%
+     \scriptsize
+     \if \@preprint
+       [Copyright notice will appear here
+        once 'preprint' option is removed.]\par
+     \else
+       \@toappear
+     \fi
+     \if \@reprint
+       \noindent Reprinted from \@conferencename,
+       \@proceedings,
+       \@conferenceinfo,
+       pp.~\number\thepage--\pageref{sigplanconf@finalpage}.\par
+     \fi}}%
+ \end@float}
+
+
 \let\c@table=
            \c@figure % one counter for tables and figures, please
+
 
 \newcommand\setlabel[1]{%
   \setlabel@#1!!\@endsetlabel
