@@ -30,6 +30,23 @@
   month = {September},
 }
 
+@article{whalley:isolation,
+  number = {5},
+  subject = {{\bf D.2.5}: Software, SOFTWARE ENGINEERING, Testing and Debugging, Debugging aids. {\bf D.3.4}: Software, PROGRAMMING LANGUAGES, Processors, Compilers. {\bf D.3.4}: Software, PROGRAMMING LANGUAGES, Processors, Optimization.},
+  keywords = {algorithms; languages},
+  author = {David B. Whalley},
+  journal = {ACM Transactions on Programming Languages and Systems},
+  year = {1994},
+  xxxurl = {http://www.acm.org/pubs/toc/Abstracts/0164-0925/186103.html},
+  abstract = {This paper describes a tool called \emph{vpoiso} that was developed to isolate errors automatically in the \emph{vpo} compiler system. The two general types of compiler errors isolated by this tool are optimization and nonoptimization errors. When isolating optimization errors, \emph{vpoiso} relies on the \emph{vpo} optimizer to identify sequences of changes, referred to as transformations, that result in semantically equivalent code and to provide the ability to stop performing \emph{improving} (or unnecessary) transformations after a specified number have been performed. A compilation of a typical program by \emph{% vpo} often results in thousands of \emph{improving} transformations being performed. The \emph{vpoiso} tool can automatically isolate the first \emph{ improving} transformation that causes incorrect output of the execution of the compiled programs by using a binary search that varies the number of \emph{% improving} transformation performed. Not only is the illegal transformation automatically isolated, but \emph{% vpoiso} also identifies the location and instant the transformation is performed in \emph{vpo}. Nonoptimization errors occur from problems in the front end, code generator, and \emph{necessary} transformations in the optimizer. If another compiler is available that can produce correct (but perhaps more inefficient) code, then \emph{vpoiso} can isolate nonoptimization errors to a single function. Automatic isolation of compiler errors facilitates retargeting a compiler to a new machine, maintenance of the compiler, and supporting experimentation with new optimizations.},
+  title = {Automatic Isolation of Compiler Errors},
+  month = {September},
+  coden = {ATPSDT},
+  xxxissn = {0164-0925},
+  pages = {1648--1659},
+  volume = {16},
+}
+
 @book{appel:modern,
   publisher = {Cambridge University Press},
   title = {Modern Compiler Implementation},
@@ -47,23 +64,6 @@
   author = {Keith D. Cooper and Timothy J. Harvey and Ken Kennedy},
   note = {Unpublished report available from \url{http://www.hipersoft.rice.edu/grads/publications/dom14.pdf}},
   title = {A Simple, Fast Dominance Algorithm},
-}
-
-@article{whalley:isolation,
-  number = {5},
-  subject = {{\bf D.2.5}: Software, SOFTWARE ENGINEERING, Testing and Debugging, Debugging aids. {\bf D.3.4}: Software, PROGRAMMING LANGUAGES, Processors, Compilers. {\bf D.3.4}: Software, PROGRAMMING LANGUAGES, Processors, Optimization.},
-  keywords = {algorithms; languages},
-  author = {David B. Whalley},
-  journal = {ACM Transactions on Programming Languages and Systems},
-  year = {1994},
-  xxxurl = {http://www.acm.org/pubs/toc/Abstracts/0164-0925/186103.html},
-  abstract = {This paper describes a tool called \emph{vpoiso} that was developed to isolate errors automatically in the \emph{vpo} compiler system. The two general types of compiler errors isolated by this tool are optimization and nonoptimization errors. When isolating optimization errors, \emph{vpoiso} relies on the \emph{vpo} optimizer to identify sequences of changes, referred to as transformations, that result in semantically equivalent code and to provide the ability to stop performing \emph{improving} (or unnecessary) transformations after a specified number have been performed. A compilation of a typical program by \emph{% vpo} often results in thousands of \emph{improving} transformations being performed. The \emph{vpoiso} tool can automatically isolate the first \emph{ improving} transformation that causes incorrect output of the execution of the compiled programs by using a binary search that varies the number of \emph{% improving} transformation performed. Not only is the illegal transformation automatically isolated, but \emph{% vpoiso} also identifies the location and instant the transformation is performed in \emph{vpo}. Nonoptimization errors occur from problems in the front end, code generator, and \emph{necessary} transformations in the optimizer. If another compiler is available that can produce correct (but perhaps more inefficient) code, then \emph{vpoiso} can isolate nonoptimization errors to a single function. Automatic isolation of compiler errors facilitates retargeting a compiler to a new machine, maintenance of the compiler, and supporting experimentation with new optimizations.},
-  title = {Automatic Isolation of Compiler Errors},
-  month = {September},
-  coden = {ATPSDT},
-  xxxissn = {0164-0925},
-  pages = {1648--1659},
-  volume = {16},
 }
 
 @article{kam-ullman:global-iterative-analysis,
@@ -118,6 +118,17 @@
   booktitle = {Conference Record of the 6th Annual ACM Symposium on Principles of Programming Languages},
 }
 
+@inproceedings{steffen:data-flow-analysis-model-checking:1991,
+  xxxaddress = {London, UK},
+  publisher = {Springer-Verlag},
+  title = {Data Flow Analysis as Model Checking},
+  pages = {346--365},
+  year = {1991},
+  booktitle = {TACS '91: Proceedings of the International Conference on Theoretical Aspects of Computer Software},
+  xxxisbn = {3-540-54415-1},
+  author = {Steffen, Bernhard},
+}
+
 @inproceedings{schmidt:data-flow-analysis-model-checking,
   bibdate = {Mon May 3 12:57:52 MDT 1999},
   xxxdress = {pub-ACM:adr},
@@ -134,6 +145,20 @@
   xxxisbn = {0-89791-979-3},
   pages = {38--48},
   booktitle = {Conference Record of the 25th Annual ACM Symposium on Principles of Programming Languages},
+}
+
+@article{marlowe-ryder:properties-data-flow-frameworks,
+  number = {2},
+  issn = {0001-5903},
+  author = {Marlowe, Thomas J. and Ryder, Barbara G.},
+  journal = {Acta Informatica},
+  publisher = {Springer-Verlag New York, Inc.},
+  year = {1990},
+  volume = {28},
+  xxxaddress = {Secaucus, NJ, USA},
+  doi = {http://dx.doi.org/10.1007/BF01237234},
+  pages = {121--163},
+  title = {Properties of data flow frameworks: a unified model},
 }
 
 @book{muchnick:compiler-implementation,
