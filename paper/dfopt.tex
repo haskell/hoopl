@@ -1288,7 +1288,18 @@ back the action.
 purely functional data structure. 
 But in addition to changing the graph, 
 a~rewrite function may take action in an arbitrary monad defined by
-the client.\remark{This is the key bit that is not explained---why?}
+the client.\remark{This is the key bit that is not explained---why?
+One reasonable example might be that the client wishes to log how
+often a transformation is applied, or in which functions, or in a
+combined dataflow pass what transformations precede what others.
+Another example is that we don't want to mandate how fresh names are
+constructed, and we don't want to limit clients to a single supply of
+fresh names.
+On the {\PAL} project, we learned a painful lesson:
+no~matter how well designed the interface,
+if it does not accomodate design choices already embodied in existing
+compilers, it won't be used.
+}
 To~enable \hoopl\ to roll back any actions in this monad, the monad
 must satisfy the @CkpointMonad@ and its associated algebraic law, as
 described in \secref{ckpoint-monad} below.
@@ -3125,9 +3136,15 @@ dataflow.
 For example, within GHC, \hoopl's  graphs are used 
 to implement optimizations based on control flow,
 such as eliminating branch chains.
-There are other kinds of optimizations that have not been tried;
-for example, we know of no attempt
-to extend Hoopl to establish or maintain SSA invariants.
+
+\hoopl\ has not yet been used to implement SSA optimizations.
+\hoopl\ is SSA-neutral:
+although we know of no attempt to use
+\hoopl\ to establish or enforce SSA~invariants,
+\hoopl\ makes it easy to include $\phi$-functions in the
+representation of first nodes,
+and if a transformation preserves SSA~invariants, it will continue to do
+so when implemented in \hoopl.
 
 \paragraph{Examining the API}
 
