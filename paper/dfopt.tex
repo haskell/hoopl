@@ -725,13 +725,16 @@ analyses and/or transformations,
 the benefit of interleaving them is even more compelling; for more
 substantial examples, consult \citet{lerner-grove-chambers:2002}.
 \newtext{
-But the compelling benefits come at a cost:
-in~programs that have loops, it is impossible to analyze every block
-after all its predecessors, and it is possible that the fact
-justifying a program transformation in a block~@L@ may be invalidated
-by later analysis of one of @L@'s predecessors.
-For~this reason, for safety's sake, transformations must be
-\emph{speculative}.
+But the compelling benefits come at a cost.
+To~compute valid facts for a program that has loops,
+an analysis may require multiple iterations over the program.
+Before the final iteration, the analysis may
+compute a~fact that is invalid,
+and a transformation may use the invalid fact to rewrite the program
+(see example in \secref{ckpoint-monad}).
+To~avoid incorrect rewrites,
+any rewrite based on an invalid fact must be rolled back,
+which means that transformations must be \emph{speculative}.
 \hoopl~manages speculation on the client's behalf (\secref{speculative-transform}). 
 }
 
@@ -1336,6 +1339,7 @@ no~matter how well designed the interface,
 if it does not accomodate design choices already embodied in existing
 compilers, it won't be used.
 }
+\john{There's a relevant paragraph on the next page; not sure it belongs there}
 To~enable \hoopl\ to roll back any actions in this monad, the monad
 must satisfy the @CkpointMonad@ and its associated algebraic law, as
 described in \secref{ckpoint-monad} below.
@@ -1615,6 +1619,48 @@ The programmer may write code that works with any such monad,
 may create a monad just for the client,
 or may use a monad supplied by \hoopl. 
 
+\newtext{
+\john{This probably belongs elsewhere}
+Allowing the client to~define the monad @m@ 
+is potentially dangerous, but very convenient.
+The danger is that the~client might define an instance that does not
+respect the invariants of checkpointing or fuel;\john{Is fuel even defined yet?}
+for example, the client's monad might allow a rewrite
+to change the quantity of~fuel, which would make it impossible
+to debug the optimization using the technique in \secref{vpoiso}.
+We~considered eliminating these dangers by defining a single @HooplM@ monad,
+which provides checkpointing, optimization fuel, and a source of unique values.
+But in our experience, the dangers are easily avoided,
+and the convenience of defining your own monad is well worth the~price.
+For example, you might want to write a monad that logs each time
+an optimization improves the program.
+This kind of logging is easily implemented in a client-defined monad,
+and the client can rely on checkpointing
+to~ensure that a speculative rewrite is not accidentally logged.
+
+% For example, you might want your compiler to use different types of uniques
+% for labels and pseudoregisters; with a built-in @HooplM@ monad,
+% you would have to shoehorn the @HooplM@ unique type into your labels and pseudoregisters.
+
+% Why doesn't Hoopl provide the monad used by rewrite functions?
+% 
+% Similarly it lets us finesse the question of uniques.  If Hoopl provides the monad, it must offer
+%         newUnique :: HooplM Unique
+% and hence Unique must be a Hoopl type.  If the user is to build (say) CmmExprs with Registers that need a fresh
+% unique, she must use the Hoopl-supplied Unique in the Register type. If she didn't, she's stuck.   If instead we
+% use the user monad, then we need only insist that the user supply an operation
+%         newBlockId :: m  BlockId
+% where BlockId is the Hoopl-supplied type.
+% 
+% In short, it's quite neat that the rewrites can have access to anything in the user's own monad without lifting
+% or impedence matching -- but also dangerous.   I could live with either design.
+% 
+% 
+% You might want different types of uniques
+% -- e.g. one type for labels in the control-flow graph
+%         and another type for pseudoregisters.
+}
+
 When these choices are made, the easy way to create a rewrite
 function is to call the function @mkFRewrite@ in \figref{api-types}.
 The client supplies a function that is specialized to a particular
@@ -1696,6 +1742,8 @@ be made deep by
 \begin{code}
   `iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
 \end{code}
+For~convenience, we~provide the~function @deepFwdRw@,
+which is the composition of @iterFwdRw@ and~@mkFRewrite@.
 Another useful combinator enables \hoopl\ to try any number of functions to
 rewrite a node, provided only that they all use the same fact:
 \verbatiminput{comb1}
@@ -2124,25 +2172,25 @@ computes factorial:
 Function @analyzeAndRewriteFwdBody@ iterates through this graph until
 the dataflow facts stop changing.
 On~the first iteration, the assignment @i = i + 1@ will 
-be analyzed with an incoming fact @i=0@, and the assignment will be
-rewritten to the graph @i = 1@.
-But~on a later iteration, the incoming fact will increase to @i=Top@,
-and the rewrite will no longer be justified.
+be analyzed with an incoming fact @i=1@, and the assignment will be
+rewritten to the graph @i = 2@.
+But~on a later iteration, the incoming fact will increase to @i=@$\top$,
+and the~rewrite will no longer be justified.
 After each iteration, \hoopl\ starts the next iteration with
-\emph{new} facts but with the \emph{original} graph---simply by virtue
+\emph{new} facts but with the \emph{original} graph---by~virtue
 of using purely functional data structures, rewrites from
 previous iterations are automatically ``rolled back.''
 \emph{But a rewrite function doesn't only produce new graphs.}
 A~rewrite function can also take a \emph{monadic action}, such as
 acquiring a fresh name.
-These actions must also be rolled back, and because the client chooses
+These~actions must also be rolled back, and because the~client chooses
 the monad in which the actions take place, the client must provide the
 means to roll them back.
 
 \hoopl\ defines the \emph{interface} that a client must use to roll
 back monadic actions.
 The~interface is defined by the type class @CkpointMonad@ in
-\figref{api}:
+\figref{api-types}:
 \begin{code}
 class Monad m => `CkpointMonad m where
   type `Checkpoint m
@@ -2397,7 +2445,7 @@ as an additional parameter.
 higher-order function that takes a block-concatenation function as a
 parameter.) 
 The truth about @Graph@ and @DG@ is as follows:
-\verbatiminput{dg}
+\smallverbatiminput{dg}
 % defn DG
 % defn DBlock
 Type~@DG@ is internal to \hoopl; it is not seen by any client.
@@ -2529,18 +2577,18 @@ fixed points.
 Extended fact transformers compose nicely.
 For example, @block@ is implemented thus:
 \ifpagetuning\par\vfilbreak[1in]\fi  % horrible page break
-\begin{code}
+\begin{smallcode}
   `block :: forall e x .
     Block n e x -> f -> m (DG f n e x, Fact x f)
   block (BFirst  n)  = node n
   block (BMiddle n)  = node n
   block (BLast   n)  = node n
   block (BCat b1 b2) = block b1 `cat` block b2
-\end{code}
+\end{smallcode}
 The composition function @cat@ feeds facts from one extended fact
 transformer to another, and it splices decorated graphs.
 It~has a very general type:
-\begin{code}
+\begin{smallcode}
 cat :: forall m e a x f f1 f2. Monad m 
     => (f  -> m (DG f n e a, f1))
     -> (f1 -> m (DG f n a x, f2))
@@ -2548,7 +2596,7 @@ cat :: forall m e a x f f1 f2. Monad m
 `cat ft1 ft2 f = do { (g1,f1) <- ft1 f
                    ; (g2,f2) <- ft2 f1
                    ; return (g1 `dgSplice` g2, f2) }
-\end{code}
+\end{smallcode}
 (Function @`dgSplice@ is the same splicing function used for an ordinary
 @Graph@, but it uses a one-line block-concatenation function suitable
 for @DBlock@s.)
@@ -3131,7 +3179,6 @@ For example, within GHC, \hoopl's  graphs are used
 to implement optimizations based on control flow,
 such as eliminating branch chains.
 
-\hoopl\ has not yet been used to implement SSA optimizations.
 \hoopl\ is SSA-neutral:
 although we know of no attempt to use
 \hoopl\ to establish or enforce SSA~invariants,
