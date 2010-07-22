@@ -1618,47 +1618,6 @@ The programmer may write code that works with any such monad,
 may create a monad just for the client,
 or may use a monad supplied by \hoopl. 
 
-\newtext{
-\john{This probably belongs elsewhere}
-Allowing the client to~define the monad @m@ 
-is potentially dangerous, but very convenient.
-The danger is that the~client might define an instance that does not
-respect the invariants of checkpointing or fuel;\john{Is fuel even defined yet?}
-for example, the client's monad might allow a rewrite
-to change the quantity of~fuel, which would make it impossible
-to debug the optimization using the technique in \secref{vpoiso}.
-We~considered eliminating these dangers by defining a single @HooplM@ monad,
-which provides checkpointing, optimization fuel, and a source of unique values.
-But in our experience, the dangers are easily avoided,
-and the convenience of defining your own monad is well worth the~price.
-For example, you might want to write a monad that logs each time
-an optimization improves the program.
-This kind of logging is easily implemented in a client-defined monad,
-and the client can rely on checkpointing
-to~ensure that a speculative rewrite is not accidentally logged.
-
-% For example, you might want your compiler to use different types of uniques
-% for labels and pseudoregisters; with a built-in @HooplM@ monad,
-% you would have to shoehorn the @HooplM@ unique type into your labels and pseudoregisters.
-
-% Why doesn't Hoopl provide the monad used by rewrite functions?
-% 
-% Similarly it lets us finesse the question of uniques.  If Hoopl provides the monad, it must offer
-%         newUnique :: HooplM Unique
-% and hence Unique must be a Hoopl type.  If the user is to build (say) CmmExprs with Registers that need a fresh
-% unique, she must use the Hoopl-supplied Unique in the Register type. If she didn't, she's stuck.   If instead we
-% use the user monad, then we need only insist that the user supply an operation
-%         newBlockId :: m  BlockId
-% where BlockId is the Hoopl-supplied type.
-% 
-% In short, it's quite neat that the rewrites can have access to anything in the user's own monad without lifting
-% or impedence matching -- but also dangerous.   I could live with either design.
-% 
-% 
-% You might want different types of uniques
-% -- e.g. one type for labels in the control-flow graph
-%         and another type for pseudoregisters.
-}
 
 When these choices are made, the easy way to create a rewrite
 function is to call the function @mkFRewrite@ in \figref{api-types}.
@@ -3411,6 +3370,57 @@ thinking and helped to structure the implementation.
 \end{itemize}
 
 \fi
+
+\paragraph{Alternative interfaces and implementations}
+\newtext{
+WHY DOES THE CLIENT HAVE ITS OWN MONAD?
+WHY NOT KEEP THE MONAD ABSTRACT AND PRIVATE TO \hoopl?
+Allowing the client to~define the monad @m@ 
+is potentially dangerous, but very convenient.
+The danger is that the~client might define an instance that does not
+respect the invariants of checkpointing or fuel;\john{Is fuel even defined yet?}
+for example, the client's monad might allow a rewrite
+to change the quantity of~fuel, which would make it impossible
+to debug the optimization using the technique in \secref{vpoiso}.
+We~considered eliminating these dangers by defining a single @HooplM@ monad,
+which provides checkpointing, optimization fuel, and a source of unique values.
+But in our experience, the dangers are easily avoided,
+and the convenience of defining your own monad is well worth the~price.
+For example, you might want to write a monad that logs each time
+an optimization improves the program.
+This kind of logging is easily implemented in a client-defined monad,
+and the client can rely on checkpointing
+to~ensure that a speculative rewrite is not accidentally logged.
+
+% For example, you might want your compiler to use different types of uniques
+% for labels and pseudoregisters; with a built-in @HooplM@ monad,
+% you would have to shoehorn the @HooplM@ unique type into your labels and pseudoregisters.
+
+% Why doesn't Hoopl provide the monad used by rewrite functions?
+% 
+% Similarly it lets us finesse the question of uniques.  If Hoopl provides the monad, it must offer
+%         newUnique :: HooplM Unique
+% and hence Unique must be a Hoopl type.  If the user is to build (say) CmmExprs with Registers that need a fresh
+% unique, she must use the Hoopl-supplied Unique in the Register type. If she didn't, she's stuck.   If instead we
+% use the user monad, then we need only insist that the user supply an operation
+%         newBlockId :: m  BlockId
+% where BlockId is the Hoopl-supplied type.
+% 
+% In short, it's quite neat that the rewrites can have access to anything in the user's own monad without lifting
+% or impedence matching -- but also dangerous.   I could live with either design.
+% 
+% 
+% You might want different types of uniques
+% -- e.g. one type for labels in the control-flow graph
+%         and another type for pseudoregisters.
+}
+
+\newtext{Many alternative implementations, less clear.
+For example how many block-concatenation constructors?
+Concat-map style vs fold style?  Direct style vs CPS?
+}
+
+
 
 \paragraph{Final remarks}
 
