@@ -3397,6 +3397,10 @@ This kind of logging is easily implemented in a client-defined monad,
 and the client can rely on checkpointing
 to~ensure that a speculative rewrite is not accidentally logged.
 
+Another example from Colin and Sukyoung: suppose that an optimization
+wants to spawn some new function definitions?  LET'S GET THE SPECIFICS!
+
+
 % For example, you might want your compiler to use different types of uniques
 % for labels and pseudoregisters; with a built-in @HooplM@ monad,
 % you would have to shoehorn the @HooplM@ unique type into your labels and pseudoregisters.
