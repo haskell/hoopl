@@ -1303,6 +1303,7 @@ no~matter how well designed the interface,
 if it does not accomodate design choices already embodied in existing
 compilers, it won't be used.
 }
+\john{There's a relevant paragraph on the next page; not sure it belongs there}
 To~enable \hoopl\ to roll back any actions in this monad, the monad
 must satisfy the @CkpointMonad@ and its associated algebraic law, as
 described in \secref{ckpoint-monad} below.
@@ -1583,7 +1584,7 @@ may create a monad just for the client,
 or may use a monad supplied by \hoopl. 
 
 \newtext{
-\john{Obviously this belongs elsewhere}
+\john{This probably belongs elsewhere}
 Allowing the client to~define the monad @m@ 
 is potentially dangerous, but very convenient.
 The danger is that the~client might define an instance that does not
@@ -1705,6 +1706,8 @@ be made deep by
 \begin{code}
   `iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
 \end{code}
+For~convenience, we~provide the~function @deepFwdRw@,
+which is the composition of @iterFwdRw@ and~@mkFRewrite@.
 Another useful combinator enables \hoopl\ to try any number of functions to
 rewrite a node, provided only that they all use the same fact:
 \verbatiminput{comb1}
