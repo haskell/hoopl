@@ -1,5 +1,8 @@
 #!/usr/bin/env lua
 
+local ignore = { }
+for _, i in ipairs(arg) do ignore[i] = true end
+
 local stringf = string.format
 local function fprintf(f, ...) return f:write(string.format(...)) end
 
@@ -161,10 +164,10 @@ end
 local function find_uses(s)
   s = s:gsub([[\_]], '_') -- copes with \_ in at-sign land
   for id in s:gmatch(word) do
-    if not (reserved[id] or is_literal(id)) then add_use(id) end
+    if not (reserved[id] or ignore[id] or is_literal(id)) then add_use(id) end
   end
   for id in s:gmatch(sym) do
-    if not (reserved[id] or is_kind(id) or is_comment(id)) then add_use(id) end
+    if not (reserved[id] or ignore[id] or is_kind(id) or is_comment(id)) then add_use(id) end
   end
 end
 

@@ -857,11 +857,11 @@ whatever.
 \begin{figure}
 \begin{fuzzcode}{0.98pt}
 data `Node e x where
-  Label      :: Label -> Node C O
-  `Assign     :: Var   -> Expr -> Node O O
-  `Store      :: Expr  -> Expr -> Node O O
-  `Branch     :: Label -> Node O C
-  `CondBranch :: Expr  -> Label -> Label -> Node O C
+  Label  :: Label -> Node C O
+  `Assign :: Var   -> Expr -> Node O O
+  `Store  :: Expr  -> Expr -> Node O O
+  `Branch :: Label -> Node O C
+  `Cond   :: Expr  -> Label -> Label -> Node O C
     ... more constructors ...
 \end{fuzzcode}
 \caption{A typical node type as it might be defined by a client} 
@@ -893,7 +893,8 @@ returns a @Node@ open on both entry and exit; constructor @Store@ is
 similar.
 Types @`Var@ and @`Expr@ are private to the client, and
 \ourlib{} knows nothing of them.  
-Finally, control-transfer nodes @Branch@ and @CondBranch@ are open on entry
+Finally, control-transfer nodes @Branch@ and @Cond@  (conditional
+branch) are open on entry
 and closed on exit.  
 
 Nodes closed on entry are the only targets of control transfers;
@@ -957,7 +958,7 @@ call a ``basic block''---consists of exactly one first node
 (such as @Label@ in \figref{cmm-node}), 
 followed by zero or more middle nodes (@Assign@ or @Store@), 
 and terminated with exactly one 
-last node (@Branch@ or @CondBranch@).  
+last node (@Branch@ or @Cond@).  
 Using GADTs to enforce these invariants is one of 
 \ourlib{}'s innovations.
 
@@ -1058,19 +1059,19 @@ not only when they are both open
  at splice point but also
 when they are both closed---and not in the other two cases:
 \begingroup
-\newcommand\cnl{\\[-5pt]}%
+\def\^{\\[-5pt]}%
 \begin{smallttcode}
 `gSplice :: Graph n e a -> Graph n a x -> Graph n e x
 gSplice GNil g2 = g2
-gSplice g1 GNil = g1\cnl
-gSplice (GUnit ^b1) (GUnit ^b2) = GUnit (b1 `BCat` b2)\cnl
+gSplice g1 GNil = g1\^
+gSplice (GUnit ^b1) (GUnit ^b2) = GUnit (b1 `BCat` b2)\^
 gSplice (GUnit b) (GMany (JustO e) bs x) 
-  = GMany (JustO (b `BCat` e)) bs x\cnl
+  = GMany (JustO (b `BCat` e)) bs x\^
 gSplice (GMany e ^bs (JustO x)) (GUnit b2) 
-  = GMany e bs (JustO (x `BCat` b2))\cnl
+  = GMany e bs (JustO (x `BCat` b2))\^
 gSplice (GMany e1 ^bs1 (JustO x1)) (GMany (JustO e2) ^bs2 x2)
   = GMany e1 (bs1 `mapUnion` (b `addBlock` bs2)) x2
-  where b = x1 `BCat` e2\cnl
+  where b = x1 `BCat` e2\^
 gSplice (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
   = GMany e1 (bs1 `mapUnion` bs2) x2
 \end{smallttcode}
@@ -1163,7 +1164,7 @@ the client's instance declaration for @Node@ would be
 instance NonLocal Node where
   entryLabel (Label l)  = l
   successors (Branch b) = [b]
-  successors (CondBranch e b1 b2) = [b1, b2]
+  successors (Cond e b1 b2) = [b1, b2]
 \end{code}
 Again, the pattern matching for both functions is exhaustive, and
 the compiler statically checks this fact.  
@@ -1315,15 +1316,20 @@ rewrite function to the node and the incoming fact.  If the rewrite
 function returns @Nothing@, the node is retained as part of the output
 graph, the transfer function is used to compute the downstream fact,
 and \ourlib\ moves on to the next node.
-But if the rewrite function returns @Just (FwdRew g rw)@,
+\remark{This part is a bit awkward---needs to be redone}
+But if the rewrite function returns @Just g@,
 indicating that it wants to rewrite the node to the replacement graph~@g@, then
-\ourlib\ recursively analyzes and rewrites~@g@, using the new rewrite
-function~@rw@, before moving on to the next node. 
+\ourlib\ recursively analyzes and may further rewrite~@g@
+before moving on to the next node. 
+\remark{Need to explain ``further rewriting'' somewhere, e.g.,
+Further (deep) rewriting is called for when the rewrite function is created
+with @iterFwdRw@ or @thenFwdRw@;
+a~rewrite function created with @mkFRewrite@ is used just once per node.}
 A~node following a rewritten node sees 
 \emph{up-to-date} facts; that is, its input fact is computed by
 analyzing the replacement graph.
 
-\newtext{The rewrite function may take any action that is justified by
+\newtext{A~rewrite function may take any action that is justified by
 the incoming fact.
 If~further analysis turns out to invalidate the fact, \hoopl\ rolls
 back the action.
@@ -1386,7 +1392,7 @@ newtype `FwdRewrite m n f     -- abstract type
 thenFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
  -> FwdRewrite m n f
 iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
-noFwdRw   :: Monad m          => FwdRewrite m n f
+`noFwdRw   :: Monad m          => FwdRewrite m n f
 
 ------- Fact-like things, aka "fact(s)" -----
 type family   `Fact x f :: *
@@ -1705,7 +1711,7 @@ be made deep by
 \begin{code}
   `iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
 \end{code}
-For~convenience, we~provide the~function @deepFwdRw@,
+For~convenience, we~provide the~function @`deepFwdRw@,
 which is the composition of @iterFwdRw@ and~@mkFRewrite@.
 Another useful combinator enables \hoopl\ to try any number of functions to
 rewrite a node, provided only that they all use the same fact:
@@ -1713,6 +1719,7 @@ rewrite a node, provided only that they all use the same fact:
 % defn thenFwdRw
 Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
 then the rewrites of~@r2@.
+The rewriter @noFwdRw@ is the identity of @thenFwdRw@.
 %%  
 %%  
 %%  by using
@@ -2037,7 +2044,7 @@ type `MaybeChange a = a -> Maybe a
 `mapVN :: (Var  -> Maybe Expr) -> MaybeChange (Node e x)
 `nodeToG :: Node e x -> Graph Node e x
 \end{smallcode}
-The client composes @mapXX@ functions
+The client composes @map@\emph{XX} functions
 to apply @lookup@ to each use of a variable in each kind of node;
 @lookup@ substitutes for each variable that has a constant value.
 Applying @liftM nodeToG@ lifts the final node, if present, into a~@Graph@.
@@ -2398,17 +2405,17 @@ we use a 12-line function:
 
 Function @arfGraph@ is implemented as follows:
 \begingroup
-\newcommand\cnl{\\[-6pt]}%
+\def\^{\\[-6pt]}%
 \begin{smallttcode}
-arfGraph pass entries = graph
- where\cnl
+arfGraph ^pass entries = graph
+ where\^
  node :: forall e x . (ShapeLifter e x) 
-      => n e x       -> f        -> m (DG f n e x, Fact x f)\cnl
+      => n e x       -> f        -> m (DG f n e x, Fact x f)\^
  block:: forall e x . 
-         Block n e x -> f        -> m (DG f n e x, Fact x f)\cnl
+         Block n e x -> f        -> m (DG f n e x, Fact x f)\^
  body :: [Label] -> LabelMap (Block n C C)
-                     -> Fact C f -> m (DG f n C C, Fact C f)\cnl
- `graph:: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)\cnl
+                     -> Fact C f -> m (DG f n C C, Fact C f)\^
+ `graph:: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)\^
  ... definitions of 'node', 'block', 'body', and 'graph' ...
 \end{smallttcode}
 The four auxiliary functions help us separate concerns: for example, only 
@@ -2626,35 +2633,32 @@ Function @graph@ is much like @block@, but it has more cases.
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
 
 The @node@ function is where we interleave analysis with rewriting:
+\remark{Implementation of rewriting is finally revealed---needs to be earlier}
 \begin{smallfuzzcode}{10.5pt}
 node :: forall e x . (ShapeLifter e x, FuelMonad m) 
      => n e x -> f -> m (DG f n e x, Fact x f)
 node n f
- = do { rew <- frewrite pass n f
+ = do { ^rew <- frewrite pass n f
       ; case rew of
           Nothing -> return (singletonDG f n,
                              ftransfer pass n f)
           Just (FwdRew g rw) ->
-            let pass' = pass { fp_rewrite = rw }
+            let ^pass' = pass { fp_rewrite = rw }
                 f'    = fwdEntryFact n f
             in  arfGraph pass' (fwdEntryLabel n) g f' }
 
-class ShapeLifter e x where
- singletonDG   :: f -> n e x -> DG f n e x
- fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
- fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
- ftransfer     :: FwdPass m n f -> n e x -> f -> Fact x f
- frewrite      :: FwdPass m n f -> n e x
+class `ShapeLifter e x where
+ `singletonDG   :: f -> n e x -> DG f n e x
+ `fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
+ `fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
+ `ftransfer     :: FwdPass m n f -> n e x -> f -> Fact x f
+ `frewrite      :: FwdPass m n f -> n e x
                -> f -> m (Maybe (FwdRew m n f e x))
 \end{smallfuzzcode}
 Function @node@ uses @frewrite@ to extract the rewrite function from
 @pass@, 
 and applies the rewrite function to the node~@n@ and the incoming fact~@f@.
-The result of the rewrite is passed to @withFuel@, but for now, 
-pretend @withFuel@ is ``@return@;'' we present
-the details below
-in \secref{fuel}.
-The result from @withFuel@, @rew@, is 
+The result, @rew@, is 
 scrutinized by the @case@ expression.
 
 In the @Nothing@ case, no rewrite takes place.
@@ -2734,7 +2738,7 @@ perform a reverse postorder depth-first traversal of the control-flow graph.
 %%  paragraph carrying too much freight
 %%
 
-The rest of the work is done by @fixpoint@, which is shared by
+The rest of the work is done by @`fixpoint@, which is shared by
 both forward and backward analyses:
 \smallverbatiminput{fptype}
 % defn Direction
@@ -2821,7 +2825,7 @@ so that it meets this contract:
 If the fuel supply is empty, the wrapped function always returns
 @Nothing@. 
 \item
-If the wrapped function returns @Some g@, it has the monadic effect of
+If the wrapped function returns @Just g@, it has the monadic effect of
 reducing the fuel supply by one unit.
 \end{itemize}
 %
@@ -3175,7 +3179,7 @@ First, it's a good sign that the API provides many higher-order
 combinators that make it easier to write client code. % with simple, expressive types.
 We~have had space to mention only a few: 
 @extendJoinDomain@, 
-@thenFwdRw@, @deepFwdRw@, @shallowFwdRw@, and @pairFwd@.
+@thenFwdRw@, @deepFwdRw@, and @pairFwd@.
 
 Second,
 the static encoding of open and closed shapes at compile time worked
@@ -3214,7 +3218,7 @@ of similar ideas.
 % Previous implementations of similar ideas have rolled the problems
 % into a big ball of mud.
 By~decomposing our implementation into @node@, @block@, @body@,
-@graph@, @cat@, @withFuel@, and @fixpoint@, we have clearly separated
+@graph@, @cat@, @fixpoint@, and @mkFRewrite@, we have clearly separated
 multiple concerns:
 interleaving analysis with rewriting,
 throttling rewriting using optimization fuel,
