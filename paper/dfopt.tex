@@ -457,7 +457,7 @@ understood independently.
 Dataflow analysis and transformation of control-flow graphs is
 pervasive in optimizing compilers, but it is typically tightly
 interwoven with the details of a \emph{particular} compiler.  
-We~describe \ourlib{}, a reusable Haskell library that makes it
+We~describe \ourlib{}, a~reusable Haskell library that makes it
 unusually easy to define new analyses and
 transformations for \emph{any} compiler written in Haskell.
 \ourlib's interface is modular and polymorphic,
@@ -482,7 +482,7 @@ so that they can be understood independently.
 A mature optimizing compiler for an imperative language includes many
 analyses, the results of which justify the optimizer's
 code-improving transformations.
-Many of the most important analyses and transformations---constant
+Many analyses and transformations---constant
 propagation, live-variable analysis, inlining, sinking of loads, 
 and so on---should be regarded as particular cases of
 a single general problem: \emph{dataflow analysis and optimization}.
@@ -495,7 +495,7 @@ piggybacks on the other.
 
 Because optimizations based on dataflow analysis 
 share a common intellectual framework, and because that framework is
-subtle, it it tempting to
+subtle, it~is tempting to
 try to build a single reusable library that embodies the 
 subtle ideas, while
 making it easy for clients to instantiate the library for different
@@ -514,16 +514,16 @@ optimization.  It has the following distinctive characteristics:
 \ourlib\ is purely functional.  
 Although pure functional languages are not obviously suited to writing
 standard algorithms that
-manipulate control-flow graphs,
-the pure functional code is actually easier to write, and far easier
+transform control-flow graphs,
+pure functional code is actually easier to write, and far easier
 to write correctly, than code that is mostly functional but uses a mutable
 representation of graphs
 \cite{ramsey-dias:applicative-flow-graph}.
-When analysis and rewriting
-are interleaved, so that rewriting must be done \emph{speculatively},
+When analysis and transformation
+are interleaved, so that graphs must be transformed \emph{speculatively},
 without knowing whether
-the result of the rewrite will be retained or discarded,
-the benefit of a purely functional style is intensified.
+a~transformed graph will be retained or discarded,
+pure functional code offers even more benefits.
 
 \item
 \ourlib\ is polymorphic. Just as a list library is
@@ -544,7 +544,7 @@ justify rewriting a node.
 \ourlib\ ``lifts'' these node-level functions to work over
 control-flow graphs, solves recursion equations,
 and interleaves rewriting with analysis.
-Designing good APIs is surprisingly
+Designing APIs is surprisingly
 hard; we have been through over a dozen significantly different
 iterations, and we offer our API as a contribution.
 
@@ -560,9 +560,9 @@ it~statically rules out transformations that violate invariants
 of the control-flow graph (Sections \ref{sec:graph-rep} and \ref{sec:rewrites}),
 and dynamically it can help find the first transformation that introduces a fault
 in a test program (\secref{fuel}). 
-\finalremark{SLPJ: I wanted to write more about open/closed,
-but I like this sentence with its claim to both static and dynamic assistance,
-and maybe the open/closed story is hard to understand here.}
+%%\finalremark{SLPJ: I wanted to write more about open/closed,
+%%but I like this sentence with its claim to both static and dynamic assistance,
+%%and maybe the open/closed story is hard to understand here.}
 
 % \item \ourlib{} makes use of GADTS and type functions to offer unusually
 % strong static guarantees. In particular, nodes, basic blocks, and
@@ -594,10 +594,10 @@ One of \hoopl's clients
 is the Glasgow Haskell Compiler, which uses \hoopl\ to optimize 
 imperative code in GHC's back end.
 
-The API for \ourlib{} is made possible by
-relatively sophisticated aspects of Haskell's type system, such
+\ourlib's API is made possible by
+sophisticated aspects of Haskell's type system, such
 as higher-rank polymorphism, GADTs, and type functions.
-\ourlib{} therefore may also serve as a case study in the utility
+\ourlib{} may therefore also serve as a case study in the utility
 of these features.
 
 
@@ -609,7 +609,7 @@ of these features.
 
 %%  We begin by setting the scene, introducing some vocabulary, and
 %%  showing a small motivating example.
-A control-flow graph, perhaps representing the body of a procedure,
+A \emph{control-flow graph}, perhaps representing the body of a procedure,
 is a collection of \emph{basic blocks}---or just ``blocks.''
 Each block is a sequence of instructions,
 beginning with a label and ending with a
@@ -622,7 +622,7 @@ control-transfer instruction that branches to other blocks.
 The goal of dataflow optimization is to compute valid
 \emph{assertions} (or \emph{dataflow facts}), 
 then use those assertions to justify code-improving
-transformations (or \emph{rewrites}) on a \emph{control-flow graph}.  
+transformations (or \emph{rewrites}) on a {control-flow graph}.  
 
 As~a concrete example, we consider constant propagation with constant
 folding. 
