@@ -732,7 +732,7 @@ Before the final iteration, the analysis may
 compute a~fact that is invalid,
 and a transformation may use the invalid fact to rewrite the program
 (see example in \secref{ckpoint-monad}).
-To~avoid incorrect rewrites,
+To~avoid faulty rewrites,
 any rewrite based on an invalid fact must be rolled back,
 which means that transformations must be \emph{speculative}.
 \hoopl~manages speculation on the client's behalf (\secref{speculative-transform}). 
@@ -748,10 +748,10 @@ composing very simple analyses or transformations,
 it~necessarily follows that very simple analyses or transformations,
 when composed, can exhibit complex emergent behavior.
 Such behavior is not easily predicted, so it is essential to have good
-tools for debugging~it.
+tools for debugging.
 \hoopl's primary debugging tool is an implementation of
 Whalley's \citeyearpar{whalley:isolation} technique for
-isolating faults (\secref{whalley-from-s2}).\remark{Perhaps say more
+isolating faults in the optimizer (\secref{whalley-from-s2}).\remark{Perhaps say more
 about the implementation here?}
 }
 
