@@ -3397,8 +3397,13 @@ we implement
 and we make sure they are right, without placing any obligation on
 the client.
 Our~alternative API also provides a supply of unique names.
+But~we are wary of mandating the representation of such a central
+abstraction as a supply of unique names;
+no~matter how well designed the~API,
+if it does not accomodate design choices already embodied in existing
+compilers, it won't be used.
 %
-But~experience has shown us that for the client, the convenience
+And~experience has shown us that for the client, the convenience
 of a custom monad is well worth the cognitive costs of understanding
 the more complex API and of meeting the contracts for
 instances of @FuelMonad@ and @CkpointMonad@.
@@ -3426,6 +3431,9 @@ implementation concerns.
 There are some variations in implementation that don't affect the
 interface, but there are also many that have small effects.
 We~have space only to raise a few of the questions.
+An~earlier implementation of the fixed-point computation stored the
+``current'' @FactBase@ in a monad; we~find it easier to understand and
+maintain the code that passes the current @FactBase@ as an argument.
 \secref{implementation} describes an implementation of @arfGraph@
 in what we call ``@concatMap@ style'' (\secref{concat-map-style}).
 We~have also implemented a ``fold style'' and continuation-passing
