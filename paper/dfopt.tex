@@ -459,7 +459,7 @@ pervasive in optimizing compilers, but it is typically tightly
 interwoven with the details of a \emph{particular} compiler.  
 We~describe \ourlib{}, a reusable Haskell library that makes it
 unusually easy to define new analyses and
-transformations for \emph{any} compiler.
+transformations for \emph{any} compiler written in Haskell.
 \ourlib's interface is modular and polymorphic,
 and it offers unusually strong static guarantees.
 The implementation encapsulates 
@@ -593,7 +593,7 @@ One of \hoopl's clients
 is the Glasgow Haskell Compiler, which uses \hoopl\ to optimize 
 imperative code in GHC's back end.
 
-The API for \ourlib{} requires
+The API for \ourlib{} is made possible by
 relatively sophisticated aspects of Haskell's type system, such
 as higher-rank polymorphism, GADTs, and type functions.
 \ourlib{} therefore may also serve as a case study in the utility
@@ -768,8 +768,8 @@ bottom up:\finalremark{something about replacement graphs?}
 \ourlib{} knows nothing about the representation of nodes (\secref{nodes}).
 \item A basic \emph{block} is a sequence of nodes (\secref{blocks}).
 \item Control-flow \emph{edges} connect nodes (\secref{edges}).
-\item A \emph{graph} is an arbitrarily complicated control-flow graph,
-composed from basic blocks (\secref{graphs}).
+\item A \emph{graph} is an arbitrarily complicated control-flow graph:
+basic blocks connected by edges (\secref{graphs}).
 \end{itemize}
 
 \subsection{Shapes: Open and closed}
@@ -1781,7 +1781,7 @@ polymorphic in the node's type but monomorphic in its shape:
              -> (n O C -> f -> Fact C f)
              -> FwdTransfer n f
 \end{code}
-We have used this interface to write a number functions that are
+We have used this interface to write a number of functions that are
  polymorphic in the node type~@n@:
 \begin{itemize}
 \item
@@ -2891,7 +2891,7 @@ this fixed point is equivalent to a join-over-all-paths solution to
 the recursive dataflow equations
 \cite{kildall:unified-optimization}.\footnote
 {Kildall uses meets, not joins.  
-Lattice orientation is conventional, and conventions have changed.
+Lattice orientation is a matter of convention, and conventions have changed.
 We use Dana Scott's
 orientation, in which higher elements carry more information.}
 \citet{kam-ullman:monotone-flow-analysis} generalize to some
@@ -3131,7 +3131,7 @@ is indicated.
 
 We built \hoopl\ in order to combine three good ideas (interleaved
 analysis and transformation, optimization fuel, and an applicative
-control-flow graph) in a way that could easily be reused by many, many
+control-flow graph) in a way that could easily be reused by many
 compiler writers.
 To~evaluate how well we succeeded, we examine how \hoopl\ has been
 used,
