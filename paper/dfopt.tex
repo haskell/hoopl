@@ -459,7 +459,7 @@ pervasive in optimizing compilers, but it is typically tightly
 interwoven with the details of a \emph{particular} compiler.  
 We~describe \ourlib{}, a reusable Haskell library that makes it
 unusually easy to define new analyses and
-transformations for \emph{any} compiler.
+transformations for \emph{any} compiler written in Haskell.
 \ourlib's interface is modular and polymorphic,
 and it offers unusually strong static guarantees.
 The implementation encapsulates 
@@ -470,7 +470,8 @@ so that they can be understood independently.
 %\ourlib\ will be the workhorse of a new
 %back end for the Glasgow Haskell Compiler (version~6.14, forthcoming).
 
-%% \emph{Reviewers:} code examples are indexed at {\small\url{http://bit.ly/jkr3K}}
+\emph{Readers:} code examples are indexed at {\url{http://bit.ly/doUJpr}}
+% {\url{http://www.cs.tufts.edu/~nr/pubs/hoopl10-supplement.pdf}} 
 %%% Source: http://www.cs.tufts.edu/~nr/drop/popl-index.pdf
 \end{abstract}
 
@@ -593,7 +594,7 @@ One of \hoopl's clients
 is the Glasgow Haskell Compiler, which uses \hoopl\ to optimize 
 imperative code in GHC's back end.
 
-The API for \ourlib{} requires
+The API for \ourlib{} is made possible by
 relatively sophisticated aspects of Haskell's type system, such
 as higher-rank polymorphism, GADTs, and type functions.
 \ourlib{} therefore may also serve as a case study in the utility
@@ -768,8 +769,8 @@ bottom up:\finalremark{something about replacement graphs?}
 \ourlib{} knows nothing about the representation of nodes (\secref{nodes}).
 \item A basic \emph{block} is a sequence of nodes (\secref{blocks}).
 \item Control-flow \emph{edges} connect nodes (\secref{edges}).
-\item A \emph{graph} is an arbitrarily complicated control-flow graph,
-composed from basic blocks (\secref{graphs}).
+\item A \emph{graph} is an arbitrarily complicated control-flow graph:
+basic blocks connected by edges (\secref{graphs}).
 \end{itemize}
 
 \subsection{Shapes: Open and closed}
@@ -857,11 +858,11 @@ whatever.
 \begin{figure}
 \begin{fuzzcode}{0.98pt}
 data `Node e x where
-  Label      :: Label -> Node C O
-  `Assign     :: Var   -> Expr -> Node O O
-  `Store      :: Expr  -> Expr -> Node O O
-  `Branch     :: Label -> Node O C
-  `CondBranch :: Expr  -> Label -> Label -> Node O C
+  Label  :: Label -> Node C O
+  `Assign :: Var   -> Expr -> Node O O
+  `Store  :: Expr  -> Expr -> Node O O
+  `Branch :: Label -> Node O C
+  `Cond   :: Expr  -> Label -> Label -> Node O C
     ... more constructors ...
 \end{fuzzcode}
 \caption{A typical node type as it might be defined by a client} 
@@ -893,7 +894,8 @@ returns a @Node@ open on both entry and exit; constructor @Store@ is
 similar.
 Types @`Var@ and @`Expr@ are private to the client, and
 \ourlib{} knows nothing of them.  
-Finally, control-transfer nodes @Branch@ and @CondBranch@ are open on entry
+Finally, control-transfer nodes @Branch@ and @Cond@  (conditional
+branch) are open on entry
 and closed on exit.  
 
 Nodes closed on entry are the only targets of control transfers;
@@ -957,7 +959,7 @@ call a ``basic block''---consists of exactly one first node
 (such as @Label@ in \figref{cmm-node}), 
 followed by zero or more middle nodes (@Assign@ or @Store@), 
 and terminated with exactly one 
-last node (@Branch@ or @CondBranch@).  
+last node (@Branch@ or @Cond@).  
 Using GADTs to enforce these invariants is one of 
 \ourlib{}'s innovations.
 
@@ -1058,19 +1060,19 @@ not only when they are both open
  at splice point but also
 when they are both closed---and not in the other two cases:
 \begingroup
-\newcommand\cnl{\\[-5pt]}%
+\def\^{\\[-5pt]}%
 \begin{smallttcode}
 `gSplice :: Graph n e a -> Graph n a x -> Graph n e x
 gSplice GNil g2 = g2
-gSplice g1 GNil = g1\cnl
-gSplice (GUnit ^b1) (GUnit ^b2) = GUnit (b1 `BCat` b2)\cnl
+gSplice g1 GNil = g1\^
+gSplice (GUnit ^b1) (GUnit ^b2) = GUnit (b1 `BCat` b2)\^
 gSplice (GUnit b) (GMany (JustO e) bs x) 
-  = GMany (JustO (b `BCat` e)) bs x\cnl
+  = GMany (JustO (b `BCat` e)) bs x\^
 gSplice (GMany e ^bs (JustO x)) (GUnit b2) 
-  = GMany e bs (JustO (x `BCat` b2))\cnl
+  = GMany e bs (JustO (x `BCat` b2))\^
 gSplice (GMany e1 ^bs1 (JustO x1)) (GMany (JustO e2) ^bs2 x2)
   = GMany e1 (bs1 `mapUnion` (b `addBlock` bs2)) x2
-  where b = x1 `BCat` e2\cnl
+  where b = x1 `BCat` e2\^
 gSplice (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
   = GMany e1 (bs1 `mapUnion` bs2) x2
 \end{smallttcode}
@@ -1163,7 +1165,7 @@ the client's instance declaration for @Node@ would be
 instance NonLocal Node where
   entryLabel (Label l)  = l
   successors (Branch b) = [b]
-  successors (CondBranch e b1 b2) = [b1, b2]
+  successors (Cond e b1 b2) = [b1, b2]
 \end{code}
 Again, the pattern matching for both functions is exhaustive, and
 the compiler statically checks this fact.  
@@ -1315,15 +1317,20 @@ rewrite function to the node and the incoming fact.  If the rewrite
 function returns @Nothing@, the node is retained as part of the output
 graph, the transfer function is used to compute the downstream fact,
 and \ourlib\ moves on to the next node.
-But if the rewrite function returns @Just (FwdRew g rw)@,
+\remark{This part is a bit awkward---needs to be redone}
+But if the rewrite function returns @Just g@,
 indicating that it wants to rewrite the node to the replacement graph~@g@, then
-\ourlib\ recursively analyzes and rewrites~@g@, using the new rewrite
-function~@rw@, before moving on to the next node. 
+\ourlib\ recursively analyzes and may further rewrite~@g@
+before moving on to the next node. 
+\remark{Need to explain ``further rewriting'' somewhere, e.g.,
+Further (deep) rewriting is called for when the rewrite function is created
+with @iterFwdRw@ or @thenFwdRw@;
+a~rewrite function created with @mkFRewrite@ is used just once per node.}
 A~node following a rewritten node sees 
 \emph{up-to-date} facts; that is, its input fact is computed by
 analyzing the replacement graph.
 
-\newtext{The rewrite function may take any action that is justified by
+\newtext{A~rewrite function may take any action that is justified by
 the incoming fact.
 If~further analysis turns out to invalidate the fact, \hoopl\ rolls
 back the action.
@@ -1386,7 +1393,7 @@ newtype `FwdRewrite m n f     -- abstract type
 thenFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
  -> FwdRewrite m n f
 iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
-noFwdRw   :: Monad m          => FwdRewrite m n f
+`noFwdRw   :: Monad m          => FwdRewrite m n f
 
 ------- Fact-like things, aka "fact(s)" -----
 type family   `Fact x f :: *
@@ -1705,7 +1712,7 @@ be made deep by
 \begin{code}
   `iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
 \end{code}
-For~convenience, we~provide the~function @deepFwdRw@,
+For~convenience, we~provide the~function @`deepFwdRw@,
 which is the composition of @iterFwdRw@ and~@mkFRewrite@.
 Another useful combinator enables \hoopl\ to try any number of functions to
 rewrite a node, provided only that they all use the same fact:
@@ -1713,6 +1720,7 @@ rewrite a node, provided only that they all use the same fact:
 % defn thenFwdRw
 Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
 then the rewrites of~@r2@.
+The rewriter @noFwdRw@ is the identity of @thenFwdRw@.
 %%  
 %%  
 %%  by using
@@ -1781,7 +1789,7 @@ polymorphic in the node's type but monomorphic in its shape:
              -> (n O C -> f -> Fact C f)
              -> FwdTransfer n f
 \end{code}
-We have used this interface to write a number functions that are
+We have used this interface to write a number of functions that are
  polymorphic in the node type~@n@:
 \begin{itemize}
 \item
@@ -2037,7 +2045,7 @@ type `MaybeChange a = a -> Maybe a
 `mapVN :: (Var  -> Maybe Expr) -> MaybeChange (Node e x)
 `nodeToG :: Node e x -> Graph Node e x
 \end{smallcode}
-The client composes @mapXX@ functions
+The client composes @map@\emph{XX} functions
 to apply @lookup@ to each use of a variable in each kind of node;
 @lookup@ substitutes for each variable that has a constant value.
 Applying @liftM nodeToG@ lifts the final node, if present, into a~@Graph@.
@@ -2165,15 +2173,15 @@ iteration, then calls the @restart@ method if another iteration is
 necessary. 
 These operations must obey the following algebraic law:
 \begin{code}
-  do { s <- checkpoint; m; restart s } == return ()
+ do { s <- checkpoint; m; restart s } == return ()
 \end{code}
 where @m@~represents any combination of monadic actions that might be
 taken by rewrite functions.
 (The safest course is to make sure the law holds throughout the entire
 monad.)
-The~type of the saved checkpoint~@s@ is entirely up to the client;
-it is defined using SIMON, WHAT ARE THE RIGHT WORDS TO DESCRIBE THIS
-HASKELL FEATURE??.
+The~type of the saved checkpoint~@s@ is up to the client;
+it is defined as an associated~type.\remark{Is ``associated type'' the
+\emph{au courant} phrase?}
 \end{ntext}
 
 
@@ -2281,6 +2289,7 @@ sound.
 
 
 \section{\ourlib's implementation}
+\seclabel{implementation}
 \seclabel{engine}
 \seclabel{dfengine}
 
@@ -2397,17 +2406,17 @@ we use a 12-line function:
 
 Function @arfGraph@ is implemented as follows:
 \begingroup
-\newcommand\cnl{\\[-6pt]}%
+\def\^{\\[-6pt]}%
 \begin{smallttcode}
-arfGraph pass entries = graph
- where\cnl
+arfGraph ^pass entries = graph
+ where\^
  node :: forall e x . (ShapeLifter e x) 
-      => n e x       -> f        -> m (DG f n e x, Fact x f)\cnl
+      => n e x       -> f        -> m (DG f n e x, Fact x f)\^
  block:: forall e x . 
-         Block n e x -> f        -> m (DG f n e x, Fact x f)\cnl
+         Block n e x -> f        -> m (DG f n e x, Fact x f)\^
  body :: [Label] -> LabelMap (Block n C C)
-                     -> Fact C f -> m (DG f n C C, Fact C f)\cnl
- `graph:: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)\cnl
+                     -> Fact C f -> m (DG f n C C, Fact C f)\^
+ `graph:: Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)\^
  ... definitions of 'node', 'block', 'body', and 'graph' ...
 \end{smallttcode}
 The four auxiliary functions help us separate concerns: for example, only 
@@ -2543,6 +2552,8 @@ but it is also appropriate because the style in which it is used is
 reminiscent of @concatMap@, with the @node@ and @block@ functions
 playing the role of @map@.
 
+\seclabel{concat-map-style}
+
 Function @graph@ is much like @block@, but it has more cases.
 
 
@@ -2623,35 +2634,32 @@ Function @graph@ is much like @block@, but it has more cases.
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
 
 The @node@ function is where we interleave analysis with rewriting:
+\remark{Implementation of rewriting is finally revealed---needs to be earlier}
 \begin{smallfuzzcode}{10.5pt}
 node :: forall e x . (ShapeLifter e x, FuelMonad m) 
      => n e x -> f -> m (DG f n e x, Fact x f)
 node n f
- = do { rew <- frewrite pass n f
+ = do { ^rew <- frewrite pass n f
       ; case rew of
           Nothing -> return (singletonDG f n,
                              ftransfer pass n f)
           Just (FwdRew g rw) ->
-            let pass' = pass { fp_rewrite = rw }
+            let ^pass' = pass { fp_rewrite = rw }
                 f'    = fwdEntryFact n f
             in  arfGraph pass' (fwdEntryLabel n) g f' }
 
-class ShapeLifter e x where
- singletonDG   :: f -> n e x -> DG f n e x
- fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
- fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
- ftransfer     :: FwdPass m n f -> n e x -> f -> Fact x f
- frewrite      :: FwdPass m n f -> n e x
+class `ShapeLifter e x where
+ `singletonDG   :: f -> n e x -> DG f n e x
+ `fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
+ `fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
+ `ftransfer     :: FwdPass m n f -> n e x -> f -> Fact x f
+ `frewrite      :: FwdPass m n f -> n e x
                -> f -> m (Maybe (FwdRew m n f e x))
 \end{smallfuzzcode}
 Function @node@ uses @frewrite@ to extract the rewrite function from
 @pass@, 
 and applies the rewrite function to the node~@n@ and the incoming fact~@f@.
-The result of the rewrite is passed to @withFuel@, but for now, 
-pretend @withFuel@ is ``@return@;'' we present
-the details below
-in \secref{fuel}.
-The result from @withFuel@, @rew@, is 
+The result, @rew@, is 
 scrutinized by the @case@ expression.
 
 In the @Nothing@ case, no rewrite takes place.
@@ -2731,7 +2739,7 @@ perform a reverse postorder depth-first traversal of the control-flow graph.
 %%  paragraph carrying too much freight
 %%
 
-The rest of the work is done by @fixpoint@, which is shared by
+The rest of the work is done by @`fixpoint@, which is shared by
 both forward and backward analyses:
 \smallverbatiminput{fptype}
 % defn Direction
@@ -2834,7 +2842,7 @@ in another function that satisfies the following contract:
 \item 
 If the fuel supply is empty, the wrapped function always returns @Nothing@. 
 \item
-If the wrapped function returns @Some g@, it has the monadic effect of
+If the wrapped function returns @Just g@, it has the monadic effect of
 reducing the fuel supply by one unit.
 \end{itemize}
 
@@ -2891,7 +2899,7 @@ this fixed point is equivalent to a join-over-all-paths solution to
 the recursive dataflow equations
 \cite{kildall:unified-optimization}.\footnote
 {Kildall uses meets, not joins.  
-Lattice orientation is conventional, and conventions have changed.
+Lattice orientation is a matter of convention, and conventions have changed.
 We use Dana Scott's
 orientation, in which higher elements carry more information.}
 \citet{kam-ullman:monotone-flow-analysis} generalize to some
@@ -3131,7 +3139,7 @@ is indicated.
 
 We built \hoopl\ in order to combine three good ideas (interleaved
 analysis and transformation, optimization fuel, and an applicative
-control-flow graph) in a way that could easily be reused by many, many
+control-flow graph) in a way that could easily be reused by many
 compiler writers.
 To~evaluate how well we succeeded, we examine how \hoopl\ has been
 used,
@@ -3172,7 +3180,7 @@ First, it's a good sign that the API provides many higher-order
 combinators that make it easier to write client code. % with simple, expressive types.
 We~have had space to mention only a few: 
 @extendJoinDomain@, 
-@thenFwdRw@, @deepFwdRw@, @shallowFwdRw@, and @pairFwd@.
+@thenFwdRw@, @deepFwdRw@, and @pairFwd@.
 
 Second,
 the static encoding of open and closed shapes at compile time worked
@@ -3211,7 +3219,7 @@ of similar ideas.
 % Previous implementations of similar ideas have rolled the problems
 % into a big ball of mud.
 By~decomposing our implementation into @node@, @block@, @body@,
-@graph@, @cat@, @withFuel@, and @fixpoint@, we have clearly separated
+@graph@, @cat@, @fixpoint@, and @mkFRewrite@, we have clearly separated
 multiple concerns:
 interleaving analysis with rewriting,
 throttling rewriting using optimization fuel,
@@ -3378,56 +3386,79 @@ thinking and helped to structure the implementation.
 
 \paragraph{Alternative interfaces and implementations}
 \newtext{
-WHY DOES THE CLIENT HAVE ITS OWN MONAD?
-WHY NOT KEEP THE MONAD ABSTRACT AND PRIVATE TO \hoopl?
-Allowing the client to~define the monad @m@ 
-is potentially dangerous, but very convenient.
-The danger is that the~client might define an instance that does not
-respect the invariants of checkpointing or fuel;\john{Is fuel even defined yet?}
-for example, the client's monad might allow a rewrite
-to change the quantity of~fuel, which would make it impossible
-to debug the optimization using the technique in \secref{vpoiso}.
-We~considered eliminating these dangers by defining a single @HooplM@ monad,
-which provides checkpointing, optimization fuel, and a source of unique values.
-But in our experience, the dangers are easily avoided,
-and the convenience of defining your own monad is well worth the~price.
-For example, you might want to write a monad that logs each time
-an optimization improves the program.
-This kind of logging is easily implemented in a client-defined monad,
-and the client can rely on checkpointing
-to~ensure that a speculative rewrite is not accidentally logged.
-
-Another example from Colin and Sukyoung: suppose that an optimization
-wants to spawn some new function definitions?  LET'S GET THE SPECIFICS!
-
-
-% For example, you might want your compiler to use different types of uniques
-% for labels and pseudoregisters; with a built-in @HooplM@ monad,
-% you would have to shoehorn the @HooplM@ unique type into your labels and pseudoregisters.
-
-% Why doesn't Hoopl provide the monad used by rewrite functions?
-% 
-% Similarly it lets us finesse the question of uniques.  If Hoopl provides the monad, it must offer
-%         newUnique :: HooplM Unique
-% and hence Unique must be a Hoopl type.  If the user is to build (say) CmmExprs with Registers that need a fresh
-% unique, she must use the Hoopl-supplied Unique in the Register type. If she didn't, she's stuck.   If instead we
-% use the user monad, then we need only insist that the user supply an operation
-%         newBlockId :: m  BlockId
-% where BlockId is the Hoopl-supplied type.
-% 
-% In short, it's quite neat that the rewrites can have access to anything in the user's own monad without lifting
-% or impedence matching -- but also dangerous.   I could live with either design.
-% 
-% 
-% You might want different types of uniques
-% -- e.g. one type for labels in the control-flow graph
-%         and another type for pseudoregisters.
+Why do we allow the client to define the monad~@m@ used in rewrite
+functions and in @analyzeAndRewriteFwdBody@?
+\remark{OK, I no longer find this~\P shitty\ldots}
+The~obvious alternative, which we have implemented and explored, is to require
+\hoopl's clients to use a monad provided by \hoopl.
+This alternative has advantages: 
+we implement
+@checkpoint@, @restart@, 
+@setFuel@, and @getFuel@, 
+and we make sure they are right, without placing any obligation on
+the client.
+Our~alternative API also provides a supply of unique names.
+%
+But~experience has shown us that for the client, the convenience
+of a custom monad is well worth the cognitive costs of understanding
+the more complex API and of meeting the contracts for
+instances of @FuelMonad@ and @CkpointMonad@.
+As~a very simple example, a client might want one set of
+unique names for labels and a different set for registers.
+Or~in order to judge the effectiveness of an optimization,
+a client might want to log how many rewrites take place, or in what
+functions they take place.
+As~a more ambitious example, \citet{runciman:increasing-prs} describes
+Primitive Redex 
+Speculation, a code-improving transformation that can create new
+function definitions. 
+A~\hoopl\ client implementing this transformation would define a monad
+to accumulate the new definitions.
+In~these examples, the law governing @checkpoint@ and @restart@
+ensures that a speculative rewrite, if later rolled back, does not
+create a log entry or a function definition.
 }
 
-\newtext{Many alternative implementations, less clear.
-For example how many block-concatenation constructors?
-Concat-map style vs fold style?  Direct style vs CPS?
-}
+\begin{ntext}
+In~addition to major API variations like ``who controls the monad,'' 
+we have considered myriad minor variations,
+mostly are driven by
+implementation concerns.
+There are some variations in implementation that don't affect the
+interface, but there are also many that have small effects.
+We~have space only to raise a few of the questions.
+\secref{implementation} describes an implementation of @arfGraph@
+in what we call ``@concatMap@ style'' (\secref{concat-map-style}).
+We~have also implemented a ``fold style'' and continuation-passing
+style.
+No~one of these styles obviously makes all the code easiest to read
+and understand: @concatMap@ style is relatively straightforward throughout;
+fold~style is similar overall but different in detail;
+and continuation-passing style is very clear and elegant to those who
+like continuations, but a bit baffling to those who don't.
+Another question is which value constructors should be
+polymorphic in the shapes of their arguments and which should be
+monomorphic.
+We~experimented with a polymorphic
+\begin{code}
+  `BNode :: n e x -> Block n e x
+\end{code}
+but we found that there are significant advantages to knowing the type
+of every node statically, using purely local information---so instead
+we use
+the three monomorphic constructors @BFirst@, @BMiddle@, and @BLast@
+(\figref{graph}). 
+Similar questions arise about the polymorphic @BCat@ and about the
+graph constructors, and even among ourselves, we are divided about how
+best to answer them.
+Yet another question is whether it is worthwhile to save a level of
+indirection by providing a cons-like constructor to concatenate a node
+and a block. 
+Perhaps some of these questions can be answered by appealing to
+performance, but the experiments that will provide the answers have
+yet to be devised.
+\end{ntext}
+
 
 
 
@@ -3487,8 +3518,10 @@ some very sophisticated ideas.
 \acks
 
 Brian Huffman and Graham Hutton helped with algebraic laws.
+Sukyoung Ryu told us about Primitive Redex Speculation.
 Several anonymous reviewers helped improve the presentation.
-% , especially reviewer~C, who suggested better language with which to describe our work. 
+% , especially reviewer~C, who suggested better language with which to
+% describe our work.  
 
 The first and second authors were funded 
 by a grant from Intel Corporation and
