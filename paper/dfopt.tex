@@ -2008,11 +2008,8 @@ compares two values of type @Lit@ and returns a result of type
 @WithTop Lit@.
 The client uses @extendJoinDomain@ to lift @constFactAdd@ into a join
 function on @WithTop Lit@, then uses
-@stdMapJoin@ to lift \emph{that} join function up to the map
+@joinMaps@ to lift \emph{that} join function up to the map
 containing facts for all variables.
-\finalremark{We really should work @stdMapJoin@ into the API somewhere}
-
-% omit stdMapJoin :: Ord k => JoinFun v -> JoinFun (Map.Map k v)
 
 The forward transfer function @varHasLit@ is defined using the
 shape-polymorphic auxiliary function~@ft@.
