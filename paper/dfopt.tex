@@ -3378,56 +3378,79 @@ thinking and helped to structure the implementation.
 
 \paragraph{Alternative interfaces and implementations}
 \newtext{
-WHY DOES THE CLIENT HAVE ITS OWN MONAD?
-WHY NOT KEEP THE MONAD ABSTRACT AND PRIVATE TO \hoopl?
-Allowing the client to~define the monad @m@ 
-is potentially dangerous, but very convenient.
-The danger is that the~client might define an instance that does not
-respect the invariants of checkpointing or fuel;\john{Is fuel even defined yet?}
-for example, the client's monad might allow a rewrite
-to change the quantity of~fuel, which would make it impossible
-to debug the optimization using the technique in \secref{vpoiso}.
-We~considered eliminating these dangers by defining a single @HooplM@ monad,
-which provides checkpointing, optimization fuel, and a source of unique values.
-But in our experience, the dangers are easily avoided,
-and the convenience of defining your own monad is well worth the~price.
-For example, you might want to write a monad that logs each time
-an optimization improves the program.
-This kind of logging is easily implemented in a client-defined monad,
-and the client can rely on checkpointing
-to~ensure that a speculative rewrite is not accidentally logged.
-
-Another example from Colin and Sukyoung: suppose that an optimization
-wants to spawn some new function definitions?  LET'S GET THE SPECIFICS!
-
-
-% For example, you might want your compiler to use different types of uniques
-% for labels and pseudoregisters; with a built-in @HooplM@ monad,
-% you would have to shoehorn the @HooplM@ unique type into your labels and pseudoregisters.
-
-% Why doesn't Hoopl provide the monad used by rewrite functions?
-% 
-% Similarly it lets us finesse the question of uniques.  If Hoopl provides the monad, it must offer
-%         newUnique :: HooplM Unique
-% and hence Unique must be a Hoopl type.  If the user is to build (say) CmmExprs with Registers that need a fresh
-% unique, she must use the Hoopl-supplied Unique in the Register type. If she didn't, she's stuck.   If instead we
-% use the user monad, then we need only insist that the user supply an operation
-%         newBlockId :: m  BlockId
-% where BlockId is the Hoopl-supplied type.
-% 
-% In short, it's quite neat that the rewrites can have access to anything in the user's own monad without lifting
-% or impedence matching -- but also dangerous.   I could live with either design.
-% 
-% 
-% You might want different types of uniques
-% -- e.g. one type for labels in the control-flow graph
-%         and another type for pseudoregisters.
+Why do we allow the client to define the monad~@m@ used in rewrite
+functions and in @analyzeAndRewriteFwdBody@?
+\remark{OK, I no longer find this~\P shitty\ldots}
+The~obvious alternative, which we have implemented and explored, is to require
+\hoopl's clients to use a monad provided by \hoopl.
+This alternative has advantages: 
+we implement
+@checkpoint@, @restart@, 
+@setFuel@, and @getFuel@, 
+and we make sure they are right, without placing any obligation on
+the client.
+Our~alternative API also provides a supply of unique names.
+%
+But~experience has shown us that for the client, the convenience
+of a custom monad is well worth the cognitive costs of understanding
+the more complex API and of meeting the contracts for
+instances of @FuelMonad@ and @CkpointMonad@.
+As~a very simple example, a client might want one set of
+unique names for labels and a different set for registers.
+Or~in order to judge the effectiveness of an optimization,
+a client might want to log how many rewrites take place, or in what
+functions they take place.
+As~a more ambitious example, \citet{runciman:increasing-prs} describes
+Primitive Redex 
+Speculation, a code-improving transformation that can create new
+function definitions. 
+A~\hoopl\ client implementing this transformation would define a monad
+to accumulate the new definitions.
+In~these examples, the law governing @checkpoint@ and @restart@
+ensures that a speculative rewrite, if later rolled back, does not
+create a log entry or a function definition.
 }
 
-\newtext{Many alternative implementations, less clear.
-For example how many block-concatenation constructors?
-Concat-map style vs fold style?  Direct style vs CPS?
-}
+\begin{ntext}
+In~addition to major API variations like ``who controls the monad,'' 
+we have considered myriad minor variations,
+mostly are driven by
+implementation concerns.
+There are some variations in implementation that don't affect the
+interface, but there are also many that have small effects.
+We~have space only to raise a few of the questions.
+\secref{implementation} describes an implementation of @arfGraph@
+in what we call ``@concatMap@ style'' (\secref{concat-map-style}).
+We~have also implemented a ``fold style'' and continuation-passing
+style.
+No~one of these styles obviously makes all the code easiest to read
+and understand: @concatMap@ style is relatively straightforward throughout;
+fold~style is similar overall but different in detail;
+and continuation-passing style is very clear and elegant to those who
+like continuations, but a bit baffling to those who don't.
+Another question is which value constructors should be
+polymorphic in the shapes of their arguments and which should be
+monomorphic.
+We~experimented with a polymorphic
+\begin{code}
+  `BNode :: n e x -> Block n e x
+\end{code}
+but we found that there are significant advantages to knowing the type
+of every node statically, using purely local information---so instead
+we use
+the three monomorphic constructors @BFirst@, @BMiddle@, and @BLast@
+(\figref{graph}). 
+Similar questions arise about the polymorphic @BCat@ and about the
+graph constructors, and even among ourselves, we are divided about how
+best to answer them.
+Yet another question is whether it is worthwhile to save a level of
+indirection by providing a cons-like constructor to concatenate a node
+and a block. 
+Perhaps some of these questions can be answered by appealing to
+performance, but the experiments that will provide the answers have
+yet to be devised.
+\end{ntext}
+
 
 
 
@@ -3487,8 +3510,10 @@ some very sophisticated ideas.
 \acks
 
 Brian Huffman and Graham Hutton helped with algebraic laws.
+Sukyoung Ryu told us about Primitive Redex Speculation.
 Several anonymous reviewers helped improve the presentation.
-% , especially reviewer~C, who suggested better language with which to describe our work. 
+% , especially reviewer~C, who suggested better language with which to
+% describe our work.  
 
 The first and second authors were funded 
 by a grant from Intel Corporation and
