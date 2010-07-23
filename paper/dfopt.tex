@@ -1250,7 +1250,8 @@ the fact type.
 \emph{fact transformer}, which takes a fact flowing into the node and
 returns the transformed fact that flows out of the node (\secref{transfers}).  
 \item A \emph{rewrite function} that takes a node and an input fact,
-and which returns either @Nothing@
+performs a monadic action, 
+and returns either @Nothing@
 or @Just g@,
 where @g@~is a graph that should
 replace the node
@@ -1262,9 +1263,8 @@ is crucial for many code-improving transformations.
 %in Sections \ref{sec:rewrites} and \ref{sec:shallow-vs-deep}.
 \end{itemize}
 These requirements are summarized in \tabref{parts}.
-Because facts, transfer functions, and rewrite functions work closely together,
-we represent their combination
-as a single record of type @FwdPass@ (\figref{api-types}).
+Because facts, transfer functions, and rewrite functions work together,
+we~combine them in a single record of type @FwdPass@ (\figref{api-types}).
 
 
 
@@ -1290,21 +1290,19 @@ analyze-and-rewrite function transforms a graph into
 an optimized graph.
 As its type shows, this function
 is polymorphic in the types of nodes~@n@ and facts~@f@;
-these types are determined by the client.
-The type of the monad~@m@ is also determined by the client, but it must
-meet the constraints implied by @CkpointMonad@, as described in
-\secref{checkpoint-monad}. 
+these types are chosen by the client.
+The type of the monad~@m@ is also chosen by the client.
 
 As well as taking and returning a graph, the
 function also takes input facts (the @FactBase@) and produces output facts. 
-A~@FactBase@ is simply a finite mapping from @Label@ to facts;
+A~@FactBase@ is a finite mapping from @Label@ to facts;
 if~a @Label@ is not in the domain of the @FactBase@, its fact is the
 bottom element of the lattice.
 For example, in our constant-propagation example from \secref{const-prop-example},
 if the graph
 represents the body of a procedure 
 with parameters $x,y,z$, we would map the entry @Label@ to a fact
-$@x=@\top \land @y=@\top \land @z=@\top$, to specify that the procedure's
+\mbox{$@x=@\top \land @y=@\top \land @z=@\top$}, to specify that the procedure's
 parameters are not known to be constants.
 %%  
 %%  The
@@ -1312,7 +1310,7 @@ parameters are not known to be constants.
 
 The client's model of how @analyzeAndRewriteFwdBody@ works is as follows:
 \ourlib\ walks forward over each block in the graph.
-At each node, \ourlib\ applies the
+At~each node, \ourlib\ applies the
 rewrite function to the node and the incoming fact.  If the rewrite
 function returns @Nothing@, the node is retained as part of the output
 graph, the transfer function is used to compute the downstream fact,
@@ -1404,7 +1402,7 @@ type instance Fact C f = FactBase f
 type `FactBase f = LabelMap f
  -- A finite mapping from Labels to facts f
 
-------- Monadic rewrites, speculatively ----
+------- Rolling back speculative rewrites ----
 class Monad m => CkpointMonad m where
   type Checkpoint m
   checkpoint :: m (Checkpoint m)
@@ -1472,11 +1470,10 @@ If~$f_{\mathit{old}}$ is the fact currently associated with a
 label~$L$, 
 and if a transfer function propagates a new fact~$f_{\mathit{new}}$
 into label~$L$, 
-the dataflow engine replaces $f_{\mathit{old}}$ with
-the join  $f_{\mathit{old}} \join f_{\mathit{new}}$.
-Furthermore, the dataflow engine wants to~know 
-\relax    % the tie (~) above prevents a really wacky-looking paragraph
-if $f_{\mathit{old}} \join f_{\mathit{new}} = f_{\mathit{old}}$,
+\hoopl\ replaces $f_{\mathit{old}}$ with
+the join  \mbox{$f_{\mathit{old}} \join f_{\mathit{new}}$}.
+And \hoopl\ wants to know 
+if \mbox{$f_{\mathit{old}} \join f_{\mathit{new}} = f_{\mathit{old}}$},
 because if not, the analysis has not reached a fixed point.
 
 The bottom element and join operation of a lattice of facts of
