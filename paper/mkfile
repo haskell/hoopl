@@ -4,12 +4,11 @@
 <./bitly.$USER.mk
 
 
-LASTPAGE=12  # use this for submission
-LASTPAGE=
+LASTPAGE=13  # final draft has extra page
 
 TGT=dfopt
 
-all:V: $TGT.pdf supplement.pdf $TGT.ps 
+all:V: $TGT.pdf $TGT.ps hoopl10-supplement.bitly
 old:V: popl-index.bitly
 bib:V: $TGT.bbl
 bibfile:V: $TGT.bib
@@ -25,7 +24,7 @@ xdvi:V: $TGT.dvi
 
 
 tag:VQ: $TGT.tex
-	tag=`$HOME/bin/md5words $prereq | tr -d "'" | tr -cs a-zA-Z0-9 - | sed s/-*$//`
+	tag=`$HOME/bin/md5words -trim $prereq | tr -d "'" | tr -cs a-zA-Z0-9 - | sed s/-*$//`
 	echo git tag $tag
 	git tag $tag
 
@@ -36,17 +35,14 @@ dfoptdu.tex: cprop.tex comb1.tex iterf.tex pairf.tex dg.tex
 $TGT.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-$LASTPAGE $prereq
 
-supplement.pdf: $TGT.dvi
-	dvips -Ppdf -o"|ps2pdf - $target" -pp 13- $prereq
-
-$HOME/www/drop/popl-index.pdf: $TGT.dvi
-	dvips -Ppdf -o "|ps2pdf - $target" -pp 13- $prereq
+$HOME/www/pubs/hoopl10-supplement.pdf: $TGT.dvi
+	dvips -Ppdf -o"|ps2pdf - $target" -pp `expr $LASTPAGE + 1`- $prereq
 
 timestamp.tex: $TGT.tex
 	date=`stat -c "%y" $prereq`
 	signature=""
 	if [ -x $HOME/bin/md5words ]; then
-	  words="`md5words $prereq`"
+	  words="`md5words -trim $prereq`"
       signature=" [MD5: \\mbox{$words}]"
     else
       words="(could not compute signature words)"
