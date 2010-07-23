@@ -2813,36 +2813,36 @@ This trick is safe only for a forward analysis, which
 \seclabel{whalley-from-s2}
 \seclabel{first-debugging-section}
 
-Function @mkFRewrite@ in \figref{api-types} has a mysterious type qualifier:
-the client's monad~@m@ must satisfy the type-class constraint @FuelMonad m@.
-The @FuelMonad@ type class also appears in \figref{api-types}, and it
-encapsulates a supply of \emph{optimization fuel}.
-Every function passed to @mkFRewrite@ is wrapped in another function
-so that it meets this contract:
+When optimization produces a faulty program,
+we use Whalley's \citeyearpar{whalley:isolation} technique to find the fault:
+given a program that fails when compiled with optimization,
+a binary search on the number of rewrites
+finds an~$n$ such that the program works correctly after $n-1$ rewrites
+but fails after $n$~rewrites.
+The $n$th rewrite is faulty.
+As~alluded to at the end of \secref{debugging-introduced}, this
+technique enables us to debug complex optimizations by
+identifying one single rewrite that is faulty.
+
+This debugging technique requires the~ability to~limit
+the number of~rewrites,
+which we provide in the form of \emph{optimization fuel}.
+If each rewrite consumes one unit of optimization fuel
+(and does nothing if there is no remaining fuel),
+we can perform the binary search by running the optimization
+with different supplies of fuel.
+The supply of fuel is encapsulated in the @FuelMonad@ type class (\figref{api-types}),
+which must be implemented by the client's monad @m@.
+And to~ensure that each rewrite consumes one~unit of~fuel,
+the function @mkFRewrite@ wraps the client's rewrite function, which is oblivious to fuel,
+in another function that satisfies the following contract:
 \begin{itemize}
 \item 
-If the fuel supply is empty, the wrapped function always returns
-@Nothing@. 
+If the fuel supply is empty, the wrapped function always returns @Nothing@. 
 \item
 If the wrapped function returns @Just g@, it has the monadic effect of
 reducing the fuel supply by one unit.
 \end{itemize}
-%
-Optimization fuel is used to debug the optimizer:
-when optimization produces a faulty program,
-we use Whalley's
-\citeyearpar{whalley:isolation} technique to find the fault.
-Given a program that fails when compiled with optimization,
-a binary search on the amount of
-optimization fuel
-finds an~$n$ such that the program works correctly after $n-1$ rewrites
-but fails 
-after $n$~rewrites.
-The $n$th rewrite is faulty.
-As~alluded to at the end of \secref{debugging-introduced}, this
-technique enables us to debug even very complex optimizations by
-identifying one single rewrite that is definitely faulty.
-
 
 %%%%    \seclabel{fuel-monad}
 %%%%    
