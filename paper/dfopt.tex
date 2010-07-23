@@ -1328,31 +1328,20 @@ A~node following a rewritten node sees
 \emph{up-to-date} facts; that is, its input fact is computed by
 analyzing the replacement graph.
 
-\newtext{A~rewrite function may take any action that is justified by
+A~rewrite function may take any action that is justified by
 the incoming fact.
 If~further analysis turns out to invalidate the fact, \hoopl\ rolls
 back the action.
-\hoopl\ can roll back the graph easily enough because the graph is a
-purely functional data structure. 
-But in addition to changing the graph, 
-a~rewrite function may take action in an arbitrary monad defined by
-the client.\remark{This is the key bit that is not explained---why?
-One reasonable example might be that the client wishes to log how
-often a transformation is applied, or in which functions, or in a
-combined dataflow pass what transformations precede what others.
-Another example is that we don't want to mandate how fresh names are
-constructed, and we don't want to limit clients to a single supply of
-fresh names.
-On the {\PAL} project, we learned a painful lesson:
-no~matter how well designed the interface,
-if it does not accomodate design choices already embodied in existing
-compilers, it won't be used.
-}
-\john{There's a relevant paragraph on the next page; not sure it belongs there}
-To~enable \hoopl\ to roll back any actions in this monad, the monad
-must satisfy the @CkpointMonad@ and its associated algebraic law, as
-described in \secref{ckpoint-monad}.
-}
+The~action of updating the graph is easy to roll back;
+graphs are immutable, and \hoopl\ simply reverts to the previous
+graph.
+But~to roll back a rewrite function's \emph{monadic} action, 
+\hoopl\ requires support from the client:
+the monad chosen by the client must be made an instance of
+\hoopl's @CkpointMonad@ class, which provides @checkpoint@ and
+@restart@ operations for rolling back actions
+(\secref{checkpoint-monad}). 
+
 
 Below we flesh out the
 interface to @analyzeAndRewriteFwdBody@, leaving the implementation for
