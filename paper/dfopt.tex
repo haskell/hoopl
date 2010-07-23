@@ -470,8 +470,13 @@ so that they can be understood independently.
 %\ourlib\ will be the workhorse of a new
 %back end for the Glasgow Haskell Compiler (version~6.14, forthcoming).
 
-\emph{Readers:} code examples are indexed at {\url{http://bit.ly/doUJpr}}
-% {\url{http://www.cs.tufts.edu/~nr/pubs/hoopl10-supplement.pdf}} 
+\emph{Readers:} code examples are indexed at 
+\iffalse % one more line on page 1 blows up the paper...
+{\url{http://bit.ly/doUJpr}}
+\else
+{\url{http://www.cs.tufts.edu/~nr/pubs/hoopl10-supplement.pdf}} 
+(\url{bit.ly/doUJpr}).
+\fi
 %%% Source: http://www.cs.tufts.edu/~nr/drop/popl-index.pdf
 \end{abstract}
 
@@ -624,12 +629,12 @@ The goal of dataflow optimization is to compute valid
 then use those assertions to justify code-improving
 transformations (or \emph{rewrites}) on a {control-flow graph}.  
 
-As~a concrete example, we consider constant propagation with constant
+As~a concrete example, we show constant propagation with constant
 folding. 
-On the left we have a basic block; in the middle we have
+On the left we show a basic block; in the middle we show
 facts that hold between statements (or \emph{nodes}) 
 in the block; and at
-the right we have the result of transforming the block 
+the right we show the result of transforming the block 
 based on the assertions:
 \begin{verbatim}
       Before        Facts        After
@@ -647,10 +652,10 @@ from top to bottom.  We start with the empty fact.
 Given the empty fact and the node @x:=3+4@ can we make a (constant-folding)
 transformation?
 Yes: we can replace the node with @x:=7@.
-Now, given this transformed node,
+Now, given this transformed node
 and the original fact, what fact flows out of the bottom of
 the transformed node?  
-The~fact \{@x=7@\}.  
+The~fact~\mbox{\{@x=7@\}}.  
 Given the fact \{@x=7@\} and the node @z:=x>5@, can we make a
 transformation?  Yes: constant propagation can replace the node with @z:=7>5@.
 Now, can we make another transformation?  Yes: constant folding can 
@@ -685,7 +690,7 @@ is the new fact $\mathord{@x=@\top\!} \land \mathord{@y=4@} \land \mathord{@z=@\
 
 \paragraph{Forwards and backwards.}
 Constant propagation works \emph{forwards}, and a fact is often an
-assertion about the program state (such as ``variable~@x@ holds value~@7@'').  
+assertion about the program state, such as ``variable~@x@ holds value~@7@.''
 Some useful analyses work \emph{backwards}.
 A~prime example is live-variable analysis, where a fact takes the~form
 ``variable @x@ is live'' and is an assertion about the
@@ -711,8 +716,9 @@ But the subsequent transformation must perform
 \emph{exactly the same simplification} when it transforms the instruction to @z:=True@!
 If instead we \emph{first} rewrite the node to @z:=True@, 
 and \emph{then} apply the transfer function to the new node, 
-the transfer function becomes laughably simple: it merely has to see if the
-right hand side is a constant (you can see actual code in \secref{const-prop-client}).
+the transfer function becomes wonderfully simple: it merely has to see if the
+right hand side is a constant.
+You~can see code in \secref{const-prop-client}.
 
 Another example is the interleaving of liveness analysis and dead-code elimination.
 As mentioned in \secref{liveness-mention},
@@ -725,37 +731,36 @@ If~there are a number of interacting
 analyses and/or transformations,
 the benefit of interleaving them is even more compelling; for more
 substantial examples, consult \citet{lerner-grove-chambers:2002}.
-\newtext{
-But the compelling benefits come at a cost.
+%
+But these compelling benefits come at a cost.
 To~compute valid facts for a program that has loops,
 an analysis may require multiple iterations over the program.
 Before the final iteration, the analysis may
 compute a~fact that is invalid,
 and a transformation may use the invalid fact to rewrite the program
-(see example in \secref{ckpoint-monad}).
-To~avoid faulty rewrites,
-any rewrite based on an invalid fact must be rolled back,
-which means that transformations must be \emph{speculative}.
-\hoopl~manages speculation on the client's behalf (\secref{speculative-transform}). 
-}
+(\secref{ckpoint-monad}).
+To~avoid unjustified rewrites,
+any rewrite based on an invalid fact must be rolled back;
+transformations must be \emph{speculative}.
+As~described in \secref{checkpoint-monad},
+\hoopl~manages speculation with cooperation from the client.
 
-\paragraph{Debugging faulty optimizers.}
+
+\paragraph{Cognitive costs of interleaving}
+
+\remark{I'm not entirely pleased with this subsection title}
 
 \seclabel{debugging-introduced}
 
-\newtext{
-While it is wonderful to be able to implement complex optimizations by
-composing very simple analyses or transformations,
-it~necessarily follows that very simple analyses or transformations,
+While it is wonderful that we can implement complex optimizations by
+composing very simple analyses and transformations,
+it~is not so wonderful that very simple analyses and transformations,
 when composed, can exhibit complex emergent behavior.
-Such behavior is not easily predicted, so it is essential to have good
+Because such behavior is not easily predicted, it is essential to have good
 tools for debugging.
 \hoopl's primary debugging tool is an implementation of
-Whalley's \citeyearpar{whalley:isolation} technique for
-isolating faults in the optimizer (\secref{whalley-from-s2}).\remark{Perhaps say more
-about the implementation here?}
-}
-
+Whalley's \citeyearpar{whalley:isolation} search technique for
+isolating faults in an optimizer (\secref{whalley-from-s2}).
 
 
 \section{Representing control-flow graphs} \seclabel{graph-rep}
@@ -763,7 +768,7 @@ about the implementation here?}
 \ourlib{} is a library that makes it easy to define dataflow analyses,
 and transformations driven by these analyses, on control-flow graphs.
 Graphs are composed from smaller units, which we discuss from the
-bottom up:\finalremark{something about replacement graphs?}
+bottom up:
 \begin{itemize}
 \item A \emph{node} is defined by \ourlib's client;
 \ourlib{} knows nothing about the representation of nodes (\secref{nodes}).
