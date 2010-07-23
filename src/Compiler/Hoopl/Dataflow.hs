@@ -211,14 +211,18 @@ arfGraph pass entries = graph
     block (BTail n t)  = node  n  `cat` block t
     block (BClosed h t)= block h  `cat` block t
 
+-- @ start node.tex -4
     node n f
-      = do { fwdres <- frewrite pass n f
-           ; case fwdres of
-               Nothing -> return (toDg f (toBlock n),
-                                  ftransfer pass n f)
-               Just (FwdRew g rw) ->
-                   let pass' = pass { fp_rewrite = rw }
-                   in  arfGraph pass' (maybeEntry n) g (fwdEntryFact n f) }
+     = do { gtail <- frewrite pass n f
+          ; case gtail of
+              Nothing -> return ( singletonDG f n
+                                , ftransfer pass n f )
+              Just (FwdGraphAndTail g tail) ->
+                  let pass' = pass { fp_rewrite = tail }
+                      f'    = fwdEntryFact n f
+                  in  arfGraph pass' (fwdEntryLabel n) g f' }
+
+-- @ end node.tex
 
     -- | Compose fact transformers and concatenate the resulting
     -- rewritten graphs.
@@ -391,11 +395,11 @@ arbGraph pass entries = graph
     node n f
       = do { bwdres <- brewrite pass n f
            ; case bwdres of
-               Nothing -> return (toDg entry_f (toBlock n), entry_f)
+               Nothing -> return (singletonDG entry_f n, entry_f)
                             where entry_f = btransfer pass n f
                Just (BwdRew g rw) ->
                           do { let pass' = pass { bp_rewrite = rw }
-                             ; (g, f) <- arbGraph pass' (maybeEntry n) g f
+                             ; (g, f) <- arbGraph pass' (fwdEntryLabel n) g f
                              ; return (g, bwdEntryFact (bp_lattice pass) n f)} }
 
     -- | Compose fact transformers and concatenate the resulting
@@ -749,7 +753,6 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 type Graph = Graph' Block
 type DG f  = Graph' (DBlock f)
 data DBlock f n e x = DBlock f (Block n e x) -- ^ block decorated with fact
-toDg :: NonLocal n => f -> Block n e x -> DG f n e x
 -- @ end dg.tex
 instance NonLocal n => NonLocal (DBlock f n) where
   entryLabel (DBlock _ b) = entryLabel b
@@ -788,14 +791,6 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
 dgnil  = GNil
 dgnilC = GMany NothingO emptyBody NothingO
 
-toDg f b@(BFirst  {}) = gUnitCO (DBlock f b)
-toDg f b@(BMiddle {}) = gUnitOO (DBlock f b)
-toDg f b@(BLast   {}) = gUnitOC (DBlock f b)
-toDg f b@(BCat {})    = gUnitOO (DBlock f b)
-toDg f b@(BHead {})   = gUnitCO (DBlock f b)
-toDg f b@(BTail {})   = gUnitOC (DBlock f b)
-toDg f b@(BClosed {}) = gUnitCC (DBlock f b)
-
 dgSplice = U.splice fzCat
   where fzCat (DBlock f b1) (DBlock _ b2) = DBlock f (b1 `U.cat` b2)
 
@@ -809,45 +804,48 @@ dgSplice = U.splice fzCat
 -- Lowering back:
 --  - from fact-like things to facts
 -- Note that the latter two functions depend only on the entry shape.
+-- @ start node.tex
 class ShapeLifter e x where
-  toBlock      :: n e x -> Block n e x
-  fwdEntryFact :: NonLocal n =>                      n e x -> f -> Fact e f
-  bwdEntryFact :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
-  ftransfer    :: FwdPass m n f -> n e x -> f        -> Fact x f
-  btransfer    :: BwdPass m n f -> n e x -> Fact x f -> f
-  frewrite     :: FwdPass m n f -> n e x -> f        -> m (Maybe (FwdRew m n f e x))
-  brewrite     :: BwdPass m n f -> n e x -> Fact x f -> m (Maybe (BwdRew m n f e x))
-  maybeEntry   :: NonLocal n => n e x -> Entries e
+ singletonDG   :: f -> n e x -> DG f n e x
+ fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
+ fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
+ ftransfer     :: FwdPass m n f -> n e x -> f -> Fact x f
+ frewrite      :: FwdPass m n f -> n e x 
+               -> f -> m (Maybe (FwdGraphAndTail m n f e x))
+-- @ end node.tex
+ bwdEntryFact :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
+ btransfer    :: BwdPass m n f -> n e x -> Fact x f -> f
+ brewrite     :: BwdPass m n f -> n e x -> Fact x f -> m (Maybe (BwdRew m n f e x))
 
 instance ShapeLifter C O where
-  toBlock         = BFirst
+  singletonDG f = gUnitCO . DBlock f . BFirst
   fwdEntryFact     n f  = mkFactBase [(entryLabel n, f)]
   bwdEntryFact lat n fb = getFact lat (entryLabel n) fb
   ftransfer (FwdPass {fp_transfer = FwdTransfer3 (ft, _, _)}) n f = ft n f
   btransfer (BwdPass {bp_transfer = BwdTransfer3 (bt, _, _)}) n f = bt n f
   frewrite  (FwdPass {fp_rewrite  = FwdRewrite3  (fr, _, _)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrite3  (br, _, _)}) n f = br n f
-  maybeEntry n = JustC [entryLabel n]
+  fwdEntryLabel n = JustC [entryLabel n]
 
 instance ShapeLifter O O where
-  toBlock      = BMiddle
+  singletonDG f = gUnitOO . DBlock f . BMiddle
   fwdEntryFact   _ f = f
   bwdEntryFact _ _ f = f
   ftransfer (FwdPass {fp_transfer = FwdTransfer3 (_, ft, _)}) n f = ft n f
   btransfer (BwdPass {bp_transfer = BwdTransfer3 (_, bt, _)}) n f = bt n f
   frewrite  (FwdPass {fp_rewrite  = FwdRewrite3  (_, fr, _)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrite3  (_, br, _)}) n f = br n f
-  maybeEntry _ = NothingC
+  fwdEntryLabel _ = NothingC
 
 instance ShapeLifter O C where
-  toBlock      = BLast
+  singletonDG f = gUnitOC . DBlock f . BLast
   fwdEntryFact   _ f = f
   bwdEntryFact _ _ f = f
   ftransfer (FwdPass {fp_transfer = FwdTransfer3 (_, _, ft)}) n f = ft n f
   btransfer (BwdPass {bp_transfer = BwdTransfer3 (_, _, bt)}) n f = bt n f
   frewrite  (FwdPass {fp_rewrite  = FwdRewrite3  (_, _, fr)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrite3  (_, _, br)}) n f = br n f
-  maybeEntry _ = NothingC
+  fwdEntryLabel _ = NothingC
 
 -- Fact lookup: the fact `orelse` bottom
 getFact  :: DataflowLattice f -> Label -> FactBase f -> f

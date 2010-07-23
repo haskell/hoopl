@@ -22,22 +22,31 @@ local function add_modified_line(lines, l)
 end
 
 
+local function shift_left(l, n)
+  l = l:gsub('^' .. string.rep(' ', n), '')
+  return l
+end
+
 for _, file in ipairs(arg) do
-  local outfile
+  local outfile, distance
   for l in io.lines(file) do
-    local action, filename = l:match '^%s*%-%-%s%@%s+(%w+)%s+(%S+)%s*$'
+    local action, filename, n = l:match '^%s*%-%-%s%@%s+(%w+)%s+(%S+)%s+%-(%d+)%s*$'
+    if not n then
+      action, filename = l:match '^%s*%-%-%s%@%s+(%w+)%s+(%S+)%s*$'
+      n = action and 0
+    end
     if action == 'start' then
-      assert(outfile == nil)
-      outfile = filename
+      assert(outfile == nil and distance == nil)
+      outfile, distance = filename, n
     elseif action == 'stop' or action == 'end' then
       assert(outfile, '@stop without @start: ' .. l)
       assert(outfile == filename, l .. 'does not match @start ' .. outfile)
-      outfile = nil
+      outfile, distance = nil, nil
     elseif action ~= nil then
       error("Unknown action '" .. action .. "' in line " .. l)
     else
       if outfile then
-        add_modified_line(outputs[outfile], l)
+        add_modified_line(outputs[outfile], shift_left(l, distance))
       end
     end
   end

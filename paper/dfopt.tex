@@ -2643,27 +2643,35 @@ Function @graph@ is much like @block@, but it has more cases.
 
 The @node@ function is where we interleave analysis with rewriting:
 \remark{Implementation of rewriting is finally revealed---needs to be earlier}
-\begin{smallfuzzcode}{10.5pt}
-node :: forall e x . (ShapeLifter e x, FuelMonad m) 
-     => n e x -> f -> m (DG f n e x, Fact x f)
-node n f
- = do { ^rew <- frewrite pass n f
-      ; case rew of
-          Nothing -> return (singletonDG f n,
-                             ftransfer pass n f)
-          Just (FwdRew g rw) ->
-            let ^pass' = pass { fp_rewrite = rw }
-                f'    = fwdEntryFact n f
-            in  arfGraph pass' (fwdEntryLabel n) g f' }
+\smallverbatiminput{node}
+% defn ShapeLifter
+% defn singletonDG
+% defn fwdEntryFact
+% defn fwdEntryLabel
+% defn ftransfer
+% defn frewrite
+%\begin{smallfuzzcode}{10.5pt}
+%node :: forall e x . (ShapeLifter e x, FuelMonad m) 
+%     => n e x -> f -> m (DG f n e x, Fact x f)
+%node n f
+% = do { ^rew <- frewrite pass n f
+%      ; case rew of
+%          Nothing -> return (singletonDG f n,
+%                             ftransfer pass n f)
+%          Just (FwdRew g rw) ->
+%            let ^pass' = pass { fp_rewrite = rw }
+%                f'    = fwdEntryFact n f
+%            in  arfGraph pass' (fwdEntryLabel n) g f' }
+%
+%class `ShapeLifter e x where
+% `singletonDG   :: f -> n e x -> DG f n e x
+% `fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
+% `fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
+% `ftransfer     :: FwdPass m n f -> n e x -> f -> Fact x f
+% `frewrite      :: FwdPass m n f -> n e x
+%               -> f -> m (Maybe (FwdRew m n f e x))
+%\end{smallfuzzcode}
 
-class `ShapeLifter e x where
- `singletonDG   :: f -> n e x -> DG f n e x
- `fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
- `fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
- `ftransfer     :: FwdPass m n f -> n e x -> f -> Fact x f
- `frewrite      :: FwdPass m n f -> n e x
-               -> f -> m (Maybe (FwdRew m n f e x))
-\end{smallfuzzcode}
 Function @node@ uses @frewrite@ to extract the rewrite function from
 @pass@, 
 and applies the rewrite function to the node~@n@ and the incoming fact~@f@.

@@ -30,7 +30,7 @@ tag:VQ: $TGT.tex
 
 dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex cprop.tex comb1.tex iterf.tex pairf.tex dg.tex
 
-dfoptdu.tex: cprop.tex comb1.tex iterf.tex pairf.tex dg.tex
+dfoptdu.tex: cprop.tex comb1.tex iterf.tex pairf.tex dg.tex node.tex
 
 $TGT.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-$LASTPAGE $prereq
@@ -72,5 +72,5 @@ dfopt.dvi: fptype.tex bodyfun.tex
 
 dfoptdu.tex: bodyfun.tex fptype.tex
 
-bodyfun.tex fptype.tex dg.tex:D: ./xsource $HOOPL/Dataflow.hs
+bodyfun.tex fptype.tex dg.tex node.tex:D: ./xsource $HOOPL/Dataflow.hs
 	lua ./xsource -4 $HOOPL/Dataflow.hs
