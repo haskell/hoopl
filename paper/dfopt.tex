@@ -2165,15 +2165,15 @@ iteration, then calls the @restart@ method if another iteration is
 necessary. 
 These operations must obey the following algebraic law:
 \begin{code}
-  do { s <- checkpoint; m; restart s } == return ()
+ do { s <- checkpoint; m; restart s } == return ()
 \end{code}
 where @m@~represents any combination of monadic actions that might be
 taken by rewrite functions.
 (The safest course is to make sure the law holds throughout the entire
 monad.)
-The~type of the saved checkpoint~@s@ is entirely up to the client;
-it is defined using SIMON, WHAT ARE THE RIGHT WORDS TO DESCRIBE THIS
-HASKELL FEATURE??.
+The~type of the saved checkpoint~@s@ is up to the client;
+it is defined as an associated~type.\remark{Is ``associated type'' the
+\emph{au courant} phrase?}
 \end{ntext}
 
 
