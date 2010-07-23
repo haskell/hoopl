@@ -1370,14 +1370,14 @@ data `FwdPass m n f
             , `fp_rewrite  :: FwdRewrite m n f }
 
 ------- Lattice ----------
-data `DataflowLattice a = DataflowLattice
- { `fact_bot  :: a
- , `fact_join :: OldFact a -> NewFact a 
-             -> (ChangeFlag, a) }
-
+data `DataflowLattice f = DataflowLattice
+ { `fact_bot  :: f
+ , `fact_join :: JoinFun f }
+type `JoinFun f = 
+  OldFact f -> NewFact f -> (ChangeFlag, f)
+newtype `OldFact f = OldFact f
+newtype `NewFact f = NewFact f
 data `ChangeFlag = `NoChange | `SomeChange
-newtype `OldFact a = OldFact a
-newtype `NewFact a = NewFact a
 
 ------- Transfers ----------
 newtype `FwdTransfer n f      -- abstract type
@@ -1531,6 +1531,14 @@ involving @Top@ obey the appropriate algebraic laws.
 Constructors @Top@ and @Bot@ are polymorphic, so for example,
 @Top@~also has type @WithTopAndBot a@.
 
+It is also very common to use a lattice that takes the form of a
+finite~map.
+In~such lattices it is typical to join maps pointwise, and \hoopl\
+provides a function that makes it convenient to do so:
+\begin{smallcode}
+  `joinMaps :: Ord k => JoinFun v -> JoinFun (Map k v)
+\end{smallcode}
+
 
 
 \subsection{The transfer function} \seclabel{transfers}
@@ -1538,7 +1546,7 @@ Constructors @Top@ and @Bot@ are polymorphic, so for example,
 A~forward transfer function is presented with the dataflow fact
 coming 
 into a node, and it computes dataflow fact(s) on the node's outgoing edge(s).
-In a forward analysis, the dataflow engine starts with the fact at the
+In a forward analysis, \hoopl\ starts with the fact at the
 beginning of a block and applies the transfer function to successive 
 nodes in that block until eventually the transfer function for the last node
 computes the facts that are propagated to the block's successors.

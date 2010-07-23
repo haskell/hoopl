@@ -1,32 +1,13 @@
 {-# LANGUAGE GADTs, RankNTypes #-}
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
-module OptSupport (stdMapJoin, mapVE, mapEE, mapEN, mapVN, fold_EE, fold_EN, insnToG) where
+module OptSupport (mapVE, mapEE, mapEN, mapVN, fold_EE, fold_EN, insnToG) where
 
 import Control.Monad
-import qualified Data.Map as M
 import Data.Maybe
 import Prelude hiding (succ)
 
 import Compiler.Hoopl
 import IR
-
-----------------------------------------------
--- Common lattice utility code:
-----------------------------------------------
-
--- It's common to represent dataflow facts as a map from locations
--- to some fact about the locations. For these maps, the join
--- operation on the map can be expressed in terms of the join
--- on each element:
-stdMapJoin :: Ord k => JoinFun v -> JoinFun (M.Map k v)
-stdMapJoin eltJoin l (OldFact old) (NewFact new) = M.foldWithKey add (NoChange, old) new
-  where 
-    add k new_v (ch, joinmap) =
-      case M.lookup k joinmap of
-        Nothing    -> (SomeChange, M.insert k new_v joinmap)
-        Just old_v -> case eltJoin l (OldFact old_v) (NewFact new_v) of
-                        (SomeChange, v') -> (SomeChange, M.insert k v' joinmap)
-                        (NoChange,   _)  -> (ch, joinmap)
 
 ----------------------------------------------
 -- Map/Fold functions for expressions/insns

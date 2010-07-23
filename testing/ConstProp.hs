@@ -22,7 +22,7 @@ constLattice :: DataflowLattice ConstFact
 constLattice = DataflowLattice
   { fact_name = "Const var value"
   , fact_bot  = Map.empty
-  , fact_join = stdMapJoin (extendJoinDomain constFactAdd) }
+  , fact_join = joinMaps (extendJoinDomain constFactAdd) }
   where
     constFactAdd _ (OldFact old) (NewFact new) 
         = if new == old then (NoChange, PElem new)

@@ -8,6 +8,7 @@ module Compiler.Hoopl.XUtil
   , successorFacts
   , joinFacts
   , joinOutFacts -- deprecated
+  , joinMaps
   , foldGraphNodes
   , foldBlockNodesF, foldBlockNodesB, foldBlockNodesF3, foldBlockNodesB3
   , tfFoldBlock
@@ -24,6 +25,7 @@ module Compiler.Hoopl.XUtil
   )
 where
 
+import qualified Data.Map as M
 import Data.Maybe
 
 import Compiler.Hoopl.Checkpoint
@@ -147,6 +149,23 @@ joinOutFacts :: (NonLocal node) => DataflowLattice f -> node O C -> FactBase f -
 joinOutFacts lat n f = foldr join (fact_bot lat) facts
   where join (lbl, new) old = snd $ fact_join lat lbl (OldFact old) (NewFact new)
         facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
+
+
+-- | It's common to represent dataflow facts as a map from variables
+-- to some fact about the locations. For these maps, the join
+-- operation on the map can be expressed in terms of the join on each
+-- element of the codomain:
+joinMaps :: Ord k => JoinFun v -> JoinFun (M.Map k v)
+joinMaps eltJoin l (OldFact old) (NewFact new) = M.foldWithKey add (NoChange, old) new
+  where 
+    add k new_v (ch, joinmap) =
+      case M.lookup k joinmap of
+        Nothing    -> (SomeChange, M.insert k new_v joinmap)
+        Just old_v -> case eltJoin l (OldFact old_v) (NewFact new_v) of
+                        (SomeChange, v') -> (SomeChange, M.insert k v' joinmap)
+                        (NoChange,   _)  -> (ch, joinmap)
+
+
 
 -- | A fold function that relies on the IndexedCO type function.
 --   Note that the type parameter e is available to the functions
