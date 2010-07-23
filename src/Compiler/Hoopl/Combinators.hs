@@ -43,8 +43,8 @@ thenFwdRw rw3 rw3' = wrapFR2 thenrw rw3 rw3'
  where
   thenrw rw rw' n f = rw n f >>= fwdRes
      where fwdRes Nothing = rw' n f
-           fwdRes (Just (FwdRew g rw3a))
-            = return $ Just $ FwdRew g (rw3a `thenFwdRw` rw3')
+           fwdRes (Just (FwdGraphAndTail g rw3a))
+            = return $ Just $ FwdGraphAndTail g (rw3a `thenFwdRw` rw3')
 
 -- @ start iterf.tex
 iterFwdRw :: Monad m 
@@ -54,8 +54,8 @@ iterFwdRw :: Monad m
 iterFwdRw rw3 = wrapFR iter rw3
  where
     iter rw n f = liftM (liftM fwdRes) (rw n f)
-    fwdRes (FwdRew g rw3a) = 
-      FwdRew g (rw3a `thenFwdRw` iterFwdRw rw3)
+    fwdRes (FwdGraphAndTail g rw3a) = 
+      FwdGraphAndTail g (rw3a `thenFwdRw` iterFwdRw rw3)
 
 ----------------------------------------------------------------
 
@@ -107,7 +107,7 @@ pairFwd pass1 pass2 = FwdPass lattice transfer rewrite
       where
         lift proj = wrapFR project
           where project rw = \n pair -> liftM (liftM repair) $ rw n (proj pair)
-                repair (FwdRew g rw') = FwdRew g (lift proj rw')
+                repair (FwdGraphAndTail g rw') = FwdGraphAndTail g (lift proj rw')
 
 pairBwd :: forall m n f f' . 
            Monad m => BwdPass m n f -> BwdPass m n f' -> BwdPass m n (f, f')

@@ -7,7 +7,7 @@ module Compiler.Hoopl.Dataflow
   -- * Respecting Fuel
 
   -- $fuel
-  , FwdRew(..),  FwdRewrite,  mkFRewrite,  mkFRewrite3,  getFRewrite3, noFwdRewrite
+  , FwdGraphAndTail(..),  FwdRewrite,  mkFRewrite,  mkFRewrite3,  getFRewrite3, noFwdRewrite
   , wrapFR, wrapFR2
   , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer3, getBTransfer3
   , wrapBR, wrapBR2
@@ -70,23 +70,23 @@ newtype FwdTransfer n f
 
 newtype FwdRewrite m n f   -- see Note [Respects Fuel]
   = FwdRewrite3 { getFRewrite3 ::
-                    ( n C O -> f -> m (Maybe (FwdRew m n f C O))
-                    , n O O -> f -> m (Maybe (FwdRew m n f O O))
-                    , n O C -> f -> m (Maybe (FwdRew m n f O C))
+                    ( n C O -> f -> m (Maybe (FwdGraphAndTail m n f C O))
+                    , n O O -> f -> m (Maybe (FwdGraphAndTail m n f O O))
+                    , n O C -> f -> m (Maybe (FwdGraphAndTail m n f O C))
                     ) }
-data FwdRew m n f e x = FwdRew (Graph n e x) (FwdRewrite m n f)
+data FwdGraphAndTail m n f e x = FwdGraphAndTail (Graph n e x) (FwdRewrite m n f)
   -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
-wrapFR :: (forall e x . (n  e x -> f  -> m  (Maybe (FwdRew m  n  f  e x))) ->
-                        (n' e x -> f' -> m' (Maybe (FwdRew m' n' f' e x))))
+wrapFR :: (forall e x . (n  e x -> f  -> m  (Maybe (FwdGraphAndTail m  n  f  e x))) ->
+                        (n' e x -> f' -> m' (Maybe (FwdGraphAndTail m' n' f' e x))))
             -- ^ This argument may assume that any function passed to it
             -- respects fuel, and it must return a result that respects fuel.
        -> FwdRewrite m  n  f 
        -> FwdRewrite m' n' f'      -- see Note [Respects Fuel]
 wrapFR wrap (FwdRewrite3 (f, m, l)) = FwdRewrite3 (wrap f, wrap m, wrap l)
-wrapFR2 :: (forall e x . (n1 e x -> f1 -> m1 (Maybe (FwdRew m1 n1 f1 e x))) ->
-                         (n2 e x -> f2 -> m2 (Maybe (FwdRew m2 n2 f2 e x))) ->
-                         (n3 e x -> f3 -> m3 (Maybe (FwdRew m3 n3 f3 e x))))
+wrapFR2 :: (forall e x . (n1 e x -> f1 -> m1 (Maybe (FwdGraphAndTail m1 n1 f1 e x))) ->
+                         (n2 e x -> f2 -> m2 (Maybe (FwdGraphAndTail m2 n2 f2 e x))) ->
+                         (n3 e x -> f3 -> m3 (Maybe (FwdGraphAndTail m3 n3 f3 e x))))
             -- ^ This argument may assume that any function passed to it
             -- respects fuel, and it must return a result that respects fuel.
         -> FwdRewrite m1 n1 f1
@@ -114,7 +114,7 @@ mkFRewrite3 :: FuelMonad m
             -> FwdRewrite m n f
 mkFRewrite3 f m l = FwdRewrite3 (lift f, lift m, lift l)
   where lift rw node fact = liftM (liftM asRew) (withFuel =<< rw node fact)
-        asRew g = FwdRew g noFwdRewrite
+        asRew g = FwdGraphAndTail g noFwdRewrite
 
 noFwdRewrite :: Monad m => FwdRewrite m n f
 noFwdRewrite = FwdRewrite3 (noRewrite, noRewrite, noRewrite)
