@@ -863,10 +863,10 @@ whatever.
 \begin{figure}
 \begin{fuzzcode}{0.98pt}
 data `Node e x where
-  Label  :: Label -> Node C O
-  `Assign :: Var   -> Expr -> Node O O
-  `Store  :: Expr  -> Expr -> Node O O
-  `Branch :: Label -> Node O C
+  Label  :: Label                   -> Node C O
+  `Assign :: Var   -> Expr           -> Node O O
+  `Store  :: Expr  -> Expr           -> Node O O
+  `Branch :: Label                   -> Node O C
   `Cond   :: Expr  -> Label -> Label -> Node O C
     ... more constructors ...
 \end{fuzzcode}
