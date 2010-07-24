@@ -1732,7 +1732,7 @@ function
 \end{code}
 behaves on rewrite functions the way @cycle@ does on lists,
 repeating the elements infinitely often.
-For~convenience, we~provide the~function @`deepFwdRw@,
+For~convenience, we~also provide the~function @`deepFwdRw@,
 which is the composition of @iterFwdRw@ and~@mkFRewrite@.
 
 To try multiple rewrite functions in sequence,\remark{Horrendous page
@@ -1772,7 +1772,6 @@ if~we used this equation to define @iterFwdRw@, then when @r@ returned @Nothing@
 %%%%  \remark{Do we really care about @iterFwdRw@ or can we just drop it?}
 %%%%  \verbatiminput{iterf}
 %%%%  % defn iterFwdRw
-
 
 
 \subsection{When the type of nodes is not known}
