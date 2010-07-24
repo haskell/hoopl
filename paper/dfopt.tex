@@ -1698,6 +1698,8 @@ to insert infinitely many spills.
 
 
 
+\seclabel{rewrite-as-sequence}
+
 An~innovation of \hoopl\ is to build the choice of shallow or deep
 rewriting into each rewrite function, through the use of combinators.
 To~explain these combinators, 
@@ -1776,7 +1778,7 @@ if~we used this equation to define @iterFwdRw@, then when @r@ returned @Nothing@
 \subsection{When the type of nodes is not known}
 
 We note above (\secref{transfers}) that
-the type of the transfer function's result 
+the type of a transfer function's result 
 depends on the argument's shape on exit.
 It~is easy for a client to write a type-indexed transfer function,
 because the client defines the constructor and shape for each node.
@@ -1804,7 +1806,7 @@ scrutinize the constructors of~@n@.
 
 There is another way;
 instead of requiring a single function that is polymorphic in shape,
-\hoopl\ will also accept a triple of functions, each of which is
+\hoopl\ also accepts a triple of functions, each of which is
 polymorphic in the node's type but monomorphic in its shape:
 \begin{code}
 `mkFTransfer3 :: (n C O -> f -> Fact O f)
@@ -1994,7 +1996,7 @@ functions in the \texttt{NonLocal} type class
 constant propagation and constant folding.
 For each variable, at each program point, the analysis concludes one
 of three facts: 
-the variable holds a constant value of type~@Lit@,
+the variable holds a constant value of type~@`Lit@,
 the variable might hold a non-constant value,
 or what the variable holds is unknown.
 We~represent these facts using a finite map from a variable to a
@@ -2005,7 +2007,7 @@ fact of type @WithTop Lit@ (\secref{WithTop}).
 % twice.  These properties ensure that the dataflow engine will reach a
 % fixed point.
 A~variable with a constant value maps to @Just (PElem k)@, where
-@k@~is the constant value; 
+@k@ is the constant value; 
 a variable with a non-constant value maps to @Just Top@;
 and a variable with an unknown value maps to @Nothing@ (it is not
 in the domain of the finite map).
@@ -2040,8 +2042,8 @@ If the conditional branch flows to the true successor,
 the variable holds @True@, and similarly for the false successor,
 \emph{mutatis mutandis}.
 Function @ft@ updates the fact flowing to each successor accordingly.
-\finalremark{Because function @ft@ scrutinizes a GADT, it cannot
-default the uninteresting cases.}
+Because~@ft@ scrutinizes a GADT, it cannot
+use a wildcard to default the uninteresting cases.
 
 The transfer function need not consider complicated cases such as 
 an assignment @x:=y@ where @y@ holds a constant value~@k@.
@@ -2050,7 +2052,7 @@ and analysis to first transform the assignment to @x:=k@,
 which is exactly what our simple transfer function expects.
 As we mention in \secref{simple-tx},
 interleaving makes it possible to write
-very simple transfer functions, without missing
+very simple transfer functions without missing
 opportunities to improve the code.
 
 \figref{const-prop}'s rewrite function for constant propagation, @constProp@,
@@ -2148,8 +2150,7 @@ to
 
 \seclabel{ckpoint-monad} \seclabel{checkpoint-monad}
 
-\begin{ntext}
-In the presence of loops, a rewrite function could make a change
+When analyzing a program with loops, a rewrite function could make a change
 that later has to be rolled back.
 For example, consider constant propagation in this loop, which
 computes factorial: 
@@ -2170,17 +2171,16 @@ and the~rewrite will no longer be justified.
 After each iteration, \hoopl\ starts the next iteration with
 \emph{new} facts but with the \emph{original} graph---by~virtue
 of using purely functional data structures, rewrites from
-previous iterations are automatically ``rolled back.''
-\emph{But a rewrite function doesn't only produce new graphs.}
-A~rewrite function can also take a \emph{monadic action}, such as
+previous iterations are automatically rolled back.
+But a rewrite function doesn't only produce new graphs; it
+can also take a \emph{monadic action}, such as
 acquiring a fresh name.
 These~actions must also be rolled back, and because the~client chooses
 the monad in which the actions take place, the client must provide the
 means to roll them back.
 
-\hoopl\ defines the \emph{interface} that a client must use to roll
-back monadic actions.
-The~interface is defined by the type class @CkpointMonad@ in
+\hoopl\ defines a rollback \emph{interface}, which each client must implement;
+it is the type class @CkpointMonad@ from
 \figref{api-types}:
 \begin{code}
 class Monad m => `CkpointMonad m where
@@ -2200,9 +2200,9 @@ taken by rewrite functions.
 (The safest course is to make sure the law holds throughout the entire
 monad.)
 The~type of the saved checkpoint~@s@ is up to the client;
-it is defined as an associated~type.\remark{Is ``associated type'' the
+it is specified as an associated~type.\remark{Is ``associated type'' the
 \emph{au courant} phrase?}
-\end{ntext}
+
 
 
 
@@ -2314,8 +2314,8 @@ sound.
 \seclabel{dfengine}
 
 \secref{making-simple}
-gives a client's-eye view of \hoopl, showing how to use 
-it to create analyses and transformations.
+gives a client's-eye view of \hoopl, showing how to 
+create analyses and transformations.
 \hoopl's interface is simple, but 
 the \emph{implementation} of interleaved analysis and rewriting is~not.  
 \citet{lerner-grove-chambers:2002} 
@@ -2370,8 +2370,8 @@ machinery is integrated with the rest of the implementation.
 %%  is open on exit, an ``exit  fact'' flowing out.
 
 Instead of the interface function @analyzeAndRewriteFwdBody@, we present
-the private function @arfGraph@ (short for ``analyze and rewrite
-forward graph''):
+the private function @arfGraph@, which is short for ``analyze and rewrite
+forward graph:''
 \begin{smallcode}
 `arfGraph
  :: forall m n f e x. (FuelMonad m, NonLocal n)
@@ -2441,7 +2441,7 @@ arfGraph ^pass entries = graph
 \end{smallttcode}
 The four auxiliary functions help us separate concerns: for example, only 
 \endgroup
-@node@ knows about rewrite functions;
+@node@ knows about rewrite functions,
 and only @body@ knows about fixed points.
 %%  All four functions have access to the @FwdPass@ and any entry points
 %%  that are passed to @arfGraph@.
@@ -2460,10 +2460,7 @@ An~extended fact transformer takes dataflow fact(s) coming into
 the ``thing,'' and it returns an output fact.
 It~also returns a decorated graph representing the (possibly
 rewritten) ``thing''---that's the \emph{extended} part.
-Finally, because a rewrite may require fresh names provided
-by the client, 
-may wish to consult state provided by the client, 
-or may consume ``optimization fuel'' (\secref{fuel}),
+Finally, because rewrites are monadic,
 every extended fact transformer is monadic.
 
 %%%%    \begin{figure}
@@ -2500,7 +2497,12 @@ every extended fact transformer is monadic.
 %%%%    
 
 
-The types of the four extended fact transformers are not quite
+The types of the
+\ifpagetuning
+\else
+four
+\fi
+extended fact transformers are not quite
 identical:
 \begin{itemize}
 \item
@@ -2514,9 +2516,9 @@ that fact.
 \item
 Extended fact transformers for graphs have the most general type,
 as expressed using @Fact@:
-if the graph is open on entry, its fact transformer expects a
+if the graph is open on entry, its~fact transformer expects a
 single fact;
-if the graph is closed on entry, its fact transformer expects a
+if the graph is closed on entry, its~fact transformer expects a
 @FactBase@.
 \item
 Extended fact transformers for bodies have the same type as 
@@ -2546,7 +2548,7 @@ For example, @block@ is implemented thus:
 %\ifpagetuning\par\vfilbreak[1in]\fi  % horrible page break
 \begin{smallcode}
   `block :: forall e x .
-    Block n e x -> f -> m (DG f n e x, Fact x f)
+             Block n e x -> f -> m (DG f n e x, Fact x f)
   block (BFirst  n)  = node n
   block (BMiddle n)  = node n
   block (BLast   n)  = node n
@@ -2556,13 +2558,13 @@ The composition function @cat@ feeds facts from one extended fact
 transformer to another, and it splices decorated graphs.
 It~has a very general type:
 \begin{smallcode}
-cat :: forall m e a x f f1 f2. Monad m 
-    => (f  -> m (DG f n e a, f1))
-    -> (f1 -> m (DG f n a x, f2))
-    -> (f  -> m (DG f n e x, f2))
-`cat ft1 ft2 f = do { (g1,f1) <- ft1 f
-                   ; (g2,f2) <- ft2 f1
-                   ; return (g1 `dgSplice` g2, f2) }
+  cat :: forall m e a x f f1 f2. Monad m 
+      => (f  -> m (DG f n e a, f1))
+      -> (f1 -> m (DG f n a x, f2))
+      -> (f  -> m (DG f n e x, f2))
+  `cat ^ft1 ^ft2 f = do { (g1,f1) <- ft1 f
+                     ; (g2,f2) <- ft2 f1
+                     ; return (g1 `dgSplice` g2, f2) }
 \end{smallcode}
 (Function @`dgSplice@ is the same splicing function used for an ordinary
 @Graph@, but it uses a one-line block-concatenation function suitable
@@ -2662,32 +2664,11 @@ The @node@ function is where we interleave analysis with rewriting:
 % defn fwdEntryLabel
 % defn ftransfer
 % defn frewrite
-%\begin{smallfuzzcode}{10.5pt}
-%node :: forall e x . (ShapeLifter e x, FuelMonad m) 
-%     => n e x -> f -> m (DG f n e x, Fact x f)
-%node n f
-% = do { ^rew <- frewrite pass n f
-%      ; case rew of
-%          Nothing -> return (singletonDG f n,
-%                             ftransfer pass n f)
-%          Just (FwdRew g rw) ->
-%            let ^pass' = pass { fp_rewrite = rw }
-%                f'    = fwdEntryFact n f
-%            in  arfGraph pass' (fwdEntryLabel n) g f' }
 %
-%class `ShapeLifter e x where
-% `singletonDG   :: f -> n e x -> DG f n e x
-% `fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
-% `fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
-% `ftransfer     :: FwdPass m n f -> n e x -> f -> Fact x f
-% `frewrite      :: FwdPass m n f -> n e x
-%               -> f -> m (Maybe (FwdRew m n f e x))
-%\end{smallfuzzcode}
-
 Function @node@ uses @frewrite@ to extract the rewrite function from
 @pass@, 
 and applies the rewrite function to the node~@n@ and the incoming fact~@f@.
-The result, @rew@, is 
+The result, @gtail@, is 
 scrutinized by the @case@ expression.
 
 In the @Nothing@ case, no rewrite takes place.
@@ -2697,15 +2678,17 @@ To produce the outgoing fact, we apply the transfer function
 @ftransfer pass@ to @n@~and~@f@.
 
 In the @Just@ case, we receive a replacement
-graph~@g@ and a new rewrite function~@rw@.
-We~recursively analyze @g@ with @arfGraph@.  
+graph~@g@ and a new rewrite function~@tail@.
+The function~@tail@ represents the tail of a sequence of rewrite
+functions, as described in \secref{rewrite-as-sequence}.
+We~use @tail@ to recursively analyze and rewrite @g@ with @arfGraph@.  
 This analysis uses @pass'@, which contains the original lattice and transfer
-function from @pass@, together with the new rewrite function~@rw@.
+function from @pass@, together with~@tail@.
 Function @fwdEntryFact@ converts fact~@f@ from the type~@f@,
 which @node@ expects, to the type @Fact e f@, which @arfGraph@ expects.
 
 As you see, several functions called in @node@ are overloaded over a
-(private) class @ShapeLifter@, because their implementations depend
+(private) class @ShapeLifter@.  Their implementations depend
 on the open/closed shape of the node.
 By design, the shape of a node is known statically everywhere @node@
 is called, so
@@ -2747,7 +2730,7 @@ a finite map from labels to blocks.
 It returns a list of
 blocks, sorted into an order that makes forward dataflow efficient.\footnote
 {The order of the blocks does not affect the fixed point or any other
-part of the answer; it affects only the number of iterations needed to
+result; it affects only the number of iterations needed to
 reach the fixed point.}
 \begin{smallcode}
  `forwardBlockList 
@@ -2805,8 +2788,8 @@ formatted narrowly for display in one column.
 %%  for completeness, it
 %%  appears in Appendix~\ref{app:fixpoint}.  
 The~code is mostly straightforward, although we try to be clever
-about deciding when a new fact means that another iteration over the
-blocks will be required.
+about deciding when a new fact means that another iteration 
+will be required.
 \finalremark{Rest of this \S\ is a candidate to be cut}
 There is one more subtle point worth mentioning, which we highlight by 
 considering a forward analysis of this graph, where execution starts at~@L1@:
@@ -2847,7 +2830,7 @@ When optimization produces a faulty program,
 we use Whalley's \citeyearpar{whalley:isolation} technique to find the fault:
 given a program that fails when compiled with optimization,
 a binary search on the number of rewrites
-finds an~$n$ such that the program works correctly after $n-1$ rewrites
+finds an~$n$ such that the program works after $n-1$ rewrites
 but fails after $n$~rewrites.
 The $n$th rewrite is faulty.
 As~alluded to at the end of \secref{debugging-introduced}, this
@@ -2855,17 +2838,17 @@ technique enables us to debug complex optimizations by
 identifying one single rewrite that is faulty.
 
 This debugging technique requires the~ability to~limit
-the number of~rewrites,
-which we provide in the form of \emph{optimization fuel}.
-If each rewrite consumes one unit of optimization fuel
-(and does nothing if there is no remaining fuel),
-we can perform the binary search by running the optimization
-with different supplies of fuel.
+the number of~rewrites.
+We limit rewrites using \emph{optimization fuel}.
+Each rewrite consumes one unit of fuel,
+and when fuel is exhausted, all rewrite functions return @Nothing@.
+To~debug, we do binary search on the amount of fuel.
+
 The supply of fuel is encapsulated in the @FuelMonad@ type class (\figref{api-types}),
 which must be implemented by the client's monad @m@.
-And to~ensure that each rewrite consumes one~unit of~fuel,
-the function @mkFRewrite@ wraps the client's rewrite function, which is oblivious to fuel,
-in another function that satisfies the following contract:
+To~ensure that each rewrite consumes one~unit of~fuel,
+@mkFRewrite@ wraps the client's rewrite function, which is oblivious to fuel,
+in~another function that satisfies the following contract:
 \begin{itemize}
 \item 
 If the fuel supply is empty, the wrapped function always returns @Nothing@. 
@@ -2958,7 +2941,7 @@ algorithms.
 
 The soundness of interleaving analysis and transformation,
 even when not all speculative transformations are performed on later
-iterations, was shown by
+iterations, is shown by
 \citet{lerner-grove-chambers:2002}.
 
 
@@ -2970,14 +2953,15 @@ the framework to use that fixed point for transformation.
 Omitting transformation makes it much easier to build frameworks,
 and one can find a spectrum of designs.
 We~describe  two representative
-designs, then move on to the prior frameworks that support interleaved
+designs, then move on to frameworks that do interleave
 analysis and transformation.
 
 The Soot framework is designed for analysis of Java programs
-\cite{hendren:soot:2000}.\finalremark{This citation is probably the
-best for Soot in general, but there doesn't appear 
- to be any formal publication that actually details the dataflow
- framework part. ---JD}
+\cite{hendren:soot:2000}.
+%%  {This citation is probably the
+%%  best for Soot in general, but there doesn't appear 
+%%   to be any formal publication that actually details the dataflow
+%%   framework part. ---JD}
 While Soot's dataflow library supports only analysis, not
  transformation, we found much 
  to admire in its design.
@@ -2989,8 +2973,9 @@ although because Soot is implemented in an imperative style,
 additional functions are needed to copy lattice elements.
 
 
-The CIL toolkit \cite{necula:cil:2002}\finalremark{No good citation
-for same reason as Soot below ---JD}
+The CIL toolkit \cite{necula:cil:2002}
+%%  \finalremark{No good citation
+%%  for same reason as Soot above ---JD}
 supports both analysis and rewriting of C~programs,
 but rewriting is clearly distinct from analysis:
 one runs an analysis to completion and then rewrites based on the
@@ -3004,8 +2989,10 @@ affect which instructions
 the analysis iterates over.
 
 
-\finalremark{FYI, LLVM has Pass Managers that try to control the order of passes,
-  but I'll be darned if I can find anything that might be termed a dataflow framework.}
+%%  \finalremark{FYI, LLVM has Pass Managers that try to control the
+%%  order of passes, 
+%%    but I'll be darned if I can find anything that might be termed a
+%%    dataflow framework.} 
 
 The Whirlwind compiler contains the dataflow framework implemented
 by \citet{lerner-grove-chambers:2002}, who were the first to 
@@ -3101,19 +3088,19 @@ question is comparative, and there isn't another library we can compare
 For example, \hoopl\ is not a drop-in  replacement for an existing
 component of GHC; we introduced \hoopl\ to GHC as part of a
 major refactoring of GHC's back end.
-The version of GHC with \hoopl\ seems about 15\%~slower than
-the previous version, and we
+With \hoopl,  GHC seems about 15\%~slower than
+the previous~GHC, and we
 don't know what portion of the slowdown can be attributed to the
 optimizer.
 %
-What we can say is that the costs of using \hoopl\ seem reasonable;
+We~can say that the costs of using \hoopl\ seem reasonable;
 there is no ``big performance hit.''
 And~a somewhat similar library, written in an \emph{impure} functional
 language, actually improved performance in an apples-to-apples
 comparison with a library using a mutable control-flow graph
 \cite{ramsey-dias:applicative-flow-graph}. 
 
-Although a~thorough evaluation of \hoopl's performance must await
+Although thorough evaluation of \hoopl's performance must await
 future work, we can identify some design decisions that affect
 performance.
 \begin{itemize}
@@ -3172,6 +3159,7 @@ compiler writers.
 To~evaluate how well we succeeded, we examine how \hoopl\ has been
 used,
 we~examine the API, and we examine the implementation.
+We~also sketch some more alternatives.
 
 \paragraph{Using \hoopl}
 
@@ -3208,7 +3196,8 @@ First, it's a good sign that the API provides many higher-order
 combinators that make it easier to write client code. % with simple, expressive types.
 We~have had space to mention only a few: 
 @extendJoinDomain@, 
-@thenFwdRw@, @deepFwdRw@, and @pairFwd@.
+@joinMaps@,
+@thenFwdRw@, @iterFwdRw@, @deepFwdRw@, and @pairFwd@.
 
 Second,
 the static encoding of open and closed shapes at compile time worked
@@ -3237,7 +3226,7 @@ tedious and error-prone.
 
 \paragraph{Examining the implementation}
 
-If you are thinking of adopting \hoopl, you had better consider not
+If you are thinking of adopting \hoopl, you should consider not
 only whether you like the API, but whether, in case of emergency, you
 could maintain the implementation.
 We~believe that \secref{dfengine} sketches enough to show that \hoopl's
@@ -3255,7 +3244,7 @@ and
 computing a fixed point using speculative rewriting.
 Because of this separation of concerns,
 we believe our implementation will be much easier to maintain than
-anything that preceded it.
+anything that preceded~it.
 
 Another good sign is that we have been able to make substantial
 changes in the implementation without changing the API.
@@ -3412,30 +3401,31 @@ thinking and helped to structure the implementation.
 
 \fi
 
-\paragraph{Alternative interfaces and implementations}
-\newtext{
+\paragraph{More alternative interfaces and implementations}
 Why do we allow the client to define the monad~@m@ used in rewrite
 functions and in @analyzeAndRewriteFwdBody@?
 \remark{OK, I no longer find this~\P shitty\ldots}
 The~obvious alternative, which we have implemented and explored, is to require
 \hoopl's clients to use a monad provided by \hoopl.
 This alternative has advantages: 
-we implement
+\emph{we}~implement
 @checkpoint@, @restart@, 
 @setFuel@, and @getFuel@, 
-and we make sure they are right, without placing any obligation on
-the client.
-Our~alternative API also provides a supply of unique names.
-But~we are wary of mandating the representation of such a central
-abstraction as a supply of unique names;
+we make sure they are right, 
+and we ensure that the client cannot possibly misuse them. 
+In~this alternative API, \hoopl\ also provides a supply of unique names.
+But~we are wary of mandating this abstraction;
+unique names affect many parts of a compiler,
+and
 no~matter how well designed the~API,
-if it does not accomodate design choices already embodied in existing
-compilers, it won't be used.
+if it does not play well with existing code,
+it won't be used.
 %
-And~experience has shown us that for the client, the convenience
+Moreover, experience has shown us that for the client, the convenience
 of a custom monad is well worth the cognitive costs of understanding
-the more complex API and of meeting the contracts for
-instances of @FuelMonad@ and @CkpointMonad@.
+the more complex API and the costs of meeting the contracts for
+@FuelMonad@ and @CkpointMonad@.
+
 As~a very simple example, a client might want one set of
 unique names for labels and a different set for registers.
 Or~in order to judge the effectiveness of an optimization,
@@ -3446,35 +3436,29 @@ Primitive Redex
 Speculation, a code-improving transformation that can create new
 function definitions. 
 A~\hoopl\ client implementing this transformation would define a monad
-to accumulate the new definitions.
-In~these examples, the law governing @checkpoint@ and @restart@
-ensures that a speculative rewrite, if later rolled back, does not
-create a log entry or a function definition.
-}
+that could accumulate new definitions.
+The law governing @checkpoint@ and @restart@
+would ensure that a speculative rewrite, if later rolled back, would not
+create  a function definition (or a log entry).
 
-\begin{ntext}
-In~addition to major API variations like ``who controls the monad,'' 
-we have considered myriad minor variations,
-mostly are driven by
-implementation concerns.
-There are some variations in implementation that don't affect the
-interface, but there are also many that have small effects.
-We~have space only to raise a few of the questions.
-An~earlier implementation of the fixed-point computation stored the
+
+Of the many varied implementations we have tried,
+we have space only to raise a few questions, with even fewer answers.
+%
+An~earlier implementation of @fixpoint@ stored the
 ``current'' @FactBase@ in a monad; we~find it easier to understand and
 maintain the code that passes the current @FactBase@ as an argument.
-\secref{implementation} describes an implementation of @arfGraph@
-in what we call ``@concatMap@ style'' (\secref{concat-map-style}).
-We~have also implemented a ``fold style'' and continuation-passing
-style.
-No~one of these styles obviously makes all the code easiest to read
+Among @concatMap@ style, fold style, and continuation-passing style, 
+which is best?
+No~one of these styles makes all the code easiest to read
 and understand: @concatMap@ style is relatively straightforward throughout;
 fold~style is similar overall but different in detail;
-and continuation-passing style is very clear and elegant to those who
-like continuations, but a bit baffling to those who don't.
-Another question is which value constructors should be
-polymorphic in the shapes of their arguments and which should be
-monomorphic.
+and continuation-passing style is clear and elegant to those who
+like continuations, but baffling to those who don't.
+
+Which value constructors should be
+polymorphic in the shapes of their arguments, and which should be
+monomorphic?
 We~experimented with a polymorphic
 \begin{code}
   `BNode :: n e x -> Block n e x
@@ -3493,7 +3477,6 @@ and a block.
 Perhaps some of these questions can be answered by appealing to
 performance, but the experiments that will provide the answers have
 yet to be devised.
-\end{ntext}
 
 
 
@@ -3503,7 +3486,7 @@ yet to be devised.
 Dataflow optimization is usually described as a way to improve imperative
 programs by mutating control-flow graphs.
 Such transformations appear very different from the tree rewriting
-that functional languages are so well known for, and that makes
+that functional languages are so well known for and which makes
 \ifhaskellworkshop
 Haskell
 \else
