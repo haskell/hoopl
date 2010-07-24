@@ -1530,7 +1530,7 @@ coming
 into a node, and it computes dataflow fact(s) on the node's outgoing edge(s).
 In a forward analysis, \hoopl\ starts with the fact at the
 beginning of a block and applies the transfer function to successive 
-nodes in that block until eventually the transfer function for the last node
+nodes in that block, until eventually the transfer function for the last node
 computes the facts that are propagated to the block's successors.
 For example, consider doing constant propagation (\secref{constant-propagation}) on 
 the following graph, with entry at @L1@:
@@ -1539,17 +1539,18 @@ the following graph, with entry at @L1@:
   L2: y=x+4; x=x-1; 
       if x>0 then goto L2 else return
 \end{code}
-Forward analysis starts with the bottom fact \{\} at every label.
-Analyzing @L1@ propagates this fact forward, by applying the transfer 
+Forward analysis starts with the bottom fact \{\} at every label
+except the entry~@L1@.
+The initial fact at~@L1@ is \{@x=@$\top$@,y=@$\top$\}.
+Analyzing~@L1@ propagates this fact forward, applying the transfer 
 function successively to the nodes
-of @L1@, emerging with the fact \{@x=3@\} for @L2@.
-This new fact is joined with the existing (bottom) fact for @L2@.
-Now the analysis propagates @L2@'s fact forward, again using the transfer
-function, this time emerging with a new fact \mbox{\{@x=2@, @y=7@\}} for @L2@.
-Again, the new fact is joined with the existing fact for @L2@, and the process
-is iterated until the facts for each label reach a fixed point.
+of~@L1@, and propagating the new fact \{@x=3,y=@$\top$\} to~@L2@.
+This new fact is joined with the existing (bottom) fact at~@L2@.
+Now~the analysis propagates @L2@'s fact forward, again applying the transfer
+function, and propagating the new fact \mbox{\{@x=2@, @y=7@\}} to~@L2@.
+Again the new fact is joined with the existing fact at~@L2@, and the process
+repeats until the facts for each label reach a fixed point.
 
-%%% But wait! % Too breathless ---NR
 A~transfer function has an unusual sort of type:
 not quite a dependent type, but not a bog-standard polymorphic type either.
 The result type of the transfer function is \emph{indexed} by the shape (i.e.,
@@ -1557,7 +1558,7 @@ the type) of the node argument:
 If the node is open on exit, the transfer function produces a single fact.
 But if the node is \emph{closed} on exit,
 the transfer function 
-produces a collection of (@Label@,fact) pairs, one for each outgoing edge.  
+produces a collection of (@Label@,fact) pairs: one for each outgoing edge.  
 %
 The indexing is expressed by Haskell's (recently added) 
 \emph{indexed type families}.
