@@ -185,6 +185,7 @@ higher-rank any longer).
 \newenvironment{smallttcode}{\par\unskip\small\alltt}{\endalltt}
 
 \newcommand\smallverbatiminput[1]{{\small\verbatiminput{#1}}}
+\newcommand\smallfuzzverbatiminput[2]{{\small\hfuzz=#1 \verbatiminput{#2}}}
 
 \newcommand\lineref[1]{line~\ref{line:#1}}
 \newcommand\linepairref[2]{lines \ref{line:#1}~and~\ref{line:#2}}
@@ -923,7 +924,7 @@ respectively.
 
 
 \begin{figure}
-\begin{fuzzcode}{0.98pt}
+\begin{fuzzcode}{10.5pt}
 data `O   -- Open
 data `C   -- Closed
 
@@ -1066,6 +1067,7 @@ not only when they are both open
 when they are both closed---and not in the other two cases:
 \begingroup
 \def\^{\\[-5pt]}%
+\hfuzz=10.8pt
 \begin{smallttcode}
 `gSplice :: Graph n e a -> Graph n a x -> Graph n e x
 gSplice GNil g2 = g2
@@ -1101,8 +1103,7 @@ them
 with @BCat@ to produce a closed/closed block~@b@, which is
 added to the body of the result.
 
-The representation of @Graph@s is exposed to \hoopl's clients.
-\finalremark{This \P\ is a candidate to be cut.}
+The representation of @Graph@s is exposed to \hoopl's clients.\finalremark{This \P\ is a candidate to be cut.}
 We~have carefully crafted the types so that if @BCat@ 
 is considered as an associative operator, 
 every graph has a unique representation.
@@ -1137,7 +1138,7 @@ blocks.
 If~@GUnit@ were more polymorphic, there would be 
 more than one way to represent some graphs, and it wouldn't be obvious
 to a client which representation to choose---or if the choice made a difference.
-
+{\hfuzz=1.8pt\par}
 
 \subsection{Labels and successors} \seclabel{nonlocal-class}
 
@@ -1263,7 +1264,7 @@ Rewrite functions & Us & You & One per \rlap{transformation} \\[3pt]
 Analyze-and-rewrite functions & Us & Us & Two (forward, backward) \\
 \end{tabular}%
 }
-\ifpagetuning\vspace*{0.5\baselineskip}\fi
+%\ifpagetuning\vspace*{0.5\baselineskip}\fi
 \caption{Parts of an optimizer built with \ourlib}
 \tablabel{parts}
 \end{table}
@@ -1277,7 +1278,7 @@ graph.
 \hoopl\ provides a fully polymorphic interface, but for purposes of
 exposition, we present a function that is specialized to a
 closed/closed graph:
-\begin{code}
+\begin{fuzzcode}{10.5pt}
 `analyzeAndRewriteFwdBody
  :: ( CkpointMonad m -- Roll back speculative actions
     , NonLocal n )   -- Extract non-local flow edges
@@ -1287,7 +1288,7 @@ closed/closed graph:
  -> FactBase f       -- Input fact(s)
  -> m ( Graph n C C  -- Result graph
       , FactBase f ) -- ... and its facts
-\end{code}
+\end{fuzzcode}
 Given a @FwdPass@ and a list of entry points, the 
 analyze-and-rewrite function transforms a graph into
 an optimized graph.
@@ -1348,7 +1349,7 @@ interface to @analyzeAndRewriteFwdBody@, leaving the implementation for
 
 
 \begin{figure}
-\begin{code}
+\begin{fuzzcode}{25pt}
 data `FwdPass m n f
   = FwdPass { `fp_lattice  :: DataflowLattice f
             , `fp_transfer :: FwdTransfer n f
@@ -1400,7 +1401,7 @@ type `Fuel = Int
 class Monad m => `FuelMonad m where
   `getFuel :: m Fuel
   `setFuel :: Fuel -> m ()
-\end{code}
+\end{fuzzcode}
 \caption{\ourlib{} API data types}
   \figlabel{api-types}
   \figlabel{lattice-type} \figlabel{lattice}
@@ -1519,7 +1520,7 @@ finite~map.
 In~such lattices it is typical to join maps pointwise, and \hoopl\
 provides a function that makes it convenient to do so:
 \begin{smallcode}
-  `joinMaps :: Ord k => JoinFun v -> JoinFun (Map.Map k v)
+ `joinMaps :: Ord k => JoinFun v -> JoinFun (Map.Map k v)
 \end{smallcode}
 
 
@@ -1667,7 +1668,7 @@ closed on exit.
 %%  rewritten to an empty graph.
 
 \subsection{Shallow rewriting, deep rewriting, rewriting combinators,
-and the meaning of \texttt{FwdRewrite}}
+and the meaning of {\textmd\texttt{FwdRewrite}}}
 
  \seclabel{shallow-vs-deep}
 
@@ -1971,7 +1972,7 @@ functions in the \texttt{NonLocal} type class
 % omit Add :: Operator
 
 \begin{figure}
-\smallverbatiminput{cprop}
+\smallfuzzverbatiminput{2.5pt}{cprop}
 % local node
 % defn ConstFact
 % defn constLattice
@@ -1992,7 +1993,7 @@ functions in the \texttt{NonLocal} type class
 % local fl
 \caption{The client for constant propagation and constant folding\break (extracted automatically from code distributed with Hoopl)}
 \figlabel{const-prop}
-\ifpagetuning\vspace*{-1.0\baselineskip}\fi
+%\ifpagetuning\vspace*{-1.0\baselineskip}\fi
 \end{figure}
 
 
@@ -2182,6 +2183,7 @@ acquiring a fresh name.
 These~actions must also be rolled back, and because the~client chooses
 the monad in which the actions take place, the client must provide the
 means to roll them back.
+{\hfuzz=1.5pt \par}
 
 \hoopl\ defines a rollback \emph{interface}, which each client must implement;
 it is the type class @CkpointMonad@ from
@@ -2376,15 +2378,15 @@ machinery is integrated with the rest of the implementation.
 Instead of the interface function @analyzeAndRewriteFwdBody@, we present
 the private function @arfGraph@, which is short for ``analyze and rewrite
 forward graph:''
-\begin{smallcode}
+\begin{smallfuzzcode}{15.1pt}
 `arfGraph
  :: forall m n f e x. (FuelMonad m, NonLocal n)
  => FwdPass m n f    -- lattice, transfers, rewrites
  -> MaybeC e [Label] -- entry points for a closed graph
  -> Graph n e x      -- the original graph
- -> Fact e f         -- fact(s) flowing into the entry/entries
+ -> Fact e f         -- fact(s) flowing into entry/entries
  -> m (DG f n e x, Fact x f)
-\end{smallcode}
+\end{smallfuzzcode}
 Function @arfGraph@ has a more general type than
 the function @analyzeAndRewriteFwdBody@ % praying for a decent line break
 because @arfGraph@ is used recursively
@@ -2423,14 +2425,15 @@ Type~@DG@ is internal to \hoopl; it is not seen by any client.
 To~convert a~@DG@ to the @Graph@ and @FactBase@
 that are returned by the API function @analyzeAndRewriteFwdBody@,
 we use a 12-line function:
-\begin{smallcode}
+\begin{smallfuzzcode}{2.5pt}
 `normalizeGraph
  :: NonLocal n => DG f n e x -> (Graph n e x, FactBase f)
-\end{smallcode}
+\end{smallfuzzcode}
 
 Function @arfGraph@ is implemented as follows:
 \begingroup
 \def\^{\\[-6pt]}%
+\hfuzz=15.1pt
 \begin{smallttcode}
 arfGraph ^pass entries = graph
  where\^
@@ -2552,7 +2555,7 @@ For example, @block@ is implemented thus:
 %\ifpagetuning\par\vfilbreak[1in]\fi  % horrible page break
 \begin{smallcode}
   `block :: forall e x .
-             Block n e x -> f -> m (DG f n e x, Fact x f)
+            Block n e x -> f -> m (DG f n e x, Fact x f)
   block (BFirst  n)  = node n
   block (BMiddle n)  = node n
   block (BLast   n)  = node n
@@ -2661,7 +2664,7 @@ Function @graph@ is much like @block@, but it has more cases.
 
 The @node@ function is where we interleave analysis with rewriting:
 \remark{Implementation of rewriting is finally revealed---needs to be earlier}
-\smallverbatiminput{node}
+\smallfuzzverbatiminput{15.1pt}{node}
 % defn ShapeLifter
 % defn singletonDG
 % defn fwdEntryFact
@@ -2716,7 +2719,7 @@ The fourth and final auxiliary function of @arfGraph@ is
 @body@, which iterates to a fixed point.
 This part of the implementation is the only really tricky part, and it is
 cleanly separated from everything else:
-\smallverbatiminput{bodyfun}
+\smallfuzzverbatiminput{2.5pt}{bodyfun}
 % defn body
 % local do_block
 % local blocks
@@ -2760,7 +2763,7 @@ perform a reverse postorder depth-first traversal of the control-flow graph.
 
 The rest of the work is done by @`fixpoint@, which is shared by
 both forward and backward analyses:
-\smallverbatiminput{fptype}
+\smallfuzzverbatiminput{2.5pt}{fptype}
 % defn Direction
 % defn Fwd
 % defn Bwd
@@ -3181,9 +3184,9 @@ and induction-variable elimination
 Students at Yale and at Portland State have also succeeded in building
 a variety of optimizations.
 
-\hoopl's data types can support optimizations beyond classic
+\hoopl's graphs can support optimizations beyond classic
 dataflow. 
-For example, within GHC, \hoopl's  graphs are used 
+For example, in~GHC, \hoopl's  graphs are used 
 to implement optimizations based on control flow,
 such as eliminating branch chains.
 

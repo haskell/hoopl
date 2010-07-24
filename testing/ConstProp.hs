@@ -20,13 +20,13 @@ type Node = Insn -- for paper
 type ConstFact = Map.Map Var (WithTop Lit)
 constLattice :: DataflowLattice ConstFact
 constLattice = DataflowLattice
-  { fact_name = "Const var value"
-  , fact_bot  = Map.empty
-  , fact_join = joinMaps (extendJoinDomain constFactAdd) }
-  where
-    constFactAdd _ (OldFact old) (NewFact new) 
-        = if new == old then (NoChange, PElem new)
-          else               (SomeChange, Top)
+ { fact_name = "Const var value"
+ , fact_bot  = Map.empty
+ , fact_join = joinMaps (extendJoinDomain constFactAdd) }
+ where
+   constFactAdd _ (OldFact old) (NewFact new) 
+       = if new == old then (NoChange, PElem new)
+         else               (SomeChange, Top)
 
 -- @ end cprop.tex
 -- Initially, we assume that all variable values are unknown.
