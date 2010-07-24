@@ -1609,14 +1609,15 @@ A @FwdPass@ therefore includes a \emph{rewrite function}, whose
 type, @FwdRewrite@, is abstract (\figref{api-types}).
 A~programmer creating a rewrite function chooses the type of a node~@n@ and
 a dataflow fact~@f@.
-A~rewrite function might also want access to fresh
-names (e.g., to label new blocks) or to other state (e.g., a~mapping
-indicating which loops a block is a part of).
-So~that a rewrite function may have access to such state, \hoopl\
+A~rewrite function might also want to consume fresh
+names (e.g., to label new blocks) or take other actions (e.g., logging
+rewrites). 
+So~that a rewrite function may take actions, \hoopl\
 requires that a programmer creating a rewrite function also choose a
-monad~@m@.\remark{Looking for better/more in this~\P}
-\newtext{So that \hoopl\ may roll back speculative rewrites, the monad
-must satisfy the constraint @CkpointMonad m@.}
+monad~@m@.
+So~that \hoopl\ may roll back actions taken by speculative rewrites, the monad
+must satisfy the constraint @CkpointMonad m@, as described in
+\secref{checkpoint-monad}. 
 The programmer may write code that works with any such monad,
 may create a monad just for the client,
 or may use a monad supplied by \hoopl. 
