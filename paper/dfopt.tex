@@ -848,9 +848,9 @@ if it is closed, it may have arbitrarily many successors---or none.
 
 \subsection{Nodes} \seclabel{nodes}
 
-The primitive constituents of a \ourlib{} control-flow graph are
+The primitive constituents of a control-flow graph are
 \emph{nodes}, which are defined by the client.
-Typically, a node might represent a machine instruction, such as an
+For example, a node might represent a machine instruction, such as an
 assignment, a call, or a conditional branch.  
 But \ourlib{}'s graph representation is \emph{polymorphic in the node type},
 so each client can define nodes as it likes.
@@ -882,7 +882,7 @@ Such a type parameter may be instantiated only with type @O@~(for
 open) or type~@C@ (for closed).
 
 As an example,
-\figref{cmm-node} shows a typical node type as it might be written by
+\figref{cmm-node} shows a typical node type as it might be defined by
 one of \ourlib's {clients}.
 The type parameters are written @e@ and @x@, for
 entry and exit respectively.  
@@ -921,68 +921,6 @@ basic block,
 we~often call them \emph{first}, \emph{middle}, and \emph{last} nodes
 respectively.
 
-\subsection{Blocks} \seclabel{blocks}
-
-\ourlib\ combines the client's nodes into
-blocks and graphs, which, unlike the nodes, are defined by \ourlib{}
- (\figref{graph}).
-A~@Block@ is parameterized over the node type~@n@
-as well as over the same flag types that make it open or closed at
-entry and exit.
-
-The @BFirst@, @BMiddle@, and @BLast@ constructors create one-node
-blocks.  
-Each of these constructors is polymorphic in the node's \emph{representation}
-but monomorphic in its \emph{shape}.
-Why not use a single constructor 
-of type \mbox{@n e x -> Block n e x@}, which would be polymorphic in a
-node's representation \emph{and} 
-shape?
-Because by making the shape known statically, we simplify the
-implementation of analysis and transformation in 
-\secref{dfengine}. 
-\finalremark{SLPJ: Do we intend that clients
-can see the representation of blocks?
-Answer: At present the representation is partially exposed, and we
-have no principled answer to the question.  ---NR
-OK; but what do we tell our readers?
-}
-
-The @BCat@ constructor concatenates blocks in sequence. 
-It~makes sense to concatenate blocks only when control can fall
-through from the first to the second; therefore, 
-two blocks may be concatenated {only} if each block is open at
-the point of concatenation.
-This restriction is enforced by the type of @BCat@, whose first 
-argument must be open on exit, and whose second argument must be open on entry.
-It~is statically impossible, for example, to concatenate a @Branch@
-immediately before an
-@Assign@.  
-Indeed, the @Block@ type statically guarantees that any
-closed/closed @Block@---which compiler writers normally 
-call a ``basic block''---consists of exactly one first node
-(such as @Label@ in \figref{cmm-node}), 
-followed by zero or more middle nodes (@Assign@ or @Store@), 
-and terminated with exactly one 
-last node (@Branch@ or @Cond@).  
-Using GADTs to enforce these invariants is one of 
-\ourlib{}'s innovations.
-
-
-\subsection{Control-flow edges and program points} \seclabel{edges}
-
-In a block, a control-flow edge is implicit in every application of
-the @BCat@ constructor.
-An~implicit edge originates in a first node or a middle node and flows
-to a middle node or a last node.
-\emph{Explicit} edges between blocks are represented by the client;
-an~explicit edge originates in a last node and flows to a (labelled)
-first node. 
-\hoopl\ discovers explicit edges by using the @successors@ and
-@entryLabel@ functions of the @NonLocal@ class.
-Any~edge, whether implicit or explicit, is considered a program point,
-and an analysis written using \hoopl\ computes a dataflow fact at each
-such point.
 
 \begin{figure}
 \begin{fuzzcode}{0.98pt}
@@ -1018,6 +956,67 @@ class `NonLocal n where
 \end{figure}
 % omit MaybeC :: * -> * -> *
 
+
+\subsection{Blocks} \seclabel{blocks}
+
+\ourlib\ combines the client's nodes into
+blocks and graphs, which, unlike the nodes, are defined by \ourlib{}
+ (\figref{graph}).
+A~@Block@ is parameterized over the node type~@n@
+as well as over the same flag types that make it open or closed at
+entry and exit.
+
+The @BFirst@, @BMiddle@, and @BLast@ constructors create one-node
+blocks.  
+Each of these constructors is polymorphic in the node's \emph{representation}
+but monomorphic in its \emph{shape}.
+Why not use a single constructor 
+of type \mbox{@n e x -> Block n e x@}, which would be polymorphic in a
+node's representation \emph{and} 
+shape?
+Because by making the shape known statically, we simplify the
+implementation of analysis and transformation in 
+\secref{dfengine}. 
+\finalremark{We have no principled answer to the question of what
+parts of the representation of blocks are exposed.
+Do we tell our readers or just ignore the question?
+}
+
+The @BCat@ constructor concatenates blocks in sequence. 
+It~makes sense to concatenate blocks only when control can fall
+through from the first to the second; therefore, 
+two blocks may be concatenated {only} if each block is open at
+the point of concatenation.
+This restriction is enforced by the type of @BCat@, whose first 
+argument must be open on exit, and whose second argument must be open on entry.
+It~is statically impossible, for example, to concatenate a @Branch@
+immediately before an
+@Assign@.  
+Indeed, the @Block@ type statically guarantees that any
+closed/closed @Block@---which compiler writers normally 
+call a ``basic block''---consists of exactly one first node
+(such as @Label@ in \figref{cmm-node}), 
+followed by zero or more middle nodes (@Assign@ or @Store@), 
+and terminated with exactly one 
+last node (@Branch@ or @Cond@).  
+Using GADTs to enforce these invariants is one of 
+\ourlib{}'s innovations.
+
+
+\subsection{Control-flow edges and program points} \seclabel{edges}
+
+In a block, a control-flow edge is implicit in every application of
+the @BCat@ constructor.
+An~implicit edge originates in a first node or a middle node and flows
+to a middle node or a last node.
+\emph{Explicit} edges between blocks are represented by the client;
+an~explicit edge originates in a last node and flows to a (labelled)
+first node. 
+\hoopl\ discovers explicit edges by using the @successors@ and
+@entryLabel@ functions of the @NonLocal@ class (\figref{graph}).
+Any~edge, whether implicit or explicit, is considered a program point,
+and an analysis written using \hoopl\ computes a dataflow fact at each
+such point.
 
 \subsection{Graphs} \seclabel{graphs}
 
@@ -1105,10 +1104,7 @@ The representation of @Graph@s is exposed to \hoopl's clients.
 \finalremark{This \P\ is a candidate to be cut.}
 We~have carefully crafted the types so that if @BCat@ 
 is considered as an associative operator, 
-every graph has a unique representation.\finalremark{So what? (Doumont)
-Need some words about how this is part of making the API simple for
-the client---I've added something to the end of the paragraph, but I'm
-not particularly thrilled.}
+every graph has a unique representation.
 %%  \simon{Well, you were the one who was so keen on a unique representation!
 %%  And since we have one, I think tis useful to say so. Lastly, the representation of
 %%  singleton blocks is not entirely obvious.}
@@ -1206,32 +1202,6 @@ if a @Graph@ is closed on entry, it need not have a unique entry label.
 
 
 
-\begin{table}
-\centerline{%
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.03in}>{\scshape}c>{\scshape
-}
-      c>{\raggedright\arraybackslash}p{1.29in}@{}}
-&\multicolumn1{r}{\llap{\emph{Specified}}\hspace*{-0.3em}}&
-\multicolumn1{l}{\hspace*{-0.4em}\rlap{\emph{Implemented}}}&\\
-\multicolumn1{c}{\emph{Part of optimizer}}
-&\multicolumn1{c}{\emph{by}}&
-\multicolumn1{c}{\emph{by}}&
-\multicolumn1{c}{\emph{How many}}%
-\\[5pt]
-Control-flow graphs& Us & Us & One \\
-Nodes in a control-flow graph & You & You & One type per intermediate language \\[3pt]
-Dataflow fact~$F$    & You & You & One type per logic \\
-Lattice operations & Us & You & One set per logic \\[3pt]
-Transfer functions & Us & You & One per analysis \\
-Rewrite functions & Us & You & One per \rlap{transformation} \\[3pt]
-Solve-and-rewrite functions & Us & Us & Two (forward, backward) \\
-\end{tabular}%
-}
-\ifpagetuning\vspace*{0.5\baselineskip}\fi
-\caption{Parts of an optimizer built with \ourlib}
-\tablabel{parts}
-\end{table}
-
 
 
 \section {Using \ourlib{} to analyze and transform graphs} \seclabel{using-hoopl}
@@ -1270,6 +1240,33 @@ is crucial for many code-improving transformations.
 These requirements are summarized in \tabref{parts}.
 Because facts, transfer functions, and rewrite functions work together,
 we~combine them in a single record of type @FwdPass@ (\figref{api-types}).
+
+\begin{table}
+\centerline{%
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.03in}>{\scshape}c>{\scshape
+}
+      c>{\raggedright\arraybackslash}p{1.29in}@{}}
+&\multicolumn1{r}{\llap{\emph{Specified}}\hspace*{-0.3em}}&
+\multicolumn1{l}{\hspace*{-0.4em}\rlap{\emph{Implemented}}}&\\
+\multicolumn1{c}{\emph{Part of optimizer}}
+&\multicolumn1{c}{\emph{by}}&
+\multicolumn1{c}{\emph{by}}&
+\multicolumn1{c}{\emph{How many}}%
+\\[5pt]
+Control-flow graphs& Us & Us & One \\
+Nodes in a control-flow graph & You & You & One type per intermediate language \\[3pt]
+Dataflow fact~$F$    & You & You & One type per logic \\
+Lattice operations & Us & You & One set per logic \\[3pt]
+Transfer functions & Us & You & One per analysis \\
+Rewrite functions & Us & You & One per \rlap{transformation} \\[3pt]
+Analyze-and-rewrite functions & Us & Us & Two (forward, backward) \\
+\end{tabular}%
+}
+\ifpagetuning\vspace*{0.5\baselineskip}\fi
+\caption{Parts of an optimizer built with \ourlib}
+\tablabel{parts}
+\end{table}
+
 
 
 
