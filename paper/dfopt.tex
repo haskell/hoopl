@@ -955,6 +955,7 @@ class `NonLocal n where
 \figlabel{graph} \figlabel{edges}
 \end{figure}
 % omit MaybeC :: * -> * -> *
+% omit LabelMap :: *
 
 
 \subsection{Blocks} \seclabel{blocks}
@@ -1518,7 +1519,7 @@ finite~map.
 In~such lattices it is typical to join maps pointwise, and \hoopl\
 provides a function that makes it convenient to do so:
 \begin{smallcode}
-  `joinMaps :: Ord k => JoinFun v -> JoinFun (Map k v)
+  `joinMaps :: Ord k => JoinFun v -> JoinFun (Map.Map k v)
 \end{smallcode}
 
 
@@ -1985,6 +1986,10 @@ functions in the \texttt{NonLocal} type class
 % local s_node
 % local s_exp
 % defn constPropPass
+% local new
+% local old
+% local tl
+% local fl
 \caption{The client for constant propagation and constant folding\break (extracted automatically from code distributed with Hoopl)}
 \figlabel{const-prop}
 \ifpagetuning\vspace*{-1.0\baselineskip}\fi
@@ -2154,7 +2159,7 @@ that later has to be rolled back.
 For example, consider constant propagation in this loop, which
 computes factorial: 
 \begin{code}
-     i = 1; prod = 1;
+     i = 1; `prod = 1;
  L1: if (i >= n) goto L3 else goto L2;
  L2: i = i + 1; prod = prod * i;
      goto L1;
@@ -2663,6 +2668,9 @@ The @node@ function is where we interleave analysis with rewriting:
 % defn fwdEntryLabel
 % defn ftransfer
 % defn frewrite
+% local pass'
+% local gtail
+% omit FwdGraphAndTail :: Graph n e x -> FwdRewrite m n f -> FwdGraphAndTail m n f e x
 %
 Function @node@ uses @frewrite@ to extract the rewrite function from
 @pass@, 
@@ -2717,6 +2725,7 @@ cleanly separated from everything else:
 % local entries
 % local init_fbase
 % local blockmap
+% local fb
 Function @getFact@ looks up a fact by its label.
 If the label is not found,
 @getFact@ returns
@@ -3559,17 +3568,16 @@ extended visits to the third author.
 
 \appendix
 
-% omit LabelSet :: *
-% omit LabelMap :: *
-% omit delFromFactBase :: FactBase f -> [(Label,f)] -> FactBase f
-% omit elemFactBase :: Label -> FactBase f -> Bool
-% omit elemLabelSet :: Label -> LabelSet -> Bool
-% omit emptyLabelSet :: LabelSet
-% omit factBaseLabels :: FactBase f -> [Label]
-% omit extendFactBase :: FactBase f -> Label -> f -> FactBase f
-% omit extendLabelSet :: LabelSet -> Label -> LabelSet
-% omit lookupFact :: FactBase f -> Label -> Maybe f
-% omit factBaseList :: FactBase f -> [(Label, f)]
+% don't omit LabelSet :: *
+% don't omit delFromFactBase :: FactBase f -> [(Label,f)] -> FactBase f
+% don't omit elemFactBase :: Label -> FactBase f -> Bool
+% don't omit elemLabelSet :: Label -> LabelSet -> Bool
+% don't omit emptyLabelSet :: LabelSet
+% don't omit factBaseLabels :: FactBase f -> [Label]
+% don't omit extendFactBase :: FactBase f -> Label -> f -> FactBase f
+% don't omit extendLabelSet :: LabelSet -> Label -> LabelSet
+% don't omit lookupFact :: FactBase f -> Label -> Maybe f
+% don't omit factBaseList :: FactBase f -> [(Label, f)]
 
 %%  \section{Code for \textmd{\texttt{fixpoint}}}
 %%  \label{app:fixpoint}

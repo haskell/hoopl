@@ -53,3 +53,4 @@ concatMap
 Monad
 =<<
 cycle
+Ord
