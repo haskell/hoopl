@@ -1317,31 +1317,26 @@ rewrite function to the node and the incoming fact.  If the rewrite
 function returns @Nothing@, the node is retained as part of the output
 graph, the transfer function is used to compute the downstream fact,
 and \ourlib\ moves on to the next node.
-\remark{This part is a bit awkward---needs to be redone}
 But if the rewrite function returns @Just g@,
 indicating that it wants to rewrite the node to the replacement graph~@g@, then
 \ourlib\ recursively analyzes and may further rewrite~@g@
 before moving on to the next node. 
-\remark{Need to explain ``further rewriting'' somewhere, e.g.,
-Further (deep) rewriting is called for when the rewrite function is created
-with @iterFwdRw@ or @thenFwdRw@;
-a~rewrite function created with @mkFRewrite@ is used just once per node.}
 A~node following a rewritten node sees 
 \emph{up-to-date} facts; that is, its input fact is computed by
 analyzing the replacement graph.
 
 A~rewrite function may take any action that is justified by
 the incoming fact.
-If~further analysis turns out to invalidate the fact, \hoopl\ rolls
+If~further analysis invalidates the fact, \hoopl\ rolls
 back the action.
-The~action of updating the graph is easy to roll back;
-graphs are immutable, and \hoopl\ simply reverts to the previous
-graph.
-But~to roll back a rewrite function's \emph{monadic} action, 
-\hoopl\ requires support from the client:
-the monad chosen by the client must be made an instance of
-\hoopl's @CkpointMonad@ class, which provides @checkpoint@ and
-@restart@ operations for rolling back actions
+Because graphs cannot be mutated,
+rolling back to the original graph is easy.
+But~rolling back a rewrite function's {monadic} action
+requires cooperation from the client:
+the~client must  provide @checkpoint@ and
+@restart@ operations, which
+make~@m@ an instance of
+\hoopl's @CkpointMonad@ class
 (\secref{checkpoint-monad}). 
 
 
