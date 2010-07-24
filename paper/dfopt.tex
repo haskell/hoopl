@@ -1665,26 +1665,27 @@ closed on exit.
 %%  or tail of a block (open/closed) can ever be deleted by being
 %%  rewritten to an empty graph.
 
-\subsection{Shallow rewriting, deep rewriting, and rewriting combinators}
+\subsection{Shallow rewriting, deep rewriting, rewriting combinators,
+and the meaning of \texttt{FwdRewrite}}
 
  \seclabel{shallow-vs-deep}
 
 When a node is rewritten, the replacement graph~$g$
 must itself be analyzed, and its nodes may be further rewritten.
 \hoopl\ can make a recursive call to 
-@analyzeAndRewriteFwdBody@---but what @FwdPass@ should it use?
-There are two common situations:
+@analyzeAndRewriteFwdBody@---but exactly how should it rewrite the
+replacement graph~$g$?
+There are two common ways to proceed:
 \begin{itemize}
-\item Sometimes we want to analyze and transform the replacement graph
-with an unmodified @FwdPass@, thereby further rewriting the replacement graph.
+\item
+Rewrite~$g$ using the same rewrite function that produced~$g$.
 This procedure is
 called \emph{deep rewriting}. 
 When deep rewriting is used, the client's rewrite function must
 ensure that the graphs it produces are not rewritten indefinitely
 (\secref{correctness}). 
 \item
-A client may want to analyze the
-replacement graph \emph{without} further rewriting.  
+Analyze~$g$ {without} rewriting it.
 This procedure is called \emph{shallow rewriting}.
 \end{itemize}
 Deep rewriting is essential to achieve the full benefits of
@@ -1699,20 +1700,50 @@ to insert infinitely many spills.
 
 An~innovation of \hoopl\ is to build the choice of shallow or deep
 rewriting into each rewrite function, through the use of combinators.
-A~function returned by @mkFRewrite@ is shallow by default, but it can
-be made deep by
+To~explain these combinators, 
+we model
+a~rewrite function of type @FwdRewrite m n f@ 
+as a potentially infinite sequence of functions of type
 \begin{code}
-  `iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
+ forall e x . n e x -> f -> m (Maybe graph n e x).
 \end{code}
+When we apply a rewrite function to a node and a fact,
+we choose the first function in the sequence that returns $@Just@\;g$,
+and we recursively analyze and rewrite~$g$ using the remaining
+functions in the sequence. 
+If~all functions in the sequence return @Nothing@, rewriting returns
+@Nothing@.
+The~model works because we needn't \emph{actually} check an infinite
+sequence of functions to see if they all return @Nothing@:
+even though the sequence in the model
+can be infinite, it has only finitely many distinct elements---and our
+implementation carefully avoids representing the infinite sequence.
+With~this model in mind, we can explain the combinators that \hoopl\
+provides for rewrite functions.
+
+A~function returned by @mkFRewrite@ returns a singleton sequence,
+which corresponds exactly to shallow rewriting.
+Rewriting can be made deep by making a sequence infinite;
+function
+\begin{code}
+ `iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
+\end{code}
+behaves on rewrite functions the way @cycle@ does on lists,
+repeating the elements infinitely often.
 For~convenience, we~provide the~function @`deepFwdRw@,
 which is the composition of @iterFwdRw@ and~@mkFRewrite@.
-Another useful combinator enables \hoopl\ to try any number of functions to
-rewrite a node, provided only that they all use the same fact:
+
+To try multiple rewrite functions in sequence,\remark{Horrendous page
+break will need fixing}
+provided they all use the same type of fact, \hoopl\ combines them with
 \verbatiminput{comb1}
 % defn thenFwdRw
 Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
 then the rewrites of~@r2@.
-The rewriter @noFwdRw@ is the identity of @thenFwdRw@.
+It~behaves on rewrite functions the way @++@~behaves on lists.
+Finally, 
+@noFwdRw@ is the identity of @thenFwdRw@, and it
+corresponds to an empty sequence of rewrite functions.
 %%  
 %%  
 %%  by using
@@ -1722,14 +1753,14 @@ The rewriter @noFwdRw@ is the identity of @thenFwdRw@.
 %%  \hoopl\ makes it easy for a client to combine multiple rewrite
 %%  functions that use the same fact:
 
-These combinators satisfy the algebraic law
+Our combinators satisfy the algebraic laws that you would expect, including
 \begin{code}
   iterFwdRw r = r `thenFwdRw` iterFwdRw r
 \end{code}
-but unfortunately, this equation cannot be used to \emph{define}
+Unfortunately, this equation cannot be used to \emph{define}
 @iterFwdRw@:
-if~we used this equation to define @iterFwdRw@, then when @r@ declined
-to rewrite, @iterFwdRw r@ would diverge.
+if~we used this equation to define @iterFwdRw@, then when @r@ returned @Nothing@,
+@iterFwdRw r@ would diverge.
 
 
 
