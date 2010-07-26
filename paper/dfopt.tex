@@ -1741,9 +1741,9 @@ rewrite rs node f = rew rs Just Nothing
   rew (Mk r) j n =
      case r node f of Nothing -> n
                       Just g -> j (g, No)
-  rew (r1 `Then` r2) j n = rew r1 (plus j r2) (rew r2 j n)
-  rew (Iter r)       j n = rew r (plus j (Iter r)) n
-  plus j tail (g, r) = j (g, r `Then` tail)
+  rew (r1 `Then` r2) j n = rew r1 (j . add r2) (rew r2 j n)
+  rew (Iter r)       j n = rew r (j . add (Iter r)) n
+  add tail (g, r) = (g, r `Then` tail)
 \end{smallcode}
 If~all functions in the sequence return @Nothing@, rewriting returns
 @Nothing@.
