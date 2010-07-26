@@ -1732,6 +1732,19 @@ When we apply a rewrite function to a node and a fact,
 we choose the first function in the sequence that returns $@Just@\;g$,
 and we recursively analyze and rewrite~$g$ using the remaining
 functions in the sequence. 
+\begin{smallcode}
+rewrite :: FwdRewrite' n f -> -> n e x -> f
+        -> Maybe (Graph n e x, FwdRewrite' n f)
+rewrite rs node f = rew rs Just Nothing
+ where
+  rew No     j n = n
+  rew (Mk r) j n =
+     case r node f of Nothing -> n
+                      Just g -> j (g, No)
+  rew (r1 `Then` r2) j n = rew r1 (plus j r2) (rew r2 j n)
+  rew (Iter r)       j n = rew r (plus j (Iter r)) n
+  plus j tail (g, r) = j (g, r `Then` tail)
+\end{smallcode}
 If~all functions in the sequence return @Nothing@, rewriting returns
 @Nothing@.
 The~model works because we needn't \emph{actually} check an infinite
