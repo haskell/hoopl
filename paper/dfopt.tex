@@ -398,7 +398,7 @@ higher-rank any longer).
 Under consideration for publication in the ACM Haskell Symposium.
 Comments
 are welcome; please identify this version by the words
-\textbf{\mdfivewords}.
+% \textbf{\mdfivewords}.
 }}
 
 \conferenceinfo{Haskell'10,} {September 30, 2010, Baltimore, Maryland, USA.}
@@ -555,12 +555,12 @@ hard; we have been through over a dozen significantly different
 iterations, and we offer our API as a contribution.
 
 \item
-Because the client
-can perform very local reasoning (``@y@ is live before
+Analyses and transformations built on \ourlib\ 
+are small, simple, and easy to get right,
+because the client is only required to 
+perform local reasoning (``@y@ is live before
 @x:=y+2@''),
 \seclabel{liveness-mention}
- analyses and transformations built on \ourlib\ 
-are small, simple, and easy to get right.
 Moreover, \ourlib\ helps you write correct optimizations:
 it~statically rules out transformations that violate invariants
 of the control-flow graph (Sections \ref{sec:graph-rep} and \ref{sec:rewrites}),
@@ -606,6 +606,8 @@ as higher-rank polymorphism, GADTs, and type functions.
 \ourlib{} may therefore also serve as a case study in the utility
 of these features.
 
+
+\clearpage % Start section 2 on page 2
 
 \section{Dataflow analysis {\&} transformation by \texorpdfstring{\rlap{example}}{example}}
 \seclabel{overview}
@@ -664,7 +666,7 @@ replace the node with @z:=True@.
 The~process continues to the end of the block, where we
 can replace the conditional branch with an unconditional one, @goto L1@.
 
-The example above is simple because the program has only straightline code;
+The example above is simple because the program has only straight-line code;
 when programs have loops, dataflow analysis gets more complicated.
 For example, 
 consider the following graph,
@@ -704,7 +706,8 @@ replaces the node @x:=e@ with a no-op.
 
 \seclabel{simple-tx}
 \paragraph{Interleaved transformation and analysis.}
-Our first example \emph{interleaves} transformation and analysis.
+Our first example \emph{interleaves} analysis (constant propagation) 
+and transformation (constant folding).
 Interleaving makes it far easier to write effective analyses.
 If, instead, we \emph{first} analyzed the block
 and \emph{then} transformed it, the analysis would have to ``predict''
@@ -750,7 +753,7 @@ As~described in \secref{checkpoint-monad},
 \paragraph{Cognitive costs of interleaving}
 
 \remark{I'm not entirely pleased with this subsection title}
-
+\simon{Me neither: nuke?}
 \seclabel{debugging-introduced}
 
 While it is wonderful that we can implement complex optimizations by
@@ -766,8 +769,9 @@ isolating faults in an optimizer (\secref{whalley-from-s2}).
 
 \section{Representing control-flow graphs} \seclabel{graph-rep}
 
-\ourlib{} is a library that makes it easy to define dataflow analyses,
-and transformations driven by these analyses, on control-flow graphs.
+\ourlib{} is a library that makes it easy to define dataflow analyses
+on control-flow graphs, 
+and transformations driven by these analyses.
 Graphs are composed from smaller units, which we discuss from the
 bottom up:
 \begin{itemize}
@@ -802,6 +806,9 @@ because control can flow from a call site to multiple points:
 for example, a~return continuation or an exception handler.
 (And~after optimization, distinct call sites may share a return
 continuation.)
+\simon{I think this is pretty confusing. A reader might well
+think that a call should be open on entry and exit, and it requires
+more explanation to say why not.}
 \end{itemize}
 % This taxonomy enables \ourlib{} to enforce invariants:
 % only nodes closed on entry can be the targets of branches, and only nodes closed
@@ -817,7 +824,7 @@ to blocks and graphs.  For example the block
 is open on entry and closed on exit.  
 This is the block's \emph{shape}, which we often abbreviate
 ``open/closed;''
-we may refer to an ``open/closed block.''
+we may also refer to an ``open/closed block.''
 
 The shape of a thing determines that thing's control-flow properties.
 In particular, whenever E is a node, block, or graph,
@@ -850,7 +857,8 @@ if it is closed, it may have arbitrarily many successors---or none.
 \subsection{Nodes} \seclabel{nodes}
 
 The primitive constituents of a control-flow graph are
-\emph{nodes}, which are defined by the client.
+\emph{nodes}.
+% , which are defined by the client.     SLPJ: said again very shortly
 For example, a node might represent a machine instruction, such as an
 assignment, a call, or a conditional branch.  
 But \ourlib{}'s graph representation is \emph{polymorphic in the node type},
@@ -875,9 +883,9 @@ data `Node e x where
 \figlabel{cmm-node}
 \end{figure}
 
-\ourlib{} knows \emph{at compile time} whether a node is open or
-  closed on entry and exit:
-the type of a node has kind @*->*->*@, where the two type parameters
+The type of a node specifies \emph{at compile time} whether the node is open or
+closed on entry and exit. Concretely,
+the node type constructor kind @*->*->*@, where the two type parameters
 are type-level flags, one for entry and one for exit.
 Such a type parameter may be instantiated only with type @O@~(for
 open) or type~@C@ (for closed).
@@ -982,7 +990,8 @@ implementation of analysis and transformation in
 \finalremark{We have no principled answer to the question of what
 parts of the representation of blocks are exposed.
 Do we tell our readers or just ignore the question?
-}
+} 
+\simon{Just ignore!}
 
 The @BCat@ constructor concatenates blocks in sequence. 
 It~makes sense to concatenate blocks only when control can fall
@@ -1007,6 +1016,8 @@ Using GADTs to enforce these invariants is one of
 
 \subsection{Control-flow edges and program points} \seclabel{edges}
 
+\simon{I find this section hard to understand, and I'm not sure that
+it belongs here at all. If anywhere the current 3.6 would be better.}
 In a block, a control-flow edge is implicit in every application of
 the @BCat@ constructor.
 An~implicit edge originates in a first node or a middle node and flows
@@ -1051,7 +1062,8 @@ the type @MaybeO C a@ is isomorphic to~@()@.
 \item 
 The \emph{body} of the graph is a collection of  closed/closed blocks.  
 To~facilitate traversal of the graph, we represent a body as a finite
-map from label to block.
+map from label to block. 
+\simon{{\tt LabelMap} not defined in Fig 2}
 \item 
 The \emph{exit sequence} is dual to the entry sequence, and like the entry
 sequence, its presence or absence is deducible from the static type of the graph.
@@ -1064,7 +1076,7 @@ number of closed/closed blocks.
 Unlike blocks, two graphs may be spliced together
 not only when they are both open
  at splice point but also
-when they are both closed---and not in the other two cases:
+when they are both closed---but not in the other two cases:
 \begingroup
 \def\^{\\[-5pt]}%
 \hfuzz=10.8pt
@@ -1086,6 +1098,7 @@ gSplice (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
 \endgroup
 % omit mapUnion :: LabelMap a -> LabelMap a -> LabelMap a
 % omit addBlock :: NonLocal n => Block n C C -> LabelMap (Block n C C) -> LabelMap (Block n C C)
+\simon{Sad to omit signature for mapUnion, addBlock in Fig 2}
 This definition illustrates the power of GADTs: the
 pattern matching is exhaustive, and all the open/closed invariants are
 statically checked.  For example, consider the second-last equation for @gSplice@.
@@ -1104,6 +1117,8 @@ with @BCat@ to produce a closed/closed block~@b@, which is
 added to the body of the result.
 
 The representation of @Graph@s is exposed to \hoopl's clients.\finalremark{This \P\ is a candidate to be cut.}
+\simon{Right.  If we don't talk about Blocks being exposed, why tackle Graphs? as it stands
+it's inconsistent. Moreover, the stuff that follows is a non-sequitur; needs a new para.}
 We~have carefully crafted the types so that if @BCat@ 
 is considered as an associative operator, 
 every graph has a unique representation.
@@ -1299,8 +1314,8 @@ The type of the monad~@m@ is also chosen by the client.
 
 As well as taking and returning a graph, the
 function also takes input facts (the @FactBase@) and produces output facts. 
-A~@FactBase@ is a finite mapping from @Label@ to facts;
-if~a @Label@ is not in the domain of the @FactBase@, its fact is the
+A~@FactBase@ is a finite mapping from @Label@ to facts (\figref{api-types});
+if~a @Label@ is not in the domain of the @FactBase@ its fact is the
 bottom element of the lattice.
 For example, in our constant-propagation example from \secref{const-prop-example},
 if the graph
@@ -1312,7 +1327,7 @@ parameters are not known to be constants.
 %%  The
 %%  output @FactBase@ maps each @Label@ in the body to its fact
 
-The client's model of how @analyzeAndRewriteFwdBody@ works is as follows:
+The client's model of @analyzeAndRewriteFwdBody@ is as follows:
 \ourlib\ walks forward over each block in the graph.
 At~each node, \ourlib\ applies the
 rewrite function to the node and the incoming fact.  If the rewrite
@@ -1491,23 +1506,24 @@ with top and bottom elements.
 In this paper, we use only type @`WithTop@, which comes with value
 constructors that have these types:
 \begin{code}
-  `PElem :: a -> WithTop a
-  `Top   ::      WithTop a
+  `PElem :: f -> WithTop f
+  `Top   ::      WithTop f
 \end{code}
 \hoopl\ provides combinators which make it easier to create join
   functions that use @Top@.
-The most useful is @extendJoinDomain@:
+The most useful is @extendJoinDomain@, which uses auxiliary types
+defined in \figref{lattice}:
 \begin{smallcode}
 `extendJoinDomain
- :: (OldFact a -> NewFact a -> (ChangeFlag, WithTop a))
- -> JoinFun (WithTop a)
+ :: (OldFact f -> NewFact f -> (ChangeFlag, WithTop f))
+ -> JoinFun (WithTop f)
 \end{smallcode}
 A~client can write a join function that \emph{consumes} only facts of
-type~@a@, but may produce @Top@ (as well as a fact of type~@a@)---as
+type~@f@, but may produce either @Top@ or a fact of type~@f@---as
 in the example of \figref{const-prop} below.
 Calling @extendJoinDomain@ extends the client's function to a proper
 join function on the type @WithTop a@,
-and @extendJoinDomain@ makes sure that joins
+guaranteeing that joins
 involving @Top@ obey the appropriate algebraic laws.
 
 \hoopl\ also provides a value constructor @`Bot@ and type constructors
@@ -1520,9 +1536,8 @@ finite~map.
 In~such lattices it is typical to join maps pointwise, and \hoopl\
 provides a function that makes it convenient to do so:
 \begin{smallcode}
- `joinMaps :: Ord k => JoinFun v -> JoinFun (Map.Map k v)
+ `joinMaps :: Ord k => JoinFun f -> JoinFun (Map.Map k f)
 \end{smallcode}
-
 
 
 \subsection{The transfer function} \seclabel{transfers}
@@ -1561,6 +1576,7 @@ If the node is open on exit, the transfer function produces a single fact.
 But if the node is \emph{closed} on exit,
 the transfer function 
 produces a collection of (@Label@,fact) pairs: one for each outgoing edge.  
+\simon{Lies all lies. It's a FactBase!}
 %
 The indexing is expressed by Haskell's (recently added) 
 \emph{indexed type families}.
@@ -1628,7 +1644,7 @@ or may use a monad supplied by \hoopl.
 When these choices are made, the easy way to create a rewrite
 function is to call the function @mkFRewrite@ in \figref{api-types}.
 The client supplies a function that is specialized to a particular
-node, fact, and (possibly) monad, but is polymorphic in the
+node, fact, and monad, but is polymorphic in the
 \emph{shape} of the node to be rewritten.
 The function, which we will call~$r$, takes a node and a fact and returns a monadic
 computation, but what is the result of that computation?
@@ -2177,15 +2193,14 @@ After each iteration, \hoopl\ starts the next iteration with
 \emph{new} facts but with the \emph{original} graph---by~virtue
 of using purely functional data structures, rewrites from
 previous iterations are automatically rolled back.
+
 But a rewrite function doesn't only produce new graphs; it
 can also take a \emph{monadic action}, such as
 acquiring a fresh name.
 These~actions must also be rolled back, and because the~client chooses
 the monad in which the actions take place, the client must provide the
 means to roll them back.
-{\hfuzz=1.5pt \par}
-
-\hoopl\ defines a rollback \emph{interface}, which each client must implement;
+\hoopl\ therefore defines a rollback \emph{interface}, which each client must implement;
 it is the type class @CkpointMonad@ from
 \figref{api-types}:
 \begin{code}
@@ -2206,11 +2221,7 @@ taken by rewrite functions.
 (The safest course is to make sure the law holds throughout the entire
 monad.)
 The~type of the saved checkpoint~@s@ is up to the client;
-it is specified as an associated~type.\remark{Is ``associated type'' the
-\emph{au courant} phrase?}
-
-
-
+it is specified as an associated~type of the @CkpointMonad@ class.
 
 \subsection{Correctness} \seclabel{correctness}
 
@@ -2418,13 +2429,14 @@ as an additional parameter.
 higher-order function that takes a block-concatenation function as a
 parameter.) 
 The truth about @Graph@ and @DG@ is as follows:
-\smallverbatiminput{dg}
+\par 
+{\smallverbatiminput{dg}
 % defn DG
 % defn DBlock
 Type~@DG@ is internal to \hoopl; it is not seen by any client.
 To~convert a~@DG@ to the @Graph@ and @FactBase@
 that are returned by the API function @analyzeAndRewriteFwdBody@,
-we use a 12-line function:
+we use a 12-line function:}
 \begin{smallfuzzcode}{2.5pt}
 `normalizeGraph
  :: NonLocal n => DG f n e x -> (Graph n e x, FactBase f)
@@ -2551,7 +2563,8 @@ fixed points.
 \seclabel{block-impl}
 
 Extended fact transformers compose nicely.
-For example, @block@ is implemented thus:
+For example, @block@ is implemented thus: \simon{we don't need the foralls? save a line}
+\simon{How can block have no Monad m constraint, while cat does?}
 %\ifpagetuning\par\vfilbreak[1in]\fi  % horrible page break
 \begin{smallcode}
   `block :: forall e x .
@@ -2664,6 +2677,7 @@ Function @graph@ is much like @block@, but it has more cases.
 
 The @node@ function is where we interleave analysis with rewriting:
 \remark{Implementation of rewriting is finally revealed---needs to be earlier}
+\simon{need defn of FwdGraphAndTail. Why not combine it with the Maybe?}
 \smallfuzzverbatiminput{15.1pt}{node}
 % defn ShapeLifter
 % defn singletonDG
@@ -2855,6 +2869,9 @@ Each rewrite consumes one unit of fuel,
 and when fuel is exhausted, all rewrite functions return @Nothing@.
 To~debug, we do binary search on the amount of fuel.
 
+\simon{Missing is the key point: that the entire fuel story is implementable
+by snazzy rewrite functions, and could be done by the client. We 
+provide the wrapper only for convenience.}
 The supply of fuel is encapsulated in the @FuelMonad@ type class (\figref{api-types}),
 which must be implemented by the client's monad @m@.
 To~ensure that each rewrite consumes one~unit of~fuel,
@@ -3113,7 +3130,9 @@ comparison with a library using a mutable control-flow graph
 
 Although thorough evaluation of \hoopl's performance must await
 future work, we can identify some design decisions that affect
-performance.
+performance. \simon{I think it's highly speculative whether these issues
+are anywhere near the high-order bit of performance.  Candidate for cutting
+if you ask me.}
 \begin{itemize}
 \item
 In \figref{graph}, we show a single concatenation operator for blocks.
@@ -3419,27 +3438,33 @@ functions and in @analyzeAndRewriteFwdBody@?
 The~obvious alternative, which we have implemented and explored, is to require
 \hoopl's clients to use a monad provided by \hoopl.
 This alternative has advantages: 
-\emph{we}~implement
+because \hoopl{} implements
 @checkpoint@, @restart@, 
 @setFuel@, and @getFuel@, 
-we make sure they are right, 
-and we ensure that the client cannot possibly misuse them. 
-In~this alternative API, \hoopl\ also provides a supply of unique names.
-But~we are wary of mandating this abstraction;
-unique names affect many parts of a compiler,
-and
-no~matter how well designed the~API,
-if it does not play well with existing code,
-it won't be used.
+we can ensure they are right, and
+that the client cannot possibly misuse them. 
+The downside is that a rewrite function can \emph{only} use
+\hoopl{}-provided monadic actions.  Clearly this monad must be
+able to supply fresh labels (for new blocks), but what if 
+% In~this alternative API, \hoopl\ also provides a supply of unique names.
+% 
+% But~we are wary of mandating this abstraction;
+% unique names affect many parts of a compiler,
+% and
+% no~matter how well designed the~API,
+% if it does not play well with existing code,
+% it won't be used.
 %
-Moreover, experience has shown us that for the client, the convenience
-of a custom monad is well worth the cognitive costs of understanding
-the more complex API and the costs of meeting the contracts for
-@FuelMonad@ and @CkpointMonad@.
-
-As~a very simple example, a client might want one set of
-unique names for labels and a different set for registers.
-Or~in order to judge the effectiveness of an optimization,
+% Moreover, experience has shown us that for the client, the convenience
+% of a custom monad is well worth the cognitive costs of understanding
+% the more complex API and the costs of meeting the contracts for
+% @FuelMonad@ and @CkpointMonad@.
+% As~a very simple example, 
+a client wanted one set of
+unique names for labels and a different set for registers?
+Moreover, a client might want a rewrite to perform other actions
+entirely that could not be anticipted by \hoopl{}.
+For exampe, in order to judge the effectiveness of an optimization,
 a client might want to log how many rewrites take place, or in what
 functions they take place.
 As~a more ambitious example, \citet{runciman:increasing-prs} describes
@@ -3452,7 +3477,7 @@ The law governing @checkpoint@ and @restart@
 would ensure that a speculative rewrite, if later rolled back, would not
 create  a function definition (or a log entry).
 
-
+\simon{These next two paras are incomprehensible. Cut?}
 Of the many varied implementations we have tried,
 we have space only to raise a few questions, with even fewer answers.
 %
