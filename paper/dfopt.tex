@@ -1745,6 +1745,22 @@ rewrite rs node f = rew rs Just Nothing
   rew (Iter r)       j n = rew r (j . add (Iter r)) n
   add tail (g, r) = (g, r `Then` tail)
 \end{smallcode}
+\vfil\break
+And here's the monadic version.
+Is this simpler than what we have?
+\begin{smallcode}
+rewrite :: Monad m => FwdRewrite m n f -> -> n e x -> f
+        -> m (Maybe (Graph n e x, FwdRewrite m n f))
+rewrite rs node f = rew rs (return . Just) (return Nothing)
+ where
+  rew No     j n = n
+  rew (Mk r) j n = do mg <- r node f
+                      case mg of Nothing -> n
+                                 Just g -> j (g, No)
+  rew (r1 `Then` r2) j n = rew r1 (j . add r2) (rew r2 j n)
+  rew (Iter r)       j n = rew r (j . add (Iter r)) n
+  add tail (g, r) = (g, r `Then` tail)
+\end{smallcode}
 If~all functions in the sequence return @Nothing@, rewriting returns
 @Nothing@.
 The~model works because we needn't \emph{actually} check an infinite
