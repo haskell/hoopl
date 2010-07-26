@@ -555,11 +555,12 @@ hard; we have been through over a dozen significantly different
 iterations, and we offer our API as a contribution.
 
 \item
-Analyses and transformations built on \ourlib\ 
-are small, simple, and easy to get right,
-because the client is only required to 
-perform local reasoning (``@y@ is live before
+Because the client
+can perform very local reasoning (``@y@ is live before
 @x:=y+2@''),
+\seclabel{liveness-mention}
+ analyses and transformations built on \ourlib\ 
+are small, simple, and easy to get right.
 \seclabel{liveness-mention}
 Moreover, \ourlib\ helps you write correct optimizations:
 it~statically rules out transformations that violate invariants
@@ -607,7 +608,7 @@ as higher-rank polymorphism, GADTs, and type functions.
 of these features.
 
 
-\clearpage % Start section 2 on page 2
+% \clearpage % Start section 2 on page 2
 
 \section{Dataflow analysis {\&} transformation by \texorpdfstring{\rlap{example}}{example}}
 \seclabel{overview}
@@ -769,9 +770,9 @@ isolating faults in an optimizer (\secref{whalley-from-s2}).
 
 \section{Representing control-flow graphs} \seclabel{graph-rep}
 
-\ourlib{} is a library that makes it easy to define dataflow analyses
-on control-flow graphs, 
-and transformations driven by these analyses.
+\ourlib{} is a library that makes it easy to define dataflow analyses,
+and transformations driven by these analyses,
+on control-flow graphs.
 Graphs are composed from smaller units, which we discuss from the
 bottom up:
 \begin{itemize}
@@ -859,7 +860,7 @@ if it is closed, it may have arbitrarily many successors---or none.
 The primitive constituents of a control-flow graph are
 \emph{nodes}.
 % , which are defined by the client.     SLPJ: said again very shortly
-For example, a node might represent a machine instruction, such as an
+For~example, a node might represent a machine instruction, such as an
 assignment, a call, or a conditional branch.  
 But \ourlib{}'s graph representation is \emph{polymorphic in the node type},
 so each client can define nodes as it likes.
@@ -885,7 +886,7 @@ data `Node e x where
 
 The type of a node specifies \emph{at compile time} whether the node is open or
 closed on entry and exit. Concretely,
-the node type constructor kind @*->*->*@, where the two type parameters
+the node type constructor has kind @*->*->*@, where the two type parameters
 are type-level flags, one for entry and one for exit.
 Such a type parameter may be instantiated only with type @O@~(for
 open) or type~@C@ (for closed).
@@ -987,11 +988,11 @@ shape?
 Because by making the shape known statically, we simplify the
 implementation of analysis and transformation in 
 \secref{dfengine}. 
-\finalremark{We have no principled answer to the question of what
-parts of the representation of blocks are exposed.
-Do we tell our readers or just ignore the question?
-} 
-\simon{Just ignore!}
+%%%  \finalremark{We have no principled answer to the question of what
+%%%  parts of the representation of blocks are exposed.
+%%%  Do we tell our readers or just ignore the question?
+%%%  } 
+%%%  \simon{Just ignore!}
 
 The @BCat@ constructor concatenates blocks in sequence. 
 It~makes sense to concatenate blocks only when control can fall
@@ -1315,7 +1316,7 @@ The type of the monad~@m@ is also chosen by the client.
 As well as taking and returning a graph, the
 function also takes input facts (the @FactBase@) and produces output facts. 
 A~@FactBase@ is a finite mapping from @Label@ to facts (\figref{api-types});
-if~a @Label@ is not in the domain of the @FactBase@ its fact is the
+if~a @Label@ is not in the domain of the @FactBase@, its fact is the
 bottom element of the lattice.
 For example, in our constant-propagation example from \secref{const-prop-example},
 if the graph
@@ -2221,7 +2222,7 @@ taken by rewrite functions.
 (The safest course is to make sure the law holds throughout the entire
 monad.)
 The~type of the saved checkpoint~@s@ is up to the client;
-it is specified as an associated~type of the @CkpointMonad@ class.
+it~is specified as an associated type of the @CkpointMonad@ class.
 
 \subsection{Correctness} \seclabel{correctness}
 
@@ -2429,14 +2430,13 @@ as an additional parameter.
 higher-order function that takes a block-concatenation function as a
 parameter.) 
 The truth about @Graph@ and @DG@ is as follows:
-\par 
-{\smallverbatiminput{dg}
+\smallverbatiminput{dg}
 % defn DG
 % defn DBlock
 Type~@DG@ is internal to \hoopl; it is not seen by any client.
 To~convert a~@DG@ to the @Graph@ and @FactBase@
 that are returned by the API function @analyzeAndRewriteFwdBody@,
-we use a 12-line function:}
+we use a 12-line function:
 \begin{smallfuzzcode}{2.5pt}
 `normalizeGraph
  :: NonLocal n => DG f n e x -> (Graph n e x, FactBase f)
