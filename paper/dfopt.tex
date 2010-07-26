@@ -637,9 +637,9 @@ As~a concrete example, we show constant propagation with constant
 folding. 
 On the left we show a basic block; in the middle we show
 facts that hold between statements (or \emph{nodes}) 
-in the block; and at
+in the block; and on
 the right we show the result of transforming the block 
-based on the assertions:
+based on the facts:
 \begin{verbatim}
       Before        Facts        After
           ------------{}-------------
@@ -707,8 +707,8 @@ replaces the node @x:=e@ with a no-op.
 
 \seclabel{simple-tx}
 \paragraph{Interleaved transformation and analysis.}
-Our first example \emph{interleaves} analysis (constant propagation) 
-and transformation (constant folding).
+Our first example \emph{interleaves} analysis and transformation.
+% constant propagation is a transformation, not an analysis
 Interleaving makes it far easier to write effective analyses.
 If, instead, we \emph{first} analyzed the block
 and \emph{then} transformed it, the analysis would have to ``predict''
@@ -886,7 +886,7 @@ data `Node e x where
 
 The type of a node specifies \emph{at compile time} whether the node is open or
 closed on entry and exit. Concretely,
-the node type constructor has kind @*->*->*@, where the two type parameters
+the type constructor for a node has kind @*->*->*@, where the two type parameters
 are type-level flags, one for entry and one for exit.
 Such a type parameter may be instantiated only with type @O@~(for
 open) or type~@C@ (for closed).
@@ -1062,7 +1062,7 @@ the type @MaybeO O a@ is isomorphic to~@a@, while
 the type @MaybeO C a@ is isomorphic to~@()@.
 \item 
 The \emph{body} of the graph is a collection of  closed/closed blocks.  
-To~facilitate traversal of the graph, we represent a body as a finite
+To~facilitate traversal of the graph, we represent the body as a finite
 map from label to block. 
 \simon{{\tt LabelMap} not defined in Fig 2}
 \item 
@@ -3248,7 +3248,7 @@ so when implemented in \hoopl.
 
 \paragraph{Examining the API}
 
-We hope the our presentation of the API in \secref{api} speaks for
+We hope that our presentation of the API in \secref{api} speaks for
 itself,
 but there are a couple of properties we think are worth highlighting.
 First, it's a good sign that the API provides many higher-order
@@ -3493,7 +3493,7 @@ a client wanted one set of
 unique names for labels and a different set for registers?
 Moreover, a client might want a rewrite to perform other actions
 entirely that could not be anticipated by \hoopl{}.
-For exampe, in order to judge the effectiveness of an optimization,
+For example, in order to judge the effectiveness of an optimization,
 a client might want to log how many rewrites take place, or in what
 functions they take place.
 As~a more ambitious example, \citet{runciman:increasing-prs} describes
