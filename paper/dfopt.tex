@@ -3509,7 +3509,7 @@ able to supply fresh labels (for new blocks), but what if
 a client wanted one set of
 unique names for labels and a different set for registers?
 Moreover, a client might want a rewrite to perform other actions
-entirely that could not be anticipted by \hoopl{}.
+entirely that could not be anticipated by \hoopl{}.
 For exampe, in order to judge the effectiveness of an optimization,
 a client might want to log how many rewrites take place, or in what
 functions they take place.
@@ -3522,6 +3522,17 @@ that could accumulate new definitions.
 The law governing @checkpoint@ and @restart@
 would ensure that a speculative rewrite, if later rolled back, would not
 create  a function definition (or a log entry).
+
+Another merit of a user-defined monad is that, with a minor API
+change, we can put the entire Whalley-style fuel management in the
+user's hands.  In the API
+of \figref{rewrites} every rewrite constructed with @mkFRewrite@ 
+consumes a unit of fuel, but we could instead provide a more primitive fuel-free
+rewrite-function constructor, say @mkFRewrite'@.  Fuel consumption could then be implemented by the
+user, in the function passed to @mkFRewrite'@, by simply returning @Nothing@ if
+fuel is exhausted. This would leave the user free to use a more
+exotic fuel monad, such as one supporting several supplies of fuel for
+different sorts of rewrites.  
 
 \simon{These next two paras are incomprehensible. Cut?}
 Of the many varied implementations we have tried,
