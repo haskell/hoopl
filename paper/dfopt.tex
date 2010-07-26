@@ -751,10 +751,6 @@ As~described in \secref{checkpoint-monad},
 \hoopl~manages speculation with cooperation from the client.
 
 
-\paragraph{Cognitive costs of interleaving}
-
-\remark{I'm not entirely pleased with this subsection title}
-\simon{Me neither: nuke?}
 \seclabel{debugging-introduced}
 
 While it is wonderful that we can implement complex optimizations by
@@ -802,15 +798,12 @@ control cannot fall through to the next instruction).
 \item A label is closed on entry (because in \ourlib{} we do not allow
 control to fall through into a branch target), but open on exit.
 \item
-A~function call should be closed on exit,
-\remark{Shape is a client issue!}
-because control can flow from a call site to multiple points:
-for example, a~return continuation or an exception handler.
-(And~after optimization, distinct call sites may share a return
-continuation.)
-\simon{I think this is pretty confusing. A reader might well
-think that a call should be open on entry and exit, and it requires
-more explanation to say why not.}
+A~function call could, if the language being compiled is simple
+ enough, be open on entry and  exit.
+But if a function could return in multiple ways---for example by
+ transferring either to a normal return continuation or to an
+ exception handler---then a function call will have to be represented
+ by a node that is closed at exit.
 \end{itemize}
 % This taxonomy enables \ourlib{} to enforce invariants:
 % only nodes closed on entry can be the targets of branches, and only nodes closed
@@ -2605,11 +2598,8 @@ fixed points.
 \seclabel{block-impl}
 
 Extended fact transformers compose nicely.
-For example, @block@ is implemented thus: \simon{we don't need the foralls? save a line}
-\simon{How can block have no Monad m constraint, while cat does?
-NR: treat @cat@ as if it were nested, re-do its type
-}
-%\ifpagetuning\par\vfilbreak[1in]\fi  % horrible page break
+For example, @block@ is implemented thus:
+% we need the foralls
 \begin{smallcode}
   `block :: forall e x .
             Block n e x -> f -> m (DG f n e x, Fact x f)
@@ -2622,10 +2612,10 @@ The composition function @cat@ feeds facts from one extended fact
 transformer to another, and it splices decorated graphs.
 It~has a very general type:
 \begin{smallcode}
-  cat :: forall m e a x f f1 f2. Monad m 
-      => (f  -> m (DG f n e a, f1))
-      -> (f1 -> m (DG f n a x, f2))
-      -> (f  -> m (DG f n e x, f2))
+  cat :: forall e a x f1 f2 f3. 
+         (f1 -> m (DG f n e a, f2))
+      -> (f2 -> m (DG f n a x, f3))
+      -> (f1 -> m (DG f n e x, f3))
   `cat ^ft1 ^ft2 f = do { (g1,f1) <- ft1 f
                      ; (g2,f2) <- ft2 f1
                      ; return (g1 `dgSplice` g2, f2) }
@@ -2720,10 +2710,8 @@ Function @graph@ is much like @block@, but it has more cases.
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
 
 The @node@ function is where we interleave analysis with rewriting:
-\remark{Implementation of rewriting is finally revealed---needs to be earlier}
 \simon{NR: FwdGraphAndTail can be expunged and replaced with a simple pair
 type}
-\remark{Can node acquire a type signature?}
 \smallfuzzverbatiminput{15.1pt}{node}
 % defn ShapeLifter
 % defn singletonDG
@@ -3322,13 +3310,13 @@ Because of this separation of concerns,
 we believe our implementation will be much easier to maintain than
 anything that preceded~it.
 
-Another good sign is that we have been able to make substantial
-changes in the implementation without changing the API.
-For example, in addition to ``@concatMap@ style,'' we have also
-implemented @arfGraph@ in ``fold style'' and in continuation-passing
-style.
-Which style is preferred is a matter of taste, and possibly
-a matter of  performance.
+%%  Another good sign is that we have been able to make substantial
+%%  changes in the implementation without changing the API.
+%%  For example, in addition to ``@concatMap@ style,'' we have also
+%%  implemented @arfGraph@ in ``fold style'' and in continuation-passing
+%%  style.
+%%  Which style is preferred is a matter of taste, and possibly
+%%  a matter of  performance.
 
 
 
@@ -3534,22 +3522,22 @@ fuel is exhausted. This would leave the user free to use a more
 exotic fuel monad, such as one supporting several supplies of fuel for
 different sorts of rewrites.  
 
-\simon{These next two paras are incomprehensible. Cut?}
-Of the many varied implementations we have tried,
-we have space only to raise a few questions, with even fewer answers.
-%
-An~earlier implementation of @fixpoint@ stored the
-``current'' @FactBase@ in a monad; we~find it easier to understand and
-maintain the code that passes the current @FactBase@ as an argument.
-Among @concatMap@ style, fold style, and continuation-passing style, 
-which is best?
-No~one of these styles makes all the code easiest to read
-and understand: @concatMap@ style is relatively straightforward throughout;
-fold~style is similar overall but different in detail;
-and continuation-passing style is clear and elegant to those who
-like continuations, but baffling to those who don't.
+%%  \simon{These next two paras are incomprehensible. Cut?}
+%%  Of the many varied implementations we have tried,
+%%  we have space only to raise a few questions, with even fewer answers.
+%%  %
+%%  An~earlier implementation of @fixpoint@ stored the
+%%  ``current'' @FactBase@ in a monad; we~find it easier to understand and
+%%  maintain the code that passes the current @FactBase@ as an argument.
+%%  Among @concatMap@ style, fold style, and continuation-passing style, 
+%%  which is best?
+%%  No~one of these styles makes all the code easiest to read
+%%  and understand: @concatMap@ style is relatively straightforward throughout;
+%%  fold~style is similar overall but different in detail;
+%%  and continuation-passing style is clear and elegant to those who
+%%  like continuations, but baffling to those who don't.
 
-Which value constructors should be
+Which value constructors should be\simon{still incomprehensible.  cut?}
 polymorphic in the shapes of their arguments, and which should be
 monomorphic?
 We~experimented with a polymorphic
