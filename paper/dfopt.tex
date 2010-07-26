@@ -1715,91 +1715,73 @@ to insert infinitely many spills.
 
 
 
-\seclabel{rewrite-as-sequence}
-
 An~innovation of \hoopl\ is to build the choice of shallow or deep
-rewriting into each rewrite function, through the use of combinators.
-To~explain these combinators, 
-we model
-a~rewrite function of type @FwdRewrite m n f@ 
-as a potentially infinite sequence of functions\remark{an infinite
-sequence simply won't do; consider 'iter r `then` f'}
-\remark{Two things: does the function rewrite a node?
-And if so, what graph results, and with what rewrite function is that new
-graph analyzed?
-Use ``fail'' to mean ``return nothing''.
-Precise answer, and some examples.
-}
-of type
-\begin{code}
- forall e x . n e x -> f -> m (Maybe graph n e x).
-\end{code}
-When we apply a rewrite function to a node and a fact,
-we choose the first function in the sequence that returns $@Just@\;g$,
-and we recursively analyze and rewrite~$g$ using the remaining
-functions in the sequence. 
+rewriting into each rewrite function, through the use of the four
+combinators
+@mkFRewrite@, @thenFwdRw@, @iterFwdRw@, and @noFwdRw@ shown in
+\figref{api}. 
+Every rewrite function is made with these combinators,
+and its behavior is characterized by the answers to two questions:
+does the  function rewrite a~node, and if so, what rewrite function
+should be used to recursively analyze the replacement graph.
+To~answer these questions precisely, we offer a model of rewrite
+functions as an algebraic datatype:
 \begin{smallcode}
-rewrite :: FwdRewrite' n f -> -> n e x -> f
-        -> Maybe (Graph n e x, FwdRewrite' n f)
-rewrite rs node f = rew rs Just Nothing
- where
-  rew No     j n = n
-  rew (Mk r) j n =
-     case r node f of Nothing -> n
-                      Just g -> j (g, No)
-  rew (r1 `Then` r2) j n = rew r1 (j . add r2) (rew r2 j n)
-  rew (Iter r)       j n = rew r (j . add (Iter r)) n
-  add tail (g, r) = (g, r `Then` tail)
+data Rw a = Mk a | Then (Rw a) (Rw a) | Iter (Rw a) | No
 \end{smallcode}
-\vfil\break
-And here's the monadic version.
-Is this simpler than what we have?
+Using this model, we specify how a rewrite function works by
+giving a reference implementation.
+The code is in continuation-passing style;
+the first continuation~@j@ accepts a result where the graph is
+rewritten,
+and the second continuation~@n@ is the result when the graph is not
+rewritten.
 \begin{smallcode}
 rewrite :: Monad m => FwdRewrite m n f -> -> n e x -> f
         -> m (Maybe (Graph n e x, FwdRewrite m n f))
 rewrite rs node f = rew rs (return . Just) (return Nothing)
  where
-  rew No     j n = n
   rew (Mk r) j n = do mg <- r node f
                       case mg of Nothing -> n
                                  Just g -> j (g, No)
   rew (r1 `Then` r2) j n = rew r1 (j . add r2) (rew r2 j n)
   rew (Iter r)       j n = rew r (j . add (Iter r)) n
+  rew No             j n = n
   add tail (g, r) = (g, r `Then` tail)
 \end{smallcode}
-If~all functions in the sequence return @Nothing@, rewriting returns
-@Nothing@.
-The~model works because we needn't \emph{actually} check an infinite
-sequence of functions to see if they all return @Nothing@:
-even though the sequence in the model
-can be infinite, it has only finitely many distinct elements---and our
-implementation carefully avoids representing the infinite sequence.
-With~this model in mind, we can explain the combinators that \hoopl\
-provides for rewrite functions.
-
-A~function returned by @mkFRewrite@ returns a singleton sequence,
-which corresponds exactly to shallow rewriting.
-Rewriting can be made deep by making a sequence infinite;
-function
-\begin{code}
- `iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
-\end{code}
-behaves on rewrite functions the way @cycle@ does on lists,
-repeating the elements infinitely often.
+Appealing to this model, we see that
+\begin{itemize}
+\item
+A~function returned by @mkFRewrite@ never rewrites a replacement
+graph---this behavior is shallow rewriting.
+\item
+When a~function @r1 `thenFwdRw` r2@ is applied to a node,
+if @r1@ replaces the node, then @r2@~is used to transform the
+replacement graph.
+And~if @r1@~does not replace the node, \hoopl\ tries~@r2@.
+\item
+When a~function @iterFwdRw r@ rewrites a node, then @iterFwdRw r@ is
+used to transform the replacement graph---this behavior is deep
+rewriting.
+But~if @r1@~does not replace the node, \hoopl\ returns @Nothing@.
+\item
+Finally, @noFwdRw@ never replaces a graph.
+\end{itemize}
 For~convenience, we~also provide the~function @`deepFwdRw@,
 which is the composition of @iterFwdRw@ and~@mkFRewrite@.
+\remark{maybe some of the real type signatures ought to be repeated?}
 
-To try multiple rewrite functions in sequence,\remark{Horrendous page
-break will need fixing}
-provided they all use the same type of fact, \hoopl\ combines them with
-\verbatiminput{comb1}
-% defn thenFwdRw
-Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
-then the rewrites of~@r2@.
-It~behaves on rewrite functions the way @++@~behaves on lists.
-Finally, 
-@noFwdRw@ is the identity of @thenFwdRw@, and it
-corresponds to an empty sequence of rewrite functions.
+%%  \begin{code}
+%%   `iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
+%%  \end{code}
+
+%%  To try multiple rewrite functions in sequence,
+%%  provided they all use the same type of fact, \hoopl\ combines them with
+%%  \verbatiminput{comb1}
+%%  % defn thenFwdRw
+%%  Rewrite function @r1 `thenFwdRw` r2@ first does the rewrites of~@r1@,
+%%  then the rewrites of~@r2@.
+
 %%  
 %%  
 %%  by using
@@ -1809,13 +1791,16 @@ corresponds to an empty sequence of rewrite functions.
 %%  \hoopl\ makes it easy for a client to combine multiple rewrite
 %%  functions that use the same fact:
 
-Our combinators satisfy the algebraic laws that you would expect, including
+Our combinators satisfy the algebraic laws that you would expect;
+for~example 
+@noFwdRw@ is a left and right identity of @thenFwdRw@.
+A~more interesting law is
 \begin{code}
   iterFwdRw r = r `thenFwdRw` iterFwdRw r
 \end{code}
-Unfortunately, this equation cannot be used to \emph{define}
+Unfortunately, this law cannot be used to \emph{define}
 @iterFwdRw@:
-if~we used this equation to define @iterFwdRw@, then when @r@ returned @Nothing@,
+if~we used this law to define @iterFwdRw@, then when @r@ returned @Nothing@,
 @iterFwdRw r@ would diverge.
 
 
