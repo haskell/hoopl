@@ -803,6 +803,7 @@ control cannot fall through to the next instruction).
 control to fall through into a branch target), but open on exit.
 \item
 A~function call should be closed on exit,
+\remark{Shape is a client issue!}
 because control can flow from a call site to multiple points:
 for example, a~return continuation or an exception handler.
 (And~after optimization, distinct call sites may share a return
@@ -973,6 +974,8 @@ class `NonLocal n where
 \ourlib\ combines the client's nodes into
 blocks and graphs, which, unlike the nodes, are defined by \ourlib{}
  (\figref{graph}).
+\remark{Add to the figure: type LabelMap, addBlock, blockUnion (from
+ mapUnion)---squeeze in if there is room.}
 A~@Block@ is parameterized over the node type~@n@
 as well as over the same flag types that make it open or closed at
 entry and exit.
@@ -1117,12 +1120,11 @@ them
 with @BCat@ to produce a closed/closed block~@b@, which is
 added to the body of the result.
 
-The representation of @Graph@s is exposed to \hoopl's clients.\finalremark{This \P\ is a candidate to be cut.}
-\simon{Right.  If we don't talk about Blocks being exposed, why tackle Graphs? as it stands
-it's inconsistent. Moreover, the stuff that follows is a non-sequitur; needs a new para.}
 We~have carefully crafted the types so that if @BCat@ 
 is considered as an associative operator, 
 every graph has a unique representation.
+\finalremark{This \P\ is a candidate to be cut.}
+\simon{Right}
 %%  \simon{Well, you were the one who was so keen on a unique representation!
 %%  And since we have one, I think tis useful to say so. Lastly, the representation of
 %%  singleton blocks is not entirely obvious.}
@@ -1157,6 +1159,9 @@ to a client which representation to choose---or if the choice made a difference.
 {\hfuzz=1.8pt\par}
 
 \subsection{Labels and successors} \seclabel{nonlocal-class}
+
+\remark{Becomes ``Edges, labels, and successors.'' Absorbs ``3.4
+control-flow edges and program points}
 
 
 Although \ourlib{} is polymorphic in the type of nodes, 
@@ -1724,7 +1729,15 @@ rewriting into each rewrite function, through the use of combinators.
 To~explain these combinators, 
 we model
 a~rewrite function of type @FwdRewrite m n f@ 
-as a potentially infinite sequence of functions of type
+as a potentially infinite sequence of functions\remark{an infinite
+sequence simply won't do; consider 'iter r `then` f'}
+\remark{Two things: does the function rewrite a node?
+And if so, what graph results, and with what rewrite function is that new
+graph analyzed?
+Use ``fail'' to mean ``return nothing''.
+Precise answer, and some examples.
+}
+of type
 \begin{code}
  forall e x . n e x -> f -> m (Maybe graph n e x).
 \end{code}
@@ -2421,7 +2434,7 @@ the private function @arfGraph@, which is short for ``analyze and rewrite
 forward graph:''
 \begin{smallfuzzcode}{15.1pt}
 `arfGraph
- :: forall m n f e x. (FuelMonad m, NonLocal n)
+ :: forall m n f e x. (CkpointMonad m, NonLocal n)
  => FwdPass m n f    -- lattice, transfers, rewrites
  -> MaybeC e [Label] -- entry points for a closed graph
  -> Graph n e x      -- the original graph
@@ -2593,7 +2606,9 @@ fixed points.
 
 Extended fact transformers compose nicely.
 For example, @block@ is implemented thus: \simon{we don't need the foralls? save a line}
-\simon{How can block have no Monad m constraint, while cat does?}
+\simon{How can block have no Monad m constraint, while cat does?
+NR: treat @cat@ as if it were nested, re-do its type
+}
 %\ifpagetuning\par\vfilbreak[1in]\fi  % horrible page break
 \begin{smallcode}
   `block :: forall e x .
@@ -2706,7 +2721,9 @@ Function @graph@ is much like @block@, but it has more cases.
 
 The @node@ function is where we interleave analysis with rewriting:
 \remark{Implementation of rewriting is finally revealed---needs to be earlier}
-\simon{need defn of FwdGraphAndTail. Why not combine it with the Maybe?}
+\simon{NR: FwdGraphAndTail can be expunged and replaced with a simple pair
+type}
+\remark{Can node acquire a type signature?}
 \smallfuzzverbatiminput{15.1pt}{node}
 % defn ShapeLifter
 % defn singletonDG
@@ -3158,7 +3175,7 @@ comparison with a library using a mutable control-flow graph
 \cite{ramsey-dias:applicative-flow-graph}. 
 
 Although thorough evaluation of \hoopl's performance must await
-future work, we can identify some design decisions that affect
+future work, we can identify some design decisions that might affect
 performance. \simon{I think it's highly speculative whether these issues
 are anywhere near the high-order bit of performance.  Candidate for cutting
 if you ask me.}
@@ -3206,7 +3223,7 @@ performance.
 In summary, \hoopl\ performs well enough for use in~GHC,
 but there is much we don't know. Systematic investigation
 is indicated.
-
+\remark{We have no evidence that any of the above actually affects performance}
 
 
 \section{Discussion}
