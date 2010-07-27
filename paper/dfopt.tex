@@ -3129,9 +3129,7 @@ comparison with a library using a mutable control-flow graph
 
 Although thorough evaluation of \hoopl's performance must await
 future work, we can identify some design decisions that might affect
-performance. \simon{I think it's highly speculative whether these issues
-are anywhere near the high-order bit of performance.  Candidate for cutting
-if you ask me.}
+performance. 
 \begin{itemize}
 \item
 In \figref{graph}, we show a single concatenation operator for blocks.
@@ -3140,21 +3138,20 @@ $2N-1$ heap objects.
 We~have also implemented a representation of blocks that include
 ``cons-like'' and ``snoc-like'' constructors;
 this representation requires only $N+1$ heap objects.
-We~don't know what difference this choice makes to performance.
+We~don't know how this choice affects performance.
 \item
 In \secref{engine}, the @body@ function analyzes and (speculatively)
 rewrites the body of a control-flow graph, and @fixpoint@ iterates
 this analysis until it reaches a fixed point.
 Decorated graphs computed on earlier iterations are thrown away.
-But~for each decorated graph of $N$~nodes, it is necessary to allocate
-at least $2N-1$~thunks, which correspond to applications of
+For~each decorated graph of $N$~nodes, 
+at least $2N-1$~thunks are allocated; they correspond to applications of
 @singletonDG@ in~@node@ and of @dgSplice@ in~@cat@.
 In~an earlier version of \hoopl, this overhead was
-eliminated by splitting @arfGraph@ into two very similar functions: one to compute the
+eliminated by splitting @arfGraph@ into two functions: one to compute the
 fixed point, and the other to produce the rewritten graph.
-Having a single version of @arfGraph@ is simpler and easier
-to maintain, but we don't know the cost of allocating the
-additional thunks.
+The single @arfGraph@ is simpler and easier
+to maintain; we don't know the extra thunks matter.
 \item
 The representation of a forward-transfer function is private to
 \hoopl.
@@ -3174,9 +3171,11 @@ We~don't know how these extra discriminations might affect
 performance.
 \end{itemize}
 In summary, \hoopl\ performs well enough for use in~GHC,
-but there is much we don't know. Systematic investigation
+but there is much we don't know.
+We have no evidence that \emph{any} of the decisions above 
+measurably affects performance---systematic investigation 
 is indicated.
-\remark{We have no evidence that any of the above actually affects performance}
+
 
 
 \section{Discussion}
