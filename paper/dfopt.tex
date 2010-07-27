@@ -3186,7 +3186,8 @@ compiler writers.
 To~evaluate how well we succeeded, we examine how \hoopl\ has been
 used,
 we~examine the API, and we examine the implementation.
-We~also sketch some more alternatives.
+We~also sketch some more alternatives.\john{I vote for cutting
+that section and moving the monad paragraph to the end of the API section}
 
 \paragraph{Using \hoopl}
 
@@ -3476,7 +3477,8 @@ create  a function definition (or a log entry).
 Another merit of a user-defined monad~@m@ is that, 
 if~a user wants to manage optimization fuel differently,
 he or she can make~@m@ an instance of @FuelMonad@ in which the fuel
-supply is infinite.
+supply is infinite.\john{This is all cool,
+but I don't think the reader would follow without a lot of hand holding.}
 The user is then free to create a new fuel supply in~@m@ and to wrap
 rewrite functions---or not---so as to consume fuel in the new supply.
 This freedom can be~used to implement more exotic uses of fuel;
@@ -3500,6 +3502,8 @@ without consuming fuel.
 %%  like continuations, but baffling to those who don't.
 
 Which value constructors should be\simon{still incomprehensible.  cut?}
+\john{I think only someone who has tried to change the code can understand
+why these questions are interesting.}
 polymorphic in the shapes of their arguments, and which should be
 monomorphic?
 We~experimented with a polymorphic
