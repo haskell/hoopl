@@ -1712,16 +1712,21 @@ combinators
 \figref{api-types}. 
 Every rewrite function is made with these combinators,
 and its behavior is characterized by the answers to two questions:
-Does the  function rewrite a~node?
+Does the function rewrite a~node to a replacement graph?
 If~so, what rewrite function
 should be used to analyze the replacement graph recursively?
 To~answer these questions, we~present an
-algebraic datatype that models @FwdRewrite@:
+algebraic datatype that models @FwdRewrite@
+with one constructor for each combinator:
 \begin{smallcode}
-data `Rw a = `Mk a | `Then (Rw a) (Rw a) | `Iter (Rw a) | `No
+data `Rw r = `Mk r | `Then (Rw r) (Rw r) | `Iter (Rw r) | `No
 \end{smallcode}
 Using this model, we specify how a rewrite function works by
-giving a reference implementation.
+giving a reference implementation:
+the function @rewrite@, below,
+computes the replacement graph and rewrite function
+that result from applying a rewrite function @rs@
+to~a~@node@ and a fact~@f@.
 The code is in continuation-passing style;
 when the node is rewritten,
 the first continuation~@j@ accepts a pair containing the replacement
@@ -1735,9 +1740,9 @@ rewrite :: Monad m => FwdRewrite m n f -> n e x -> f
  where
   `rew (Mk r) j n = do ^mg <- r node f
                       case mg of Nothing -> n
-                                 Just g -> j (g, No)
+                                 Just g  -> j (g, No)
   rew (r1 `Then` r2) j n = rew r1 (j . add r2) (rew r2 j n)
-  rew (Iter r)       j n = rew r (j . add (Iter r)) n
+  rew (Iter r)       j n = rew r  (j . add (Iter r)) n
   rew No             j n = n
   `add nextrw (g, r) = (g, r `Then` nextrw)
 \end{smallcode}
@@ -1752,7 +1757,7 @@ if @r1@ replaces the node, then @r2@~is used to transform the
 replacement graph.
 And~if @r1@~does not replace the node, \hoopl\ tries~@r2@.
 \item
-When a~function @iterFwdRw r@ rewrites a node, then @iterFwdRw r@ is
+When a~function @iterFwdRw r@ rewrites a node, @iterFwdRw r@ is
 used to transform the replacement graph---this behavior is deep
 rewriting.
 If~@r@~does not rewrite a~node, neither does @iterFwdRw r@.
