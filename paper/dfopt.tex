@@ -1382,9 +1382,9 @@ newtype `FwdRewrite m n f     -- abstract type
 `mkFRewrite :: FuelMonad m 
  => (forall e x . n e x -> f -> m (Maybe (Graph n e x)))
  -> FwdRewrite m n f
-thenFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
+`thenFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
  -> FwdRewrite m n f
-iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
+`iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
 `noFwdRw   :: Monad m          => FwdRewrite m n f
 
 ------- Fact-like things, aka "fact(s)" -----
@@ -1719,7 +1719,7 @@ should be used to recursively analyze the replacement graph.
 To~answer these questions precisely, we offer a model of rewrite
 functions as an algebraic datatype:
 \begin{smallcode}
-data Rw a = Mk a | Then (Rw a) (Rw a) | Iter (Rw a) | No
+data `Rw a = `Mk a | `Then (Rw a) (Rw a) | `Iter (Rw a) | `No
 \end{smallcode}
 Using this model, we specify how a rewrite function works by
 giving a reference implementation.
@@ -1731,15 +1731,15 @@ rewritten.
 \begin{smallcode}
 rewrite :: Monad m => FwdRewrite m n f -> -> n e x -> f
         -> m (Maybe (Graph n e x, FwdRewrite m n f))
-rewrite rs node f = rew rs (return . Just) (return Nothing)
+`rewrite ^rs node f = rew rs (return . Just) (return Nothing)
  where
-  rew (Mk r) j n = do mg <- r node f
+  `rew (Mk r) j n = do ^mg <- r node f
                       case mg of Nothing -> n
                                  Just g -> j (g, No)
   rew (r1 `Then` r2) j n = rew r1 (j . add r2) (rew r2 j n)
   rew (Iter r)       j n = rew r (j . add (Iter r)) n
   rew No             j n = n
-  add tail (g, r) = (g, r `Then` tail)
+  `add tail (g, r) = (g, r `Then` tail)
 \end{smallcode}
 Appealing to this model, we see that
 \begin{itemize}
