@@ -949,7 +949,13 @@ data `MaybeO ^ex t where
   `JustO    :: t -> MaybeO O t
   `NothingO ::      MaybeO C t
 
-newtype `Label -- abstract type
+newtype `Label -- abstract
+newtype `LabelMap a -- finite map from Label to a
+`addBlock   :: NonLocal n 
+           => Block n C C
+           -> LabelMap (Block n C C)
+           -> LabelMap (Block n C C)
+`blockUnion :: LabelMap a -> LabelMap a -> LabelMap a
 
 class `NonLocal n where
   `entryLabel :: n C x -> Label
@@ -959,7 +965,6 @@ class `NonLocal n where
 \figlabel{graph} \figlabel{edges}
 \end{figure}
 % omit MaybeC :: * -> * -> *
-% omit LabelMap :: *
 
 
 \subsection{Blocks} \seclabel{blocks}
@@ -967,8 +972,6 @@ class `NonLocal n where
 \ourlib\ combines the client's nodes into
 blocks and graphs, which, unlike the nodes, are defined by \ourlib{}
  (\figref{graph}).
-\remark{Add to the figure: type LabelMap, addBlock, blockUnion (from
- mapUnion)---squeeze in if there is room.}
 A~@Block@ is parameterized over the node type~@n@
 as well as over the same flag types that make it open or closed at
 entry and exit.
@@ -1087,15 +1090,12 @@ gSplice (GUnit b) (GMany (JustO e) bs x)
 gSplice (GMany e ^bs (JustO x)) (GUnit b2) 
   = GMany e bs (JustO (x `BCat` b2))\^
 gSplice (GMany e1 ^bs1 (JustO x1)) (GMany (JustO e2) ^bs2 x2)
-  = GMany e1 (bs1 `mapUnion` (b `addBlock` bs2)) x2
+  = GMany e1 (bs1 `blockUnion` (b `addBlock` bs2)) x2
   where b = x1 `BCat` e2\^
 gSplice (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
-  = GMany e1 (bs1 `mapUnion` bs2) x2
+  = GMany e1 (bs1 `blockUnion` bs2) x2
 \end{smallttcode}
 \endgroup
-% omit mapUnion :: LabelMap a -> LabelMap a -> LabelMap a
-% omit addBlock :: NonLocal n => Block n C C -> LabelMap (Block n C C) -> LabelMap (Block n C C)
-\simon{Sad to omit signature for mapUnion, addBlock in Fig 2}
 This definition illustrates the power of GADTs: the
 pattern matching is exhaustive, and all the open/closed invariants are
 statically checked.  For example, consider the second-last equation for @gSplice@.
