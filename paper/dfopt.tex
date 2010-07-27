@@ -570,13 +570,12 @@ hard; we have been through over a dozen significantly different
 iterations, and we offer our API as a contribution.
 
 \item
+\seclabel{liveness-mention}
 Because the client
 can perform very local reasoning (``@y@ is live before
 @x:=y+2@''),
-\seclabel{liveness-mention}
  analyses and transformations built on \ourlib\ 
 are small, simple, and easy to get right.
-\seclabel{liveness-mention}
 Moreover, \ourlib\ helps you write correct optimizations:
 it~statically rules out transformations that violate invariants
 of the control-flow graph (Sections \ref{sec:graph-rep} and \ref{sec:rewrites}),
@@ -1060,7 +1059,6 @@ the type @MaybeO C a@ is isomorphic to~@()@.
 The \emph{body} of the graph is a collection of  closed/closed blocks.  
 To~facilitate traversal of the graph, we represent the body as a finite
 map from label to block. 
-\simon{{\tt LabelMap} not defined in Fig 2}
 \item 
 The \emph{exit sequence} is dual to the entry sequence, and like the entry
 sequence, its presence or absence is deducible from the static type of the graph.
@@ -1106,7 +1104,7 @@ We can therefore concatenate
 with @BCat@ to produce a closed/closed block~@b@, which is
 added to the body of the result.
 
-\ifnotcutting
+\iftrue % notcutting
 We~have carefully crafted the types so that if @BCat@ 
 is considered as an associative operator, 
 every graph has a unique representation.
@@ -1780,7 +1778,7 @@ Finally, @noFwdRw@ never replaces a graph.
 \end{itemize}
 For~convenience, we~also provide the~function @`deepFwdRw@,
 which is the composition of @iterFwdRw@ and~@mkFRewrite@.
-\remark{maybe some of the real type signatures ought to be repeated?}
+%  \remark{maybe some of the real type signatures ought to be repeated?}
 
 %%  \begin{code}
 %%   `iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
@@ -2834,7 +2832,11 @@ formatted narrowly for display in one column.
 The~code is mostly straightforward, although we try to be clever
 about deciding when a new fact means that another iteration 
 will be required.
-\finalremark{Rest of this \S\ is a candidate to be cut}
+%
+% We'll keep the rest of this section: John judges that it has enough
+% detail to be comprehensible, and it may help someone who wants to
+% play with the code.
+%
 There is one more subtle point worth mentioning, which we highlight by 
 considering a forward analysis of this graph, where execution starts at~@L1@:
 \begin{code}
@@ -3200,8 +3202,8 @@ compiler writers.
 To~evaluate how well we succeeded, we examine how \hoopl\ has been
 used,
 we~examine the API, and we examine the implementation.
-We~also sketch some more alternatives.\john{I vote for cutting
-that section and moving the monad paragraph to the end of the API section}
+We~also sketch one of the many alternatives we have implemented.
+\remark{``alternative'' does not link up with ``question'' in the subheader}
 
 \paragraph{Using \hoopl}
 
@@ -3443,9 +3445,16 @@ thinking and helped to structure the implementation.
 
 \fi
 
-\paragraph{More alternative interfaces and implementations}
+\paragraph{Design questions}
+We~have explored many alternatives to \hoopl's current~API.
+While questions about these alternatives are interesting,
+describing and discussing a typical alternative seems to require about
+a column of text.
+Accordingly, we answer only the most pressing design question about a
+single alternative:
 Why do we allow the client to define the monad~@m@ used in rewrite
 functions and in @analyzeAndRewriteFwdBody@?
+
 The~obvious alternative, which we have implemented and explored, is to require
 \hoopl's clients to use a monad provided by \hoopl.
 This alternative has advantages: 
@@ -3488,17 +3497,17 @@ The law governing @checkpoint@ and @restart@
 would ensure that a speculative rewrite, if later rolled back, would not
 create  a function definition (or a log entry).
 
-Another merit of a user-defined monad~@m@ is that, 
-if~a user wants to manage optimization fuel differently,
-he or she can make~@m@ an instance of @FuelMonad@ in which the fuel
-supply is infinite.\john{This is all cool,
-but I don't think the reader would follow without a lot of hand holding.}
-The user is then free to create a new fuel supply in~@m@ and to wrap
-rewrite functions---or not---so as to consume fuel in the new supply.
-This freedom can be~used to implement more exotic uses of fuel;
-for~example, a~user might find it convenient to~rewrite
-a compiler temporary to a hardware register
-without consuming fuel.
+%%   Another merit of a user-defined monad~@m@ is that, 
+%%   if~a user wants to manage optimization fuel differently,
+%%   he or she can make~@m@ an instance of @FuelMonad@ in which the fuel
+%%   supply is infinite.\john{This is all cool,
+%%   but I don't think the reader would follow without a lot of hand holding.}
+%%   The user is then free to create a new fuel supply in~@m@ and to wrap
+%%   rewrite functions---or not---so as to consume fuel in the new supply.
+%%   This freedom can be~used to implement more exotic uses of fuel;
+%%   for~example, a~user might find it convenient to~rewrite
+%%   a compiler temporary to a hardware register
+%%   without consuming fuel.
 
 %%  \simon{These next two paras are incomprehensible. Cut?}
 %%  Of the many varied implementations we have tried,
@@ -3515,29 +3524,29 @@ without consuming fuel.
 %%  and continuation-passing style is clear and elegant to those who
 %%  like continuations, but baffling to those who don't.
 
-Which value constructors should be\simon{still incomprehensible.  cut?}
-\john{I think only someone who has tried to change the code can understand
-why these questions are interesting.}
-polymorphic in the shapes of their arguments, and which should be
-monomorphic?
-We~experimented with a polymorphic
-\begin{code}
-  `BNode :: n e x -> Block n e x
-\end{code}
-but we found that there are significant advantages to knowing the type
-of every node statically, using purely local information---so instead
-we use
-the three monomorphic constructors @BFirst@, @BMiddle@, and @BLast@
-(\figref{graph}). 
-Similar questions arise about the polymorphic @BCat@ and about the
-graph constructors, and even among ourselves, we are divided about how
-best to answer them.
-Yet another question is whether it is worthwhile to save a level of
-indirection by providing a cons-like constructor to concatenate a node
-and a block. 
-Perhaps some of these questions can be answered by appealing to
-performance, but the experiments that will provide the answers have
-yet to be devised.
+%%  Which value constructors should be\simon{still incomprehensible.  cut?}
+%%  \john{I think only someone who has tried to change the code can understand
+%%  why these questions are interesting.}
+%%  polymorphic in the shapes of their arguments, and which should be
+%%  monomorphic?
+%%  We~experimented with a polymorphic
+%%  \begin{code}
+%%    `BNode :: n e x -> Block n e x
+%%  \end{code}
+%%  but we found that there are significant advantages to knowing the type
+%%  of every node statically, using purely local information---so instead
+%%  we use
+%%  the three monomorphic constructors @BFirst@, @BMiddle@, and @BLast@
+%%  (\figref{graph}). 
+%%  Similar questions arise about the polymorphic @BCat@ and about the
+%%  graph constructors, and even among ourselves, we are divided about how
+%%  best to answer them.
+%%  Yet another question is whether it is worthwhile to save a level of
+%%  indirection by providing a cons-like constructor to concatenate a node
+%%  and a block. 
+%%  Perhaps some of these questions can be answered by appealing to
+%%  performance, but the experiments that will provide the answers have
+%%  yet to be devised.
 
 
 
