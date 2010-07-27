@@ -6,6 +6,8 @@ oodfopt.tex
 nrbib.tex
 _darcs
 *~
+*.hi
+*.o
 
 dfopt.txt
 dfoptdu.tex
