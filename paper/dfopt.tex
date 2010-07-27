@@ -2587,16 +2587,10 @@ For example, @block@ is implemented thus:
 \end{smallcode}
 The composition function @cat@ feeds facts from one extended fact
 transformer to another, and it splices decorated graphs.
-It~has a very general type:
-\begin{smallcode}
-  cat :: forall e a x f1 f2 f3. 
-         (f1 -> m (DG f n e a, f2))
-      -> (f2 -> m (DG f n a x, f3))
-      -> (f1 -> m (DG f n e x, f3))
-  `cat ^ft1 ^ft2 f = do { (g1,f1) <- ft1 f
-                     ; (g2,f2) <- ft2 f1
-                     ; return (g1 `dgSplice` g2, f2) }
-\end{smallcode}
+\smallverbatiminput{cat}
+% defn cat
+% local ft1
+% local ft2
 (Function @`dgSplice@ is the same splicing function used for an ordinary
 @Graph@, but it uses a one-line block-concatenation function suitable
 for @DBlock@s.)

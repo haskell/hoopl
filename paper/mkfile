@@ -28,7 +28,7 @@ tag:VQ: $TGT.tex
 	echo git tag $tag
 	git tag $tag
 
-dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex cprop.tex comb1.tex iterf.tex pairf.tex dg.tex
+dfopt.dvi: dfopt.bbl code.sty timestamp.tex dfoptdu.tex cprop.tex comb1.tex iterf.tex pairf.tex dg.tex cat.tex
 
 dfoptdu.tex: cprop.tex comb1.tex iterf.tex pairf.tex dg.tex node.tex
 
@@ -72,5 +72,5 @@ dfopt.dvi: fptype.tex bodyfun.tex
 
 dfoptdu.tex: bodyfun.tex fptype.tex
 
-bodyfun.tex fptype.tex dg.tex node.tex:D: ./xsource $HOOPL/Dataflow.hs
+cat.tex bodyfun.tex fptype.tex dg.tex node.tex:D: ./xsource $HOOPL/Dataflow.hs
 	lua ./xsource -4 $HOOPL/Dataflow.hs

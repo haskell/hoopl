@@ -184,10 +184,12 @@ arfGraph pass entries = graph
                     -- Outgoing factbase is restricted to Labels *not* in
                     -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
+-- @ start cat.tex -2
     cat :: forall e a x f1 f2 f3. 
            (f1 -> m (DG f n e a, f2))
         -> (f2 -> m (DG f n a x, f3))
         -> (f1 -> m (DG f n e x, f3))
+-- @ end cat.tex
 
     graph GNil            = \f -> return (dgnil, f)
     graph (GUnit blk)     = block blk
@@ -229,10 +231,11 @@ arfGraph pass entries = graph
     -- | Compose fact transformers and concatenate the resulting
     -- rewritten graphs.
     {-# INLINE cat #-} 
+-- @ start cat.tex -2
     cat ft1 ft2 f = do { (g1,f1) <- ft1 f
                        ; (g2,f2) <- ft2 f1
                        ; return (g1 `dgSplice` g2, f2) }
-
+-- @ end cat.tex
     arfx :: forall thing x .
             NonLocal thing
          => (thing C x ->        f -> m (DG f n C x, Fact x f))
