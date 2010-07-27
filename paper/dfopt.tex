@@ -1,6 +1,7 @@
 \newif\ifhaskellworkshop\haskellworkshoptrue
 \newif\ifbanner\bannertrue
 
+
 \iffalse
 
 Payload: alternatives for functions polymorphic in node type
@@ -141,7 +142,7 @@ higher-rank any longer).
 
 \IfFileExists{timestamp.tex}{}{\timestampfalse}
 
-\newif\ifcutting \cuttingfalse % cutting down to submission size
+\newif\ifnotcutting\notcuttingfalse
 
 
 \newif\ifgenkill\genkillfalse  % have a section on gen and kill
@@ -2954,11 +2955,7 @@ orientation, in which higher elements carry more information.}
 monotone functions.
 Each~client of \hoopl\ must guarantee monotonicity.
 
-\ifcutting
-\citet{cousot:abstract-interpretation:1977}
-\else
 \citet{cousot:abstract-interpretation:1977,cousot:systematic-analysis-frameworks}
-\fi
 introduce abstract interpretation as a technique for developing
 lattices for program analysis.
 \citet{steffen:data-flow-analysis-model-checking:1991} shows that
