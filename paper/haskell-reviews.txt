@@ -1,0 +1,222 @@
+Date: Mon, 12 Jul 2010 10:26:20 +0100
+From: Haskell 2010 <haskell2010@easychair.org>
+To: Norman Ramsey <nr@cs.tufts.edu>
+Subject: Haskell 2010 notification for paper 6
+
+Dear Norman, 
+
+Thanks again for your submission "Hoopl: A Modular, Reusable Library for
+Dataflow Analysis and Transformation" to the Haskell Symposium 2010. I'm happy
+to report that it has been accepted for publication. We had a record number of
+submissions this year, and I'm looking forward to hearing your talk during a
+very exciting day on 30th September in Baltimore.
+
+Final papers are due with the publishers on Monday 2nd August; I believe that
+this deadline is firm. I will be in touch soon with more instructions.
+
+Cheers,
+Jeremy
+
+
+===========================  REVIEWS  ==========================
+
+---------------------------- REVIEW 1 -------------------------- PAPER: 6
+TITLE: Hoopl: A Modular, Reusable Library for Dataflow Analysis and
+Transformation
+ 
+OVERALL RATING: 3 (strong accept) 
+REVIEWER'S CONFIDENCE: 3 (high) 
+
+I enjoyed this paper very much.  Compiler optimisation is a fun topic,
+and this library (to implement the analysis that is at the very core of
+most imperative optimisations) is both nicely designed and nicely
+described.
+
+Only a few minor suggestions for improvement.
+
+In the definition bullets at the start of Section 3, it is left unstated
+whether _edges_ connect _blocks_, in addition to connecting _nodes_
+within _blocks_ (bullet 3).  Bullet 4 defines a _graph_ as a composition
+of _blocks_, but also does not mention _edges_.  As someone who knows
+what dataflow means, the missing information is obvious to me, but it
+should be made precise for the reader with less prior knowledge.
+
+It is revealed later on, in section 3.4, that there are two different
+kinds of edge: edges connecting nodes are implicit, edges connecting
+blocks are explicit.  It might be worth bringing this distinction
+forward into the initial definition bullets.
+
+In 3.4, the first mention of _program_point_ should be italicised, as
+this is the definition of the term.
+
+In 3.5 and 3.6, the fact that the definitions of gSplice and NonLocal
+are statically exhaustive is (a) surprising, (b) subtle, and (c) very
+cool.
+
+Section 8 "Examining the API", First sentence: typo "the" -> "that" 
+
+
+
+---------------------------- REVIEW 2 -------------------------- PAPER: 6
+TITLE: Hoopl: A Modular, Reusable Library for Dataflow Analysis and
+Transformation
+ 
+OVERALL RATING: 1 (weak accept) 
+REVIEWER'S CONFIDENCE: 3 (high) 
+
+Hoopl is a Haskell library that implements the interleaved dataflow
+analysis and transformation framework of Lerner, Grove, and Chambers
+(POPL02).  The library is polymorphic in the types of graph nodes and
+dataflow facts; this flexibility is achieved using some advanced GHC
+type features.  It is used in the development version of GHC's back
+end. The paper describes Hoopl's capabilities, interface, and
+implementation.
+
+This is a beautifully polished paper, which manages to describe Hoopl
+very clearly and yet concisely; indeed, I cannot suggest any
+substantive improvements in this regard.  Moreover, the paper should
+be of interest and utility to compiler writers of all persuasions.
+
+And yet...I cannot give the paper the highest possible score because
+I'm not certain that it is suitable for publication in the Haskell
+Symposium. The CFP notes that "it is not enough simply to describe a
+program!" But that is really what this paper does -- albeit very well.
+Readers who are interested in Hoopl because of what it does will be
+happy, but others may not get much out of the paper.
+
+There are a couple of ways in which the material could be made more
+relevant to the general Symposium audience:
+
+- Disucss the benefits (and limitations?) of the advanced type
+features used by Hoopl, and contrast with what the interface might
+look like without them.
+
+- Discuss the impact of Hoopl on GHC itself; e.g., how has it improved
+the quality of generated code?
+
+But a better audience for the paper might be a compiler implementation
+conference (like CC) -- for which you'd scarcely need to change a
+word.
+
+Small points and typos:
+
+p. 1 abstract, line 5: "for _any_ compiler" written in Haskell, that is.
+p. 1 col 2 section 1 line -4 : "requires" -> "uses" (?)  
+p. 4 col 1 defn. of gSplice: 'mapUnion' and 'addBlock' are not defined
+              (though perhaps one can guess the definitions)
+p. 7 col 1 after second display : "number functions" -> "number of functions"
+p. 10 footnote 3 : "is conventional" -> "is a matter of convention" 
+
+
+
+---------------------------- REVIEW 3 -------------------------- PAPER: 6
+TITLE: Hoopl: A Modular, Reusable Library for Dataflow Analysis and
+Transformation
+ 
+OVERALL RATING: 2 (accept) 
+REVIEWER'S CONFIDENCE: 3 (high) 
+
+Summary:
+
+This paper describes a library, called Hoopl, for writing dataflow analyses
+and transformation. The library is not tied to a particular compiler, but can
+be reused by any client program by providing a few definitions; specifically
+client programs must provide definitions (interface and implementation) of
+nodes and dataflow facts as well as implementations (because the interface is
+provided by Hoopl) of dataflow transfer-, and rewrite-functions.
+
+Hoopl implements the idea of interleaving analyses with transformation as
+presented by Lerner, Grove, and Chambers (Composing Dataflow Analyses and
+Transformations) in their 2002 POPL paper. Each analysis and transformation is
+specified separately, but applied interleaved so that each analysis and
+transformation can benefit from the results of each other.
+
+A major contribution of Lerner, Grove, and Chambers is a proof that the
+interleaving algorithm is sound and terminating. However, their presentation
+is significantly more complex than the one given in the present paper. The
+authors of the present paper state the conditions under which their algorithm
+is sound and terminating but otherwise focus on presenting Hoopl.
+
+The paper is divided in two major parts; the first part describes how a client
+program can make use of Hoopl in terms of a simple constant propagation
+example. The second part describes the implementation of Hoopl.
+
+Many details are covered in the paper. Perhaps a little too many; from page 2
+to 10 at least two new concepts are introduced (in terms of source code). For
+some concepts, the actual definition is only given later in the paper. E.g.
+the concept "FuelMonad" is introduced on page 5, but the purpose of the Monad
+is only explained on page 10. It is helpful to have an almost complete example
+of how a client program would use Hoopl, on the other hand, a smaller example
+could give more room for describing the actual implementation of Hoopl.
+
+>From all the details in the paper it is clear that much work has been put
+>into Hoopl and that many important design
+decisions have been made in order to reach the current status. The simple API
+provided by Hoopl is therefore a major contribution, but also the fact that
+Hoopl is implemented in Haskell instead of the less used Whirlwind is an
+important contribution. Perhaps more discussion of the APIs scrapped could be
+interesting to motivate the current API.
+
+It sounds convincing that Hoopl has been used with success in the development
+of GHC. However, the fact that Hoopl has been used in the development of GHC
+does not fully support the claim made in paper that Hoopl is unusually easy to
+make use of in other compilers. Indeed, the authors state in the discussion
+section that porting Hoopl to other languages without GADTs would be
+troublesome. As for expressibility, it is disturbing to see that computation
+and exploitation of SSA is not supported, for example for optimal [Hack, Goos
+2006] or other register allocation.
+ 
+Altogether it seems more reasonable to make the claims of the abstract less
+general and simply say: "Hoopl has been very useful in the development of GHC
+and we believe it to have potential for other compilers as well".
+
+The references to data flow analysis are a bit sketchy. As for textbooks,
+Muchnick is a good choice, though Hecht (1977) could be considered as a
+classic.  A more recent and up-to-date comprehensive survey of data flow
+frameworks is Marlowe and Ryder, Acta Informatica 1990. Data flow analysis as
+model checking has been popularized by Schmidt (1998), but its original
+discoverer Steffen, TACS 1991 (!) -- see also other articles between 1991 and
+1998 by Steffen -- should be given due credit. Key SSA and register allocation
+references, which have been drivers for much of program dependence, control
+flow and data flow analysis and applications also deserve to be mentioned in a
+general tour through the data flow analysis landscape.
+
+
+
+Minor issues:
+
+8. Discussion; 3 line says: "many, many"
+Should simply be "many".
+
+Figure 5. The caption says that the source code shown in this Figure is
+extracted automatically from the code distributed with Hoopl, but not how. It
+would be less confusing for readers if the caption simply said: "extracted
+from the code distributed with Hoopl".
+
+
+
+---------------------------- REVIEW 4 -------------------------- PAPER: 6
+TITLE: Hoopl: A Modular, Reusable Library for Dataflow Analysis and
+Transformation
+ 
+OVERALL RATING: 2 (accept) 
+REVIEWER'S CONFIDENCE: 1 (low) 
+
+[As Programme Chair of the Haskell Symposium 2010, I intend to write a
+short non-anonymous review myself of every single submission. Please
+consider this as a bonus, in addition to the full anonymous reviews
+that you receive from members of the Programme Committee. -jg]
+
+This is quite a weighty paper on (as the title says) a Haskell library
+for dataflow analyses. I was impressed by the results, and it is
+beautifully written; but I cannot claim to have understood it all (the
+bit that makes most sense to me is the use of GADTs for capturing
+shape invariants, but then I've already heard a talk about that
+aspect).
+
+One trivial comment: I think it's a pity that you don't use the names
+"n" and "x" for ENtry and EXit labels; but I appreciate that you also
+want "n" for "node". The "thanks to Reviewer C" comment is a bit odd;
+presumably this paper has come to HS via ICFP? 
+
+
