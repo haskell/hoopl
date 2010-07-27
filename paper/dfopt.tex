@@ -1708,27 +1708,31 @@ to insert infinitely many spills.
 
 
 
+\seclabel{rewrite-model}
+
 An~innovation of \hoopl\ is to build the choice of shallow or deep
 rewriting into each rewrite function, through the use of the four
 combinators
 @mkFRewrite@, @thenFwdRw@, @iterFwdRw@, and @noFwdRw@ shown in
-\figref{api}. 
+\figref{api-types}. 
 Every rewrite function is made with these combinators,
 and its behavior is characterized by the answers to two questions:
-does the  function rewrite a~node, and if so, what rewrite function
-should be used to recursively analyze the replacement graph.
-To~answer these questions precisely, we offer a model of rewrite
-functions as an algebraic datatype:
+Does the  function rewrite a~node?
+If~so, what rewrite function
+should be used to analyze the replacement graph recursively?
+To~answer these questions, we~present an
+algebraic datatype that models @FwdRewrite@:
 \begin{smallcode}
 data `Rw a = `Mk a | `Then (Rw a) (Rw a) | `Iter (Rw a) | `No
 \end{smallcode}
 Using this model, we specify how a rewrite function works by
 giving a reference implementation.
 The code is in continuation-passing style;
-the first continuation~@j@ accepts a result where the graph is
-rewritten,
-and the second continuation~@n@ is the result when the graph is not
-rewritten.
+when the node is rewritten,
+the first continuation~@j@ accepts a pair containing the replacement
+graph and the new rewrite function to be used to analyze it.
+When the node is not rewritten, 
+the second continuation~@n@ is the (lazily evaluated) result.
 \begin{smallcode}
 rewrite :: Monad m => FwdRewrite m n f -> n e x -> f
         -> m (Maybe (Graph n e x, FwdRewrite m n f))
@@ -1740,12 +1744,12 @@ rewrite :: Monad m => FwdRewrite m n f -> n e x -> f
   rew (r1 `Then` r2) j n = rew r1 (j . add r2) (rew r2 j n)
   rew (Iter r)       j n = rew r (j . add (Iter r)) n
   rew No             j n = n
-  `add tail (g, r) = (g, r `Then` tail)
+  `add nextrw (g, r) = (g, r `Then` nextrw)
 \end{smallcode}
 Appealing to this model, we see that
 \begin{itemize}
 \item
-A~function returned by @mkFRewrite@ never rewrites a replacement
+A~function @mkFRewrite rw@ never rewrites a replacement
 graph---this behavior is shallow rewriting.
 \item
 When a~function @r1 `thenFwdRw` r2@ is applied to a node,
@@ -1756,7 +1760,7 @@ And~if @r1@~does not replace the node, \hoopl\ tries~@r2@.
 When a~function @iterFwdRw r@ rewrites a node, then @iterFwdRw r@ is
 used to transform the replacement graph---this behavior is deep
 rewriting.
-But~if @r1@~does not replace the node, \hoopl\ returns @Nothing@.
+If~@r@~does not rewrite a~node, neither does @iterFwdRw r@.
 \item
 Finally, @noFwdRw@ never replaces a graph.
 \end{itemize}
