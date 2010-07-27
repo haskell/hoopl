@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, MultiParamTypeClasses #-}
 
 module Compiler.Hoopl.Dataflow
-  ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..), Fact
+  ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..), Fact, mkFactBase
   , ChangeFlag(..), changeIf
   , FwdPass(..), FwdTransfer, mkFTransfer, mkFTransfer3, getFTransfer3
   -- * Respecting Fuel
@@ -51,6 +51,20 @@ newtype NewFact a = NewFact a
 data ChangeFlag = NoChange | SomeChange deriving (Eq, Ord)
 changeIf :: Bool -> ChangeFlag
 changeIf changed = if changed then SomeChange else NoChange
+
+
+-- | 'mkFactBase' creates a 'FactBase' from a list of ('Label', fact)
+-- pairs.  If the same label appears more than once, the relevant facts
+-- are joined.
+
+mkFactBase :: DataflowLattice f -> [(Label, f)] -> FactBase f
+mkFactBase lattice = foldl add mapEmpty
+  where add map (lbl, f) = mapInsert lbl newFact map
+          where newFact = case mapLookup lbl map of
+                            Nothing -> f
+                            Just f' -> snd $ join lbl (OldFact f') (NewFact f)
+                join = fact_join lattice
+
 
 -----------------------------------------------------------------------------
 --		Analyze and rewrite forward: the interface
@@ -265,8 +279,8 @@ arfGraph pass entries = graph
 -- We know the results _shouldn't change_, but the transfer
 -- functions might, for example, generate some debugging traces.
 joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
-joinInFacts (DataflowLattice {fact_bot = bot, fact_join = fj}) fb =
-  mkFactBase $ map botJoin $ mapToList fb
+joinInFacts (lattice @ DataflowLattice {fact_bot = bot, fact_join = fj}) fb =
+  mkFactBase lattice $ map botJoin $ mapToList fb
     where botJoin (l, f) = (l, snd $ fj l (OldFact bot) (NewFact f))
 
 forwardBlockList :: (NonLocal n, LabelsPtr entry)

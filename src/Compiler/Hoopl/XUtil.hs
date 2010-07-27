@@ -119,19 +119,23 @@ firstXfer xfer n fb = xfer n $ fromJust $ lookupFact (entryLabel n) fb
 -- | This utility function handles a common case in which a transfer function
 -- produces a single fact out of a last node, which is then distributed
 -- over the outgoing edges.
-distributeXfer :: NonLocal n => (n O C -> f -> f) -> (n O C -> f -> FactBase f)
-distributeXfer xfer n f = mkFactBase [ (l, xfer n f) | l <- successors n ]
+distributeXfer :: NonLocal n
+               => DataflowLattice f -> (n O C -> f -> f) -> (n O C -> f -> FactBase f)
+distributeXfer lattice xfer n f =
+    mkFactBase lattice [ (l, xfer n f) | l <- successors n ]
 
 -- | This utility function handles a common case in which a transfer function
 -- for a last node takes the incoming fact unchanged and simply distributes
 -- that fact over the outgoing edges.
 distributeFact :: NonLocal n => n O C -> f -> FactBase f
-distributeFact n f = mkFactBase [ (l, f) | l <- successors n ]
+distributeFact n f = mapFromList [ (l, f) | l <- successors n ]
+   -- because the same fact goes out on every edge,
+   -- there's no need for 'mkFactBase' here.
 
 -- | This utility function handles a common case in which a backward transfer
 -- function takes the incoming fact unchanged and tags it with the node's label.
 distributeFactBwd :: NonLocal n => n C O -> f -> FactBase f
-distributeFactBwd n f = mkFactBase [ (entryLabel n, f) ]
+distributeFactBwd n f = mapSingleton (entryLabel n) f
 
 -- | List of (unlabelled) facts from the successors of a last node
 successorFacts :: NonLocal n => n O C -> FactBase f -> [f]

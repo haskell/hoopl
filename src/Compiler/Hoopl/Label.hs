@@ -3,7 +3,7 @@ module Compiler.Hoopl.Label
   ( Label
   , freshLabel
   , LabelSet, LabelMap
-  , FactBase, noFacts, mkFactBase, lookupFact
+  , FactBase, noFacts, lookupFact
 
   , uniqueToLbl -- MkGraph and GHC use only
   , lblToUnique -- GHC use only
@@ -99,9 +99,6 @@ type FactBase f = LabelMap f
 
 noFacts :: FactBase f
 noFacts = mapEmpty
-
-mkFactBase :: [(Label, f)] -> FactBase f
-mkFactBase = mapFromList
 
 lookupFact :: Label -> FactBase f -> Maybe f
 lookupFact = mapLookup
