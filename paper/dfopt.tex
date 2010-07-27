@@ -775,7 +775,6 @@ bottom up:
 \item A \emph{node} is defined by \ourlib's client;
 \ourlib{} knows nothing about the representation of nodes (\secref{nodes}).
 \item A basic \emph{block} is a sequence of nodes (\secref{blocks}).
-\item Control-flow \emph{edges} connect nodes (\secref{edges}).
 \item A \emph{graph} is an arbitrarily complicated control-flow graph:
 basic blocks connected by edges (\secref{graphs}).
 \end{itemize}
@@ -1014,23 +1013,6 @@ Using GADTs to enforce these invariants is one of
 \ourlib{}'s innovations.
 
 
-\subsection{Control-flow edges and program points} \seclabel{edges}
-
-\simon{I find this section hard to understand, and I'm not sure that
-it belongs here at all. If anywhere the current 3.6 would be better.}
-In a block, a control-flow edge is implicit in every application of
-the @BCat@ constructor.
-An~implicit edge originates in a first node or a middle node and flows
-to a middle node or a last node.
-\emph{Explicit} edges between blocks are represented by the client;
-an~explicit edge originates in a last node and flows to a (labelled)
-first node. 
-\hoopl\ discovers explicit edges by using the @successors@ and
-@entryLabel@ functions of the @NonLocal@ class (\figref{graph}).
-Any~edge, whether implicit or explicit, is considered a program point,
-and an analysis written using \hoopl\ computes a dataflow fact at each
-such point.
-
 \subsection{Graphs} \seclabel{graphs}
 
 \ourlib{} composes blocks into graphs, which are also defined 
@@ -1150,30 +1132,38 @@ If~@GUnit@ were more polymorphic, there would be
 more than one way to represent some graphs, and it wouldn't be obvious
 to a client which representation to choose---or if the choice made a difference.
 {\hfuzz=1.8pt\par}
+\fi
 
-\subsection{Labels and successors} \seclabel{nonlocal-class}
+\subsection{Edges, labels and successors} 
 
-\remark{Becomes ``Edges, labels, and successors.'' Absorbs ``3.4
-control-flow edges and program points}
+\seclabel{nonlocal-class}
+\seclabel{edges}
+
+
 
 
 Although \ourlib{} is polymorphic in the type of nodes, 
-it~still needs to know how a node may transfer control from one
-block to another.
-\hoopl\ also
-needs to know what @Label@ is on the first node in a block.
-If \hoopl\ is polymorphic in the node type,
-how can it{} know these things?
+it~still needs to know how control may be transferred from one node to another.
+Within a~block, a control-flow edge is implicit in every application of
+the @BCat@ constructor.
+An~implicit edge originates in a first node or a middle node and flows
+to a middle node or a last node.
+
+Between blocks, a~control-flow edge is represented as chosen by the client.
+An~explicit edge originates in a last node and flows to a (labelled)
+first node. 
+If~\hoopl\ is polymorphic in the node type,
+how can it{} follow such edges?
 \hoopl\ requires the client to make the node type an instance of 
 \ourlib's @NonLocal@ type class, which is defined in \figref{edges}.
 The @entryLabel@ method takes a first node (one closed on entry, \secref{nodes})
 and returns its @Label@;
-the @successors@ method takes a last node (closed on exit) and returns
+the~@successors@ method takes a last node (closed on exit) and returns
 the @Label@s to 
 which it can transfer control.  
-A~middle node, which is open on both entry and exit, transfers control
-only locally, to its successor within a basic block,
-so no corresponding interrogation function is needed.
+%%A~middle node, which is open on both entry and exit, transfers control
+%%only locally, to its successor within a basic block,
+%%so no corresponding interrogation function is needed.
 
 %% A node type defined by a client must be an instance of @NonLocal@.
 In~\figref{cmm-node},
