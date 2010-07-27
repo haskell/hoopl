@@ -232,12 +232,12 @@ arfGraph pass entries = graph
 
 -- @ start node.tex -4
     node n f
-     = do { gtail <- frewrite pass n f
-          ; case gtail of
+     = do { grw <- frewrite pass n f
+          ; case grw of
               Nothing -> return ( singletonDG f n
                                 , ftransfer pass n f )
-              Just (g, tail) ->
-                  let pass' = pass { fp_rewrite = tail }
+              Just (g, rw) ->
+                  let pass' = pass { fp_rewrite = rw }
                       f'    = fwdEntryFact n f
                   in  arfGraph pass' (fwdEntryLabel n) g f' }
 
@@ -829,9 +829,9 @@ class ShapeLifter e x where
  singletonDG   :: f -> n e x -> DG f n e x
  fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
  fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
- ftransfer     :: FwdPass m n f -> n e x -> f -> Fact x f
- frewrite      :: FwdPass m n f -> n e x 
-               -> f -> m (Maybe (Graph n e x, FwdRewrite m n f))
+ ftransfer :: FwdPass m n f -> n e x -> f -> Fact x f
+ frewrite  :: FwdPass m n f -> n e x 
+           -> f -> m (Maybe (Graph n e x, FwdRewrite m n f))
 -- @ end node.tex
  bwdEntryFact :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
  btransfer    :: BwdPass m n f -> n e x -> Fact x f -> f
