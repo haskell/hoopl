@@ -15,7 +15,6 @@ defuse.tex
 dfopt.bbl
 notesinmargin.tex
 
-
 timestamp.tex
 comb1.tex
 iterf.tex
@@ -27,6 +26,7 @@ hoopl.ps
 fptype.tex
 bodyfun.tex
 node.tex
+cat.tex
 
 
 *.log
