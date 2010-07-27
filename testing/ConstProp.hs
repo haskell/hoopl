@@ -48,17 +48,17 @@ varHasLit = mkFTransfer ft
   ft (Assign x (Lit k))   f = Map.insert x (PElem k) f
   ft (Assign x _)         f = Map.insert x Top f
   ft (Store _ _)          f = f
-  ft (Branch l)           f = mkFactBase [(l, f)]
+  ft (Branch l)           f = mapSingleton l f
   ft (Cond (Var x) tl fl) f 
-      = mkFactBase [(tl, Map.insert x (b True)  f),
-                    (fl, Map.insert x (b False) f)]
+      = mkFactBase constLattice [(tl, Map.insert x (b True)  f),
+                                 (fl, Map.insert x (b False) f)]
           where b = PElem . Bool
-  ft (Cond _ tl fl) f = mkFactBase [(tl, f), (fl, f)]
+  ft (Cond _ tl fl) f = mkFactBase constLattice [(tl, f), (fl, f)]
 
 -- @ end cprop.tex
-  ft (Call vs _ _ bid)      f = mkFactBase [(bid, foldl toTop f vs)]
+  ft (Call vs _ _ bid)      f = mapSingleton bid (foldl toTop f vs)
       where toTop f v = Map.insert v Top f
-  ft (Return _)             _ = mkFactBase []
+  ft (Return _)             _ = mapEmpty
 
 -- @ start cprop.tex
 --------------------------------------------------
