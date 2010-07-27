@@ -3145,7 +3145,7 @@ In~an earlier version of \hoopl, this overhead was
 eliminated by splitting @arfGraph@ into two functions: one to compute the
 fixed point, and the other to produce the rewritten graph.
 The single @arfGraph@ is simpler and easier
-to maintain; we don't know the extra thunks matter.
+to maintain; we don't know if the extra thunks matter.
 \item
 The representation of a forward-transfer function is private to
 \hoopl.
@@ -3474,10 +3474,10 @@ he or she can make~@m@ an instance of @FuelMonad@ in which the fuel
 supply is infinite.
 The user is then free to create a new fuel supply in~@m@ and to wrap
 rewrite functions---or not---so as to consume fuel in the new supply.
-This freedom can used to implement more exotic uses of fuel;
-for~example, a~user might find it convenient if it were possible to
-instantiate a compiler temporary as a real hardware register without
-consuming fuel.
+This freedom can be~used to implement more exotic uses of fuel;
+for~example, a~user might find it convenient to~rewrite
+a compiler temporary to a hardware register
+without consuming fuel.
 
 %%  \simon{These next two paras are incomprehensible. Cut?}
 %%  Of the many varied implementations we have tried,
