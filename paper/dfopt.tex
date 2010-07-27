@@ -1395,6 +1395,8 @@ type instance Fact C f = FactBase f
 ------- FactBase -------
 type `FactBase f = LabelMap f
  -- A finite mapping from Labels to facts f
+`mkFactBase 
+ :: DataflowLattice f -> [(Label, f)] -> FactBase f
 
 ------- Rolling back speculative rewrites ----
 class Monad m => CkpointMonad m where
@@ -1413,7 +1415,6 @@ class Monad m => `FuelMonad m where
   \figlabel{lattice-type} \figlabel{lattice}
   \figlabel{transfers}  \figlabel{rewrites}
 \end{figure}
-% omit mkFactBase :: [(Label, f)] -> FactBase f
 %%%%  \simon{We previously renamed @fact\_join@ to @fact\_extend@ because it really
 %%%%  is not a symmetrical join; we're extending an old fact with a new one.
 %%%%  NR: Yes, but the asymmetry is now explicit in the \emph{type}, so it
@@ -1567,10 +1568,10 @@ If the node is open on exit, the transfer function produces a single fact.
 But if the node is \emph{closed} on exit,
 the transfer function 
 produces a collection of (@Label@,fact) pairs: one for each outgoing edge.  
-\simon{Lies all lies. It's a FactBase!}
-%
-The indexing is expressed by Haskell's (recently added) 
+The~collection is represented by a @FactBase@, and
+the indexing is expressed by Haskell's (recently added) 
 \emph{indexed type families}.
+\remark{Perhaps @mkFactBase@ needs explaining?}
 The relevant part of \ourlib's interface is given in \figref{transfers}.
 A~forward transfer function supplied by a client, 
 which would be passed to @mkFTransfer@,
