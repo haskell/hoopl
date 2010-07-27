@@ -173,8 +173,10 @@ arfGraph pass entries = graph
     -}
     graph ::              Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
     block :: forall e x . Block n e x -> f        -> m (DG f n e x, Fact x f)
-    node  :: forall e x . (ShapeLifter e x) 
-                       => n e x       -> f        -> m (DG f n e x, Fact x f)
+-- @ start node.tex -4
+    node :: forall e x . (ShapeLifter e x) 
+         => n e x -> f -> m (DG f n e x, Fact x f)
+-- @ end node.tex
 -- @ start bodyfun.tex
     body  :: [Label] -> LabelMap (Block n C C)
           -> Fact C f -> m (DG f n C C, Fact C f)
@@ -182,10 +184,10 @@ arfGraph pass entries = graph
                     -- Outgoing factbase is restricted to Labels *not* in
                     -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
-    cat :: forall m e a x info info' info''. Monad m =>
-           (info  -> m (DG f n e a, info'))
-        -> (info' -> m (DG f n a x, info''))
-        -> (info  -> m (DG f n e x, info''))
+    cat :: forall e a x f1 f2 f3. 
+           (f1 -> m (DG f n e a, f2))
+        -> (f2 -> m (DG f n a x, f3))
+        -> (f1 -> m (DG f n e x, f3))
 
     graph GNil            = \f -> return (dgnil, f)
     graph (GUnit blk)     = block blk
