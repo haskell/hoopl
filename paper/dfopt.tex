@@ -1729,7 +1729,7 @@ rewritten,
 and the second continuation~@n@ is the result when the graph is not
 rewritten.
 \begin{smallcode}
-rewrite :: Monad m => FwdRewrite m n f -> -> n e x -> f
+rewrite :: Monad m => FwdRewrite m n f -> n e x -> f
         -> m (Maybe (Graph n e x, FwdRewrite m n f))
 `rewrite ^rs node f = rew rs (return . Just) (return Nothing)
  where
