@@ -200,7 +200,7 @@ higher-rank any longer).
 
 \def \@copyrightspace {%
  \@float{copyrightbox}[b]%
- \vbox to 0.8in{%  less than 1in, please
+ \vbox to 0.65in{%  less than 1in, please
    \vfill
    \parbox[b]{20pc}{%
      \scriptsize
@@ -1088,11 +1088,7 @@ argument must be @JustO e2@.
 Moreover, block~@x1@ must be
 closed/open, and block~@e2@ must be open/closed.  
 We can therefore concatenate 
-\ifpagetuning
 @x1@~and~@e2@
-\else
-them
-\fi
 with @BCat@ to produce a closed/closed block~@b@, which is
 added to the body of the result.
 
@@ -1209,6 +1205,31 @@ if a @Graph@ is closed on entry, it need not have a unique entry label.
 
 
 
+\begin{table}
+\centerline{%
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.03in}>{\scshape}c>{\scshape
+}
+      c>{\raggedright\arraybackslash}p{1.29in}@{}}
+&\multicolumn1{r}{\llap{\emph{Specified}}\hspace*{-0.3em}}&
+\multicolumn1{l}{\hspace*{-0.4em}\rlap{\emph{Implemented}}}&\\
+\multicolumn1{c}{\emph{Part of optimizer}}
+&\multicolumn1{c}{\emph{by}}&
+\multicolumn1{c}{\emph{by}}&
+\multicolumn1{c}{\emph{How many}}%
+\\[5pt]
+Control-flow graphs& Us & Us & One \\
+Nodes in a control-flow graph & You & You & One type per intermediate language \\[3pt]
+Dataflow fact~$F$    & You & You & One type per logic \\
+Lattice operations & Us & You & One set per logic \\[3pt]
+Transfer functions & Us & You & One per analysis \\
+Rewrite functions & Us & You & One per \rlap{transformation} \\[3pt]
+Analyze-and-rewrite functions & Us & Us & Two (forward, backward) \\
+\end{tabular}%
+}
+\caption{Parts of an optimizer built with \ourlib}
+\tablabel{parts}
+\end{table}
+
 
 
 
@@ -1248,32 +1269,6 @@ is crucial for many code-improving transformations.
 These requirements are summarized in \tabref{parts}.
 Because facts, transfer functions, and rewrite functions work together,
 we~combine them in a single record of type @FwdPass@ (\figref{api-types}).
-
-\begin{table}
-\centerline{%
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.03in}>{\scshape}c>{\scshape
-}
-      c>{\raggedright\arraybackslash}p{1.29in}@{}}
-&\multicolumn1{r}{\llap{\emph{Specified}}\hspace*{-0.3em}}&
-\multicolumn1{l}{\hspace*{-0.4em}\rlap{\emph{Implemented}}}&\\
-\multicolumn1{c}{\emph{Part of optimizer}}
-&\multicolumn1{c}{\emph{by}}&
-\multicolumn1{c}{\emph{by}}&
-\multicolumn1{c}{\emph{How many}}%
-\\[5pt]
-Control-flow graphs& Us & Us & One \\
-Nodes in a control-flow graph & You & You & One type per intermediate language \\[3pt]
-Dataflow fact~$F$    & You & You & One type per logic \\
-Lattice operations & Us & You & One set per logic \\[3pt]
-Transfer functions & Us & You & One per analysis \\
-Rewrite functions & Us & You & One per \rlap{transformation} \\[3pt]
-Analyze-and-rewrite functions & Us & Us & Two (forward, backward) \\
-\end{tabular}%
-}
-%\ifpagetuning\vspace*{0.5\baselineskip}\fi
-\caption{Parts of an optimizer built with \ourlib}
-\tablabel{parts}
-\end{table}
 
 
 
@@ -2027,7 +2022,6 @@ functions in the \texttt{NonLocal} type class
 % local fl
 \caption{The client for constant propagation and constant folding\break (extracted automatically from code distributed with Hoopl)}
 \figlabel{const-prop}
-%\ifpagetuning\vspace*{-1.0\baselineskip}\fi
 \end{figure}
 
 
