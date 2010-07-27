@@ -2686,8 +2686,6 @@ Function @graph@ is much like @block@, but it has more cases.
 \subsection{Analyzing and rewriting nodes} \seclabel{arf-node}
 
 The @node@ function is where we interleave analysis with rewriting:
-\simon{NR: FwdGraphAndTail can be expunged and replaced with a simple pair
-type}
 \smallfuzzverbatiminput{15.1pt}{node}
 % defn ShapeLifter
 % defn singletonDG
@@ -2696,13 +2694,12 @@ type}
 % defn ftransfer
 % defn frewrite
 % local pass'
-% local gtail
-% omit FwdGraphAndTail :: Graph n e x -> FwdRewrite m n f -> FwdGraphAndTail m n f e x
+% local grw
 %
 Function @node@ uses @frewrite@ to extract the rewrite function from
 @pass@, 
 and applies the rewrite function to the node~@n@ and the incoming fact~@f@.
-The result, @gtail@, is 
+The result, @grw@, is 
 scrutinized by the @case@ expression.
 
 In the @Nothing@ case, no rewrite takes place.
@@ -2712,12 +2709,11 @@ To produce the outgoing fact, we apply the transfer function
 @ftransfer pass@ to @n@~and~@f@.
 
 In the @Just@ case, we receive a replacement
-graph~@g@ and a new rewrite function~@tail@.
-The function~@tail@ represents the tail of a sequence of rewrite
-functions, as described in \secref{rewrite-as-sequence}.
-We~use @tail@ to recursively analyze and rewrite @g@ with @arfGraph@.  
+graph~@g@ and a new rewrite function~@rw@, as specified by the model
+in \secref{rewrite-model}.
+We~use @rw@ to recursively analyze and rewrite~@g@ with @arfGraph@.  
 This analysis uses @pass'@, which contains the original lattice and transfer
-function from @pass@, together with~@tail@.
+function from @pass@, together with~@rw@.
 Function @fwdEntryFact@ converts fact~@f@ from the type~@f@,
 which @node@ expects, to the type @Fact e f@, which @arfGraph@ expects.
 
