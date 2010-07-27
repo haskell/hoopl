@@ -2875,9 +2875,6 @@ Each rewrite consumes one unit of fuel,
 and when fuel is exhausted, all rewrite functions return @Nothing@.
 To~debug, we do binary search on the amount of fuel.
 
-\simon{Missing is the key point: that the entire fuel story is implementable
-by snazzy rewrite functions, and could be done by the client. We 
-provide the wrapper only for convenience.}
 The supply of fuel is encapsulated in the @FuelMonad@ type class (\figref{api-types}),
 which must be implemented by the client's monad @m@.
 To~ensure that each rewrite consumes one~unit of~fuel,
@@ -3436,7 +3433,6 @@ thinking and helped to structure the implementation.
 \paragraph{More alternative interfaces and implementations}
 Why do we allow the client to define the monad~@m@ used in rewrite
 functions and in @analyzeAndRewriteFwdBody@?
-\remark{OK, I no longer find this~\P shitty\ldots}
 The~obvious alternative, which we have implemented and explored, is to require
 \hoopl's clients to use a monad provided by \hoopl.
 This alternative has advantages: 
