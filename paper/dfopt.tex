@@ -3484,16 +3484,16 @@ The law governing @checkpoint@ and @restart@
 would ensure that a speculative rewrite, if later rolled back, would not
 create  a function definition (or a log entry).
 
-Another merit of a user-defined monad is that, with a minor API
-change, we can put the entire Whalley-style fuel management in the
-user's hands.  In the API
-of \figref{rewrites} every rewrite constructed with @mkFRewrite@ 
-consumes a unit of fuel, but we could instead provide a more primitive fuel-free
-rewrite-function constructor, say @mkFRewrite'@.  Fuel consumption could then be implemented by the
-user, in the function passed to @mkFRewrite'@, by simply returning @Nothing@ if
-fuel is exhausted. This would leave the user free to use a more
-exotic fuel monad, such as one supporting several supplies of fuel for
-different sorts of rewrites.  
+Another merit of a user-defined monad~@m@ is that, 
+if~a user wants to manage optimization fuel differently,
+he or she can make~@m@ an instance of @FuelMonad@ in which the fuel
+supply is infinite.
+The user is then free to create a new fuel supply in~@m@ and to wrap
+rewrite functions---or not---so as to consume fuel in the new supply.
+This freedom can used to implement more exotic uses of fuel;
+for~example, a~user might find it convenient if it were possible to
+instantiate a compiler temporary as a real hardware register without
+consuming fuel.
 
 %%  \simon{These next two paras are incomprehensible. Cut?}
 %%  Of the many varied implementations we have tried,
