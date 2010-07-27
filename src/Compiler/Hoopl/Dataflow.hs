@@ -7,7 +7,7 @@ module Compiler.Hoopl.Dataflow
   -- * Respecting Fuel
 
   -- $fuel
-  , FwdGraphAndTail(..),  FwdRewrite,  mkFRewrite,  mkFRewrite3,  getFRewrite3, noFwdRewrite
+  , FwdRewrite,  mkFRewrite,  mkFRewrite3,  getFRewrite3, noFwdRewrite
   , wrapFR, wrapFR2
   , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer3, getBTransfer3
   , wrapBR, wrapBR2
