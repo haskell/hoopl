@@ -42,9 +42,8 @@ thenFwdRw :: Monad m
 thenFwdRw rw3 rw3' = wrapFR2 thenrw rw3 rw3'
  where
   thenrw rw rw' n f = rw n f >>= fwdRes
-     where fwdRes Nothing = rw' n f
-           fwdRes (Just (FwdGraphAndTail g rw3a))
-            = return $ Just $ FwdGraphAndTail g (rw3a `thenFwdRw` rw3')
+     where fwdRes Nothing   = rw' n f
+           fwdRes (Just gr) = return $ Just $ faddrw rw3' gr
 
 -- @ start iterf.tex
 iterFwdRw :: Monad m 
@@ -52,10 +51,30 @@ iterFwdRw :: Monad m
           -> FwdRewrite m n f
 -- @ end iterf.tex
 iterFwdRw rw3 = wrapFR iter rw3
- where
-    iter rw n f = liftM (liftM fwdRes) (rw n f)
-    fwdRes (FwdGraphAndTail g rw3a) = 
-      FwdGraphAndTail g (rw3a `thenFwdRw` iterFwdRw rw3)
+ where iter rw n = (liftM $ liftM $ faddrw (iterFwdRw rw3)) . rw n
+       _iter = frewrite_cps (return . Just . faddrw (iterFwdRw rw3)) (return Nothing)
+
+-- | Function inspired by 'rew' in the paper
+frewrite_cps :: Monad m
+             => ((Graph n e x, FwdRewrite m n f) -> m a)
+             -> m a
+             -> (forall e x . n e x -> f -> m (Maybe (Graph n e x, FwdRewrite m n f)))
+             -> n e x
+             -> f
+             -> m a
+frewrite_cps j n rw node f =
+    do mg <- rw node f
+       case mg of Nothing -> n
+                  Just gr -> j gr
+
+
+
+-- | Function inspired by 'add' in the paper
+faddrw :: Monad m
+       => FwdRewrite m n f
+       -> (Graph n e x, FwdRewrite m n f)
+       -> (Graph n e x, FwdRewrite m n f)
+faddrw rw2 (g, rw1) = (g, rw1 `thenFwdRw` rw2)
 
 ----------------------------------------------------------------
 
@@ -107,7 +126,7 @@ pairFwd pass1 pass2 = FwdPass lattice transfer rewrite
       where
         lift proj = wrapFR project
           where project rw = \n pair -> liftM (liftM repair) $ rw n (proj pair)
-                repair (FwdGraphAndTail g rw') = FwdGraphAndTail g (lift proj rw')
+                repair (g, rw') = (g, lift proj rw')
 
 pairBwd :: forall m n f f' . 
            Monad m => BwdPass m n f -> BwdPass m n f' -> BwdPass m n (f, f')

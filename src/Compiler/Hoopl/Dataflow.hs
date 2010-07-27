@@ -70,28 +70,29 @@ newtype FwdTransfer n f
 
 newtype FwdRewrite m n f   -- see Note [Respects Fuel]
   = FwdRewrite3 { getFRewrite3 ::
-                    ( n C O -> f -> m (Maybe (FwdGraphAndTail m n f C O))
-                    , n O O -> f -> m (Maybe (FwdGraphAndTail m n f O O))
-                    , n O C -> f -> m (Maybe (FwdGraphAndTail m n f O C))
+                    ( n C O -> f -> m (Maybe (Graph n C O, FwdRewrite m n f))
+                    , n O O -> f -> m (Maybe (Graph n O O, FwdRewrite m n f))
+                    , n O C -> f -> m (Maybe (Graph n O C, FwdRewrite m n f))
                     ) }
-data FwdGraphAndTail m n f e x = FwdGraphAndTail (Graph n e x) (FwdRewrite m n f)
-  -- result of a rewrite is a new graph and a (possibly) new rewrite function
 
-wrapFR :: (forall e x . (n  e x -> f  -> m  (Maybe (FwdGraphAndTail m  n  f  e x))) ->
-                        (n' e x -> f' -> m' (Maybe (FwdGraphAndTail m' n' f' e x))))
+wrapFR :: (forall e x. (n  e x -> f  -> m  (Maybe (Graph n  e x, FwdRewrite m  n  f )))
+                    -> (n' e x -> f' -> m' (Maybe (Graph n' e x, FwdRewrite m' n' f')))
+          )
             -- ^ This argument may assume that any function passed to it
             -- respects fuel, and it must return a result that respects fuel.
        -> FwdRewrite m  n  f 
        -> FwdRewrite m' n' f'      -- see Note [Respects Fuel]
 wrapFR wrap (FwdRewrite3 (f, m, l)) = FwdRewrite3 (wrap f, wrap m, wrap l)
-wrapFR2 :: (forall e x . (n1 e x -> f1 -> m1 (Maybe (FwdGraphAndTail m1 n1 f1 e x))) ->
-                         (n2 e x -> f2 -> m2 (Maybe (FwdGraphAndTail m2 n2 f2 e x))) ->
-                         (n3 e x -> f3 -> m3 (Maybe (FwdGraphAndTail m3 n3 f3 e x))))
+wrapFR2 
+  :: (forall e x . (n1 e x -> f1 -> m1 (Maybe (Graph n1 e x, FwdRewrite m1 n1 f1))) ->
+                   (n2 e x -> f2 -> m2 (Maybe (Graph n2 e x, FwdRewrite m2 n2 f2))) ->
+                   (n3 e x -> f3 -> m3 (Maybe (Graph n3 e x, FwdRewrite m3 n3 f3)))
+     )
             -- ^ This argument may assume that any function passed to it
             -- respects fuel, and it must return a result that respects fuel.
-        -> FwdRewrite m1 n1 f1
-        -> FwdRewrite m2 n2 f2
-        -> FwdRewrite m3 n3 f3      -- see Note [Respects Fuel]
+  -> FwdRewrite m1 n1 f1
+  -> FwdRewrite m2 n2 f2
+  -> FwdRewrite m3 n3 f3      -- see Note [Respects Fuel]
 wrapFR2 wrap2 (FwdRewrite3 (f1, m1, l1)) (FwdRewrite3 (f2, m2, l2)) =
     FwdRewrite3 (wrap2 f1 f2, wrap2 m1 m2, wrap2 l1 l2)
 
@@ -114,7 +115,7 @@ mkFRewrite3 :: FuelMonad m
             -> FwdRewrite m n f
 mkFRewrite3 f m l = FwdRewrite3 (lift f, lift m, lift l)
   where lift rw node fact = liftM (liftM asRew) (withFuel =<< rw node fact)
-        asRew g = FwdGraphAndTail g noFwdRewrite
+        asRew g = (g, noFwdRewrite)
 
 noFwdRewrite :: Monad m => FwdRewrite m n f
 noFwdRewrite = FwdRewrite3 (noRewrite, noRewrite, noRewrite)
@@ -221,7 +222,7 @@ arfGraph pass entries = graph
           ; case gtail of
               Nothing -> return ( singletonDG f n
                                 , ftransfer pass n f )
-              Just (FwdGraphAndTail g tail) ->
+              Just (g, tail) ->
                   let pass' = pass { fp_rewrite = tail }
                       f'    = fwdEntryFact n f
                   in  arfGraph pass' (fwdEntryLabel n) g f' }
@@ -816,7 +817,7 @@ class ShapeLifter e x where
  fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
  ftransfer     :: FwdPass m n f -> n e x -> f -> Fact x f
  frewrite      :: FwdPass m n f -> n e x 
-               -> f -> m (Maybe (FwdGraphAndTail m n f e x))
+               -> f -> m (Maybe (Graph n e x, FwdRewrite m n f))
 -- @ end node.tex
  bwdEntryFact :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
  btransfer    :: BwdPass m n f -> n e x -> Fact x f -> f
@@ -824,7 +825,7 @@ class ShapeLifter e x where
 
 instance ShapeLifter C O where
   singletonDG f = gUnitCO . DBlock f . BFirst
-  fwdEntryFact     n f  = mkFactBase [(entryLabel n, f)]
+  fwdEntryFact     n f  = mapSingleton (entryLabel n) f
   bwdEntryFact lat n fb = getFact lat (entryLabel n) fb
   ftransfer (FwdPass {fp_transfer = FwdTransfer3 (ft, _, _)}) n f = ft n f
   btransfer (BwdPass {bp_transfer = BwdTransfer3 (bt, _, _)}) n f = bt n f
