@@ -670,11 +670,12 @@ based on the facts:
        else goto L2
 \end{verbatim}
 Constant propagation works
-from top to bottom.  We start with the empty fact.  
-Given the empty fact and the node @x:=3+4@ can we make a (constant-folding)
+from top to bottom.  
+In this example, we start with the empty fact.  
+Given that fact and the node @x:=3+4@, can we make a
 transformation?
-Yes: we can replace the node with @x:=7@.
-Now, given this transformed node
+Yes: constant folding can replace the node with @x:=7@.
+Now,~given this transformed node
 and the original fact, what fact flows out of the bottom of
 the transformed node?  
 The~fact~\mbox{\{@x=7@\}}.  
@@ -685,22 +686,22 @@ replace the node with @z:=True@.
 The~process continues to the end of the block, where we
 can replace the conditional branch with an unconditional one, @goto L1@.
 
-The example above is simple because the program has only straight-line code;
-when programs have loops, dataflow analysis gets more complicated.
-For example, 
-consider the following graph,
-where we assume @L1@ is the entry point:
+The example above is simple because it has only straight-line code;
+control flow makes dataflow analysis more complicated.
+For~example, 
+consider a graph with a conditional statement, 
+starting at~@L1@:
 \begin{verbatim}
   L1: x=3; y=4; if z then goto L2 else goto L3
   L2: x=7; goto L3
   L3: ...
 \end{verbatim}
 Because control flows to @L3@ from two places (@L1@~and~@L2@),
-we must \emph{join} the facts coming from those two places.
+we~must \emph{join} the facts coming from those two places.
 All paths to @L3@ produce the fact @y=@$4$,
-so we can conclude that this fact holds at~@L3@.
+so we can conclude that @y=@$4$ at~@L3@.
 But depending on the the path to~@L3@, @x@~may have different
-values, so we conclude ``@x=@$\top$'',
+values, so we conclude~``@x=@$\top$'',
 meaning that there is no single value held by~@x@ at~@L3@.
 %\footnote{
 %In this example @x@ really does vary at @L3@, but in general
@@ -727,18 +728,18 @@ replaces the node @x:=e@ with a no-op.
 \paragraph{Interleaved transformation and analysis.}
 Our first example \emph{interleaves} analysis and transformation.
 % constant propagation is a transformation, not an analysis
-Interleaving makes it far easier to write effective analyses.
-If, instead, we \emph{first} analyzed the block
-and \emph{then} transformed it, the analysis would have to ``predict''
-the transformations.
-For example, given the incoming fact \{@x=7@\}
+Interleaving makes it easy to write effective analyses.
+If~instead we had to finish analyzing the block
+before transforming~it, analyses would have to ``predict''
+the results of transformations.
+For example, given the incoming fact~\mbox{\{@x=7@\}}
 and the instruction @z:=x>5@,
-a pure analysis could produce the outgoing fact
+a~pure analysis could produce the outgoing fact
 \{@x=7@, @z=True@\} by simplifying @x>5@ to @True@.
 But the subsequent transformation must perform
 \emph{exactly the same simplification} when it transforms the instruction to @z:=True@!
-If instead we \emph{first} rewrite the node to @z:=True@, 
-and \emph{then} apply the transfer function to the new node, 
+If~instead we \emph{first} rewrite the node to @z:=True@, 
+\emph{then} apply the transfer function to the new node, 
 the transfer function becomes wonderfully simple: it merely has to see if the
 right hand side is a constant.
 You~can see code in \secref{const-prop-client}.
@@ -749,15 +750,16 @@ it is sufficient for the analysis to~say ``@y@ is live before @x:=y+2@''.
 It is not necessary to have the more complex rule
 ``if @x@~is live after @x:=y+2@ then @y@ is live before~it,''
 because if @x@~is \emph{not} live after @x:=y+2@,
-the assignment @x:=y+2@ will be eliminated.
-If~there are a number of interacting 
-analyses and/or transformations,
-the benefit of interleaving them is even more compelling; for more
+the assignment @x:=y+2@ will be transformed away (eliminated).
+When several
+analyses and transformations can interact,
+interleaving them offers even more compelling
+benefits; for more
 substantial examples, consult \citet{lerner-grove-chambers:2002}.
-%
-But these compelling benefits come at a cost.
+
+But the benefits come at a cost.
 To~compute valid facts for a program that has loops,
-an analysis may require multiple iterations over the program.
+an analysis may require multiple iterations.
 Before the final iteration, the analysis may
 compute a~fact that is invalid,
 and a transformation may use the invalid fact to rewrite the program
@@ -771,22 +773,22 @@ As~described in \secref{checkpoint-monad},
 
 \seclabel{debugging-introduced}
 
-While it is wonderful that we can implement complex optimizations by
-composing very simple analyses and transformations,
+While it is wonderful that we can create complex optimizations by
+interleaving very simple analyses and transformations,
 it~is not so wonderful that very simple analyses and transformations,
-when composed, can exhibit complex emergent behavior.
+when interleaved, can exhibit complex emergent behavior.
 Because such behavior is not easily predicted, it is essential to have good
 tools for debugging.
 \hoopl's primary debugging tool is an implementation of
 Whalley's \citeyearpar{whalley:isolation} search technique for
-isolating faults in an optimizer (\secref{whalley-from-s2}).
+finding fault-inducing transformations (\secref{whalley-from-s2}).
 
 
 \section{Representing control-flow graphs} \seclabel{graph-rep}
 
-\ourlib{} is a library that makes it easy to define dataflow analyses,
-and transformations driven by these analyses,
-on control-flow graphs.
+\ourlib{} is a library that makes it easy to define dataflow
+analyses---and transformations driven by these analyses---on
+control-flow graphs. 
 Graphs are composed from smaller units, which we discuss from the
 bottom up:
 \begin{itemize}
@@ -795,12 +797,14 @@ bottom up:
 \item A basic \emph{block} is a sequence of nodes (\secref{blocks}).
 \item A \emph{graph} is an arbitrarily complicated control-flow graph:
 basic blocks connected by edges (\secref{graphs}).
+
 \end{itemize}
 
 \subsection{Shapes: Open and closed}
 
-Nodes, blocks, and graphs share important properties in common.
-In particular, each is \emph{open or closed on entry}
+In \hoopl,
+nodes, blocks, and graphs share an important new property:
+each is deemed \emph{open or closed on entry}
 and \emph{open or closed on exit}.  
 An \emph{open} point is one at which control may implicitly ``fall through;''
 to transfer control at a \emph{closed} point requires an explicit
@@ -815,12 +819,13 @@ control cannot fall through to the next instruction).
 \item A label is closed on entry (because in \ourlib{} we do not allow
 control to fall through into a branch target), but open on exit.
 \item
-A~function call could, if the language being compiled is simple
- enough, be open on entry and  exit.
-But if a function could return in multiple ways---for example by
- transferring either to a normal return continuation or to an
- exception handler---then a function call will have to be represented
- by a node that is closed at exit.
+The shape of a function-call node is up to the client.
+If~a call always returns to its inline successor, it could
+be open on entry and  exit.
+But if a call could return in multiple ways---for example by
+returning normally or by raising an exception---then it has to be
+closed on exit.
+GHC~uses calls of both shapes.
 \end{itemize}
 % This taxonomy enables \ourlib{} to enforce invariants:
 % only nodes closed on entry can be the targets of branches, and only nodes closed
@@ -828,8 +833,8 @@ But if a function could return in multiple ways---for example by
 % As~a consequence, all control transfers originate at control-transfer
 % instructions and terminated at labels; this invariant dramatically
 % simplifies analysis and transformation. 
-These examples concern nodes, but the same classification applies
-to blocks and graphs.  For example the block
+These examples concern nodes, but blocks and graphs have shapes, too.
+For example the block
 \begin{code}
    x:=7; y:=x+2; goto L
 \end{code}
