@@ -805,11 +805,13 @@ basic blocks connected by edges (\secref{graphs}).
 
 In \hoopl,
 nodes, blocks, and graphs share an important new property:
-each is deemed \emph{open or closed on entry}
+a~\emph{shape}.
+A~thing's shape tells us whether the thing
+is \emph{open or closed on entry}
 and \emph{open or closed on exit}.  
-An \emph{open} point is one at which control may implicitly ``fall through;''
-to transfer control at a \emph{closed} point requires an explicit
-control-transfer instruction to a named label.
+At~an \emph{open} point, control may implicitly ``fall through;''
+at~a \emph{closed} point, 
+control transfer must be explicit and to a named label.
 For example,
 \begin{itemize}
 \item A shift-left instruction is open on entry (because control can fall into it
@@ -834,15 +836,15 @@ GHC~uses calls of both shapes.
 % As~a consequence, all control transfers originate at control-transfer
 % instructions and terminated at labels; this invariant dramatically
 % simplifies analysis and transformation. 
-These examples concern nodes, but blocks and graphs have shapes, too.
+Blocks and graphs have shapes too.
 For example the block
 \begin{code}
    x:=7; y:=x+2; goto L
 \end{code}
-is open on entry and closed on exit.  
-This is the block's \emph{shape}, which we often abbreviate
-``open/closed;''
-we may also refer to an ``open/closed block.''
+is open on entry and closed on exit,
+which we often abbreviate
+``open/closed.''
+We~may also refer to an ``open/closed block.''
 
 The shape of a thing determines that thing's control-flow properties.
 In particular, whenever E is a node, block, or graph,
