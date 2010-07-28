@@ -200,7 +200,7 @@ higher-rank any longer).
 
 \def \@copyrightspace {%
  \@float{copyrightbox}[b]%
- \vbox to 0.65in{%  less than 1in, please
+ \vbox to 0.8in{%  less than 1in, please
    \vfill
    \parbox[b]{20pc}{%
      \scriptsize
@@ -457,9 +457,9 @@ understood independently.
 \remark{Four-sentence model?  You must teach me\ldots}
 \fi
 Dataflow analysis and transformation of control-flow graphs is
-pervasive in optimizing compilers, but it is typically tightly
-interwoven with the details of a \emph{particular} compiler.  
-We~describe \ourlib{}, a~reusable Haskell library that makes it
+pervasive in optimizing compilers, but it is typically
+entangled with the details of a \emph{particular} compiler.  
+We~describe \ourlib{}, a~reusable library that makes it
 unusually easy to define new analyses and
 transformations for \emph{any} compiler written in Haskell.
 \ourlib's interface is modular and polymorphic,
@@ -517,19 +517,22 @@ piggybacks on the other.
 Because optimizations based on dataflow analysis 
 share a common intellectual framework, and because that framework is
 subtle, it~is tempting to
-try to build a single reusable library that embodies the 
+try to build a single, reusable library that embodies the 
 subtle ideas, while
 making it easy for clients to instantiate the library for different
 situations.
 % Tempting, but difficult.
 Although such libraries exist, as we discuss 
 in \secref{related}, they have complex APIs and implementations,
-and none implements the Lerner/Grove/Chambers technique.
+and none interleaves analysis with transformation.
 
 In this paper we present \ourlib{} (short for ``higher-order
 optimization library''), a new Haskell library for dataflow analysis and
 optimization.  It has the following distinctive characteristics:
 
+\begingroup
+%\advance\parskip by -0.0pt plus 0.5pt minus 0.5pt
+%\advance\itemsep by -0.0pt plus 0.5pt minus 0.5pt
 \begin{itemize}
 \item
 \ourlib\ is purely functional.  
@@ -558,28 +561,29 @@ We articulate their ideas in a concrete, simple API,
 which hides 
 a subtle implementation
 (\secreftwo{graph-rep}{using-hoopl}).  
-You provide a representation for assertions, 
-a transfer function that transforms assertions across a node, 
-and a rewrite function that uses an assertion to 
+You~provide a representation for assertions, 
+a~transfer function that transforms assertions across nodes, 
+and a rewrite function that can use an assertion to 
 justify rewriting a node.
 \ourlib\ ``lifts'' these node-level functions to work over
 control-flow graphs, solves recursion equations,
 and interleaves rewriting with analysis.
 Designing APIs is surprisingly
-hard; we have been through over a dozen significantly different
-iterations, and we offer our API as a contribution.
+hard; after a dozen significantly different
+iterations, we offer our API as a contribution.
 
 \item
 \seclabel{liveness-mention}
-Because the client
+Because clients
 can perform very local reasoning (``@y@ is live before
 @x:=y+2@''),
  analyses and transformations built on \ourlib\ 
 are small, simple, and easy to get right.
 Moreover, \ourlib\ helps you write correct optimizations:
-it~statically rules out transformations that violate invariants
+statically, 
+it~rules out transformations that violate invariants
 of the control-flow graph (Sections \ref{sec:graph-rep} and \ref{sec:rewrites}),
-and dynamically it can help find the first transformation that introduces a fault
+and dynamically, it can help find the first transformation that introduces a fault
 in a test program (\secref{fuel}). 
 %%\finalremark{SLPJ: I wanted to write more about open/closed,
 %%but I like this sentence with its claim to both static and dynamic assistance,
@@ -603,14 +607,14 @@ Previous implementations of these algorithms---including three of our
 own---are complicated and hard to understand, because the tricky pieces
 are implemented all together, inseparably. 
 In~this paper, each tricky piece is handled in just 
-one place, separate from all the others (\secref{engine}). 
+one place, separate from the others (\secref{engine}). 
 We~emphasize this implementation as an object of interest in
 its own right.
 \end{itemize}
 Our work bridges the gap between abstract, theoretical presentations
 and actual compilers. 
 \ourlib{} is available from
-\burl{http://ghc.cs.tufts.edu/hoopl} and also from Hackage (version~3.8.3.0).
+\burl{http://ghc.cs.tufts.edu/hoopl} and also from Hackage (version~3.8.6.0).
 One of \hoopl's clients
 is the Glasgow Haskell Compiler, which uses \hoopl\ to optimize 
 imperative code in GHC's back end.
@@ -620,7 +624,7 @@ sophisticated aspects of Haskell's type system, such
 as higher-rank polymorphism, GADTs, and type functions.
 \ourlib{} may therefore also serve as a case study in the utility
 of these features.
-
+\endgroup % tight paragraphs
 
 % \clearpage % Start section 2 on page 2
 
