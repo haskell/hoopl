@@ -185,6 +185,7 @@ higher-rank any longer).
 \newenvironment{fuzzcode}[1]{\par\unskip\hfuzz=#1 \verbatim}{\endverbatim}
 \newenvironment{smallfuzzcode}[1]{\par\unskip\small\hfuzz=#1 \verbatim}{\endverbatim}
 \newenvironment{smallttcode}{\par\unskip\small\alltt}{\endalltt}
+\newenvironment{ttcode}{\par\unskip\alltt}{\endalltt}
 
 \newcommand\smallverbatiminput[1]{{\small\verbatiminput{#1}}}
 \newcommand\smallfuzzverbatiminput[2]{{\small\hfuzz=#1 \verbatiminput{#2}}}
@@ -949,40 +950,39 @@ respectively.
 
 
 \begin{figure}
-\begin{fuzzcode}{10.5pt}
+\begingroup
+\def\^{\\[-2pt]}%
+\hfuzz=10.8pt
+\begin{ttcode}
 data `O   -- Open
-data `C   -- Closed
-
+data `C   -- Closed\^
 data `Block n e x where
  `BFirst  :: n C O                      -> Block n C O
  `BMiddle :: n O O                      -> Block n O O
  `BLast   :: n O C                      -> Block n O C
- `BCat    :: Block n e O -> Block n O x -> Block n e x
-
+ `BCat    :: Block n e O -> Block n O x -> Block n e x\^
 data `Graph n e x where
   `GNil  :: Graph n O O
   `GUnit :: Block n O O -> Graph n O O
   `GMany :: MaybeO e (Block n O C) 
         -> LabelMap (Block n C C)
         -> MaybeO x (Block n C O)
-        -> Graph n e x
-
+        -> Graph n e x\^
 data `MaybeO ^ex t where
   `JustO    :: t -> MaybeO O t
-  `NothingO ::      MaybeO C t
-
+  `NothingO ::      MaybeO C t\^
 newtype `Label -- abstract
 newtype `LabelMap a -- finite map from Label to a
 `addBlock   :: NonLocal n 
            => Block n C C
            -> LabelMap (Block n C C)
            -> LabelMap (Block n C C)
-`blockUnion :: LabelMap a -> LabelMap a -> LabelMap a
-
+`blockUnion :: LabelMap a -> LabelMap a -> LabelMap a\^
 class `NonLocal n where
   `entryLabel :: n C x -> Label
   `successors :: n e C -> [Label]
-\end{fuzzcode}
+\end{ttcode}
+\endgroup
 \caption{The block and graph types defined by \ourlib} 
 \figlabel{graph} \figlabel{edges}
 \end{figure}
