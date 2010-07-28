@@ -8,7 +8,7 @@ LASTPAGE=13  # final draft has extra page
 
 TGT=dfopt
 
-all:V: $TGT.pdf $TGT.ps hoopl10-supplement.bitly
+all:V: $TGT.pdf $TGT.ps hoopl10-supplement.bitly hoopl10.bitly
 old:V: popl-index.bitly
 bib:V: $TGT.bbl
 bibfile:V: $TGT.bib
@@ -37,6 +37,9 @@ $TGT.pdf: $TGT.dvi
 
 $HOME/www/pubs/hoopl10-supplement.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp `expr $LASTPAGE + 1`- $prereq
+
+$HOME/www/pubs/hoopl10.pdf: $TGT.dvi
+	dvips -Ppdf -o"|ps2pdf - $target" $prereq
 
 timestamp.tex: $TGT.tex
 	date=`stat -c "%y" $prereq`
