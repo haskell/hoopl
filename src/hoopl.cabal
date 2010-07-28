@@ -1,5 +1,6 @@
 Name:                hoopl
-Version:             3.8.5.0
+Version:             3.8.6.0
+-- version 3.8.6.0 is the version that goes with the camera-ready Haskell'10 paper
 Description:         Higher-order optimization library
 License:             BSD3
 License-file:        LICENSE
