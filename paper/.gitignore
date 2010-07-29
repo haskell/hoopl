@@ -27,6 +27,7 @@ fptype.tex
 bodyfun.tex
 node.tex
 cat.tex
+block.tex
 
 
 *.log
