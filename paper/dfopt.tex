@@ -385,7 +385,7 @@ higher-rank any longer).
 \preprintfooter{\mdfivestamp}
 \fi
 
-\hyphenation{there-by}
+\hyphenation{there-by op-ti-mi-za-tion}
 
 \renewcommand{\floatpagefraction}{0.9} % must be less than \topfraction
 \renewcommand{\topfraction}{0.95}
@@ -532,8 +532,8 @@ optimization library''), a new Haskell library for dataflow analysis and
 optimization.  It has the following distinctive characteristics:
 
 \begingroup
-%\advance\parskip by -0.0pt plus 0.5pt minus 0.5pt
-%\advance\itemsep by -0.0pt plus 0.5pt minus 0.5pt
+\advance\parskip by 0.0pt plus 0.5pt minus 0.5pt
+\advance\itemsep by 0.0pt plus 0.5pt minus 0.5pt
 \begin{itemize}
 \item
 \ourlib\ is purely functional.  
@@ -879,12 +879,15 @@ if it is closed, it may have arbitrarily many successors---or none.
 The primitive constituents of a control-flow graph are
 \emph{nodes}.
 % , which are defined by the client.     SLPJ: said again very shortly
-For~example, a node might represent a machine instruction, such as an
-assignment, a call, or a conditional branch.  
-But \ourlib{}'s graph representation is \emph{polymorphic in the node type},
-so each client can define nodes as it likes.
+For~example, 
+in a back end
+a node might represent a machine instruction, such as an
+assignment, a call, or a conditional branch;
+in~a higher-level intermediate form, a node might represent a statement.
+\ourlib{}'s graph representation is \emph{polymorphic in the node type},
+so~each client can define nodes as it likes.
 Because they contain nodes defined by the client,
-graphs can include arbitrary client-specified data, including
+graphs can include arbitrary data specified by the~client, including
 (say) method calls, C~statements, stack maps, or
 whatever.
 
@@ -903,11 +906,11 @@ data `Node e x where
 \figlabel{cmm-node}
 \end{figure}
 
-The type of a node specifies \emph{at compile time} whether the node is open or
-closed on entry and exit. Concretely,
+The type of a node specifies its shape \emph{at compile time}.
+Concretely,
 the type constructor for a node has kind @*->*->*@, where the two type parameters
 are type-level flags, one for entry and one for exit.
-Such a type parameter may be instantiated only with type @O@~(for
+Each type parameter may be instantiated only with type @O@~(for
 open) or type~@C@ (for closed).
 
 As an example,
@@ -920,22 +923,20 @@ the syntax gives the type of each constructor.
 %%% \cite{peyton-jones:unification-based-gadts}.
 For example, constructor @Label@
 takes a @Label@ and returns a node of type @Node C O@, where
-the~``@C@'' says ``closed on entry'' and the~``@O@'' says ``open on exit''.  
+the~``@C@'' says ``closed on entry'' and the~``@O@''~says ``open on exit''.  
 The types @Label@, @O@, and~@C@ are 
 defined by \ourlib{} (\figref{graph}).  
-As another example, constructor @Assign@ takes a variable and an expression, and it
+In~other examples from \figref{cmm-node}, constructor @Assign@ takes a
+variable and an expression, and it 
 returns a @Node@ open on both entry and exit; constructor @Store@ is
 similar.
-Types @`Var@ and @`Expr@ are private to the client, and
-\ourlib{} knows nothing of them.  
+Types~@`Var@ and @`Expr@ are private to the client, and
+\ourlib{} knows nothing about them.  
 Finally, control-transfer nodes @Branch@ and @Cond@  (conditional
 branch) are open on entry
 and closed on exit.  
 
-Nodes closed on entry are the only targets of control transfers;
-nodes open on entry and exit never perform control transfers;
-and nodes closed on exit always perform control transfers\footnote{%
-To obey these invariants,
+\newcommand\cbtext{To obey these invariants,
 a node for
 a conditional-branch instruction, which typically either transfers control
 \emph{or} falls through, must be represented as a two-target
@@ -944,12 +945,17 @@ This representation is standard \cite{appel:modern},
 and it costs nothing in practice:
 such code is easily sequentialized without superfluous branches.
 %a late-stage code-layout pass can readily reconstruct efficient code.
-}.
-Because of the position each type of node occupies in a
+}
+\ifpagetuning\vspace*{\parskip}\vbox\fi
+{%
+Nodes closed on entry are the only targets of control transfers;
+nodes open on entry and exit never perform control transfers;
+and nodes closed on exit always perform control transfers.\footnote{\cbtext}
+Because of the position each shape of node occupies in a
 basic block,
 we~often call them \emph{first}, \emph{middle}, and \emph{last} nodes
 respectively.
-
+}\ifpagetuning\footnotetext{\cbtext}\fi
 
 \begin{figure}
 \begingroup
@@ -997,7 +1003,7 @@ class `NonLocal n where
 blocks and graphs, which, unlike the nodes, are defined by \ourlib{}
  (\figref{graph}).
 A~@Block@ is parameterized over the node type~@n@
-as well as over the same flag types that make it open or closed at
+as well as over the flag types that make it open or closed at
 entry and exit.
 
 The @BFirst@, @BMiddle@, and @BLast@ constructors create one-node
@@ -1022,19 +1028,18 @@ It~makes sense to concatenate blocks only when control can fall
 through from the first to the second; therefore, 
 two blocks may be concatenated {only} if each block is open at
 the point of concatenation.
-This restriction is enforced by the type of @BCat@, whose first 
+This~restriction is enforced by the type of @BCat@, whose first 
 argument must be open on exit, and whose second argument must be open on entry.
-It~is statically impossible, for example, to concatenate a @Branch@
-immediately before an
-@Assign@.  
-Indeed, the @Block@ type statically guarantees that any
+It~is impossible, for example, to concatenate a~@Branch@
+immediately before an~@Assign@.  
+Indeed, the @Block@ type guarantees statically that any
 closed/closed @Block@---which compiler writers normally 
 call a ``basic block''---consists of exactly one first node
 (such as @Label@ in \figref{cmm-node}), 
 followed by zero or more middle nodes (@Assign@ or @Store@), 
 and terminated with exactly one 
 last node (@Branch@ or @Cond@).  
-Using GADTs to enforce these invariants is one of 
+Enforcing these invariants by using GADTs is one of 
 \ourlib{}'s innovations.
 
 
@@ -1044,7 +1049,7 @@ Using GADTs to enforce these invariants is one of
 in  \figref{graph}.
 Like @Block@, the data type @Graph@ is parameterized over
 both nodes @n@ and its open/closed shape (@e@ and @x@).
-It has three constructors.  The first two
+@Graph@ has three constructors.  The first two
 deal with the base cases of open/open graphs:
 an empty graph is represented by @GNil@ while a single-block graph
 is represented by @GUnit@.
@@ -1082,9 +1087,16 @@ number of closed/closed blocks.
 Unlike blocks, two graphs may be spliced together
 not only when they are both open
  at splice point but also
-when they are both closed---but not in the other two cases:
+when they are both 
+%
+%
+closed---and not
+% to understand why 'and not' is better than 'but not' here, 
+% see Jacques Barzun's rhetoric, *Simple and Direct*
+%
+in the other two cases:
 \begingroup
-\def\^{\\[-5pt]}%
+\def\^{\\[-3pt]}%
 \hfuzz=10.8pt
 \begin{smallttcode}
 `gSplice :: Graph n e a -> Graph n a x -> Graph n e x
@@ -1104,7 +1116,7 @@ gSplice (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
 \endgroup
 This definition illustrates the power of GADTs: the
 pattern matching is exhaustive, and all the open/closed invariants are
-statically checked.  For example, consider the second-last equation for @gSplice@.
+checked statically.  For example, consider the second-to-last equation for @gSplice@.
 Since the exit sequence of the first argument is @JustO x1@,
 we know that type parameter~@a@ is~@O@, and hence the entry sequence of the second 
 argument must be @JustO e2@.
@@ -1119,11 +1131,13 @@ added to the body of the result.
 We~have carefully crafted the types so that if @BCat@ 
 is considered as an associative operator, 
 every graph has a unique representation.
-\finalremark{This \P\ is a candidate to be cut.}
-\simon{Right}
+%\finalremark{This \P\ was a candidate to be cut, but we decided to
+%keep it---such a nice page break here.
+%
 %%  \simon{Well, you were the one who was so keen on a unique representation!
 %%  And since we have one, I think tis useful to say so. Lastly, the representation of
 %%  singleton blocks is not entirely obvious.}
+%
 %%%%    
 %%%%    An empty open/open graph is represented
 %%%%    by @GNil@, while a closed/closed one is @gNilCC@:
@@ -1151,7 +1165,7 @@ To guarantee uniqueness, @GUnit@ is restricted to open/open
 blocks.
 If~@GUnit@ were more polymorphic, there would be 
 more than one way to represent some graphs, and it wouldn't be obvious
-to a client which representation to choose---or if the choice made a difference.
+to a client which representation to choose---or if the choice made a~difference.
 {\hfuzz=1.8pt\par}
 \fi
 
@@ -1196,7 +1210,7 @@ instance NonLocal Node where
   successors (Cond e b1 b2) = [b1, b2]
 \end{code}
 Again, the pattern matching for both functions is exhaustive, and
-the compiler statically checks this fact.  
+the compiler checks this fact statically.  
 Here, @entryLabel@ 
 cannot be applied to an @Assign@ or @Branch@ node,
 and any attempt to define a case for @Assign@ or @Branch@ would result
@@ -1262,8 +1276,8 @@ Analyze-and-rewrite functions & Us & Us & Two (forward, backward) \\
 \seclabel{api}
 
 Now that we have graphs, how do we optimize them?
-\ourlib{} makes it easy to build a new dataflow analysis and optimization.  
-A~client must supply the following pieces:
+\ourlib{} makes it easy;
+a~client must supply these pieces:
 \begin{itemize}
 \item A \emph{node type} (\secref{nodes}).  
 \ourlib{} supplies the @Block@ and @Graph@ types
@@ -1283,9 +1297,10 @@ or @Just g@,
 where @g@~is a graph that should
 replace the node
 (\secreftwo{rewrites}{shallow-vs-deep}).
+For many code-improving transformations,
 The ability to replace a \emph{node} by a \emph{graph} 
 %  that may include internal control flow 
-is crucial for many code-improving transformations.
+is crucial.
 %We discuss the rewrite function
 %in Sections \ref{sec:rewrites} and \ref{sec:shallow-vs-deep}.
 \end{itemize}
@@ -1330,7 +1345,7 @@ For example, in our constant-propagation example from \secref{const-prop-example
 if the graph
 represents the body of a procedure 
 with parameters $x,y,z$, we would map the entry @Label@ to a fact
-\mbox{$@x=@\top \land @y=@\top \land @z=@\top$}, to specify that the procedure's
+\mbox{$x=\top \land y=\top \land z=\top$}, to specify that the procedure's
 parameters are not known to be constants.
 %%  
 %%  The
@@ -1339,16 +1354,16 @@ parameters are not known to be constants.
 The client's model of @analyzeAndRewriteFwdBody@ is as follows:
 \ourlib\ walks forward over each block in the graph.
 At~each node, \ourlib\ applies the
-rewrite function to the node and the incoming fact.  If the rewrite
+rewrite function to the node and the incoming~fact.  If the rewrite
 function returns @Nothing@, the node is retained as part of the output
-graph, the transfer function is used to compute the downstream fact,
+graph, the transfer function is used to compute the outgoing fact,
 and \ourlib\ moves on to the next node.
-But if the rewrite function returns @Just g@,
-indicating that it wants to rewrite the node to the replacement graph~@g@, then
+But~if the rewrite function returns @Just g@,
+indicating that it wants to rewrite the node to the replacement graph~@g@, 
 \ourlib\ recursively analyzes and may further rewrite~@g@
 before moving on to the next node. 
 A~node following a rewritten node sees 
-\emph{up-to-date} facts; that is, its input fact is computed by
+\emph{up-to-date} facts; that~is, its~input fact is computed by
 analyzing the replacement graph.
 
 A~rewrite function may take any action that is justified by
@@ -1371,14 +1386,15 @@ interface to @analyzeAndRewriteFwdBody@, leaving the implementation for
 \secref{engine}.  
 %{\hfuzz=7.2pt\par}
 
-
 \begin{figure}
-\begin{fuzzcode}{25pt}
+\begingroup
+\def\^{\\[-0.5pt]}%
+\hfuzz=25pt
+\begin{ttcode}
 data `FwdPass m n f
   = FwdPass { `fp_lattice  :: DataflowLattice f
             , `fp_transfer :: FwdTransfer n f
-            , `fp_rewrite  :: FwdRewrite m n f }
-
+            , `fp_rewrite  :: FwdRewrite m n f }\^
 ------- Lattice ----------
 data `DataflowLattice f = DataflowLattice
  { `fact_bot  :: f
@@ -1387,14 +1403,12 @@ type `JoinFun f =
   OldFact f -> NewFact f -> (ChangeFlag, f)
 newtype `OldFact f = OldFact f
 newtype `NewFact f = NewFact f
-data `ChangeFlag = `NoChange | `SomeChange
-
+data `ChangeFlag = `NoChange | `SomeChange\^
 ------- Transfers ----------
 newtype `FwdTransfer n f      -- abstract type
 `mkFTransfer
  :: (forall e x . n e x -> f -> Fact x f)
- -> FwdTransfer n f
-
+ -> FwdTransfer n f\^
 ------- Rewrites ----------
 newtype `FwdRewrite m n f     -- abstract type
 `mkFRewrite :: FuelMonad m 
@@ -1403,31 +1417,28 @@ newtype `FwdRewrite m n f     -- abstract type
 `thenFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
  -> FwdRewrite m n f
 `iterFwdRw :: FwdRewrite m n f -> FwdRewrite m n f
-`noFwdRw   :: Monad m          => FwdRewrite m n f
-
+`noFwdRw   :: Monad m          => FwdRewrite m n f\^
 ------- Fact-like things, aka "fact(s)" -----
 type family   `Fact x f :: *
 type instance Fact O f = f
-type instance Fact C f = FactBase f
-
+type instance Fact C f = FactBase f\^
 ------- FactBase -------
 type `FactBase f = LabelMap f
  -- A finite mapping from Labels to facts f
 `mkFactBase 
- :: DataflowLattice f -> [(Label, f)] -> FactBase f
-
+ :: DataflowLattice f -> [(Label, f)] -> FactBase f\^
 ------- Rolling back speculative rewrites ----
 class Monad m => CkpointMonad m where
   type Checkpoint m
   checkpoint :: m (Checkpoint m)
-  restart    :: Checkpoint m -> m () 
-
+  restart    :: Checkpoint m -> m () \^
 ------- Optimization fuel ----
 type `Fuel = Int
 class Monad m => `FuelMonad m where
   `getFuel :: m Fuel
   `setFuel :: Fuel -> m ()
-\end{fuzzcode}
+\end{ttcode}
+\endgroup
 \caption{\ourlib{} API data types}
   \figlabel{api-types}
   \figlabel{lattice-type} \figlabel{lattice}
