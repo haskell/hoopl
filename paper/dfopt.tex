@@ -187,8 +187,8 @@ higher-rank any longer).
 \newenvironment{smallttcode}{\par\unskip\small\alltt}{\endalltt}
 \newenvironment{ttcode}{\par\unskip\alltt}{\endalltt}
 
-\newcommand\smallverbatiminput[1]{{\small\verbatiminput{#1}}}
-\newcommand\smallfuzzverbatiminput[2]{{\small\hfuzz=#1 \verbatiminput{#2}}}
+\newcommand\smallverbatiminput[1]{{\par\unskip\small\verbatiminput{#1}}}
+\newcommand\smallfuzzverbatiminput[2]{{\par\unskip\small\hfuzz=#1 \verbatiminput{#2}}}
 
 \newcommand\lineref[1]{line~\ref{line:#1}}
 \newcommand\linepairref[2]{lines \ref{line:#1}~and~\ref{line:#2}}
@@ -358,7 +358,7 @@ higher-rank any longer).
 \newcommand{\norman}[1]{\authornote{NR: #1}}
 \let\remark\norman
 \def\finalremark#1{\relax}
-\let \finalremark \remark % uncomment after submission
+%\let \finalremark \remark % uncomment after submission
 \newcommand{\john}[1]{\authornote{JD: #1}}
 \newcommand{\todo}[1]{\textbf{To~do:} \emph{#1}}
 \newcommand\delendum[1]{\relax\ifvmode\else\unskip\fi\relax}
@@ -424,6 +424,9 @@ Reprinted from the 2010 ACM Haskell Symposium.
 
 \maketitle
  
+\newcommand\webversion{\url{http://bit.ly/cZ7ts1}}.
+
+
 \begin{abstract}
 \iffalse % A vote for Simon's abstract
 \remark{I have replaced a good abstract of the POPL submission with a
@@ -481,7 +484,7 @@ so that they can be understood independently.
 %%  {\url{http://www.cs.tufts.edu/~nr/pubs/hoopl10-supplement.pdf}} 
 %%  (\url{bit.ly/doUJpr}).
 
-\emph{Readers:} Code examples are indexed at \url{http://bit.ly/cZ7ts1}.
+\emph{Readers:} Code examples are indexed at \webversion.
 %{\url{http://www.cs.tufts.edu/~nr/pubs/hoopl10.pdf}}.
 \end{abstract}
 
@@ -1221,6 +1224,7 @@ nodes, it is convenient for \ourlib\ to get the same information
 about blocks.
 Internally,
 \ourlib{} uses this instance declaration for the @Block@ type:
+% can't use the real code because @BCat@ has the wrong type
 \begin{code}
 instance NonLocal n => NonLocal (Block n) where
   entryLabel (BFirst n) = entryLabel n
@@ -1317,6 +1321,7 @@ graph.
 \hoopl\ provides a fully polymorphic interface, but for purposes of
 exposition, we present a function that is specialized to a
 closed/closed graph:
+% not using the real code because we're hiding the truth about entry points
 \begin{fuzzcode}{10.5pt}
 `analyzeAndRewriteFwdBody
  :: ( CkpointMonad m -- Roll back speculative actions
@@ -2244,11 +2249,11 @@ computes factorial:
 \end{code}
 Function @analyzeAndRewriteFwdBody@ iterates through this graph until
 the dataflow facts stop changing.
-On~the first iteration, the assignment @i = i + 1@ will 
-be analyzed with an incoming fact @i=1@, and the assignment will be
+On~the first iteration, the assignment @i = i + 1@ is
+analyzed with an incoming fact @i=1@, and the assignment is
 rewritten to the graph @i = 2@.
-But~on a later iteration, the incoming fact will increase to @i=@$\top$,
-and the~rewrite will no longer be justified.
+But~on a later iteration, the incoming fact increases to @i=@$\top$,
+and the~rewrite is no longer justified.
 After each iteration, \hoopl\ starts the next iteration with
 \emph{new} facts but with the \emph{original} graph---by~virtue
 of using purely functional data structures, rewrites from
@@ -2256,12 +2261,13 @@ previous iterations are automatically rolled back.
 {\hfuzz=1.5pt\par}
 
 But a rewrite function doesn't only produce new graphs; it
-can also take a \emph{monadic action}, such as
+can also take \emph{monadic actions}, such as
 acquiring a fresh name.
 These~actions must also be rolled back, and because the~client chooses
 the monad in which the actions take place, the client must provide the
-means to roll them back.
-\hoopl\ therefore defines a rollback \emph{interface}, which each client must implement;
+means to roll back the actions.
+\hoopl\ therefore defines a rollback \emph{interface}, which each
+client must implement; 
 it is the type class @CkpointMonad@ from
 \figref{api-types}:
 \begin{code}
@@ -2279,7 +2285,7 @@ These operations must obey the following algebraic law:
 \end{code}
 where @m@~represents any combination of monadic actions that might be
 taken by rewrite functions.
-(The safest course is to make sure the law holds throughout the entire
+(The safest course is to make sure the law holds for any action in the
 monad.)
 The~type of the saved checkpoint~@s@ is up to the client;
 it~is specified as an associated type of the @CkpointMonad@ class.
@@ -2289,7 +2295,7 @@ it~is specified as an associated type of the @CkpointMonad@ class.
 % Facts computed by @analyzeAndRewriteFwdBody@ depend on graphs produced by the rewrite
 Facts computed by the transfer function depend on graphs produced by the rewrite
 function, which in turn depend on facts computed by the transfer function.
-How~do we know this algorithm is sound, or if it terminates?
+How~do we know this algorithm is sound, or~if it terminates?
 A~proof requires a POPL paper
 \cite{lerner-grove-chambers:2002};
 here we merely state the conditions for correctness as applied to \hoopl:
@@ -2401,19 +2407,19 @@ do not describe their implementation.  We have written
 at least three previous implementations, all of which
 were long and hard to understand, and only one of which
 provided compile-time guarantees about open and closed shapes.
-We are not confident that any of our previous implementations are correct.
+We are not confident that any of these implementations are correct.
 
 In this paper we describe a new implementation.  It is elegant and short
 (about a third of the size of our last attempt), and it offers
 strong compile-time guarantees about shapes.  
-\finalremark{Wanted: enumerate the critical components and give each one's size}
+\finalremark{Wanted: enumerate the critical components and give each one's size}%
 %
 We describe the implementation of \emph{forward} 
 analysis and transformation.
 The implementations of backward analysis and transformation are
 exactly analogous and are included in \hoopl.
 
-We~also, starting in \secref{first-debugging-section}, explain how we
+We~also explain, in \secref{first-debugging-section},  how we
 isolate errors in faulty optimizers, and how the fault-isolation
 machinery is integrated with the rest of the implementation.
 
@@ -2448,8 +2454,8 @@ machinery is integrated with the rest of the implementation.
 %%  is open on exit, an ``exit  fact'' flowing out.
 
 Instead of the interface function @analyzeAndRewriteFwdBody@, we present
-the private function @arfGraph@, which is short for ``analyze and rewrite
-forward graph:''
+the more polymorphic,  private function @arfGraph@, which is short for
+``analyze and rewrite forward graph:''
 \begin{smallfuzzcode}{15.1pt}
 `arfGraph
  :: forall m n f e x. (CkpointMonad m, NonLocal n)
@@ -2590,7 +2596,7 @@ like forward transfer functions,
 they expect a fact~@f@ rather than the more general @Fact e f@
 required for a graph.
 Because a node or a block has
-exactly one fact flowing into the entry, it is easiest  simply to pass
+exactly one fact flowing into the entry, it~is easiest  simply to pass
 that fact.
 \item
 Extended fact transformers for graphs have the most general type,
@@ -2624,15 +2630,17 @@ fixed points.
 
 Extended fact transformers compose nicely.
 For example, @block@ is implemented thus:
-% we need the foralls
-\begin{smallcode}
-  `block :: forall e x .
-            Block n e x -> f -> m (DG f n e x, Fact x f)
-  block (BFirst  n)  = node n
-  block (BMiddle n)  = node n
-  block (BLast   n)  = node n
-  block (BCat b1 b2) = block b1 `cat` block b2
-\end{smallcode}
+\smallverbatiminput{block}
+% defn block
+%%  % we need the foralls
+%%  \begin{smallcode}
+%%    `block :: forall e x .
+%%              Block n e x -> f -> m (DG f n e x, Fact x f)
+%%    block (BFirst  n)  = node n
+%%    block (BMiddle n)  = node n
+%%    block (BLast   n)  = node n
+%%    block (BCat b1 b2) = block b1 `cat` block b2
+%%  \end{smallcode}
 The composition function @cat@ feeds facts from one extended fact
 transformer to another, and it splices decorated graphs.
 \smallverbatiminput{cat}
@@ -2755,7 +2763,9 @@ In the @Just@ case, we receive a replacement
 graph~@g@ and a new rewrite function~@rw@, as specified by the model
 in \secref{rewrite-model}.
 We~use @rw@ to recursively analyze and rewrite~@g@ with @arfGraph@.  
-This analysis uses @pass'@, which contains the original lattice and transfer
+This analysis uses
+\ifpagetuning a new pass \fi
+@pass'@, which contains the original lattice and transfer
 function from @pass@, together with~@rw@.
 Function @fwdEntryFact@ converts fact~@f@ from the type~@f@,
 which @node@ expects, to the type @Fact e f@, which @arfGraph@ expects.
@@ -2832,10 +2842,10 @@ both forward and backward analyses:
 % defn Bwd
 Except for the @Direction@ passed as the first argument,
 the type signature tells the story.
-The third argument is an extended fact transformer for a single block; 
-@fixpoint@ applies that function successively to each block in the list
+The third argument can produce an extended fact transformer for any single block; 
+@fixpoint@ applies it successively to each block in the list
 passed as the fourth argument.
-The result is an extended fact transformer for the list.
+Function @fixpoint@ returns an extended fact transformer for the list.
 
 The extended fact transformer returned by @fixpoint@
  maintains a
@@ -2857,13 +2867,14 @@ stops changing.
 
 
 Implementing @fixpoint@ requires about 90 lines,
-formatted narrowly for display in one column.
+formatted for narrow display.
 %%  
 %%  for completeness, it
 %%  appears in Appendix~\ref{app:fixpoint}.  
-The~code is mostly straightforward, although we try to be clever
+The~code, which is appended to the Web version of this paper (\webversion),
+is mostly straightforward---although we try to be clever
 about deciding when a new fact means that another iteration 
-will be required.
+is required.
 %
 % We'll keep the rest of this section: John judges that it has enough
 % detail to be comprehensible, and it may help someone who wants to
@@ -2915,10 +2926,10 @@ As~alluded to at the end of \secref{debugging-introduced}, this
 technique enables us to debug complex optimizations by
 identifying one single rewrite that is faulty.
 
-This debugging technique requires the~ability to~limit
+To use this debugging technique, we must be able to~control
 the number of~rewrites.
 We limit rewrites using \emph{optimization fuel}.
-Each rewrite consumes one unit of fuel,
+Each~rewrite consumes one unit of fuel,
 and when fuel is exhausted, all rewrite functions return @Nothing@.
 To~debug, we do binary search on the amount of fuel.
 
@@ -3055,7 +3066,7 @@ but rewriting is clearly distinct from analysis:
 one runs an analysis to completion and then rewrites based on the
 results. 
 The framework is limited to one representation of control-flow graphs
-and one representation of instructions, both of which are provided by
+and one representation of instructions, both of which are mandated by
 the framework.
 The~API is complicated;
 much of the complexity is needed to enable the client to
@@ -3156,13 +3167,13 @@ for a phase distinction.
 
 Our work on \hoopl\ is too new for us to be able to say much
 about performance.
-It's~important to know how well \hoopl\ performs, but the
+It~is~important to know how well \hoopl\ performs, but the
 question is comparative, and there isn't another library we can compare
 \hoopl\ with.
 For example, \hoopl\ is not a drop-in  replacement for an existing
 component of GHC; we introduced \hoopl\ to GHC as part of a
 major refactoring of GHC's back end.
-With \hoopl,  GHC seems about 15\%~slower than
+With~\hoopl,  GHC seems about 15\%~slower than
 the previous~GHC, but we
 don't know what portion of the slowdown can be attributed to the
 optimizer.
@@ -3228,14 +3239,13 @@ is indicated.
 \section{Discussion}
 
 We built \hoopl\ in order to combine three good ideas (interleaved
-analysis and transformation, optimization fuel, and an applicative
-control-flow graph) in a way that could easily be reused by many
+analysis and transformation, an applicative
+control-flow graph, and optimization fuel) in a way that could easily be reused by many
 compiler writers.
 To~evaluate how well we succeeded, we examine how \hoopl\ has been
 used,
 we~examine the API, and we examine the implementation.
 We~also sketch one of the many alternatives we have implemented.
-\remark{``alternative'' does not link up with ``question'' in the subheader}
 
 \paragraph{Using \hoopl}
 
@@ -3246,7 +3256,7 @@ Students using \hoopl\ in a class at Tufts were able to implement
 such optimizations as lazy code motion \cite{knoop:lazy-code-motion} 
 and induction-variable elimination
 \cite{cocke-kennedy:operator-strength-reduction} in just a few weeks.
-Students at Yale and at Portland State have also succeeded in building
+Graduate students at Yale and at Portland State have also built
 a variety of optimizations.
 
 \hoopl's graphs can support optimizations beyond classic
@@ -3477,7 +3487,7 @@ thinking and helped to structure the implementation.
 
 \fi
 
-\paragraph{Design questions}
+\paragraph{Design alternatives}
 We~have explored many alternatives to \hoopl's current~API.
 While questions about these alternatives are interesting,
 describing and discussing a typical alternative seems to require about
