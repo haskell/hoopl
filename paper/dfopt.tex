@@ -1785,13 +1785,13 @@ rewrite :: Monad m => FwdRewrite m n f -> n e x -> f
         -> m (Maybe (Graph n e x, FwdRewrite m n f))
 `rewrite ^rs node f = rew rs (return . Just) (return Nothing)
  where
-  `rew (Mk r) j n = do { ^mg <- r node f
-                      ; case mg of Nothing -> n
-                                   Just g  -> j (g, No) }
+  `rew (Mk ^rw) j n = do { ^mg <- rw node f
+                       ; case mg of Nothing -> n
+                                    Just g  -> j (g, No) }
   rew (r1 `Then` r2) j n = rew r1 (j . add r2) (rew r2 j n)
   rew (Iter r)       j n = rew r  (j . add (Iter r)) n
   rew No             j n = n
-  `add nextrw (g, r) = (g, r `Then` nextrw)
+  `add ^nextrw (g, r) = (g, r `Then` nextrw)
 \end{smallfuzzcode}
 Appealing to this model, we see that
 \begin{itemize}
@@ -3667,6 +3667,8 @@ by NSF awards CCF-0838899 and CCF-0311482.
 These authors also thank Microsoft Research Ltd, UK, for funding
 extended visits to the third author.
 
+
+\vfil\break % balance final columns
 
 \makeatother
 
