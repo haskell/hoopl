@@ -3317,7 +3317,7 @@ tedious and error-prone.
 \paragraph{Examining the implementation}
 
 If you are thinking of adopting \hoopl, you should consider not
-only whether you like the API, but whether in an emergency you
+only whether you like the API, but whether if you had~to, you
 could maintain the implementation.
 We~believe that \secref{dfengine} sketches enough to show that \hoopl's
 implementation is a clear improvement over previous implementations
@@ -3330,7 +3330,7 @@ By~decomposing our implementation into @node@, @block@, @body@,
 multiple concerns:
 interleaving analysis with rewriting,
 throttling rewriting using optimization fuel,
-and 
+and~%
 computing a fixed point using speculative rewriting.
 Because of this separation of concerns,
 we believe our implementation will be easier to maintain than
@@ -3492,56 +3492,59 @@ thinking and helped to structure the implementation.
 \fi
 
 \paragraph{Design alternatives}
-We~have explored many alternatives to \hoopl's current~API.
-While questions about these alternatives are interesting,
-describing and discussing a typical alternative seems to require about
-a column of text.
-Accordingly, we answer only the most pressing design question about a
-single alternative:
-Why do we allow the client to define the monad~@m@ used in rewrite
-functions and in @analyzeAndRewriteFwdBody@?
+We~have explored many alternatives to the API presented above.
+While these alternatives are interesting,
+describing and discussing an interesting alternative seems to take us
+a~half-column or
+a~column of text.
+Accordingly, we discuss only the single most interesting alternative:
+keeping the rewrite monad~@m@ private instead of allowing the client
+to define~it.
 
-The~obvious alternative, which we have implemented and explored, is to require
-\hoopl's clients to use a monad provided by \hoopl.
+We~have implemented an alternative in which every rewrite function
+must use a monad mandated by~\hoopl.
 This alternative has advantages: 
-because \hoopl{} implements
+\hoopl{} implements
 @checkpoint@, @restart@, 
 @setFuel@, and @getFuel@, 
-we can ensure they are right, and
-that the client cannot possibly misuse them. 
-The downside is that a rewrite function can \emph{only} use
-\hoopl{}-provided monadic actions.  Clearly this monad must be
-able to supply fresh labels (for new blocks), but what if 
-% In~this alternative API, \hoopl\ also provides a supply of unique names.
-% 
-% But~we are wary of mandating this abstraction;
-% unique names affect many parts of a compiler,
-% and
+so we can ensure that they are right and
+that the client cannot misuse them. 
+The downside is that the only actions a rewrite function can take are
+the actions in the monad(s) mandated by \hoopl.
+These monads must therefore provide extra 
+actions that a client might need, such as supplying fresh labels for
+new blocks.
+Worse, \hoopl\ can't possibly anticipate every action a client might want
+to take.
+What if a client wanted one set of
+unique names for labels and a different set for registers?
+What if, in order to judge the effectiveness of an optimization,
+a client wanted to log how many rewrites take place, or in what
+functions they take place?
+Or~what if a client wanted to implement
+Primitive Redex 
+Speculation \cite{runciman:increasing-prs}, a code-improving
+transformation that can create new 
+function definitions? 
+\hoopl's predefined monads don't accomodate any of these actions.
+By~permitting the client to define the monad~@m@, we~risk the possibility
+that the client may define key operations incorrectly, but we also
+ensure that
+\hoopl\ can support these examples, as well as other examples not yet
+thought of. 
+
+%%  A~\hoopl\ client implementing this transformation would define a monad
+%%  that could accumulate new definitions.
+%%  The law governing @checkpoint@ and @restart@
+%%  would ensure that a speculative rewrite, if later rolled back, would not
+%%  create  a function definition (or a log entry).
+
 % no~matter how well designed the~API,
 % if it does not play well with existing code,
 % it won't be used.
-%
-% Moreover, experience has shown us that for the client, the convenience
-% of a custom monad is well worth the cognitive costs of understanding
-% the more complex API and the costs of meeting the contracts for
-% @FuelMonad@ and @CkpointMonad@.
-% As~a very simple example, 
-a client wanted one set of
-unique names for labels and a different set for registers?
-Moreover, a client might want a rewrite to perform other actions
-entirely that could not be anticipated by \hoopl{}.
-For example, in order to judge the effectiveness of an optimization,
-a client might want to log how many rewrites take place, or in what
-functions they take place.
-As~a more ambitious example, \citet{runciman:increasing-prs} describes
-Primitive Redex 
-Speculation, a code-improving transformation that can create new
-function definitions. 
-A~\hoopl\ client implementing this transformation would define a monad
-that could accumulate new definitions.
-The law governing @checkpoint@ and @restart@
-would ensure that a speculative rewrite, if later rolled back, would not
-create  a function definition (or a log entry).
+
+
+
 
 %%   Another merit of a user-defined monad~@m@ is that, 
 %%   if~a user wants to manage optimization fuel differently,
