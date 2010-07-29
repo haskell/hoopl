@@ -1388,7 +1388,7 @@ interface to @analyzeAndRewriteFwdBody@, leaving the implementation for
 
 \begin{figure}
 \begingroup
-\def\^{\\[-0.5pt]}%
+\def\^{\\[-1pt]}%
 \hfuzz=25pt
 \begin{ttcode}
 data `FwdPass m n f
@@ -1425,7 +1425,7 @@ type instance Fact C f = FactBase f\^
 ------- FactBase -------
 type `FactBase f = LabelMap f
  -- A finite mapping from Labels to facts f
-`mkFactBase 
+mkFactBase 
  :: DataflowLattice f -> [(Label, f)] -> FactBase f\^
 ------- Rolling back speculative rewrites ----
 class Monad m => CkpointMonad m where
@@ -1496,7 +1496,7 @@ and if a transfer function propagates a new fact~$f_{\mathit{new}}$
 into label~$L$, 
 \hoopl\ replaces $f_{\mathit{old}}$ with
 the join  \mbox{$f_{\mathit{old}} \join f_{\mathit{new}}$}.
-And \hoopl\ wants to know 
+And \hoopl\ needs to know 
 if \mbox{$f_{\mathit{old}} \join f_{\mathit{new}} = f_{\mathit{old}}$},
 because if not, the analysis has not reached a fixed point.
 
@@ -1507,22 +1507,25 @@ type~@f@ are stored in a value of type @DataflowLattice f@
 %%%% ``@Lattice@''?} % bigger fish ---NR
 %%Such a value is part of the  @FwdPass n f@ that is passed to
 %%@analyzeAndRewriteFwd@ above.
-As noted in the previous paragraph, 
+As~noted in the previous paragraph, 
 \ourlib{} needs to know when the result of a join is equal
 to the old fact.
-Because this information can often be computed cheaply together
-with the join, \ourlib\ does not
- require a separate equality test on facts, which might be expensive.
+But~when a client is computing a join, it is often easy to
+tell if the join is equal to the old fact.
+By~contrast, a general equality test on facts might cost almost as much
+as a join.
+For these reasons, \ourlib\ does not
+require a separate equality test on facts.
 Instead, \ourlib\ requires that @fact_join@ return a @ChangeFlag@ as
-well as the least upper bound.
-The @ChangeFlag@ should be @NoChange@ if
-the result is the same as the old fact, and
-@SomeChange@ if the result differs.  
+well as the join.
+If~the join is the same as the old fact, 
+the @ChangeFlag@ should be @NoChange@;
+if~not, the @ChangeFlag@ should be @SomeChange@.
 
 \seclabel{WithTop}
 
 To help clients create lattices and join functions,
-\hoopl\ includes functions and constructors that can extend a type~@a@
+\hoopl\ includes functions and constructors that can extend a fact type~@f@
 with top and bottom elements.
 In this paper, we use only type @`WithTop@, which comes with value
 constructors that have these types:
@@ -1530,7 +1533,7 @@ constructors that have these types:
   `PElem :: f -> WithTop f
   `Top   ::      WithTop f
 \end{code}
-\hoopl\ provides combinators which make it easier to create join
+\hoopl\ provides combinators which make it easy to create join
   functions that use @Top@.
 The most useful is @extendJoinDomain@, which uses auxiliary types
 defined in \figref{lattice}:
@@ -1539,7 +1542,7 @@ defined in \figref{lattice}:
  :: (OldFact f -> NewFact f -> (ChangeFlag, WithTop f))
  -> JoinFun (WithTop f)
 \end{smallcode}
-A~client can write a join function that \emph{consumes} only facts of
+A~client supplies a join function that \emph{consumes} only facts of
 type~@f@, but may produce either @Top@ or a fact of type~@f@---as
 in the example of \figref{const-prop} below.
 Calling @extendJoinDomain@ extends the client's function to a proper
@@ -1552,7 +1555,7 @@ involving @Top@ obey the appropriate algebraic laws.
 Constructors @Top@ and @Bot@ are polymorphic, so for example,
 @Top@~also has type @WithTopAndBot a@.
 
-It is also very common to use a lattice that takes the form of a
+It is also common to use a lattice that takes the form of a
 finite~map.
 In~such lattices it is typical to join maps pointwise, and \hoopl\
 provides a function that makes it convenient to do so:
@@ -1570,8 +1573,9 @@ In a forward analysis, \hoopl\ starts with the fact at the
 beginning of a block and applies the transfer function to successive 
 nodes in that block, until eventually the transfer function for the last node
 computes the facts that are propagated to the block's successors.
+\ifpagetuning\vadjust{\break}\fi
 For example, consider doing constant propagation (\secref{constant-propagation}) on 
-the following graph, with entry at @L1@:
+the following graph, whose entry point is @L1@:
 \begin{code}
   L1: x=3; goto L2
   L2: y=x+4; x=x-1; 
@@ -1591,17 +1595,20 @@ repeats until the facts for each label reach a fixed point.
 
 A~transfer function has an unusual sort of type:
 not quite a dependent type, but not a bog-standard polymorphic type either.
-The result type of the transfer function is \emph{indexed} by the shape (i.e.,
+The~result type of the transfer function is \emph{indexed} by the shape (i.e.,
 the type) of the node argument:
 If the node is open on exit, the transfer function produces a single fact.
 But if the node is \emph{closed} on exit,
 the transfer function 
 produces a collection of (@Label@,fact) pairs: one for each outgoing edge.  
-The~collection is represented by a @FactBase@, and
-the indexing is expressed by Haskell's (recently added) 
-\emph{indexed type families}.
-\remark{Perhaps @mkFactBase@ needs explaining?}
-The relevant part of \ourlib's interface is given in \figref{transfers}.
+The~collection is represented by a @FactBase@;
+auxiliary function @`mkFactBase@ (\figref{api-types}) joins facts on
+distinct outgoing edges 
+that target the same label.
+
+The~indexing is expressed by Haskell's (recently added) 
+\emph{indexed type families}, as shown in the definition of~@Fact@ in
+\figref{transfers}. 
 A~forward transfer function supplied by a client, 
 which would be passed to @mkFTransfer@,
 is typically a function polymorphic in @e@ and @x@.  
@@ -1641,7 +1648,7 @@ In our constant-propagation example,
 the dataflow facts may enable us
 to simplify an expression by performing constant folding, or to 
 turn a conditional branch into an unconditional one.
-Similarly, a liveness analysis may allow us to 
+Similarly, facts about liveness may allow us to 
 replace a dead assignment with a no-op.
 
 A @FwdPass@ therefore includes a \emph{rewrite function}, whose
@@ -1649,13 +1656,13 @@ type, @FwdRewrite@, is abstract (\figref{api-types}).
 A~programmer creating a rewrite function chooses the type of a node~@n@ and
 a dataflow fact~@f@.
 A~rewrite function might also want to consume fresh
-names (e.g., to label new blocks) or take other actions (e.g., logging
+names (e.g.,~to label new blocks) or take other actions (e.g., logging
 rewrites). 
 So~that a rewrite function may take actions, \hoopl\
 requires that a programmer creating a rewrite function also choose a
 monad~@m@.
 So~that \hoopl\ may roll back actions taken by speculative rewrites, the monad
-must satisfy the constraint @CkpointMonad m@, as described in
+must satisfy the constraint @CkpointMonad m@, as explained in
 \secref{checkpoint-monad}. 
 The programmer may write code that works with any such monad,
 may create a monad just for the client,
@@ -1694,7 +1701,7 @@ be replaced with~\ag: the replacement graph.
 The type of @mkFRewrite@ in \figref{api-types} guarantees
 that
 the replacement graph $\ag$ has
-the \emph{same} open/closed shape as the node being rewritten.
+the {same} \emph{shape} as the node being rewritten.
 For example, a branch instruction can be replaced only by a graph 
 closed on exit.
 %%  Moreover, because only an open/open graph can be 
@@ -1712,9 +1719,9 @@ and the meaning of {\textmd\texttt{FwdRewrite}}}
 When a node is rewritten, the replacement graph~$g$
 must itself be analyzed, and its nodes may be further rewritten.
 \hoopl\ can make a recursive call to 
-@analyzeAndRewriteFwdBody@---but exactly how should it rewrite the
+@analyzeAndRewriteFwdBody@---but how should it rewrite the
 replacement graph~$g$?
-There are two common ways to proceed:
+There are two common cases:
 \begin{itemize}
 \item
 Rewrite~$g$ using the same rewrite function that produced~$g$.
@@ -1767,7 +1774,7 @@ the first continuation~@j@ accepts a pair containing the replacement
 graph and the new rewrite function to be used to analyze it.
 When the node is not rewritten, 
 the second continuation~@n@ is the (lazily evaluated) result.
-\begin{smallcode}
+\begin{smallfuzzcode}{10.8pt}
 rewrite :: Monad m => FwdRewrite m n f -> n e x -> f
         -> m (Maybe (Graph n e x, FwdRewrite m n f))
 `rewrite ^rs node f = rew rs (return . Just) (return Nothing)
@@ -1779,7 +1786,7 @@ rewrite :: Monad m => FwdRewrite m n f -> n e x -> f
   rew (Iter r)       j n = rew r  (j . add (Iter r)) n
   rew No             j n = n
   `add nextrw (g, r) = (g, r `Then` nextrw)
-\end{smallcode}
+\end{smallfuzzcode}
 Appealing to this model, we see that
 \begin{itemize}
 \item
