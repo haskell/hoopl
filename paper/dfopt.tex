@@ -1572,8 +1572,8 @@ into a node, and it computes dataflow fact(s) on the node's outgoing edge(s).
 In a forward analysis, \hoopl\ starts with the fact at the
 beginning of a block and applies the transfer function to successive 
 nodes in that block, until eventually the transfer function for the last node
-computes the facts that are propagated to the block's successors.
 \ifpagetuning\vadjust{\break}\fi
+computes the facts that are propagated to the block's successors.
 For example, consider doing constant propagation (\secref{constant-propagation}) on 
 the following graph, whose entry point is @L1@:
 \begin{code}
@@ -1606,19 +1606,21 @@ auxiliary function @`mkFactBase@ (\figref{api-types}) joins facts on
 distinct outgoing edges 
 that target the same label.
 
-The~indexing is expressed by Haskell's (recently added) 
-\emph{indexed type families}, as shown in the definition of~@Fact@ in
-\figref{transfers}. 
+The~indexing is expressed by
+% type constructor @Fact@ in
+% \figref{transfers}, an example of
+ Haskell's (recently added) 
+\emph{indexed type families}.
 A~forward transfer function supplied by a client, 
-which would be passed to @mkFTransfer@,
-is typically a function polymorphic in @e@ and @x@.  
+which is passed to @mkFTransfer@,
+is polymorphic in @e@~and~@x@ (\figref{transfers}).
 It~takes a 
-node of type \mbox{@n@ @e@ @x@}
+node of type \mbox{@n@ @e@ @x@},
 and it returns a \emph{fact transformer} of type
 @f -> Fact x f@.
 Type constructor @Fact@
-should be thought of as a type-level function: its signature is given in the
-@type family@ declaration, while its definition is given by two @type instance@
+is a species of type-level function: its signature is given in the
+@type family@ declaration, and its definition is given by two @type instance@
 declarations.  The first declaration says that a @Fact O f@, which
 comes out of a node
 \emph{open} on exit, is just a fact~@f@. 
@@ -1671,13 +1673,12 @@ or may use a monad supplied by \hoopl.
 
 When these choices are made, the easy way to create a rewrite
 function is to call the function @mkFRewrite@ in \figref{api-types}.
-The client supplies a function that is specialized to a particular
+The client supplies a function~$f$, which is specialized to a particular
 node, fact, and monad, but is polymorphic in the
 \emph{shape} of the node to be rewritten.
-The function, which we will call~$r$, takes a node and a fact and returns a monadic
-computation, but what is the result of that computation?
-One  might
-expect that the result should be a new node, but that is not enough:
+Function~$r$, takes a node and a fact and returns a monadic
+computation, but what result should that computation return?
+Returning a new node is not good enough:
 in~general, it must be possible for rewriting to result in a graph.
 For example,
 we might want to remove a node by returning the empty graph,
