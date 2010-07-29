@@ -71,9 +71,9 @@ HOOPL=../src/Compiler/Hoopl
 comb1.tex iterf.tex pairf.tex:D: ./xsource $HOOPL/Combinators.hs
 	lua $prereq
 
-dfopt.dvi: fptype.tex bodyfun.tex
+dfopt.dvi: fptype.tex bodyfun.tex block.tex
 
 dfoptdu.tex: bodyfun.tex fptype.tex
 
-cat.tex bodyfun.tex fptype.tex dg.tex node.tex:D: ./xsource $HOOPL/Dataflow.hs
+block.tex cat.tex bodyfun.tex fptype.tex dg.tex node.tex:D: ./xsource $HOOPL/Dataflow.hs
 	lua ./xsource -4 $HOOPL/Dataflow.hs

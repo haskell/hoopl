@@ -187,7 +187,10 @@ arfGraph pass entries = graph
     type ARFX thing = forall e x . thing e x -> Fact e f -> m (DG f n e x, Fact x f)
     -}
     graph ::              Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
-    block :: forall e x . Block n e x -> f        -> m (DG f n e x, Fact x f)
+-- @ start block.tex -2
+    block :: forall e x . 
+             Block n e x -> f -> m (DG f n e x, Fact x f)
+-- @ end block.tex
 -- @ start node.tex -4
     node :: forall e x . (ShapeLifter e x) 
          => n e x -> f -> m (DG f n e x, Fact x f)
@@ -222,10 +225,12 @@ arfGraph pass entries = graph
              c _ _ = error "bogus GADT pattern match failure"
 
     -- Lift from nodes to blocks
+-- @ start block.tex -2
     block (BFirst  n)  = node n
     block (BMiddle n)  = node n
     block (BLast   n)  = node n
     block (BCat b1 b2) = block b1 `cat` block b2
+-- @ end block.tex
     block (BHead h n)  = block h  `cat` node n
     block (BTail n t)  = node  n  `cat` block t
     block (BClosed h t)= block h  `cat` block t
