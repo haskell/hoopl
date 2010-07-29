@@ -385,7 +385,7 @@ higher-rank any longer).
 \preprintfooter{\mdfivestamp}
 \fi
 
-\hyphenation{there-by op-ti-mi-za-tion}
+\hyphenation{there-by op-ti-mi-za-tion poly-mor-phic}
 
 \renewcommand{\floatpagefraction}{0.9} % must be less than \topfraction
 \renewcommand{\topfraction}{0.95}
@@ -1679,7 +1679,7 @@ node, fact, and monad, but is polymorphic in the
 Function~$r$, takes a node and a fact and returns a monadic
 computation, but what result should that computation return?
 Returning a new node is not good enough:
-in~general, it must be possible for rewriting to result in a graph.
+in~general, it~must be possible for rewriting to result in a graph.
 For example,
 we might want to remove a node by returning the empty graph,
 or more ambitiously, we might want to replace a high-level operation
@@ -1703,7 +1703,7 @@ The type of @mkFRewrite@ in \figref{api-types} guarantees
 that
 the replacement graph $\ag$ has
 the {same} \emph{shape} as the node being rewritten.
-For example, a branch instruction can be replaced only by a graph 
+For~example, a branch instruction can be replaced only by a graph 
 closed on exit.
 %%  Moreover, because only an open/open graph can be 
 %%  empty---look at the type of @GNil@ in \figref{graph}---the type 
@@ -1769,7 +1769,7 @@ the function @rewrite@, below,
 computes the replacement graph and rewrite function
 that result from applying a rewrite function @rs@
 to~a~@node@ and a fact~@f@.
-The code is in continuation-passing style;
+The~code is in continuation-passing style;
 when the node is rewritten,
 the first continuation~@j@ accepts a pair containing the replacement
 graph and the new rewrite function to be used to analyze it.
@@ -1780,9 +1780,9 @@ rewrite :: Monad m => FwdRewrite m n f -> n e x -> f
         -> m (Maybe (Graph n e x, FwdRewrite m n f))
 `rewrite ^rs node f = rew rs (return . Just) (return Nothing)
  where
-  `rew (Mk r) j n = do ^mg <- r node f
-                      case mg of Nothing -> n
-                                 Just g  -> j (g, No)
+  `rew (Mk r) j n = do { ^mg <- r node f
+                      ; case mg of Nothing -> n
+                                   Just g  -> j (g, No) }
   rew (r1 `Then` r2) j n = rew r1 (j . add r2) (rew r2 j n)
   rew (Iter r)       j n = rew r  (j . add (Iter r)) n
   rew No             j n = n
@@ -1792,15 +1792,15 @@ Appealing to this model, we see that
 \begin{itemize}
 \item
 A~function @mkFRewrite rw@ never rewrites a replacement
-graph---this behavior is shallow rewriting.
+graph; this behavior is shallow rewriting.{\hfuzz=0.7pt \par}
 \item
 When a~function @r1 `thenFwdRw` r2@ is applied to a node,
-if @r1@ replaces the node, then @r2@~is used to transform the
+if~@r1@ replaces the node, then @r2@~is used to transform the
 replacement graph.
 And~if @r1@~does not replace the node, \hoopl\ tries~@r2@.
 \item
 When a~function @iterFwdRw r@ rewrites a node, @iterFwdRw r@ is
-used to transform the replacement graph---this behavior is deep
+used to transform the replacement graph; this behavior is deep
 rewriting.
 If~@r@~does not rewrite a~node, neither does @iterFwdRw r@.
 \item
@@ -1831,7 +1831,7 @@ which is the composition of @iterFwdRw@ and~@mkFRewrite@.
 %%  functions that use the same fact:
 
 Our combinators satisfy the algebraic laws that you would expect;
-for~example 
+for~example,
 @noFwdRw@ is a left and right identity of @thenFwdRw@.
 A~more interesting law is
 \begin{code}
@@ -1882,9 +1882,10 @@ scrutinize the constructors of~@n@.
 \seclabel{triple-of-functions}
 
 There is another way;
-instead of requiring a single function that is polymorphic in shape,
+in place of a single function that is polymorphic in shape,
 \hoopl\ also accepts a triple of functions, each of which is
-polymorphic in the node's type but monomorphic in its shape:
+polymorphic in the node's type but monomorphic in its
+shape:
 \begin{code}
 `mkFTransfer3 :: (n C O -> f -> Fact O f)
              -> (n O O -> f -> Fact O f)
@@ -1896,7 +1897,7 @@ We have used this interface to write a number of functions that are
 \begin{itemize}
 \item
 A function that takes a @FwdTransfer@ and wraps it in logging code, so
-an analysis can be debugged by watching the facts flow through the
+an analysis can be debugged by watching facts flow through 
 nodes
 \item
 A pairing function that runs two passes interleaved, not sequentially,
@@ -2252,6 +2253,7 @@ After each iteration, \hoopl\ starts the next iteration with
 \emph{new} facts but with the \emph{original} graph---by~virtue
 of using purely functional data structures, rewrites from
 previous iterations are automatically rolled back.
+{\hfuzz=1.5pt\par}
 
 But a rewrite function doesn't only produce new graphs; it
 can also take a \emph{monadic action}, such as
