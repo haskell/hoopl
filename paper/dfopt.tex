@@ -1,5 +1,5 @@
 \newif\ifhaskellworkshop\haskellworkshoptrue
-\newif\ifbanner\bannertrue
+\newif\ifbanner\bannerfalse
 
 
 \iffalse
@@ -152,7 +152,7 @@ higher-rank any longer).
 \newif\ifnotesinmargin \notesinmarginfalse
 \IfFileExists{notesinmargin.tex}{\notesinmargintrue}{\relax}
 
-\documentclass[blockstyle,natbib,preprint]{sigplanconf}
+\documentclass[blockstyle,natbib]{sigplanconf}
 
 \newcommand\ourlib{Hoopl}
    % higher-order optimization library
