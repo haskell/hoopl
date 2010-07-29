@@ -3049,6 +3049,7 @@ The Soot framework is designed for analysis of Java programs
 %%   framework part. ---JD}
 While Soot's dataflow library supports only analysis, not
  transformation, we found much 
+\ifpagetuning\vadjust{\break}\fi
  to admire in its design.
 Soot's library is abstracted over the representation of
 the control-flow graph and the representation of instructions.
@@ -3204,10 +3205,10 @@ this analysis until it reaches a fixed point.
 Decorated graphs computed on earlier iterations are thrown away.
 For~each decorated graph of $N$~nodes, 
 at least $2N-1$~thunks are allocated; they correspond to applications of
+\ifpagetuning\vadjust{\break}\fi
 @singletonDG@ in~@node@ and of @dgSplice@ in~@cat@.
 In~an earlier version of \hoopl, this overhead was
-eliminated by splitting @arfGraph@ into two functions: one to compute the
-fixed point, and the other to produce the rewritten graph.
+eliminated by splitting @arfGraph@ into two phases, as in Whirlwind.
 The single @arfGraph@ is simpler and easier
 to maintain; we don't know if the extra thunks matter.
 \item
@@ -3217,13 +3218,14 @@ Two representations are possible:
 we may store a triple of functions, one for each shape a node may
 have;
 or we may store a single, polymorphic function.
-If~we use triples throughout, the costs are straightforward, but the
-code is complex.
-If~we use a single, polymorphic function, we sometimes have to use a
+\hoopl\ uses triples, because although working with triples
+makes some code slightly more complex,
+the costs are straightforward.
+If~we used a single, polymorphic function, we would have to use a
 \emph{shape classifier} (supplied by the client) when composing
 transfer functions.
-Using a shape classifier may introduce extra @case@ discriminations
-every time a transfer function or rewrite function is applied to a
+Using a shape classifier would introduce extra @case@ discriminations
+every time we applied a transfer function or rewrite function to a
 node.
 We~don't know how these extra discriminations might affect
 performance.
@@ -3310,26 +3312,28 @@ tedious and error-prone.
 % use \emph{only} the triple-of-functions interface described in
 % \secref{triple-of-functions}.
 
+\ifpagetuning\break\fi
+
 \paragraph{Examining the implementation}
 
 If you are thinking of adopting \hoopl, you should consider not
-only whether you like the API, but whether, in case of emergency, you
+only whether you like the API, but whether in an emergency you
 could maintain the implementation.
 We~believe that \secref{dfengine} sketches enough to show that \hoopl's
 implementation is a clear improvement over previous implementations
 of similar ideas.
-% The implementation is more difficult to evaluate than the~API.
-% Previous implementations of similar ideas have rolled the problems
-% into a big ball of mud.
+%%%%    % The implementation is more difficult to evaluate than the~API.
+%%%%    % Previous implementations of similar ideas have rolled the problems
+%%%%    % into a big ball of mud.
 By~decomposing our implementation into @node@, @block@, @body@,
-@graph@, @cat@, @fixpoint@, and @mkFRewrite@, we have clearly separated
+@graph@, @cat@, @fixpoint@, and @mkFRewrite@, we~have cleanly separated
 multiple concerns:
 interleaving analysis with rewriting,
 throttling rewriting using optimization fuel,
 and 
 computing a fixed point using speculative rewriting.
 Because of this separation of concerns,
-we believe our implementation will be much easier to maintain than
+we believe our implementation will be easier to maintain than
 anything that preceded~it.
 
 %%  Another good sign is that we have been able to make substantial
