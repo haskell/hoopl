@@ -362,6 +362,7 @@ while line do
     local omit, ty = line:match '^%%%s*omit%s+(%S+)%s+::%s+(.-)%s*$'
     local input    = line:match [[^%s*\verbatiminput{(.*)}]] or
                      line:match [[^%s*\smallverbatiminput{(.*)}]]
+                     line:match [[^%s*\smallfuzzverbatiminput{.-}{(.*)}]]
 if line:match 'fuzzcode' then
 --  fprintf(io.stderr, "%s: env = %s, endenv = %s\n", line, env or '<nil>', endenv or '<nil>')
 end
