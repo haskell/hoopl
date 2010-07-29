@@ -428,38 +428,8 @@ Reprinted from the 2010 ACM Haskell Symposium.
 
 
 \begin{abstract}
-\iffalse % A vote for Simon's abstract
-\remark{I have replaced a good abstract of the POPL submission with a
-bad abstract of \emph{this} submission.}
-We present \ourlib, a Haskell library that makes it easy for a
-compiler writer
-to implement program transformations based on dataflow analyses.
-A~client of \ourlib\ defines a representation of 
-logical assertions,
-a transfer function that computes outgoing assertions from incoming
-assertions, 
-and a rewrite function that improves code when improvements are
-justified by the assertions.
-\ourlib\ does the actual analysis and transformation.
-
-\ourlib\ implements state-of-the art algorithms:
-Lerner, Grove, and Chambers's 
-\citeyearpar{lerner-grove-chambers:2002}
-composition of simple analyses and transformations, which achieves
-the same precision as complex, handwritten
-``super-analyses;''
-and Whalley's \citeyearpar{whalley:isolation} dynamic technique for
-isolating bugs in a client's code.
-\ourlib's implementation is unique in that unlike previous
-implementations,
-it carefully separates the tricky
-elements of each of these algorithms, so that they can be examined and
-understood independently.
-
-
-\simon{Here is an alternative abstract based on the four-sentence model.}
-\remark{Four-sentence model?  You must teach me\ldots}
-\fi
+%\simon{Here is an alternative abstract based on the four-sentence model.}
+%\remark{Four-sentence model?  You must teach me\ldots}
 Dataflow analysis and transformation of control-flow graphs is
 pervasive in optimizing compilers, but it is typically
 entangled with the details of a \emph{particular} compiler.  
@@ -565,9 +535,9 @@ We articulate their ideas in a concrete, simple API,
 which hides 
 a subtle implementation
 (\secreftwo{graph-rep}{using-hoopl}).  
-You~provide a representation for assertions, 
-a~transfer function that transforms assertions across nodes, 
-and a rewrite function that can use an assertion to 
+You~provide a representation for facts, 
+a~transfer function that transforms facts across nodes, 
+and a rewrite function that can use a fact to 
 justify rewriting a node.
 \ourlib\ ``lifts'' these node-level functions to work over
 control-flow graphs, solves recursion equations,
@@ -650,9 +620,9 @@ control-transfer instruction that branches to other blocks.
 %  -- each of which has a label at the 
 % beginning.  Each block may branch to other blocks with arbitrarily
 % complex control flow.
-The goal of dataflow optimization is to compute valid
-\emph{assertions} (or \emph{dataflow facts}), 
-then use those assertions to justify code-improving
+The~goal of dataflow optimization is to compute valid
+\emph{dataflow facts}, 
+then use those facts to justify code-improving
 transformations (or \emph{rewrites}) on a {control-flow graph}.  
 
 As~a concrete example, we show constant propagation with constant
@@ -711,14 +681,14 @@ meaning that there is no single value held by~@x@ at~@L3@.
 %In this example @x@ really does vary at @L3@, but in general
 %the analysis might be conservative.}
 The final result of joining the dataflow facts that flow to~@L3@
-is the new fact $\mathord{@x=@\top\!} \land \mathord{@y=4@} \land \mathord{@z=@\top}$.
+is the fact $\mathord{@x=@\top\!} \land \mathord{@y=4@} \land \mathord{@z=@\top}$.
 
 \seclabel{const-prop-example}
 
-\paragraph{Forwards and backwards.}
-Constant propagation works \emph{forwards}, and a fact is often an
+\paragraph{Forward and backward.}
+Constant propagation works \emph{forward}, and a fact is often an
 assertion about the program state, such as ``variable~@x@ holds value~@7@.''
-Some useful analyses work \emph{backwards}.
+Some useful analyses work \emph{backward}.
 A~prime example is live-variable analysis, where a fact takes the~form
 ``variable @x@ is live'' and is an assertion about the
 \emph{continuation} of a program point.  For example, the fact ``@x@~is
@@ -729,7 +699,7 @@ if @x@~is not live, this transformation
 replaces the node @x:=e@ with a no-op.
 
 \seclabel{simple-tx}
-\paragraph{Interleaved transformation and analysis.}
+\paragraph{Interleaved analysis and transformation.}
 Our first example \emph{interleaves} analysis and transformation.
 % constant propagation is a transformation, not an analysis
 Interleaving makes it easy to write effective analyses.
@@ -772,7 +742,7 @@ To~avoid unjustified rewrites,
 any rewrite based on an invalid fact must be rolled back;
 transformations must be \emph{speculative}.
 As~described in \secref{checkpoint-monad},
-\hoopl~manages speculation with cooperation from the client.
+\hoopl~manages speculation with minimal cooperation from the client.
 
 
 \seclabel{debugging-introduced}
@@ -884,9 +854,9 @@ The primitive constituents of a control-flow graph are
 % , which are defined by the client.     SLPJ: said again very shortly
 For~example, 
 in a back end
-a node might represent a machine instruction, such as an
-assignment, a call, or a conditional branch;
-in~a higher-level intermediate form, a node might represent a statement.
+a node might represent a machine instruction, such as
+a~load, a call, or a conditional branch;
+in~a higher-level intermediate form, a node might represent a simple statement.
 \ourlib{}'s graph representation is \emph{polymorphic in the node type},
 so~each client can define nodes as it likes.
 Because they contain nodes defined by the client,
@@ -933,11 +903,11 @@ In~other examples from \figref{cmm-node}, constructor @Assign@ takes a
 variable and an expression, and it 
 returns a @Node@ open on both entry and exit; constructor @Store@ is
 similar.
-Types~@`Var@ and @`Expr@ are private to the client, and
-\ourlib{} knows nothing about them.  
 Finally, control-transfer nodes @Branch@ and @Cond@  (conditional
 branch) are open on entry
 and closed on exit.  
+Types~@`Var@ and @`Expr@ are private to the client, and
+\ourlib{} knows nothing about them.  
 
 \newcommand\cbtext{To obey these invariants,
 a node for
@@ -1032,7 +1002,7 @@ through from the first to the second; therefore,
 two blocks may be concatenated {only} if each block is open at
 the point of concatenation.
 This~restriction is enforced by the type of @BCat@, whose first 
-argument must be open on exit, and whose second argument must be open on entry.
+argument must be open on exit and whose second argument must be open on entry.
 It~is impossible, for example, to concatenate a~@Branch@
 immediately before an~@Assign@.  
 Indeed, the @Block@ type guarantees statically that any
@@ -1051,7 +1021,7 @@ Enforcing these invariants by using GADTs is one of
 \ourlib{} composes blocks into graphs, which are also defined 
 in  \figref{graph}.
 Like @Block@, the data type @Graph@ is parameterized over
-both nodes @n@ and its open/closed shape (@e@ and @x@).
+both nodes @n@ and over its shape at entry and exit (@e@ and @x@).
 @Graph@ has three constructors.  The first two
 deal with the base cases of open/open graphs:
 an empty graph is represented by @GNil@ while a single-block graph
@@ -1118,7 +1088,7 @@ gSplice (GMany e1 bs1 NothingO) (GMany NothingO bs2 x2)
 \end{smallttcode}
 \endgroup
 This definition illustrates the power of GADTs: the
-pattern matching is exhaustive, and all the open/closed invariants are
+pattern matching is exhaustive, and all the shape invariants are
 checked statically.  For example, consider the second-to-last equation for @gSplice@.
 Since the exit sequence of the first argument is @JustO x1@,
 we know that type parameter~@a@ is~@O@, and hence the entry sequence of the second 
@@ -1194,7 +1164,8 @@ If~\hoopl\ is polymorphic in the node type,
 how can it{} follow such edges?
 \hoopl\ requires the client to make the node type an instance of 
 \ourlib's @NonLocal@ type class, which is defined in \figref{edges}.
-The @entryLabel@ method takes a first node (one closed on entry, \secref{nodes})
+The @entryLabel@ method takes a first node (one closed on entry, as
+per \secref{nodes})
 and returns its @Label@;
 the~@successors@ method takes a last node (closed on exit) and returns
 the @Label@s to 
@@ -1515,13 +1486,13 @@ type~@f@ are stored in a value of type @DataflowLattice f@
 As~noted in the previous paragraph, 
 \ourlib{} needs to know when the result of a join is equal
 to the old fact.
-But~when a client is computing a join, it is often easy to
-tell if the join is equal to the old fact.
-By~contrast, a general equality test on facts might cost almost as much
-as a join.
+It~is often easiest to answer this question while the join itself is
+being computed.
+By~contrast, a \emph{post facto} equality test on facts might cost
+almost as much as a~join.
 For these reasons, \ourlib\ does not
 require a separate equality test on facts.
-Instead, \ourlib\ requires that @fact_join@ return a @ChangeFlag@ as
+Instead, \ourlib\ requires that @fact_join@ return a~@ChangeFlag@ as
 well as the join.
 If~the join is the same as the old fact, 
 the @ChangeFlag@ should be @NoChange@;
@@ -1596,7 +1567,7 @@ This new fact is joined with the existing (bottom) fact at~@L2@.
 Now~the analysis propagates @L2@'s fact forward, again applying the transfer
 function, and propagating the new fact \mbox{\{@x=2@, @y=7@\}} to~@L2@.
 Again the new fact is joined with the existing fact at~@L2@, and the process
-repeats until the facts for each label reach a fixed point.
+repeats until the facts reach a fixed point.
 
 A~transfer function has an unusual sort of type:
 not quite a dependent type, but not a bog-standard polymorphic type either.
@@ -1670,7 +1641,7 @@ requires that a programmer creating a rewrite function also choose a
 monad~@m@.
 So~that \hoopl\ may roll back actions taken by speculative rewrites, the monad
 must satisfy the constraint @CkpointMonad m@, as explained in
-\secref{checkpoint-monad}. 
+\secref{checkpoint-monad} below. 
 The programmer may write code that works with any such monad,
 may create a monad just for the client,
 or may use a monad supplied by \hoopl. 
@@ -1678,10 +1649,10 @@ or may use a monad supplied by \hoopl.
 
 When these choices are made, the easy way to create a rewrite
 function is to call the function @mkFRewrite@ in \figref{api-types}.
-The client supplies a function~$f$, which is specialized to a particular
+The client supplies a function~$r$, which is specialized to a particular
 node, fact, and monad, but is polymorphic in the
 \emph{shape} of the node to be rewritten.
-Function~$r$, takes a node and a fact and returns a monadic
+Function~$r$ takes a node and a fact and returns a monadic
 computation, but what result should that computation return?
 Returning a new node is not good enough:
 in~general, it~must be possible for rewriting to result in a graph.
@@ -1772,18 +1743,18 @@ Using this model, we specify how a rewrite function works by
 giving a reference implementation:
 the function @rewrite@, below,
 computes the replacement graph and rewrite function
-that result from applying a rewrite function @rs@
+that result from applying a rewrite function~@r@
 to~a~@node@ and a fact~@f@.
 The~code is in continuation-passing style;
 when the node is rewritten,
 the first continuation~@j@ accepts a pair containing the replacement
-graph and the new rewrite function to be used to analyze it.
+graph and the new rewrite function to be used to transform~it.
 When the node is not rewritten, 
 the second continuation~@n@ is the (lazily evaluated) result.
 \begin{smallfuzzcode}{10.8pt}
 rewrite :: Monad m => FwdRewrite m n f -> n e x -> f
         -> m (Maybe (Graph n e x, FwdRewrite m n f))
-`rewrite ^rs node f = rew rs (return . Just) (return Nothing)
+`rewrite ^r node f = rew r (return . Just) (return Nothing)
  where
   `rew (Mk ^rw) j n = do { ^mg <- rw node f
                        ; case mg of Nothing -> n
@@ -2414,7 +2385,7 @@ In this paper we describe a new implementation.  It is elegant and short
 strong compile-time guarantees about shapes.  
 \finalremark{Wanted: enumerate the critical components and give each one's size}%
 %
-We describe the implementation of \emph{forward} 
+We describe only the implementation of \emph{forward} 
 analysis and transformation.
 The implementations of backward analysis and transformation are
 exactly analogous and are included in \hoopl.
@@ -2749,7 +2720,7 @@ The @node@ function is where we interleave analysis with rewriting:
 %
 Function @node@ uses @frewrite@ to extract the rewrite function from
 @pass@, 
-and applies the rewrite function to the node~@n@ and the incoming fact~@f@.
+and it applies that rewrite function to node~@n@ and incoming fact~@f@.
 The result, @grw@, is 
 scrutinized by the @case@ expression.
 
@@ -2762,15 +2733,15 @@ To produce the outgoing fact, we apply the transfer function
 In the @Just@ case, we receive a replacement
 graph~@g@ and a new rewrite function~@rw@, as specified by the model
 in \secref{rewrite-model}.
-We~use @rw@ to recursively analyze and rewrite~@g@ with @arfGraph@.  
-This analysis uses
+We~use @rw@ to analyze and rewrite~@g@ recursively with @arfGraph@.  
+The recursive analysis uses
 \ifpagetuning a new pass \fi
 @pass'@, which contains the original lattice and transfer
 function from @pass@, together with~@rw@.
 Function @fwdEntryFact@ converts fact~@f@ from the type~@f@,
-which @node@ expects, to the type @Fact e f@, which @arfGraph@ expects.
+which @node@ has, to~the type @Fact e f@, which @arfGraph@ expects.
 
-As you see, several functions called in @node@ are overloaded over a
+As shown above, several functions called in @node@ are overloaded over a
 (private) class @ShapeLifter@.  Their implementations depend
 on the open/closed shape of the node.
 By design, the shape of a node is known statically everywhere @node@
@@ -2845,7 +2816,7 @@ the type signature tells the story.
 The third argument can produce an extended fact transformer for any single block; 
 @fixpoint@ applies it successively to each block in the list
 passed as the fourth argument.
-Function @fixpoint@ returns an extended fact transformer for the list.
+Function @fixpoint@ returns an extended fact transformer for the~list.
 
 The extended fact transformer returned by @fixpoint@
  maintains a
@@ -2936,7 +2907,7 @@ To~debug, we do binary search on the amount of fuel.
 The supply of fuel is encapsulated in the @FuelMonad@ type class (\figref{api-types}),
 which must be implemented by the client's monad @m@.
 To~ensure that each rewrite consumes one~unit of~fuel,
-@mkFRewrite@ wraps the client's rewrite function, which is oblivious to fuel,
+@mkFRewrite@ wraps the client's rewrite function, which must be oblivious to fuel,
 in~another function that satisfies the following contract:
 \begin{itemize}
 \item 
@@ -2988,7 +2959,7 @@ the \emph{design} of optimizers, which is the topic of this paper.
 We therefore focus on the foundations of dataflow analysis
 and on the implementations of some comparable dataflow frameworks.
 
-\paragraph{Foundations}
+\paragraph{Foundations.}
 
 When transfer functions are monotone and lattices are finite in height,
 iterative dataflow analysis converges to a fixed point
@@ -3024,13 +2995,13 @@ presents many examples of both particular analyses and related
 algorithms.
 
 
-The soundness of interleaving analysis and transformation,
+\citet{lerner-grove-chambers:2002} show that 
+interleaving analysis and transformation is sound, 
 even when not all speculative transformations are performed on later
-iterations, is shown by
-\citet{lerner-grove-chambers:2002}.
+iterations.
 
 
-\paragraph{Frameworks}
+\paragraph{Frameworks.}
 Most dataflow frameworks support only analysis, not transformation.
 The framework computes a fixed point of transfer functions, and it is
 up to the client of 
@@ -3176,7 +3147,7 @@ component of GHC; we introduced \hoopl\ to GHC as part of a
 major refactoring of GHC's back end.
 With~\hoopl,  GHC seems about 15\%~slower than
 the previous~GHC, but we
-don't know what portion of the slowdown can be attributed to the
+don't know what part of the slowdown, if any, should be attributed to the
 optimizer.
 %
 We~can say that the costs of using \hoopl\ seem reasonable;
@@ -3204,8 +3175,8 @@ rewrites the body of a control-flow graph, and @fixpoint@ iterates
 this analysis until it reaches a fixed point.
 Decorated graphs computed on earlier iterations are thrown away.
 For~each decorated graph of $N$~nodes, 
-at least $2N-1$~thunks are allocated; they correspond to applications of
 \ifpagetuning\vadjust{\break}\fi
+at least $2N-1$~thunks are allocated; they correspond to applications of
 @singletonDG@ in~@node@ and of @dgSplice@ in~@cat@.
 In~an earlier version of \hoopl, this overhead was
 eliminated by splitting @arfGraph@ into two phases, as in Whirlwind.
@@ -3249,7 +3220,7 @@ used,
 we~examine the API, and we examine the implementation.
 We~also sketch one of the many alternatives we have implemented.
 
-\paragraph{Using \hoopl}
+\paragraph{Using \hoopl.}
 
 As~suggested by the constant-propagation example in
 \figref{const-prop}, \hoopl\ makes it easy to implement many standard
@@ -3258,7 +3229,7 @@ Students using \hoopl\ in a class at Tufts were able to implement
 such optimizations as lazy code motion \cite{knoop:lazy-code-motion} 
 and induction-variable elimination
 \cite{cocke-kennedy:operator-strength-reduction} in just a few weeks.
-Graduate students at Yale and at Portland State have also built
+Graduate students at Yale and at Portland State have also implemented
 a variety of optimizations.
 
 \hoopl's graphs can support optimizations beyond classic
@@ -3275,11 +3246,11 @@ representation of first nodes,
 and if a transformation preserves SSA~invariants, it will continue to do
 so when implemented in \hoopl.
 
-\paragraph{Examining the API}
+\paragraph{Examining the API.}
 
 We hope that our presentation of the API in \secref{api} speaks for
 itself,
-but there are a couple of properties we think are worth highlighting.
+but there are a couple of properties worth highlighting.
 First, it's a good sign that the API provides many higher-order
 combinators that make it easier to write client code. % with simple, expressive types.
 We~have had space to mention only a few: 
@@ -3314,7 +3285,7 @@ tedious and error-prone.
 
 \ifpagetuning\break\fi
 
-\paragraph{Examining the implementation}
+\paragraph{Examining the implementation.}
 
 If you are thinking of adopting \hoopl, you should consider not
 only whether you like the API, but whether if you had~to, you
@@ -3491,7 +3462,7 @@ thinking and helped to structure the implementation.
 
 \fi
 
-\paragraph{Design alternatives}
+\paragraph{Design alternatives.}
 We~have explored many alternatives to the API presented above.
 While these alternatives are interesting,
 describing and discussing an interesting alternative seems to take us
@@ -3501,7 +3472,7 @@ Accordingly, we discuss only the single most interesting alternative:
 keeping the rewrite monad~@m@ private instead of allowing the client
 to define~it.
 
-We~have implemented an alternative in which every rewrite function
+We~have implemented an alternative~API in which every rewrite function
 must use a monad mandated by~\hoopl.
 This alternative has advantages: 
 \hoopl{} implements
@@ -3528,7 +3499,7 @@ transformation that can create new
 function definitions? 
 \hoopl's predefined monads don't accommodate any of these actions.
 By~permitting the client to define the monad~@m@, we~risk the possibility
-that the client may define key operations incorrectly, but we also
+that the client may implement key operations incorrectly, but we also
 ensure that
 \hoopl\ can support these examples, as well as other examples not yet
 thought of. 
@@ -3600,7 +3571,7 @@ thought of.
 
 
 
-\paragraph{Final remarks}
+\paragraph{Final remarks.}
 
 Dataflow optimization is usually described as a way to improve imperative
 programs by mutating control-flow graphs.
@@ -3723,7 +3694,7 @@ extended visits to the third author.
 %%      ^new_fbase = extendFactBase fbase lbl res_fact
 %%  
 %%  fixpoint :: forall n f. NonLocal n
-%%           => Bool        -- Going forwards?
+%%           => Bool        -- Going forward?
 %%           -> DataflowLattice f
 %%           -> (Block n C C -> FactBase f
 %%                -> FuelMonad (DG n f C C, FactBase f))
