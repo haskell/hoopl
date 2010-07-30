@@ -35,6 +35,9 @@ dfoptdu.tex: cprop.tex comb1.tex iterf.tex pairf.tex dg.tex node.tex
 $TGT.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp 1-$LASTPAGE $prereq
 
+$TGT.ps: $TGT.dvi
+	dvips -Ppdf -o "$target" -pp 1-$LASTPAGE $prereq
+
 $HOME/www/pubs/hoopl10-supplement.pdf: $TGT.dvi
 	dvips -Ppdf -o"|ps2pdf - $target" -pp `expr $LASTPAGE + 1`- $prereq
 
