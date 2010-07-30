@@ -6,6 +6,8 @@ oodfopt.tex
 nrbib.tex
 _darcs
 *~
+*.hi
+*.o
 
 dfopt.txt
 dfoptdu.tex
@@ -13,10 +15,23 @@ defuse.tex
 dfopt.bbl
 notesinmargin.tex
 
-
 timestamp.tex
+comb1.tex
+iterf.tex
+pairf.tex
+dg.tex
+cprop.tex
 hoopl.tex
 hoopl.ps
+fptype.tex
+bodyfun.tex
+node.tex
+cat.tex
+block.tex
+fpimp.tex
+txfb.tex
+update.tex
+
 
 *.log
 *.blg
@@ -26,3 +41,6 @@ hoopl.ps
 *.out
 dfopt.ps
 *.pdf
+onepage.ps
+dom.ps
+dom.epsi

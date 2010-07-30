@@ -15,15 +15,14 @@ import qualified IR  as I
 -- labels (Label).
 -- To keep the mapping from (String -> Label) consistent, we use a LabelMapM monad with
 -- the following operation:
-labelFor :: String         -> LabelMapM Label
-getBody  :: forall n.
-            AGraph n C C   -> LabelMapM (Body n)
-run      :: LabelMapM a    -> FuelMonad a
+labelFor :: String -> LabelMapM Label
+getBody  :: forall n. Graph n C C   -> LabelMapM (Graph n C C)
+run      :: LabelMapM a -> I.M a
 
 -- We proceed with the translation from AST to IR; the implementation of the monad
 -- is at the end of this file.
 
-astToIR :: A.Proc -> FuelMonad I.Proc
+astToIR :: A.Proc -> I.M I.Proc
 astToIR (A.Proc {A.name = n, A.args = as, A.body = b}) = run $
   do entry <- getEntry b
      body  <- toBody   b
@@ -33,12 +32,12 @@ getEntry :: [A.Block] -> LabelMapM Label
 getEntry [] = error "Parsed procedures should not be empty"
 getEntry (b : _) = labelFor $ A.first b
 
-toBody :: [A.Block] -> LabelMapM (Body I.Insn)
+toBody :: [A.Block] -> LabelMapM (Graph I.Insn C C)
 toBody bs =
-  do g <- foldl (liftM2 unionBlocks) (return emptyClosedAGraph) (map toBlock bs)
+  do g <- foldl (liftM2 (|*><*|)) (return emptyClosedGraph) (map toBlock bs)
      getBody g
 
-toBlock :: A.Block -> LabelMapM (AGraph I.Insn C C)
+toBlock :: A.Block -> LabelMapM (Graph I.Insn C C)
 toBlock (A.Block { A.first = f, A.mids = ms, A.last = l }) =
   do f'  <- toFirst f
      ms' <- mapM toMid ms
@@ -65,7 +64,7 @@ toLast (A.Return es)      = return $ I.Return es
 --------------------------------------------------------------------------------
 
 type IdLabelMap = M.Map String Label
-data LabelMapM a = LabelMapM (IdLabelMap -> FuelMonad (IdLabelMap, a))
+data LabelMapM a = LabelMapM (IdLabelMap -> I.M (IdLabelMap, a))
 instance Monad LabelMapM where
   return x = LabelMapM (\m -> return (m, x))
   LabelMapM f1 >>= k = LabelMapM (\m -> do (m', x) <- f1 m
@@ -78,7 +77,7 @@ labelFor l = LabelMapM f
                               let m' = M.insert l l' m
                               return (m', l')
 
-getBody agraph = LabelMapM $ \m ->
-       (do GMany NothingO body NothingO <- graphOfAGraph agraph
-           return (m, body)) :: FuelMonad (IdLabelMap, Body n)
+getBody graph = LabelMapM f
+  where f m = return (m, graph)
+
 run (LabelMapM f) = f M.empty >>=  return . snd

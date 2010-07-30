@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
 module IR (Proc (..), Insn (..), Expr (..), Lit (..), Value (..), BinOp(..), Var
-          , showProc) where
+          , showProc
+          , M) where
 
 import Prelude hiding (succ)
 
@@ -9,9 +10,11 @@ import Compiler.Hoopl
 import Expr
 import PP
 
+type M = CheckingFuelMonad (SimpleUniqueMonad)
+
 data Value = B Bool | I Integer deriving Eq
 
-data Proc = Proc { name :: String, args :: [Var], entry :: Label, body :: Body Insn }
+data Proc = Proc { name :: String, args :: [Var], entry :: Label, body :: Graph Insn C C }
 
 data Insn e x where
   Label  :: Label  ->                               Insn C O
@@ -22,7 +25,7 @@ data Insn e x where
   Call   :: [Var]  -> String  -> [Expr] -> Label -> Insn O C
   Return :: [Expr] ->                               Insn O C
 
-instance Edges Insn where
+instance NonLocal Insn where
   entryLabel (Label l)      = l
   successors (Branch l)     = [l]
   successors (Cond _ t f)   = [t, f]
@@ -36,7 +39,7 @@ instance Edges Insn where
 showProc :: Proc -> String
 showProc proc = name proc ++ tuple (args proc) ++ graph
   where
-    graph  = " {\n" ++ showGraph show (GMany NothingO (body proc) NothingO) ++ "}\n"
+    graph  = " {\n" ++ showGraph show (body proc) ++ "}\n"
 
 instance Show (Insn e x) where
   show (Label lbl)        = show lbl ++ ":"

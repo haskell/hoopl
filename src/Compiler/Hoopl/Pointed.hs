@@ -4,6 +4,7 @@
 
 module Compiler.Hoopl.Pointed
   ( Pointed(..), addPoints, addPoints', addTop, addTop'
+  , liftJoinTop, extendJoinDomain
   , WithTop, WithBot, WithTopAndBot
   )
 where
@@ -70,7 +71,7 @@ addPoints name join = addPoints' name join'
    where join' l o n = (change, PElem f)
             where (change, f) = join l o n
 
-addPoints' name joinx = DataflowLattice name Bot join False
+addPoints' name joinx = DataflowLattice name Bot join
   where -- careful: order of cases matters for ChangeFlag
         join :: JoinFun (Pointed t C a)
         join _ (OldFact f)            (NewFact Bot) = (NoChange, f)
@@ -81,26 +82,40 @@ addPoints' name joinx = DataflowLattice name Bot join False
            = joinx l (OldFact old) (NewFact new)
 
 
+liftJoinTop :: JoinFun a -> JoinFun (WithTop a)
+extendJoinDomain :: forall a
+              . (Label -> OldFact a -> NewFact a -> (ChangeFlag, WithTop a))
+             -> JoinFun (WithTop a)
+
+extendJoinDomain joinx = join
+ where join :: JoinFun (WithTop a)
+       join _ (OldFact Top)          (NewFact _)   = (NoChange, Top)
+       join _ (OldFact _)            (NewFact Top) = (SomeChange, Top)
+       join l (OldFact (PElem old)) (NewFact (PElem new))
+           = joinx l (OldFact old) (NewFact new)
+
+liftJoinTop joinx = extendJoinDomain (\l old new -> liftPair $ joinx l old new)
+  where liftPair (c, a) = (c, PElem a)
+
 -- | Given a join function and a name, creates a semi lattice by
 -- adding a top element but no bottom element.  Caller must supply the bottom 
 -- element.
-addTop  :: DataflowLattice a -> DataflowLattice (Pointed C O a)
+addTop  :: DataflowLattice a -> DataflowLattice (WithTop a)
 -- | A more general case for creating a new lattice
 addTop' :: forall a .
               String
            -> a
-           -> (Label -> OldFact a -> NewFact a -> (ChangeFlag, Pointed C O a))
-           -> DataflowLattice (Pointed C O a)
+           -> (Label -> OldFact a -> NewFact a -> (ChangeFlag, WithTop a))
+           -> DataflowLattice (WithTop a)
 
-addTop lattice = lattice' { fact_do_logging = fact_do_logging lattice }
-   where lattice' = addTop' name' (fact_bot lattice) join'
-         name' = fact_name lattice ++ " + T"
+addTop lattice = addTop' name' (fact_bot lattice) join'
+   where name' = fact_name lattice ++ " + T"
          join' l o n = (change, PElem f)
-            where (change, f) = fact_extend lattice l o n
+            where (change, f) = fact_join lattice l o n
 
-addTop' name bot joinx = DataflowLattice name (PElem bot) join False
+addTop' name bot joinx = DataflowLattice name (PElem bot) join
   where -- careful: order of cases matters for ChangeFlag
-        join :: JoinFun (Pointed C O a)
+        join :: JoinFun (WithTop a)
         join _ (OldFact Top)          (NewFact _)   = (NoChange, Top)
         join _ (OldFact _)            (NewFact Top) = (SomeChange, Top)
         join l (OldFact (PElem old)) (NewFact (PElem new))

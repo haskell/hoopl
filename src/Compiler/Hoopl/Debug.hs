@@ -2,10 +2,12 @@
 
 module Compiler.Hoopl.Debug 
   ( TraceFn , debugFwdJoins , debugBwdJoins
+  , debugFwdTransfers , debugBwdTransfers
   )
 where
 
 import Compiler.Hoopl.Dataflow
+import Compiler.Hoopl.Show
 
 --------------------------------------------------------------------------------
 -- | Debugging combinators:
@@ -40,8 +42,8 @@ import Compiler.Hoopl.Dataflow
 --------------------------------------------------------------------------------
 
 
-debugFwdJoins :: forall n f . Show f => TraceFn -> ChangePred -> FwdPass n f -> FwdPass n f
-debugBwdJoins :: forall n f . Show f => TraceFn -> ChangePred -> BwdPass n f -> BwdPass n f
+debugFwdJoins :: forall m n f . Show f => TraceFn -> ChangePred -> FwdPass m n f -> FwdPass m n f
+debugBwdJoins :: forall m n f . Show f => TraceFn -> ChangePred -> BwdPass m n f -> BwdPass m n f
 
 type TraceFn    = forall a . String -> a -> a
 type ChangePred = ChangeFlag -> Bool
@@ -50,11 +52,11 @@ debugFwdJoins trace pred p = p { fp_lattice = debugJoins trace pred $ fp_lattice
 debugBwdJoins trace pred p = p { bp_lattice = debugJoins trace pred $ bp_lattice p }
 
 debugJoins :: Show f => TraceFn -> ChangePred -> DataflowLattice f -> DataflowLattice f
-debugJoins trace showOutput l@(DataflowLattice {fact_extend = extend}) = l {fact_extend = extend'}
+debugJoins trace showPred l@(DataflowLattice {fact_join = join}) = l {fact_join = join'}
   where
-   extend' l f1@(OldFact of1) f2@(NewFact nf2) =
-     if showOutput c then trace output res else res
-       where res@(c, f') = extend l f1 f2
+   join' l f1@(OldFact of1) f2@(NewFact nf2) =
+     if showPred c then trace output res else res
+       where res@(c, f') = join l f1 f2
              output = case c of
                         SomeChange -> "+ Join@" ++ show l ++ ": " ++ show of1 ++ " `join` "
                                                                   ++ show nf2 ++ " = " ++ show f'
@@ -64,9 +66,38 @@ debugJoins trace showOutput l@(DataflowLattice {fact_extend = extend}) = l {fact
 -- Functions we'd like to have, but don't know how to implement generically:
 --------------------------------------------------------------------------------
 
--- type Showing n = forall e x . n e x -> String
+type ShowN n   = forall e x . n e x ->      String
+type FPred n f = forall e x . n e x -> f        -> Bool
+type BPred n f = forall e x . n e x -> Fact x f -> Bool
+debugFwdTransfers::
+  forall m n f . Show f => TraceFn -> ShowN n -> FPred n f -> FwdPass m n f -> FwdPass m n f
+debugFwdTransfers trace showN showPred pass = pass { fp_transfer = transfers' }
+  where
+    (f, m, l) = getFTransfer3 $ fp_transfer pass
+    transfers' = mkFTransfer3 (wrap show f) (wrap show m) (wrap showFactBase l)
+    wrap :: forall e x . (Fact x f -> String) -> (n e x -> f -> Fact x f) -> n e x -> f -> Fact x f
+    wrap showOutF ft n f = if showPred n f then trace output res else res
+      where
+        res    = ft n f
+        output = name ++ " transfer: " ++ show f ++ " -> " ++ showN n ++ " -> " ++ showOutF res
+    name = fact_name (fp_lattice pass)
+    
+debugBwdTransfers::
+  forall m n f . Show f => TraceFn -> ShowN n -> BPred n f -> BwdPass m n f -> BwdPass m n f
+debugBwdTransfers trace showN showPred pass = pass { bp_transfer = transfers' }
+  where
+    (f, m, l) = getBTransfer3 $ bp_transfer pass
+    transfers' = mkBTransfer3 (wrap show f) (wrap show m) (wrap showFactBase l)
+    wrap :: forall e x . (Fact x f -> String) -> (n e x -> Fact x f -> f) -> n e x -> Fact x f -> f
+    wrap showInF ft n f = if showPred n f then trace output res else res
+      where
+        res    = ft n f
+        output = name ++ " transfer: " ++ showInF f ++ " -> " ++ showN n ++ " -> " ++ show res
+    name = fact_name (bp_lattice pass)
+    
+
 -- debugFwdTransfers, debugFwdRewrites, debugFwdAll ::
---   forall n f . Show f => TraceFn -> Showing n -> FwdPass n f -> FwdPass n f
+--   forall m n f . Show f => TraceFn -> ShowN n -> FwdPass m n f -> FwdPass m n f
 -- debugBwdTransfers, debugBwdRewrites, debugBwdAll ::
---   forall n f . Show f => TraceFn -> Showing n -> BwdPass n f -> BwdPass n f
+--   forall m n f . Show f => TraceFn -> ShowN n -> BwdPass m n f -> BwdPass m n f
 

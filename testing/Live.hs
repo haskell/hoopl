@@ -12,35 +12,35 @@ import OptSupport
 type Live = S.Set Var
 liveLattice :: DataflowLattice Live
 liveLattice = DataflowLattice
-  { fact_name       = "Live variables"
-  , fact_bot        = S.empty
-  , fact_extend     = add
-  , fact_do_logging = False
+  { fact_name = "Live variables"
+  , fact_bot  = S.empty
+  , fact_join = add
   }
     where add _ (OldFact old) (NewFact new) = (ch, j)
             where
               j = new `S.union` old
-              ch = if S.size j > S.size old then SomeChange else NoChange
+              ch = changeIf (S.size j > S.size old)
 
 liveness :: BwdTransfer Insn Live
-liveness n outfact = live outfact n
+liveness = mkBTransfer live
   where
-    live :: Fact x Live -> Insn e x -> Fact e Live
-    live f (Assign x _)    = addUses (S.delete x f) n
-    live f (Label l)       = mkFactBase [(l, f)]
-    live f (Store _ _)     = addUses f n
-    live f (Branch l)      = addUses (fact f l) n
-    live f (Cond _ tl fl)  = addUses (fact f tl `S.union` fact f fl) n
-    live f (Call vs _ _ l) = addUses (fact f l `S.difference` S.fromList vs) n
-    live _ (Return _)      = addUses (fact_bot liveLattice) n
-    fact f l = fromMaybe S.empty $ lookupFact f l
+    live :: Insn e x -> Fact x Live -> Live
+    live   (Label _)       f = f
+    live n@(Assign x _)    f = addUses (S.delete x f) n
+    live n@(Store _ _)     f = addUses f n
+    live n@(Branch l)      f = addUses (fact f l) n
+    live n@(Cond _ tl fl)  f = addUses (fact f tl `S.union` fact f fl) n
+    live n@(Call vs _ _ l) f = addUses (fact f l `S.difference` S.fromList vs) n
+    live n@(Return _)      _ = addUses (fact_bot liveLattice) n
+    fact f l = fromMaybe S.empty $ lookupFact l f
     addUses = fold_EN (fold_EE addVar)
     addVar s (Var v) = S.insert v s
     addVar s _       = s
      
-deadAsstElim :: BwdRewrite Insn Live
-deadAsstElim = shallowBwdRw d
+deadAsstElim :: forall m . FuelMonad m => BwdRewrite m Insn Live
+deadAsstElim = mkBRewrite d
   where
-    d :: SimpleBwdRewrite Insn Live
-    d (Assign x _) live = if x `S.member` live then Nothing else Just emptyAGraph
-    d _ _ = Nothing
+    d :: Insn e x -> Fact x Live -> m (Maybe (Graph Insn e x))
+    d (Assign x _) live
+        | not (x `S.member` live) = return $ Just emptyGraph
+    d _ _ = return Nothing

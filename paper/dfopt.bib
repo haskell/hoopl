@@ -30,15 +30,6 @@
   month = {September},
 }
 
-@book{appel:modern,
-  publisher = {Cambridge University Press},
-  title = {Modern Compiler Implementation},
-  address = {Cambridge, UK},
-  author = {Andrew W. Appel},
-  note = {Available in three editions: C, Java, and ML},
-  year = {1998},
-}
-
 @article{whalley:isolation,
   number = {5},
   subject = {{\bf D.2.5}: Software, SOFTWARE ENGINEERING, Testing and Debugging, Debugging aids. {\bf D.3.4}: Software, PROGRAMMING LANGUAGES, Processors, Compilers. {\bf D.3.4}: Software, PROGRAMMING LANGUAGES, Processors, Optimization.},
@@ -54,6 +45,25 @@
   xxxissn = {0164-0925},
   pages = {1648--1659},
   volume = {16},
+}
+
+@book{appel:modern,
+  publisher = {Cambridge University Press},
+  title = {Modern Compiler Implementation},
+  address = {Cambridge, UK},
+  author = {Andrew W. Appel},
+  note = {Available in three editions: C, Java, and ML},
+  year = {1998},
+}
+
+@techreport{cooper-harvey-kennedy:simple-dominance,
+  institution = {Rice University},
+  year = {2001},
+  abstract = {The problem of finding the dominators in a control-flow graph has a long history in the literature. The original algorithms suffered from a large asymptotic complexity but were easy to understand. Subsequent work improved the time bound, but generally sacrificed both simplicity and ease of implementation. This paper returns to a simple formulation of dominance as a global data-flow problem. Some insights into the nature of dominance lead to an implementation of an O(N 2) algorithm that runs faster, in practice, than the classic Lengauer-Tarjan algorithm, which has a timebound of O(E ∗ log(N)). Wecompare the algorithm to Lengauer-Tarjan because it is the best known and most widely used of the fast algorithms for dominance. Working from the same implementation insights, we also rederive (from earlier work on control dependence by Ferrante, et al.) amethod},
+  location = {http://www.scientificcommons.org/42542735},
+  author = {Keith D. Cooper and Timothy J. Harvey and Ken Kennedy},
+  note = {Unpublished report available from \url{http://www.hipersoft.rice.edu/grads/publications/dom14.pdf}},
+  title = {A Simple, Fast Dominance Algorithm},
 }
 
 @article{kam-ullman:global-iterative-analysis,
@@ -108,6 +118,17 @@
   booktitle = {Conference Record of the 6th Annual ACM Symposium on Principles of Programming Languages},
 }
 
+@inproceedings{steffen:data-flow-analysis-model-checking:1991,
+  xxxpublisher = {Springer-Verlag},
+  xxxaddress = {London, UK},
+  title = {Data Flow Analysis as Model Checking},
+  pages = {346--365},
+  year = {1991},
+  booktitle = {TACS '91: Proceedings of the International Conference on Theoretical Aspects of Computer Software},
+  xxxisbn = {3-540-54415-1},
+  author = {Steffen, Bernhard},
+}
+
 @inproceedings{schmidt:data-flow-analysis-model-checking,
   bibdate = {Mon May 3 12:57:52 MDT 1999},
   xxxdress = {pub-ACM:adr},
@@ -126,6 +147,20 @@
   booktitle = {Conference Record of the 25th Annual ACM Symposium on Principles of Programming Languages},
 }
 
+@article{marlowe-ryder:properties-data-flow-frameworks,
+  number = {2},
+  xxxaddress = {Secaucus, NJ, USA},
+  author = {Marlowe, Thomas J. and Ryder, Barbara G.},
+  journal = {Acta Informatica},
+  publisher = {Springer-Verlag New York, Inc.},
+  year = {1990},
+  volume = {28},
+  doi = {http://dx.doi.org/10.1007/BF01237234},
+  xxxissn = {0001-5903},
+  pages = {121--163},
+  title = {Properties of data flow frameworks: a unified model},
+}
+
 @book{muchnick:compiler-implementation,
   bibdate = {Thu Sep 11 07:11:02 1997},
   price = {US\$89.95},
@@ -139,25 +174,77 @@
   title = {Advanced compiler design and implementation},
 }
 
+@inproceedings{hendren:soot:2000,
+  xxxpublisher = {Springer-Verlag},
+  xxxaddress = {London, UK},
+  title = {Optimizing {Java} Bytecode Using the {Soot} Framework: Is It Feasible?},
+  pages = {18--34},
+  year = {2000},
+  booktitle = {CC '00: Proceedings of the 9th International Conference on Compiler Construction},
+  xxxisbn = {3-540-67263-X},
+  author = {Vall\'{e}e-Rai, Raja and Gagnon, Etienne and Hendren, Laurie J. and Lam, Patrick and Pominville, Patrice and Sundaresan, Vijay},
+}
+
 @inproceedings{necula:cil:2002,
-  pages = {213--228},
-  publisher = {Springer-Verlag},
+  xxxpublisher = {Springer-Verlag},
+  xxxaddress = {London, UK},
   title = {{CIL}: Intermediate Language and Tools for Analysis and Transformation of {C}~Programs},
-  address = {London, UK},
+  pages = {213--228},
   year = {2002},
   booktitle = {CC '02: Proceedings of the 11th International Conference on Compiler Construction},
   xxxisbn = {3-540-43369-4},
   author = {Necula, George C. and McPeak, Scott and Rahul, Shree Prakash and Weimer, Westley},
 }
 
-@inproceedings{hendren:soot:2000,
-  pages = {18--34},
-  publisher = {Springer-Verlag},
-  title = {Optimizing {Java} Bytecode Using the {Soot} Framework: Is It Feasible?},
-  address = {London, UK},
-  year = {2000},
-  booktitle = {CC '00: Proceedings of the 9th International Conference on Compiler Construction},
-  xxxisbn = {3-540-67263-X},
-  author = {Vall\'{e}e-Rai, Raja and Gagnon, Etienne and Hendren, Laurie J. and Lam, Patrick and Pominville, Patrice and Sundaresan, Vijay},
+@article{knoop:lazy-code-motion,
+  number = {7},
+  bibdate = {Fri Feb 14 18:40:11 MST 1997},
+  bibsource = {Compendex database},
+  affiliation = {Christian-Albrechts-Univ},
+  xxxisbn = {0-89791-475-9},
+  abstract = {We present a bit-vector algorithm for the optimal and economical placement of computations within flow graphs, which is as efficient as standard uni-directional analyses. The point of our algorithm is the decomposition of the bi-directional structure of the known placement algorithms into a sequence of a backward and a forward analysis, which directly implies the efficiency result. Moreover, the new compositional structure opens the algorithm for modification: two further uni-directional analysis components exclude any unnecessary code motion. This laziness of our algorithm minimizes the register pressure, which has drastic effects on the run-time behaviour of the optimized programs in practice, where an economical use of registers is essential.},
+  volume = {27},
+  conference = {Proceedings of the ACM SIGPLAN '92 Conference on Programming Language Design and Implementation},
+  xxxissn = {0362-1340},
+  pages = {224--234},
+  journalabr = {SIGPLAN Not},
+  classification = {723.1},
+  affiliationaddress = {Kiel, Ger},
+  acknowledgement = {Acknowledge Nelson H. F. Beebe},
+  sponsor = {ACM},
+  lccn = {QA76.7.S53 1992},
+  journal = {Proceedings of the ACM SIGPLAN '92 Conference on Programming Language Design and Implementation, {\em in} SIGPLAN Notices},
+  meetingdate2 = {06/17--19/92},
+  meetingdate = {Jun 17--19 1992},
+  keywords = {Bit-vector data flow analyses; Code motion; Computer programming; Data flow analysis; Partial redundancy elimination; Program debugging; Program optimization},
+  title = {Lazy code motion},
+  meetingaddress = {San Francisco, CA, USA},
+  conferenceyear = {1992},
+  author = {Jens Knoop and Oliver Ruething and Bernhard Steffen},
+  coden = {SINODQ},
+  year = {1992},
+}
+
+@article{cocke-kennedy:operator-strength-reduction,
+  number = {11},
+  path = {john-cocke/strength-reduction.pdf},
+  author = {Cocke, John and Kennedy, Ken},
+  journal = {Communications of the ACM},
+  xxxaddress = {New York, NY, USA},
+  xxxpublisher = {ACM},
+  year = {1977},
+  volume = {20},
+  doi = {http://doi.acm.org/10.1145/359863.359888},
+  xxxissn = {0001-0782},
+  pages = {850--856},
+  title = {An Algorithm for Reduction of Operator Strength},
+}
+
+@unpublished{runciman:increasing-prs,
+  note = {Reduceron Memo~50, \url{www.cs.york.ac.uk/fp/reduceron}},
+  title = {Finding and increasing {PRS} candidates},
+  month = {June},
+  author = {Colin Runciman},
+  year = {2010},
 }
 

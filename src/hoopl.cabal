@@ -1,5 +1,6 @@
 Name:                hoopl
-Version:             3.7.13.1
+Version:             3.8.6.1
+-- version 3.8.6.0 is the version that goes with the camera-ready Haskell'10 paper
 Description:         Higher-order optimization library
 License:             BSD3
 License-file:        LICENSE
@@ -11,26 +12,35 @@ Cabal-Version:       >=1.6
 Stability:           alpha
 Synopsis:            A library to support dataflow analysis and optimization
 Category:            Compilers/Interpreters
-Extra-source-files:  README, hoopl.pdf, CHANGES
+Extra-source-files:  README, hoopl.pdf, CHANGES, FAQ
 
 Library
   Build-Depends:     base >= 3 && < 5, containers
   Exposed-modules:   Compiler.Hoopl,
-                       Compiler.Hoopl.Zipper,
-                       Compiler.Hoopl.ZipDataflowNoRG,
-                       Compiler.Hoopl.Pointed
+                     Compiler.Hoopl.Wrappers,
+                     Compiler.Hoopl.Passes.Dominator,
+                     Compiler.Hoopl.Passes.DList,
+--                       Compiler.Hoopl.DataflowFold,
+--                       Compiler.Hoopl.OldDataflow,
+                       Compiler.Hoopl.GHC
   Other-modules:     Compiler.Hoopl.GraphUtil,
                      -- GraphUtil should *never* be seen by clients.
                      -- The remaining modules are hidden *provisionally*
+                       Compiler.Hoopl.Checkpoint,
+                       Compiler.Hoopl.Collections,
                        Compiler.Hoopl.Combinators,
                        Compiler.Hoopl.Dataflow,
                        Compiler.Hoopl.Debug,
                        Compiler.Hoopl.Graph, 
+                       Compiler.Hoopl.Label,
                        Compiler.Hoopl.MkGraph,
-                       Compiler.Hoopl.Fuel, Compiler.Hoopl.Label,
-                       Compiler.Hoopl.Show, Compiler.Hoopl.Util
+                       Compiler.Hoopl.Fuel,
+                       Compiler.Hoopl.Pointed,
+                       Compiler.Hoopl.Shape,
+                       Compiler.Hoopl.Show, 
+                       Compiler.Hoopl.Unique, 
+                       Compiler.Hoopl.Util
                        Compiler.Hoopl.XUtil
-                       Compiler.Hoopl.ZipDataflow
   ghc-options:       -Wall -fno-warn-name-shadowing
 
 
