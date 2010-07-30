@@ -1,0 +1,78 @@
+Andrew W. Appel. 1998. Modern Compiler Implementation. Cambridge
+University Press, Cambridge, UK. Available in three editions: C, Java, and ML.
+
+John Cocke and Ken Kennedy. 1977. An algorithm for
+reduction of operator strength. Communications of the ACM, 20(11): 850--856.
+
+Keith D. Cooper, Timothy J. Harvey, and Ken
+Kennedy. 2001. A simple, fast dominance algorithm. Technical report, Rice
+University. Unpublished report available from http://www.hipersoft.rice.edu/
+grads/publications/dom14.pdf.
+
+Patrick Cousot and Radhia Cousot. 1977 (January).
+Abstract interpretation: A unified lattice model for static analysis of
+programs by construction or approximation of fixpoints. In Conference Record of
+the 4th ACM Symposium on Principles of Programming Languages, pages 238--252.
+
+Patrick Cousot and Radhia Cousot. 1979 (January).
+Systematic design of program analysis frameworks. In Conference Record of the
+6th Annual ACM Symposium on Principles of Programming Languages, pages 269--282.
+
+John B. Kam and Jeffrey D. Ullman. 1976. Global data flow
+analysis and iterative algorithms. Journal of the ACM, 23(1):158--171.
+
+John B. Kam and Jeffrey D. Ullman. 1977. Monotone data
+flow analysis frameworks. Acta Informatica, 7:305--317.
+
+Gary A. Kildall. 1973 (October). A unified approach to global
+program optimization. In Conference Record of the ACM Symposium on Principles
+of Programming Languages, pages 194--206.
+
+Jens Knoop, Oliver Ruething, and Bernhard
+Steffen. 1992. Lazy code motion. Proceedings of the ACM SIGPLAN '92 Conference
+on Programming Language Design and Implementation, in SIGPLAN Notices, 27
+(7):224--234.
+
+Sorin Lerner, David Grove, and Craig
+Chambers. 2002 (January). Composing dataflow analyses and transformations.
+Conference Record of the 29th Annual ACM Symposium on Principles of Programming
+Languages, in SIGPLAN Notices, 31 (1):270--282.
+
+Thomas J. Marlowe and Barbara G. Ryder. 1990.
+Properties of data flow frameworks: a unified model. Acta Informatica, 28
+(2):121--163.
+
+Steven S. Muchnick. 1997. Advanced compiler design and
+implementation. Morgan Kaufmann, San Mateo, CA.
+
+Necula, McPeak, Rahul, and Weimer George C. Necula, Scott
+McPeak, Shree Prakash Rahul, and Westley Weimer. 2002. CIL: Intermediate
+language and tools for analysis and transformation of C programs. In CC '02:
+Proceedings of the 11th International Conference on Compiler Construction,
+pages 213--228.
+
+Norman Ramsey and João Dias. 2005 (September). An
+applicative control-flow graph based on Huet's zipper. In ACM SIGPLAN Workshop
+on ML, pages 101--122.
+
+Colin Runciman. 2010 (June). Finding and increasing PRS
+candidates. Reduceron Memo 50, www.cs.york.ac.uk/fp/reduceron.
+
+David A. Schmidt. 1998. Data flow analysis is model checking of
+abstract interpretations. In ACM, editor, Conference Record of the 25th Annual
+ACM Symposium on Principles of Programming Languages, pages 38--48.
+
+Bernhard Steffen. 1991. Data flow analysis as model checking. In
+TACS '91: Proceedings of the International Conference on Theoretical Aspects of
+Computer Software, pages 346--365.
+
+Vallée-Rai, Gagnon, Hendren, Lam, Pominville, and
+Sundaresan Raja Vallée-Rai, Etienne Gagnon, Laurie J. Hendren, Patrick Lam,
+Patrice Pominville, and Vijay Sundaresan. 2000. Optimizing Java bytecode using
+the Soot framework: Is it feasible? In CC '00: Proceedings of the 9th
+International Conference on Compiler Construction, pages 18--34.
+
+David B. Whalley. 1994 (September). Automatic isolation of
+compiler errors. ACM Transactions on Programming Languages and Systems, 16
+(5):1648--1659.
+
