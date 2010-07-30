@@ -43,7 +43,7 @@ thenFwdRw rw3 rw3' = wrapFR2 thenrw rw3 rw3'
  where
   thenrw rw rw' n f = rw n f >>= fwdRes
      where fwdRes Nothing   = rw' n f
-           fwdRes (Just gr) = return $ Just $ faddrw rw3' gr
+           fwdRes (Just gr) = return $ Just $ fadd_rw rw3' gr
 
 -- @ start iterf.tex
 iterFwdRw :: Monad m 
@@ -51,8 +51,8 @@ iterFwdRw :: Monad m
           -> FwdRewrite m n f
 -- @ end iterf.tex
 iterFwdRw rw3 = wrapFR iter rw3
- where iter rw n = (liftM $ liftM $ faddrw (iterFwdRw rw3)) . rw n
-       _iter = frewrite_cps (return . Just . faddrw (iterFwdRw rw3)) (return Nothing)
+ where iter rw n = (liftM $ liftM $ fadd_rw (iterFwdRw rw3)) . rw n
+       _iter = frewrite_cps (return . Just . fadd_rw (iterFwdRw rw3)) (return Nothing)
 
 -- | Function inspired by 'rew' in the paper
 frewrite_cps :: Monad m
@@ -70,11 +70,11 @@ frewrite_cps j n rw node f =
 
 
 -- | Function inspired by 'add' in the paper
-faddrw :: Monad m
+fadd_rw :: Monad m
        => FwdRewrite m n f
        -> (Graph n e x, FwdRewrite m n f)
        -> (Graph n e x, FwdRewrite m n f)
-faddrw rw2 (g, rw1) = (g, rw1 `thenFwdRw` rw2)
+fadd_rw rw2 (g, rw1) = (g, rw1 `thenFwdRw` rw2)
 
 ----------------------------------------------------------------
 
