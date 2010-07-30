@@ -11,7 +11,7 @@ module Compiler.Hoopl.Dataflow
   , wrapFR, wrapFR2
   , BwdPass(..), BwdTransfer, mkBTransfer, mkBTransfer3, getBTransfer3
   , wrapBR, wrapBR2
-  , BwdRew(..),  BwdRewrite,  mkBRewrite,  mkBRewrite3,  getBRewrite3, noBwdRewrite
+  , BwdRewrite,  mkBRewrite,  mkBRewrite3,  getBRewrite3, noBwdRewrite
   , analyzeAndRewriteFwd,  analyzeAndRewriteBwd
   )
 where
@@ -311,15 +311,16 @@ newtype BwdTransfer n f
                      ) }
 newtype BwdRewrite m n f 
   = BwdRewrite3 { getBRewrite3 ::
-                    ( n C O -> f          -> m (Maybe (BwdRew m n f C O))
-                    , n O O -> f          -> m (Maybe (BwdRew m n f O O))
-                    , n O C -> FactBase f -> m (Maybe (BwdRew m n f O C))
+                    ( n C O -> f          -> m (Maybe (Graph n C O, BwdRewrite m n f))
+                    , n O O -> f          -> m (Maybe (Graph n O O, BwdRewrite m n f))
+                    , n O C -> FactBase f -> m (Maybe (Graph n O C, BwdRewrite m n f))
                     ) }
-data BwdRew m n f e x = BwdRew (Graph n e x) (BwdRewrite m n f)
 
-wrapBR :: (forall e x . Shape x 
-                      -> (n  e x -> Fact x f  -> m  (Maybe (BwdRew m  n  f  e x)))
-                      -> (n' e x -> Fact x f' -> m' (Maybe (BwdRew m' n' f' e x))))
+wrapBR :: (forall e x .
+                Shape x 
+             -> (n  e x -> Fact x f  -> m  (Maybe (Graph n  e x, BwdRewrite m  n  f )))
+             -> (n' e x -> Fact x f' -> m' (Maybe (Graph n' e x, BwdRewrite m' n' f')))
+          )
             -- ^ This argument may assume that any function passed to it
             -- respects fuel, and it must return a result that respects fuel.
        -> BwdRewrite m  n  f 
@@ -328,9 +329,9 @@ wrapBR wrap (BwdRewrite3 (f, m, l)) =
   BwdRewrite3 (wrap Open f, wrap Open m, wrap Closed l)
 
 wrapBR2 :: (forall e x . Shape x
-                       -> (n1 e x -> Fact x f1 -> m1 (Maybe (BwdRew m1 n1 f1 e x)))
-                       -> (n2 e x -> Fact x f2 -> m2 (Maybe (BwdRew m2 n2 f2 e x)))
-                       -> (n3 e x -> Fact x f3 -> m3 (Maybe (BwdRew m3 n3 f3 e x))))
+            -> (n1 e x -> Fact x f1 -> m1 (Maybe (Graph n1 e x, BwdRewrite m1 n1 f1)))
+            -> (n2 e x -> Fact x f2 -> m2 (Maybe (Graph n2 e x, BwdRewrite m2 n2 f2)))
+            -> (n3 e x -> Fact x f3 -> m3 (Maybe (Graph n3 e x, BwdRewrite m3 n3 f3))))
             -- ^ This argument may assume that any function passed to it
             -- respects fuel, and it must return a result that respects fuel.
         -> BwdRewrite m1 n1 f1
@@ -357,7 +358,7 @@ mkBRewrite3 :: FuelMonad m
             -> BwdRewrite m n f
 mkBRewrite3 f m l = BwdRewrite3 (lift f, lift m, lift l)
   where lift rw node fact = liftM (liftM asRew) (withFuel =<< rw node fact)
-        asRew g = BwdRew g noBwdRewrite
+        asRew g = (g, noBwdRewrite)
 
 noBwdRewrite :: Monad m => BwdRewrite m n f
 noBwdRewrite = BwdRewrite3 (noRewrite, noRewrite, noRewrite)
@@ -422,7 +423,7 @@ arbGraph pass entries = graph
            ; case bwdres of
                Nothing -> return (singletonDG entry_f n, entry_f)
                             where entry_f = btransfer pass n f
-               Just (BwdRew g rw) ->
+               Just (g, rw) ->
                           do { let pass' = pass { bp_rewrite = rw }
                              ; (g, f) <- arbGraph pass' (fwdEntryLabel n) g f
                              ; return (g, bwdEntryFact (bp_lattice pass) n f)} }
@@ -847,7 +848,8 @@ class ShapeLifter e x where
 -- @ end node.tex
  bwdEntryFact :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
  btransfer    :: BwdPass m n f -> n e x -> Fact x f -> f
- brewrite     :: BwdPass m n f -> n e x -> Fact x f -> m (Maybe (BwdRew m n f e x))
+ brewrite     :: BwdPass m n f -> n e x
+              -> Fact x f -> m (Maybe (Graph n e x, BwdRewrite m n f))
 
 instance ShapeLifter C O where
   singletonDG f = gUnitCO . DBlock f . BFirst

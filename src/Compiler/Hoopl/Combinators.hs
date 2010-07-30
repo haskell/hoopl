@@ -95,13 +95,20 @@ thenBwdRw rw1 rw2 = wrapBR2 f rw1 rw2
   where f _ rw1 rw2' n f = do
           res1 <- rw1 n f
           case res1 of
-            Nothing              -> rw2' n f
-            Just (BwdRew g rw1a) -> return $ Just $ BwdRew g (rw1a `thenBwdRw` rw2)
+            Nothing -> rw2' n f
+            Just gr -> return $ Just $ badd_rw rw2 gr
 
 iterBwdRw :: Monad m => BwdRewrite m n f -> BwdRewrite m n f
 iterBwdRw rw = wrapBR f rw
-  where f _ rw' n f = liftM (liftM iterRewrite) (rw' n f)
-        iterRewrite (BwdRew g rw2) = BwdRew g (rw2 `thenBwdRw` iterBwdRw rw)
+  where f _ rw' n f = liftM (liftM (badd_rw (iterBwdRw rw))) (rw' n f)
+
+-- | Function inspired by 'add' in the paper
+badd_rw :: Monad m
+       => BwdRewrite m n f
+       -> (Graph n e x, BwdRewrite m n f)
+       -> (Graph n e x, BwdRewrite m n f)
+badd_rw rw2 (g, rw1) = (g, rw1 `thenBwdRw` rw2)
+
 
 -- @ start pairf.tex
 pairFwd :: Monad m
@@ -141,22 +148,25 @@ pairBwd pass1 pass2 = BwdPass lattice transfer rewrite
         (tf2, tm2, tl2) = getBTransfer3 (bp_transfer pass2)
     rewrite = lift fst (bp_rewrite pass1) `thenBwdRw` lift snd (bp_rewrite pass2) 
       where
-        lift :: forall f1 .
+       lift :: forall f1 .
                 ((f, f') -> f1) -> BwdRewrite m n f1 -> BwdRewrite m n (f, f')
-        lift proj = wrapBR project
-            where project :: forall e x . Shape x 
-                      -> (n e x -> Fact x f1     -> m (Maybe (BwdRew m n f1     e x)))
-                      -> (n e x -> Fact x (f,f') -> m (Maybe (BwdRew m n (f,f') e x)))
-                  project Open = 
-                     \rw n pair -> liftM (liftM repair) $ rw n (       proj pair)
-                  project Closed = 
-                     \rw n pair -> liftM (liftM repair) $ rw n (mapMap proj pair)
-                  repair (BwdRew g rw') = BwdRew g (lift proj rw')
-                    -- XXX specialize repair so that the cost
-                    -- of discriminating is one per combinator not one
-                    -- per rewrite
+       lift proj = wrapBR project
+        where project :: forall e x . Shape x 
+               -> (n e x ->
+                       Fact x f1     -> m (Maybe (Graph n e x, BwdRewrite m n f1)))
+               -> (n e x ->
+                       Fact x (f,f') -> m (Maybe (Graph n e x, BwdRewrite m n (f,f'))))
+              project Open = 
+                 \rw n pair -> liftM (liftM repair) $ rw n (       proj pair)
+              project Closed = 
+                 \rw n pair -> liftM (liftM repair) $ rw n (mapMap proj pair)
+              repair (g, rw') = (g, lift proj rw')
+                -- XXX specialize repair so that the cost
+                -- of discriminating is one per combinator not one
+                -- per rewrite
 
-pairLattice :: forall f f' . DataflowLattice f -> DataflowLattice f' -> DataflowLattice (f, f')
+pairLattice :: forall f f' .
+               DataflowLattice f -> DataflowLattice f' -> DataflowLattice (f, f')
 pairLattice l1 l2 =
   DataflowLattice
     { fact_name = fact_name l1 ++ " x " ++ fact_name l2

@@ -19,8 +19,7 @@ where
 import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Combinators
-import Compiler.Hoopl.Dataflow hiding ( BwdRew(..)
-                                      , wrapFR, wrapFR2, wrapBR, wrapBR2
+import Compiler.Hoopl.Dataflow hiding ( wrapFR, wrapFR2, wrapBR, wrapBR2
                                       )
 import Compiler.Hoopl.Debug
 import Compiler.Hoopl.Fuel hiding (withFuel, getFuel, setFuel, FuelMonadT)
