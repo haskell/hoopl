@@ -28,6 +28,9 @@ bodyfun.tex
 node.tex
 cat.tex
 block.tex
+fpimp.tex
+txfb.tex
+update.tex
 
 
 *.log

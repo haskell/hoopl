@@ -73,7 +73,7 @@ comb1.tex iterf.tex pairf.tex:D: ./xsource $HOOPL/Combinators.hs
 
 dfopt.dvi: fptype.tex bodyfun.tex block.tex
 
-dfoptdu.tex: bodyfun.tex fptype.tex
+dfoptdu.tex: bodyfun.tex fptype.tex update.tex fpimp.tex txfb.tex
 
-block.tex cat.tex bodyfun.tex fptype.tex dg.tex node.tex:D: ./xsource $HOOPL/Dataflow.hs
+txfb.tex block.tex cat.tex bodyfun.tex update.tex fptype.tex fpimp.tex dg.tex node.tex:D: ./xsource $HOOPL/Dataflow.hs
 	lua ./xsource -4 $HOOPL/Dataflow.hs

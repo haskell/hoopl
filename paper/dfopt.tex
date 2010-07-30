@@ -3660,7 +3660,6 @@ extended visits to the third author.
 % don't omit factBaseLabels :: FactBase f -> [Label]
 % don't omit extendFactBase :: FactBase f -> Label -> f -> FactBase f
 % don't omit extendLabelSet :: LabelSet -> Label -> LabelSet
-% don't omit lookupFact :: FactBase f -> Label -> Maybe f
 % don't omit factBaseList :: FactBase f -> [(Label, f)]
 
 %%  \section{Code for \textmd{\texttt{fixpoint}}}
@@ -3866,6 +3865,96 @@ listed in Appendix~\ref{sec:prelude}.
 
 
 \endgroup
+
+
+\section{Computation of fixed points}
+
+Function \verb@updateFact@ updates the current \verb@FactBase@ and
+sets the \verb@ChangeFlag@.
+
+\smallverbatiminput{update}
+% defn updateFact
+% local lat
+% local lbl
+% local lbls
+% local new_fact
+% local cha
+% local cha2
+% local res_fact
+% local fbase
+% local new_fbase
+% local new_fact_debug
+% local old_fact
+% local join
+
+\vfilbreak[1in]
+
+
+Datatype \verb@TxFactBase@ 
+accumulates facts (and the transformed code) during the fixpoint
+iteration.
+
+\smallverbatiminput{txfb}
+% defn TxFactBase
+% defn TxFB
+% defn tfb_cha
+% defn tfb_fbase
+% defn tfb_lbls
+% defn tfb_rg
+
+
+\smallverbatiminput{fpimp}
+% local direction
+% local blocks
+% local tagged_blocks
+% local is_fwd
+% local tag
+% local tx_blocks
+% local blk
+% local blks
+% local cha'
+% local fbase'
+% local init_tx
+% local tx_fb
+% omit dgnilC :: DG f n C C
+% omit LabelSet :: *
+% local lbls'
+% local loop
+% local rg
+% local tx_block
+% local out_facts
+% local in_lbls
+
+% omit lookupFact :: FactBase f -> Label -> Maybe f
+% omit mapDeleteList :: [Label] -> LabelMap a -> LabelMap a
+% omit mapFoldWithKey :: (Label -> a -> b -> b) -> b -> LabelMap a -> b
+% omit mapInsert :: Label -> a -> LabelMap a -> LabelMap a
+% omit mapMember :: Label -> LabelMap a -> Bool
+
+% omit setEmpty :: LabelSet
+% omit setFromList :: [Label] -> LabelSet
+% omit setMember :: Label -> LabelSet -> Bool
+% omit setUnion :: LabelSet -> LabelSet -> LabelSet
+
+Here are some of the invariants of the \verb@TxFactBase@ used by algorithm:
+\begin{itemize} 
+\item The current \verb@FactBase@,  \verb@tfb_fbase@, increases monotonically.
+\item 
+During an iteration,
+\verb@tfb_lbls@ is the set of in-labels of all blocks that have
+  been processed so far this sweep, including the block that is
+  currently being processed.  
+It is a
+  subset of the Labels of the \emph{original} (not transformed) blocks.
+\item 
+During an iteration,
+\verb@tfb_cha@ is set to \verb@SomeChange@ if and only if we decide another
+iteration will be needed.
+It is set if the fact in \verb@tfb_fbase@ for a block~@L@ changes
+\emph{and}  \verb@L@~is in \verb@tfb_lbls@.
+(Until a label enters \verb@tfb_lbls@, its fact in \verb@tfb_fbase@
+  has not been read, hence it cannot affect the outcome.)
+\end{itemize}
 
 
 \iffalse

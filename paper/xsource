@@ -11,9 +11,13 @@ local outputs = { } -- map filename to list of lines
 setmetatable(outputs, { __index = function(t, k) local u = {}; t[k] = u; return u end })
 
 local function add_modified_line(lines, l)
-  if l:find '%{ fact_name%s+=' then
+  if l:find '%{ fact_name%s+='
+    or l:find '^%s*%-%- See Note '
+  then
     return
   end
+  l = l:gsub('%s*%-%- Note %[.*$', '')
+  l = l:gsub('%s*%-%- I do not understand.*$', '')
   l = l:gsub('^(%s*),( fact_bot)', '%1{%2')
 --  l = l:gsub('^(%s*, fact_join = .*)$', '%1 }')
   l = l:gsub('%s*%-%-%s%^.*$', '')

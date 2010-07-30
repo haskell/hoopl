@@ -499,13 +499,15 @@ distinguishedEntryFact g f = maybe g
 -----------------------------------------------------------------------------
 --      fixpoint: finding fixed points
 -----------------------------------------------------------------------------
+-- @ start txfb.tex
 data TxFactBase n f
   = TxFB { tfb_fbase :: FactBase f
          , tfb_rg    :: DG f n C C -- Transformed blocks
          , tfb_cha   :: ChangeFlag
          , tfb_lbls  :: LabelSet }
+-- @ end txfb.tex
      -- See Note [TxFactBase invariants]
-
+-- @ start update.tex
 updateFact :: DataflowLattice f -> LabelSet
            -> Label -> f -> (ChangeFlag, FactBase f)
            -> (ChangeFlag, FactBase f)
@@ -524,6 +526,7 @@ updateFact lat lbls lbl new_fact (cha, fbase)
                    (OldFact old_fact) (NewFact new_fact)
                (_, new_fact_debug) = join (fact_bot lat)
     new_fbase = mapInsert lbl res_fact fbase
+-- @ end update.tex
 
 {-  this type is too general for the paper :-( 
 fixpoint :: forall m block n f. 
@@ -619,6 +622,7 @@ fixpoint :: forall m n f. (CheckpointMonad m, NonLocal n)
  -> [Block n C C]
  -> (Fact C f -> m (DG f n C C, Fact C f))
 -- @ end fptype.tex
+-- @ start fpimp.tex
 fixpoint direction lat do_block blocks init_fbase
   = do { tx_fb <- loop init_fbase
        ; return (tfb_rg tx_fb, 
@@ -677,7 +681,7 @@ fixpoint direction lat do_block blocks init_fbase
                SomeChange 
                  -> do { restart s
                        ; loop (tfb_fbase tx_fb) } }
-           
+-- @ end fpimp.tex           
 
 {-
     loop fbase = case changedFactBase iteration of
