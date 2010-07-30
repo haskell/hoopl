@@ -1,5 +1,5 @@
 \newif\ifhaskellworkshop\haskellworkshoptrue
-\newif\ifbanner\bannerfalse
+\newif\ifbanner\bannertrue
 
 
 \iffalse
@@ -199,6 +199,18 @@ higher-rank any longer).
 
 \makeatletter
 
+\def\ps@plain{%
+  \def \@evenfoot {\scriptsize \hfil \thepage \hfil}%
+  \let\@oddfoot\@evenfoot
+}
+
+\let\old@settitlebanner=\@settitlebanner
+\def\@settitlebanner{\begingroup
+  \@setflag\@preprint=\@true
+  \old@settitlebanner
+  \endgroup
+}
+
 \def \@copyrightspace {%
  \@float{copyrightbox}[b]%
  \vbox to 0.8in{%  less than 1in, please
@@ -397,11 +409,9 @@ higher-rank any longer).
 %\title{Implementing Dataflow Analysis and Optimization by Lifting Node Functions to Basic Blocks and Control-Flow Graphs}
 %\subtitle{Programming pearl}
 
-\ifbanner
 \titlebanner{\textsf{\mdseries\itshape
-Reprinted from the 2010 ACM Haskell Symposium.
+To appear in the 2010 ACM Haskell Symposium (without appendices).
 }}
-\fi
 
 \conferenceinfo{Haskell'10,} {September 30, 2010, Baltimore, Maryland, USA.}
 \CopyrightYear{2010}
