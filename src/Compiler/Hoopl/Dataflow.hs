@@ -29,7 +29,7 @@ import Compiler.Hoopl.Label
 import Compiler.Hoopl.Util
 
 -----------------------------------------------------------------------------
---		DataflowLattice
+--              DataflowLattice
 -----------------------------------------------------------------------------
 
 data DataflowLattice a = DataflowLattice  
@@ -67,7 +67,7 @@ mkFactBase lattice = foldl add mapEmpty
 
 
 -----------------------------------------------------------------------------
---		Analyze and rewrite forward: the interface
+--              Analyze and rewrite forward: the interface
 -----------------------------------------------------------------------------
 
 data FwdPass m n f
@@ -267,7 +267,7 @@ arfGraph pass entries = graph
 
 
                     -- Outgoing factbase is restricted to Labels *not* in
-    		    -- in the Body; the facts for Labels *in*
+                    -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
 -- @ start bodyfun.tex
     body entries blockmap init_fbase
@@ -295,7 +295,7 @@ forwardBlockList :: (NonLocal n, LabelsPtr entry)
 forwardBlockList entries blks = postorder_dfs_from blks entries
 
 -----------------------------------------------------------------------------
---		Backward analysis and rewriting: the interface
+--              Backward analysis and rewriting: the interface
 -----------------------------------------------------------------------------
 
 data BwdPass m n f
@@ -371,7 +371,7 @@ mkBRewrite f = mkBRewrite3 f f f
 
 
 -----------------------------------------------------------------------------
---		Backward implementation
+--              Backward implementation
 -----------------------------------------------------------------------------
 
 arbGraph :: forall m n f e x .
@@ -446,7 +446,7 @@ arbGraph pass entries = graph
      -- joinInFacts adds debugging information
 
                     -- Outgoing factbase is restricted to Labels *not* in
-    		    -- in the Body; the facts for Labels *in*
+                    -- in the Body; the facts for Labels *in*
                     -- the Body are in the 'DG f n C C'
     body entries blockmap init_fbase
       = fixpoint Bwd (bp_lattice pass) do_block blocks init_fbase
@@ -551,8 +551,9 @@ _fixpoint direction lat do_block blocks init_fbase
        ; return (tfb_rg tx_fb, 
                  map (fst . fst) tagged_blocks 
                     `mapDeleteList` tfb_fbase tx_fb ) }
-	     -- The successors of the Graph are the the Labels for which
-	     -- we have facts, that are *not* in the blocks of the graph
+    -- The successors of the Graph are the the Labels 
+    -- for which we have facts and which are *not* in
+    -- the blocks of the graph
   where
     tagged_blocks = map tag blocks
     is_fwd = case direction of { Fwd -> True; 
@@ -577,7 +578,7 @@ _fixpoint direction lat do_block blocks init_fbase
         tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                     , tfb_rg = blks, tfb_cha = cha })
       | is_fwd && not (lbl `mapMember` fbase)
-      = return (tx_fb {tfb_lbls = lbls'})	-- Note [Unreachable blocks]
+      = return (tx_fb {tfb_lbls = lbls'})       -- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha',fbase') 
@@ -628,8 +629,9 @@ fixpoint direction lat do_block blocks init_fbase
        ; return (tfb_rg tx_fb, 
                  map (fst . fst) tagged_blocks 
                     `mapDeleteList` tfb_fbase tx_fb ) }
-	     -- The successors of the Graph are the the Labels for which
-	     -- we have facts, that are *not* in the blocks of the graph
+    -- The successors of the Graph are the the Labels 
+    -- for which we have facts and which are *not* in
+    -- the blocks of the graph
   where
     tagged_blocks = map tag blocks
     is_fwd = case direction of { Fwd -> True; 
@@ -654,16 +656,17 @@ fixpoint direction lat do_block blocks init_fbase
         tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
                     , tfb_rg = blks, tfb_cha = cha })
       | is_fwd && not (lbl `mapMember` fbase)
-      = return (tx_fb {tfb_lbls = lbls'})	-- Note [Unreachable blocks]
+      = return (tx_fb {tfb_lbls = lbls'})       -- Note [Unreachable blocks]
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
-           ; let (cha',fbase') 
-                   = mapFoldWithKey (updateFact lat lbls) 
-                          (cha,fbase) out_facts
-           ; return (TxFB { tfb_lbls  = lbls'
-                          , tfb_rg    = rg `dgSplice` blks
-                          , tfb_fbase = fbase'
-                          , tfb_cha = cha' }) }
+           ; let (cha', fbase') = mapFoldWithKey
+                                  (updateFact lat lbls) 
+                                  (cha,fbase) out_facts
+           ; return $
+               TxFB { tfb_lbls  = lbls'
+                    , tfb_rg    = rg `dgSplice` blks
+                    , tfb_fbase = fbase'
+                    , tfb_cha = cha' } }
       where
         lbls' = lbls `setUnion` setFromList in_lbls
         
@@ -774,7 +777,7 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 -}
 
 -----------------------------------------------------------------------------
---	DG: an internal data type for 'decorated graphs'
+--      DG: an internal data type for 'decorated graphs'
 --          TOTALLY internal to Hoopl; each block is decorated with a fact
 -----------------------------------------------------------------------------
 

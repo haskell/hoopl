@@ -3774,40 +3774,42 @@ listed in Appendix~\ref{sec:prelude}.
 
 \newcommand\dropit[3][]{}
 
+\newcommand\ixcr{\\[0pt plus 0.3pt]}
+
 \newcommand\hsprelude[2]{\noindent
-  \texttt{#1} defined in the Haskell Prelude\\}
+  \texttt{#1} defined in the Haskell Prelude\ixcr}
 \let\hsprelude\dropit
 
 \newcommand\hspagedef[3][]{\noindent
-  \texttt{#2} defined on page~\pageref{#3}.\\}
+  \texttt{#2} defined on page~\pageref{#3}.\ixcr}
 \newcommand\omithspagedef[3][]{\noindent
-  \texttt{#2} not shown (but see page~\pageref{#3}).\\}
+  \texttt{#2} not shown (but see page~\pageref{#3}).\ixcr}
 \newcommand\omithsfigdef[3][]{\noindent
-  \texttt{#2} not shown (but see Figure~\ref{#3} on page~\pageref{#3}).\\}
+  \texttt{#2} not shown (but see Figure~\ref{#3} on page~\pageref{#3}).\ixcr}
 \newcommand\hsfigdef[3][]{%
   \noindent
   \ifx!#1!%
-    \texttt{#2} defined in Figure~\ref{#3} on page~\pageref{#3}.\\
+    \texttt{#2} defined in Figure~\ref{#3} on page~\pageref{#3}.\ixcr
   \else
-    \texttt{#2} defined on \lineref{#1} of Figure~\ref{#3} on page~\pageref{#3}.\\
+    \texttt{#2} defined on \lineref{#1} of Figure~\ref{#3} on page~\pageref{#3}.\ixcr
   \fi
 }    
 \newcommand\hstabdef[3][]{%
   \noindent
   \ifx!#1!
-    \texttt{#2} defined in Table~\ref{#3} on page~\pageref{#3}.\\
+    \texttt{#2} defined in Table~\ref{#3} on page~\pageref{#3}.\ixcr
   \else
-    \texttt{#2} defined on \lineref{#1} of Table~\ref{#3} on page~\pageref{#3}.\\
+    \texttt{#2} defined on \lineref{#1} of Table~\ref{#3} on page~\pageref{#3}.\ixcr
   \fi
 }    
 \newcommand\hspagedefll[3][]{\noindent
-  \texttt{#2} {let}- or $\lambda$-bound on page~\pageref{#3}.\\}
+  \texttt{#2} {let}- or $\lambda$-bound on page~\pageref{#3}.\ixcr}
 \newcommand\hsfigdefll[3][]{%
   \noindent
   \ifx!#1!%
-    \texttt{#2} {let}- or $\lambda$-bound in Figure~\ref{#3} on page~\pageref{#3}.\\
+    \texttt{#2} {let}- or $\lambda$-bound in Figure~\ref{#3} on page~\pageref{#3}.\ixcr
   \else
-    \texttt{#2} {let}- or $\lambda$-bound on \lineref{#1} of Figure~\ref{#3} on page~\pageref{#3}.\\
+    \texttt{#2} {let}- or $\lambda$-bound on \lineref{#1} of Figure~\ref{#3} on page~\pageref{#3}.\ixcr
   \fi
 }    
 
@@ -3896,7 +3898,7 @@ sets the \verb@ChangeFlag@.
 % local old_fact
 % local join
 
-\vfilbreak[1in]
+\vfilbreak[1.5in]
 
 
 Datatype \verb@TxFactBase@ 
@@ -3944,6 +3946,8 @@ iteration.
 % omit setFromList :: [Label] -> LabelSet
 % omit setMember :: Label -> LabelSet -> Bool
 % omit setUnion :: LabelSet -> LabelSet -> LabelSet
+
+\vfilbreak[0.5in]
 
 Here are some of the invariants of the \verb@TxFactBase@ used by algorithm:
 \begin{itemize} 
