@@ -42,6 +42,7 @@ Library
                        Compiler.Hoopl.Util
                        Compiler.Hoopl.XUtil
   ghc-options:       -Wall -fno-warn-name-shadowing
+  hs-source-dirs:  src
 
 
 Source-repository head
