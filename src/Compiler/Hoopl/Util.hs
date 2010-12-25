@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, ScopedTypeVariables, FlexibleInstances, RankNTypes #-}
+{-# LANGUAGE GADTs, ScopedTypeVariables, FlexibleInstances, RankNTypes, TypeFamilies #-}
 
 module Compiler.Hoopl.Util
   ( gUnitOO, gUnitOC, gUnitCO, gUnitCC
@@ -189,10 +189,12 @@ postorder_dfs_from_except blocks b visited =
             let cont' acc visited = cont (block:acc) visited in
             vchildren (get_children block) cont' acc (setInsert id visited)
       where id = entryLabel block
+   vchildren :: forall a. [block C C] -> ([block C C] -> LabelSet -> a) -> [block C C] -> LabelSet -> a
    vchildren bs cont acc visited = next bs acc visited
       where next children acc visited =
                 case children of []     -> cont acc visited
                                  (b:bs) -> vnode b (next bs) acc visited
+   get_children :: forall l. LabelsPtr l => l -> [block C C]
    get_children block = foldr add_id [] $ targetLabels block
    add_id id rst = case lookupFact id blocks of
                       Just b -> b : rst
@@ -226,6 +228,7 @@ preorder_dfs_from_except blocks b visited =
                       else do mark (entryLabel b)
                               bs <- children $ get_children b
                               return $ b `cons` bs
+        get_children :: forall l. LabelsPtr l => l -> [block C C]
         get_children block = foldr add_id [] $ targetLabels block
         add_id id rst = case lookupFact id blocks of
                           Just b -> b : rst
@@ -241,7 +244,8 @@ labelsDefined :: forall block n e x . NonLocal (block n) => Graph' block n e x -
 labelsDefined GNil      = setEmpty
 labelsDefined (GUnit{}) = setEmpty
 labelsDefined (GMany _ body x) = mapFoldWithKey addEntry (exitLabel x) body
-  where addEntry label _ labels = setInsert label labels
+  where addEntry :: forall a. ElemOf LabelSet -> a -> LabelSet -> LabelSet
+        addEntry label _ labels = setInsert label labels
         exitLabel :: MaybeO x (block n C O) -> LabelSet
         exitLabel NothingO  = setEmpty
         exitLabel (JustO b) = setSingleton (entryLabel b)
@@ -250,7 +254,8 @@ labelsUsed :: forall block n e x. NonLocal (block n) => Graph' block n e x -> La
 labelsUsed GNil      = setEmpty
 labelsUsed (GUnit{}) = setEmpty
 labelsUsed (GMany e body _) = mapFold addTargets (entryTargets e) body 
-  where addTargets block labels = setInsertList (successors block) labels
+  where addTargets :: forall e. block n e C -> LabelSet -> LabelSet
+        addTargets block labels = setInsertList (successors block) labels
         entryTargets :: MaybeO e (block n O C) -> LabelSet
         entryTargets NothingO = setEmpty
         entryTargets (JustO b) = addTargets b setEmpty

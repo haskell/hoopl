@@ -103,12 +103,17 @@ instance EvalTarget Value where
               liftOp Gte  = b (>=)
               liftOp Lte  = b (<=)
               i = liftX I fromI
-              b = liftX B fromI
+              b = liftX B fromB
+
+              liftX :: Monad m => (a -> b) -> (b -> m a) -> (a -> a -> a) -> b -> b -> m b
               liftX up dwn = \ op x y -> do v_x <- dwn x
                                             v_y <- dwn y
                                             return $ up $ op v_x v_y
               fromI (I x) = return x
               fromI (B _) = throwError "fromI: got a B"
+              
+              fromB (I _) = throwError "fromB: got an I"
+              fromB (B x) = return x
 
 -- I'm under no delusion that the following example is useful,
 -- but it demonstrates how the evaluator can use a new kind

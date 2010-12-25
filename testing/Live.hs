@@ -32,7 +32,11 @@ liveness = mkBTransfer live
     live n@(Cond _ tl fl)  f = addUses (fact f tl `S.union` fact f fl) n
     live n@(Call vs _ _ l) f = addUses (fact f l `S.difference` S.fromList vs) n
     live n@(Return _)      _ = addUses (fact_bot liveLattice) n
+
+    fact :: FactBase (S.Set Var) -> Label -> Live
     fact f l = fromMaybe S.empty $ lookupFact l f
+    
+    addUses :: S.Set Var -> Insn e x -> Live
     addUses = fold_EN (fold_EE addVar)
     addVar s (Var v) = S.insert v s
     addVar s _       = s

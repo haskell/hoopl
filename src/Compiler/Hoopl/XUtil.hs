@@ -160,7 +160,7 @@ joinOutFacts lat n f = foldr join (fact_bot lat) facts
 -- operation on the map can be expressed in terms of the join on each
 -- element of the codomain:
 joinMaps :: Ord k => JoinFun v -> JoinFun (M.Map k v)
-joinMaps eltJoin l (OldFact old) (NewFact new) = M.foldWithKey add (NoChange, old) new
+joinMaps eltJoin l (OldFact old) (NewFact new) = M.foldrWithKey add (NoChange, old) new
   where 
     add k new_v (ch, joinmap) =
       case M.lookup k joinmap of
@@ -193,6 +193,7 @@ tfFoldBlock (f, m, l) bl bo = block bl
         oblock (BLast   n)       = l n
         oblock (b1 `BCat`    b2) = oblock b1 `cat` oblock b2
         oblock (n `BTail` b2)    = m n       `cat` oblock b2
+        cat :: forall b c a. (a -> b) -> (b -> c) -> a -> c
         cat f f' = f' . f
 
 
@@ -254,6 +255,7 @@ foldBlockNodesF3'' trips = block
         foldOO (BCat b1 b2) = foldOO b1 `cat` foldOO b2
         foldOC (BLast n)    = fl trips (JustC n)
         foldOC (BTail n b)  = fm trips n `cat` foldOC b
+        cat :: forall b c a. (a -> b) -> (b -> c) -> a -> c
         f `cat` g = g . f 
 
 data ScottBlock n a = ScottBlock
@@ -273,6 +275,7 @@ scottFoldBlock funs = block
         block (BCat    b1 b2) = block b1 `cat` block b2
         block (BHead   b  n)  = block b  `cat` sb_mid funs n
         block (BTail   n  b)  = sb_mid funs n `cat` block b
+        cat :: forall e x. a e O -> a O x -> a e x
         cat = sb_cat funs
 
 newtype NodeList n e x
@@ -287,6 +290,12 @@ fbnf3 (ff, fm, fl) block = unFF3 $ scottFoldBlock (ScottBlock f m l cat) block
     where f n = FF3 $ ff n
           m n = FF3 $ fm n
           l n = FF3 $ fl n
+          -- XXX Ew.
+          cat :: forall t t1 t2 t3 t4 t5 t6 t7 t8 t9 a b c e x.
+                 (IndexedCO x c b ~ IndexedCO t9 t7 t6,
+                  IndexedCO t8 t5 t6 ~ IndexedCO t4 t2 t1,
+                  IndexedCO t3 t t1 ~ IndexedCO e a b) =>
+                 FF3 t t1 t2 t3 t4 -> FF3 t5 t6 t7 t8 t9 -> FF3 a b c e x
           FF3 f `cat` FF3 f' = FF3 $ f' . f
 
 newtype FF3 a b c e x = FF3 { unFF3 :: IndexedCO e a b -> IndexedCO x c b }
@@ -296,15 +305,19 @@ blockToNodeList'' = finish . unList . scottFoldBlock (ScottBlock f m l cat)
     where f n = NL (JustC n, id, NothingC)
           m n = NL (NothingC, (n:), NothingC)
           l n = NL (NothingC, id, JustC n)
-          cat :: NodeList n e O -> NodeList n O x -> NodeList n e x
+          cat :: forall n t1 t2 t3. NodeList n t1 t2 -> NodeList n t2 t3 -> NodeList n t1 t3
           NL (e, ms, NothingC) `cat` NL (NothingC, ms', x) = NL (e, ms . ms', x)
+          finish :: forall t t1 t2 a. (t, [a] -> t1, t2) -> (t, t1, t2)
           finish (e, ms, x) = (e, ms [], x)
 
 
 
 blockToNodeList' :: Block n e x -> (MaybeC e (n C O), [n O O], MaybeC x (n O C))
 blockToNodeList' b = unFNL $ foldBlockNodesF3''' ff fm fl b ()
-  where ff n () = PNL (n, [])
+  where ff :: forall n e. MaybeC e (n C O) -> () -> PNL n e
+        fm :: forall n e. n O O -> PNL n e -> PNL n e
+        fl :: forall n e x. MaybeC x (n O C) -> PNL n e -> FNL n e x
+        ff n () = PNL (n, [])
         fm n (PNL (first, mids')) = PNL (first, n : mids')
         fl n (PNL (first, mids')) = FNL (first, reverse mids', n)
 
@@ -335,6 +348,7 @@ foldBlockNodesF3''' ff fm fl = block
         blockOO (BCat b1 b2)    = blockOO b1 `cat` blockOO b2
         blockOC (BLast n)       = fl (JustC n)
         blockOC (BTail n b)     = fm n `cat` blockOC b
+        cat :: forall a b c. (a -> b) -> (b -> c) -> a -> c
         f `cat` g = g . f 
 
 
@@ -364,6 +378,7 @@ foldBlockNodesF3' (ff, fm, fl) missingFirst missingLast = block
         blockOO (BCat b1 b2) = blockOO b1 `cat` blockOO b2
         blockOC (BLast n)    = fl n
         blockOC (BTail n b)  = fm n `cat` blockOC b
+        cat :: forall a b c. (a -> b) -> (b -> c) -> a -> c
         f `cat` g = g . f 
 
 -- | Fold a function over every node in a block, forward or backward.
@@ -401,6 +416,7 @@ foldBlockNodesF3 (ff, fm, fl) = block
         block (b1 `BClosed` b2) = block b1 `cat` block b2
         block (b1 `BHead` n)    = block b1 `cat` fm n
         block (n `BTail` b2)    = fm n `cat` block b2
+        cat :: forall a b c. (a -> b) -> (b -> c) -> a -> c
         cat f f' = f' . f
 foldBlockNodesF f = foldBlockNodesF3 (f, f, f)
 
@@ -413,6 +429,7 @@ foldBlockNodesB3 (ff, fm, fl) = block
         block (b1 `BClosed` b2) = block b1 `cat` block b2
         block (b1 `BHead` n)    = block b1 `cat` fm n
         block (n `BTail` b2)    = fm n `cat` block b2
+        cat :: forall a b c. (b -> c) -> (a -> b) -> a -> c
         cat f f' = f . f'
 foldBlockNodesB f = foldBlockNodesB3 (f, f, f)
 
@@ -429,6 +446,7 @@ foldGraphNodes f = graph
           lift _ NothingO         = id
           lift f (JustO thing)    = f thing
 
+          block :: Block n e x -> IndexedCO e a a -> IndexedCO x a a
           block = foldBlockNodesF f
 
 {-# DEPRECATED blockToNodeList, blockOfNodeList 

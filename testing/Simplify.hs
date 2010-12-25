@@ -14,10 +14,11 @@ type Node = Insn
 
 --------------------------------------------------
 -- Simplification ("constant folding")
-simplify :: FuelMonad m => FwdRewrite m Node f
+simplify :: forall m f. FuelMonad m => FwdRewrite m Node f
 simplify = deepFwdRw simp
  where
-  simp node _ = return $ liftM nodeToG $ s_node node
+  simp :: forall e x. Node e x -> f -> m (Maybe (Graph Node e x))
+  simp node _ = return $ liftM insnToG $ s_node node
   s_node :: Node e x -> Maybe (Node e x)
   s_node (Cond (Lit (Bool b)) t f)
     = Just $ Branch (if b then t else f)
@@ -44,4 +45,3 @@ simplify = deepFwdRw simp
   cmpOp Gte = Just (>=)
   cmpOp Lte = Just (<=)
   cmpOp _   = Nothing
-  nodeToG = insnToG

@@ -8,5 +8,5 @@ tests = map (\t -> "tests" ++ "/" ++ t)
              ["if-test", "if-test2", "if-test3", "if-test4"])
 
 main :: IO ()
-main = do mapM (\x -> parseTest x >> optTest x) tests
+main = do mapM (\x -> putStrLn ("Test:" ++ x) >> parseTest x >> optTest x) tests
           return ()

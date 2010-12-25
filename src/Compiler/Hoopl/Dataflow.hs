@@ -57,9 +57,10 @@ changeIf changed = if changed then SomeChange else NoChange
 -- pairs.  If the same label appears more than once, the relevant facts
 -- are joined.
 
-mkFactBase :: DataflowLattice f -> [(Label, f)] -> FactBase f
+mkFactBase :: forall f. DataflowLattice f -> [(Label, f)] -> FactBase f
 mkFactBase lattice = foldl add mapEmpty
-  where add map (lbl, f) = mapInsert lbl newFact map
+  where add :: FactBase f -> (Label, f) -> FactBase f
+        add map (lbl, f) = mapInsert lbl newFact map
           where newFact = case mapLookup lbl map of
                             Nothing -> f
                             Just f' -> snd $ join lbl (OldFact f') (NewFact f)
@@ -122,13 +123,15 @@ mkFTransfer f = FwdTransfer3 (f, f, f)
 
 -- | Functions passed to 'mkFRewrite3' should not be aware of the fuel supply.
 -- The result returned by 'mkFRewrite3' respects fuel.
-mkFRewrite3 :: FuelMonad m
+mkFRewrite3 :: forall m n f. FuelMonad m
             => (n C O -> f -> m (Maybe (Graph n C O)))
             -> (n O O -> f -> m (Maybe (Graph n O O)))
             -> (n O C -> f -> m (Maybe (Graph n O C)))
             -> FwdRewrite m n f
 mkFRewrite3 f m l = FwdRewrite3 (lift f, lift m, lift l)
-  where lift rw node fact = liftM (liftM asRew) (withFuel =<< rw node fact)
+  where lift :: forall t t1 a. (t -> t1 -> m (Maybe a)) -> t -> t1 -> m (Maybe (a, FwdRewrite m n f))
+        lift rw node fact = liftM (liftM asRew) (withFuel =<< rw node fact)
+        asRew :: forall t. t -> (t, FwdRewrite m n f)
         asRew g = (g, noFwdRewrite)
 
 noFwdRewrite :: Monad m => FwdRewrite m n f
@@ -275,6 +278,7 @@ arfGraph pass entries = graph
       where
         blocks  = forwardBlockList entries blockmap
         lattice = fp_lattice pass
+        do_block :: forall x. Block n C x -> FactBase f -> m (DG f n C x, Fact x f)
         do_block b fb = block b entryFact
           where entryFact = getFact lattice (entryLabel b) fb
 -- @ end bodyfun.tex
@@ -351,13 +355,15 @@ mkBTransfer f = BwdTransfer3 (f, f, f)
 
 -- | Functions passed to 'mkBRewrite3' should not be aware of the fuel supply.
 -- The result returned by 'mkBRewrite3' respects fuel.
-mkBRewrite3 :: FuelMonad m
+mkBRewrite3 :: forall m n f. FuelMonad m
             => (n C O -> f          -> m (Maybe (Graph n C O)))
             -> (n O O -> f          -> m (Maybe (Graph n O O)))
             -> (n O C -> FactBase f -> m (Maybe (Graph n O C)))
             -> BwdRewrite m n f
 mkBRewrite3 f m l = BwdRewrite3 (lift f, lift m, lift l)
-  where lift rw node fact = liftM (liftM asRew) (withFuel =<< rw node fact)
+  where lift :: forall t t1 a. (t -> t1 -> m (Maybe a)) -> t -> t1 -> m (Maybe (a, BwdRewrite m n f))
+        lift rw node fact = liftM (liftM asRew) (withFuel =<< rw node fact)
+        asRew :: t -> (t, BwdRewrite m n f)
         asRew g = (g, noBwdRewrite)
 
 noBwdRewrite :: Monad m => BwdRewrite m n f
@@ -453,6 +459,7 @@ arbGraph pass entries = graph
       = fixpoint Bwd (bp_lattice pass) do_block blocks init_fbase
       where
         blocks = backwardBlockList entries blockmap
+        do_block :: forall x. Block n C x -> Fact x f -> m (DG f n C x, LabelMap f)
         do_block b f = do (g, f) <- block b f
                           return (g, mapSingleton (entryLabel b) f)
 
@@ -558,6 +565,7 @@ fixpoint direction lat do_block blocks init_fbase
     tagged_blocks = map tag blocks
     is_fwd = case direction of { Fwd -> True; 
                                  Bwd -> False }
+    tag :: NonLocal t => t C C -> ((Label, t C C), [Label])
     tag b = ((entryLabel b, b), 
              if is_fwd then [entryLabel b] 
                         else successors b)
@@ -596,7 +604,8 @@ fixpoint direction lat do_block blocks init_fbase
     loop :: FactBase f -> m (TxFactBase n f)
     loop fbase 
       = do { s <- checkpoint
-           ; let init_tx = TxFB { tfb_fbase = fbase
+           ; let init_tx :: TxFactBase n f
+                 init_tx = TxFB { tfb_fbase = fbase
                                 , tfb_cha   = NoChange
                                 , tfb_rg    = dgnilC
                                 , tfb_lbls  = setEmpty }
@@ -708,7 +717,8 @@ normalizeGraph :: forall n f e x .
                   NonLocal n => DG f n e x -> GraphWithFacts n f e x
 
 normalizeGraph g = (graphMapBlocks dropFact g, facts g)
-    where dropFact (DBlock _ b) = b
+    where dropFact :: DBlock t t1 t2 t3 -> Block t1 t2 t3
+          dropFact (DBlock _ b) = b
           facts :: DG f n e x -> FactBase f
           facts GNil = noFacts
           facts (GUnit _) = noFacts
@@ -718,7 +728,8 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
           exitFacts (JustO (DBlock f b)) = mapSingleton (entryLabel b) f
           bodyFacts :: LabelMap (DBlock f n C C) -> FactBase f
           bodyFacts body = mapFold f noFacts body
-            where f (DBlock f b) fb = mapInsert (entryLabel b) f fb
+            where f :: forall t a x. (NonLocal t) => DBlock a t C x -> LabelMap a -> LabelMap a
+                  f (DBlock f b) fb = mapInsert (entryLabel b) f fb
 
 --- implementation of the constructors (boring)
 
@@ -726,7 +737,8 @@ dgnil  = GNil
 dgnilC = GMany NothingO emptyBody NothingO
 
 dgSplice = U.splice fzCat
-  where fzCat (DBlock f b1) (DBlock _ b2) = DBlock f (b1 `U.cat` b2)
+  where fzCat :: DBlock f n e O -> DBlock t n O x -> DBlock f n e x
+        fzCat (DBlock f b1) (DBlock _ b2) = DBlock f (b1 `U.cat` b2)
 
 ----------------------------------------------------------------
 --       Utilities

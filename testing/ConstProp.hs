@@ -61,17 +61,22 @@ varHasLit = mkFTransfer ft
       where toTop f v = Map.insert v Top f
   ft (Return _)             _ = mapEmpty
 
+type MaybeChange a = a -> Maybe a
 -- @ start cprop.tex
 --------------------------------------------------
 -- Rewriting: replace constant variables
-constProp :: FuelMonad m => FwdRewrite m Node ConstFact
+constProp :: forall m. FuelMonad m => FwdRewrite m Node ConstFact
 constProp = mkFRewrite cp
  where
+   cp :: Node e x -> ConstFact -> m (Maybe (Graph Node e x))
    cp node f
-     = return $ liftM nodeToG $ mapVN (lookup f) node
+     = return $ liftM insnToG $ mapVN (lookup f) node
+
+   mapVN :: (Var  -> Maybe Expr) -> MaybeChange (Node e x)
    mapVN      = mapEN . mapEE . mapVE
+   
+   lookup :: ConstFact -> Var -> Maybe Expr
    lookup f x = case Map.lookup x f of
                   Just (PElem v) -> Just $ Lit v
                   _              -> Nothing
 -- @ end cprop.tex
-   nodeToG = insnToG
