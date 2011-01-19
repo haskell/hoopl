@@ -67,14 +67,14 @@ iterFwdRw rw3 = wrapFR iter rw3
        iter rw n = (liftM $ liftM $ fadd_rw (iterFwdRw rw3)) . rw n
 
 -- | Function inspired by 'rew' in the paper
-frewrite_cps :: Monad m
+_frewrite_cps :: Monad m
              => ((Graph n e x, FwdRewrite m n f) -> m a)
              -> m a
              -> (forall e x . n e x -> f -> m (Maybe (Graph n e x, FwdRewrite m n f)))
              -> n e x
              -> f
              -> m a
-frewrite_cps j n rw node f =
+_frewrite_cps j n rw node f =
     do mg <- rw node f
        case mg of Nothing -> n
                   Just gr -> j gr

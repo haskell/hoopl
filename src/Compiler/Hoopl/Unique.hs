@@ -106,7 +106,9 @@ instance Monad SimpleUniqueMonad where
                               unSUM (k a) us'
 
 instance UniqueMonad SimpleUniqueMonad where
-  freshUnique = SUM $ \(u:us) -> (u, us)
+  freshUnique = SUM $ f
+    where f (u:us) = (u, us)
+          f _ = error "Unique.freshUnique(SimpleUniqueMonad): empty list"
 
 instance CheckpointMonad SimpleUniqueMonad where
   type Checkpoint SimpleUniqueMonad = [Unique]
@@ -125,7 +127,9 @@ instance Monad m => Monad (UniqueMonadT m) where
   m >>= k  = UMT $ \us -> do { (a, us') <- unUMT m us; unUMT (k a) us' }
 
 instance Monad m => UniqueMonad (UniqueMonadT m) where
-  freshUnique = UMT $ \(u:us) -> return (u, us)
+  freshUnique = UMT $ f
+    where f (u:us) = return (u, us)
+          f _ = error "Unique.freshUnique(UniqueMonadT): empty list"
 
 runUniqueMonadT :: Monad m => UniqueMonadT m a -> m a
 runUniqueMonadT m = do { (a, _) <- unUMT m allUniques; return a }
