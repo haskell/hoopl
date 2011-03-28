@@ -23,4 +23,5 @@ timestamp.tex
 *.aux
 *.out
 dfopt.ps
-*.pdf
+paper/*.pdf
+dist

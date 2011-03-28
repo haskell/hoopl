@@ -1,3 +1,10 @@
+3.8.7.0
+  Works with GHC 7 (thanks Edward Yang)
+  cabal sdist now sort of works (and is added to validate)
+
+3.8.6.0
+  Matches the camera-ready Haskell'10 paper
+
 3.8.1.0
 
   Major reorganization per simonpj visit to Tufts 20 April 2010

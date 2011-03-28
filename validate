@@ -2,5 +2,7 @@
 
 set -e
 
+cabal sdist
+
 cd src && mk
 cd ../testing && mk
