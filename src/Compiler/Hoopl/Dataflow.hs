@@ -590,7 +590,7 @@ fixpoint direction lat do_block blocks init_fbase
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha', fbase') = mapFoldWithKey
-                                  (updateFact lat lbls) 
+                                  (updateFact lat lbls')
                                   (cha,fbase) out_facts
            ; return $
                TxFB { tfb_lbls  = lbls'
