@@ -1,10 +1,11 @@
-{-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies #-}
+{-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies, Rank2Types #-}
 
 module Compiler.Hoopl.Graph 
   ( O, C, Block(..), Body, Body'(..), Graph, Graph'(..)
   , MaybeO(..), MaybeC(..), Shape(..), IndexedCO
   , NonLocal(entryLabel, successors)
   , emptyBody, addBlock, bodyList
+  , mapGraph, mapMaybeO, mapMaybeC, mapBlock
   )
 where
 
@@ -117,3 +118,29 @@ addBlock b body = nodupsInsert (entryLabel b) b body
 
 bodyList :: NonLocal (block n) => Body' block n -> [(Label,block n C C)]
 bodyList (Body body) = mapToList body
+
+-- | Maps over all nodes in a graph.
+mapGraph :: (forall e x. n e x -> n' e x) -> Graph n e x -> Graph n' e x
+mapGraph _ GNil = GNil
+mapGraph f (GUnit b) = GUnit (mapBlock f b)
+mapGraph f (GMany x y z)
+    = GMany (mapMaybeO f x)
+            (mapMap (mapBlock f) y)
+            (mapMaybeO f z)
+
+mapMaybeO :: (forall e x. n e x -> n' e x) -> MaybeO ex (Block n e x) -> MaybeO ex (Block n' e x)
+mapMaybeO _  NothingO = NothingO
+mapMaybeO f (JustO b) = JustO (mapBlock f b)
+
+mapMaybeC :: (forall e x. n e x -> n' e x) -> MaybeC ex (Block n e x) -> MaybeC ex (Block n' e x)
+mapMaybeC _  NothingC = NothingC
+mapMaybeC f (JustC b) = JustC (mapBlock f b)
+
+mapBlock :: (forall e x. n e x -> n' e x) -> Block n e x -> Block n' e x
+mapBlock f (BFirst n)      = BFirst  (f n)
+mapBlock f (BMiddle n)     = BMiddle (f n)
+mapBlock f (BLast n)       = BLast   (f n)
+mapBlock f (BCat b1 b2)    = BCat    (mapBlock f b1) (mapBlock f b2)
+mapBlock f (BHead b n)     = BHead   (mapBlock f b)  (f n)
+mapBlock f (BTail n b)     = BTail   (f n)  (mapBlock f b)
+mapBlock f (BClosed b1 b2) = BClosed (mapBlock f b1) (mapBlock f b2)
