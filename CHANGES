@@ -1,3 +1,6 @@
+3.8.7.1
+  Eliminate warning about nonexhaustive pattern match (thanks Edward Yang)
+
 3.8.7.0
   Works with GHC 7 (thanks Edward Yang)
   cabal sdist now sort of works (and is added to validate)

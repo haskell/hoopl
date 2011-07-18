@@ -305,7 +305,7 @@ blockToNodeList'' = finish . unList . scottFoldBlock (ScottBlock f m l cat)
     where f n = NL (JustC n, id, NothingC)
           m n = NL (NothingC, (n:), NothingC)
           l n = NL (NothingC, id, JustC n)
-          cat :: forall n t1 t2 t3. NodeList n t1 t2 -> NodeList n t2 t3 -> NodeList n t1 t3
+          cat :: forall n t1 t3. NodeList n t1 O -> NodeList n O t3 -> NodeList n t1 t3
           NL (e, ms, NothingC) `cat` NL (NothingC, ms', x) = NL (e, ms . ms', x)
           finish :: forall t t1 t2 a. (t, [a] -> t1, t2) -> (t, t1, t2)
           finish (e, ms, x) = (e, ms [], x)
