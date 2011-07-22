@@ -22,7 +22,7 @@ import Compiler.Hoopl.Combinators
 import Compiler.Hoopl.Dataflow hiding ( wrapFR, wrapFR2, wrapBR, wrapBR2
                                       )
 import Compiler.Hoopl.Debug
-import Compiler.Hoopl.Fuel hiding (withFuel, getFuel, setFuel, FuelMonadT)
+import Compiler.Hoopl.Fuel hiding (withFuel, getFuel, setFuel, runWithFuel)
 import Compiler.Hoopl.Graph hiding 
    ( Body
    , BCat, BHead, BTail, BClosed -- OK to expose BFirst, BMiddle, BLast
