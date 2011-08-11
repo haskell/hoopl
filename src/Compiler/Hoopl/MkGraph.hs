@@ -1,4 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables, GADTs, TypeSynonymInstances, FlexibleInstances, RankNTypes #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Safe #-}
+#endif
+
 module Compiler.Hoopl.MkGraph
     ( AGraph, graphOfAGraph, aGraphOfGraph
     , (<*>), (|*><*|), catGraphs, addEntrySeq, addExitSeq, addBlocks, unionBlocks

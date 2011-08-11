@@ -1,4 +1,7 @@
 {-# LANGUAGE RankNTypes, GADTs, ScopedTypeVariables, FlexibleContexts #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Safe #-}
+#endif
 
 module Compiler.Hoopl.Show 
   ( showGraph, showFactBase

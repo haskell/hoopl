@@ -1,4 +1,7 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, MultiParamTypeClasses #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Safe #-}
+#endif
 
 {- Notes about the genesis of Hoopl7
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

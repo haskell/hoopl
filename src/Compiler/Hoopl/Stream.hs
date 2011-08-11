@@ -1,4 +1,7 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Trustworthy #-}
+#endif
 
 module Compiler.Hoopl.Stream
 where

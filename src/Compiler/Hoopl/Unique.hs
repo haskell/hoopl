@@ -1,4 +1,8 @@
 {-# LANGUAGE TypeFamilies #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 module Compiler.Hoopl.Unique
   ( Unique, intToUnique
   , UniqueSet, UniqueMap

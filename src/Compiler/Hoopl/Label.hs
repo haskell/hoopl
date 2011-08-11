@@ -1,4 +1,8 @@
 {-# LANGUAGE TypeFamilies #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Safe #-}
+#endif
+
 module Compiler.Hoopl.Label
   ( Label
   , freshLabel

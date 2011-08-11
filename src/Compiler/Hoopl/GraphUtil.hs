@@ -1,4 +1,7 @@
 {-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Safe #-}
+#endif
 
 -- N.B. addBasicBlocks won't work on OO without a Node (branch/label) constraint
 

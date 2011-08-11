@@ -1,4 +1,7 @@
 {-# LANGUAGE GADTs, EmptyDataDecls #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Safe #-}
+#endif
 
 module Compiler.Hoopl.Shape {-# DEPRECATED "not ready to migrate to this yet" #-}
 where

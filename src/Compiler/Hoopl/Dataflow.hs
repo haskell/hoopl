@@ -1,4 +1,7 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, MultiParamTypeClasses #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Safe #-}
+#endif
 
 module Compiler.Hoopl.Dataflow
   ( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..), Fact, mkFactBase

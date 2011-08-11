@@ -1,4 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables, RankNTypes, TypeFamilies #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 module Compiler.Hoopl.Passes.Live 
   ( NodeWithVars(..), AssignmentNode(..)
   , liveLattice, liveness, -- deadAsstElim

@@ -1,5 +1,8 @@
 {-# LANGUAGE GADTs #-}
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Safe #-}
+#endif
 
 module Compiler.Hoopl.Passes.Dominator
   ( Doms, DPath(..), domPath, domEntry, domLattice, extendDom

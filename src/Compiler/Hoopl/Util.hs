@@ -1,4 +1,7 @@
 {-# LANGUAGE GADTs, ScopedTypeVariables, FlexibleInstances, RankNTypes, TypeFamilies #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Safe #-}
+#endif
 
 module Compiler.Hoopl.Util
   ( gUnitOO, gUnitOC, gUnitCO, gUnitCC

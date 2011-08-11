@@ -1,4 +1,7 @@
 {-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies, Rank2Types #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Safe #-}
+#endif
 
 module Compiler.Hoopl.Graph 
   ( O, C, Block(..), Body, Body'(..), Graph, Graph'(..)

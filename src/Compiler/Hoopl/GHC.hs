@@ -1,4 +1,7 @@
 {-# LANGUAGE GADTs, RankNTypes #-}
+#if __GLASGOW_HASKELL__ >= 701
+{-# LANGUAGE Safe #-}
+#endif
 
 {- Exposing some internals to GHC -}
 module Compiler.Hoopl.GHC
