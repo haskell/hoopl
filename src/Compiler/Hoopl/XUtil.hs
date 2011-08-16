@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables, TypeFamilies  #-}
 #if __GLASGOW_HASKELL__ >= 701
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 #endif
 
 -- | Utilities for clients of Hoopl, not used internally.
