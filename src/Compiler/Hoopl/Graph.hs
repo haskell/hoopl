@@ -57,7 +57,7 @@ newtype Body' block n = Body (LabelMap (block n C C))
 -- A graph open at the entry has a single, distinguished, anonymous entry point;
 -- if a graph is closed at the entry, its entry point(s) are supplied by a context.
 type Graph = Graph' Block
-data Graph' block n e x where
+data Graph' block (n :: * -> * -> *) e x where
   GNil  :: Graph' block n O O
   GUnit :: block n O O -> Graph' block n O O
   GMany :: MaybeO e (block n O C) 
