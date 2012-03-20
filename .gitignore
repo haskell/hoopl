@@ -25,3 +25,8 @@ timestamp.tex
 dfopt.ps
 paper/*.pdf
 dist
+/GNUmakefile
+/dist-install
+/dist-boot
+/ghc.mk
+
