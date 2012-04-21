@@ -1,3 +1,13 @@
+3.8.7.4
+  Re-export runWithFuel as per Justin Bailey
+
+3.8.7.3
+  Uploaded to Hackage by Ian Lynagh; appears to contain updates
+  that use Safe Haskell if GHC >= 7.2 (thanks David Terei)
+
+3.8.7.2
+  Version changed with no record of update; never uploaded to Hackage
+
 3.8.7.1
   Eliminate warning about nonexhaustive pattern match (thanks Edward Yang)
 

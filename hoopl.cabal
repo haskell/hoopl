@@ -1,9 +1,10 @@
 Name:                hoopl
-Version:             3.8.7.2
+Version:             3.8.7.4
 -- version 3.8.6.0 is the version that goes with the camera-ready Haskell'10 paper
 -- version 3.8.7.0 works with GHC 7
 -- version 3.8.7.1 adds some unnamed functions without breaking compatibility
 -- version 3.8.7.2 adds Compiler.Hoopl.Fuel.liftFuel
+-- version 3.8.7.4 re-exports runWithFuel
 Description:         Higher-order optimization library
 License:             BSD3
 License-File:        LICENSE
@@ -12,7 +13,6 @@ Maintainer:          nr@cs.tufts.edu
 Homepage:            http://ghc.cs.tufts.edu/hoopl/
 Build-Type:          Simple
 Cabal-Version:       >=1.6
-Stability:           alpha
 Synopsis:            A library to support dataflow analysis and optimization
 Category:            Compilers/Interpreters
 Extra-Source-Files:  README, hoopl.pdf, CHANGES, FAQ
