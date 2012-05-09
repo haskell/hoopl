@@ -24,3 +24,5 @@ To upload to Hackage,
 
   cabal sdist
   cabal upload dist/something.tar.gz
+
+Developers, please see HOWTO-BRANCHES
