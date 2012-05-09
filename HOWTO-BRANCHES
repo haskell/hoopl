@@ -1,0 +1,15 @@
+Here's how to work on Hoopl without breaking GHC.
+
+  - Hoopl maintainers should work on the branch "develop", where they
+    need not validate changes against GHC.
+
+  - GHC uses the 'master' branch, and makes changes there from time to
+    time as necessary to keep GHC working
+
+  - GHC central merges master with develop occasionally (e.g. before a
+    new GHC stable branch is created).
+
+  - Intermediate releases can be made from develop, although we have
+    to ensure that each GHC release ships with a released version of
+    the library.  (As of May 2012, Ian Lynagh coordinates with the
+    package maintainers to make this happen.)
