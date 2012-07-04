@@ -12,6 +12,7 @@ import IR
 import Live
 import Parse (parseCode)
 import Simplify
+import Debug.Trace
 
 parse :: String -> String -> ErrorM (M [Proc])
 parse file text =
@@ -52,6 +53,7 @@ optTest' file text =
     optProc proc@(Proc {entry, body, args}) =
       do { (body',  _, _) <- analyzeAndRewriteFwd fwd (JustC [entry]) body
                              (mapSingleton entry (initFact args))
+         ; trace (showProc (proc {body=body'})) $ return ()
          ; (body'', _, _) <- analyzeAndRewriteBwd bwd (JustC [entry]) body' mapEmpty
          ; return $ proc { body = body'' } }
     -- With debugging info: 

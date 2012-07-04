@@ -1,14 +1,21 @@
 Name:                hoopl
-Version:             3.8.7.4
+Version:             3.9.0.0
 -- version 3.8.6.0 is the version that goes with the camera-ready Haskell'10 paper
 -- version 3.8.7.0 works with GHC 7
 -- version 3.8.7.1 adds some unnamed functions without breaking compatibility
 -- version 3.8.7.2 adds Compiler.Hoopl.Fuel.liftFuel
 -- version 3.8.7.4 re-exports runWithFuel
-Description:         Higher-order optimization library
+-- version 3.9.0.0 adds the new API for working with blocks, and lots of internal refactoring
+Description:
+  Higher-order optimization library
+  .
+  Changes in 3.9.0.0
+  .
+  * Lots of API changes; mainly a new API for working with Blocks
+
 License:             BSD3
 License-File:        LICENSE
-Author:              Norman Ramsey, João Dias, and Simon Peyton Jones
+Author:              Norman Ramsey, João Dias, Simon Marlow and Simon Peyton Jones
 Maintainer:          nr@cs.tufts.edu
 Homepage:            http://ghc.cs.tufts.edu/hoopl/
 Build-Type:          Simple
@@ -21,21 +28,21 @@ Library
   Hs-Source-Dirs:    src
   Build-Depends:     base >= 3 && < 5, containers
   Exposed-Modules:   Compiler.Hoopl,
+                     Compiler.Hoopl.Internals,
                      Compiler.Hoopl.Wrappers,
                      Compiler.Hoopl.Passes.Dominator,
-                     Compiler.Hoopl.Passes.DList,
+                     Compiler.Hoopl.Passes.DList
 --                     Compiler.Hoopl.DataflowFold,
 --                     Compiler.Hoopl.OldDataflow,
-                     Compiler.Hoopl.GHC
-  Other-Modules:     Compiler.Hoopl.GraphUtil,
-                     -- GraphUtil should *never* be seen by clients.
-                     -- The remaining modules are hidden *provisionally*
-                     Compiler.Hoopl.Checkpoint,
+
+  -- The remaining modules are hidden *provisionally*
+  Other-modules:     Compiler.Hoopl.Checkpoint,
                      Compiler.Hoopl.Collections,
                      Compiler.Hoopl.Combinators,
                      Compiler.Hoopl.Dataflow,
                      Compiler.Hoopl.Debug,
-                     Compiler.Hoopl.Graph, 
+                     Compiler.Hoopl.Block,
+                     Compiler.Hoopl.Graph,
                      Compiler.Hoopl.Label,
                      Compiler.Hoopl.MkGraph,
                      Compiler.Hoopl.Fuel,
@@ -43,7 +50,6 @@ Library
                      Compiler.Hoopl.Shape,
                      Compiler.Hoopl.Show, 
                      Compiler.Hoopl.Unique, 
-                     Compiler.Hoopl.Util,
                      Compiler.Hoopl.XUtil
 
   Ghc-Options:       -Wall -fno-warn-name-shadowing

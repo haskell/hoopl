@@ -75,7 +75,6 @@ import Data.Maybe
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.MkGraph
-import qualified Compiler.Hoopl.GraphUtil as U
 import Compiler.Hoopl.Label
 import Compiler.Hoopl.Util
 

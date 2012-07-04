@@ -1,3 +1,4 @@
+Test:tests/test1
 f(a, b) {
 L1:
   r0 = 3
@@ -11,6 +12,7 @@ L1:
   ret (7)
 }
 
+Test:tests/test2
 f(a, b) {
 L1:
   x = 5
@@ -33,12 +35,28 @@ L1:
   goto L2
 L2:
   if x > 0 then goto L3 else goto L4
-L4:
-  ret (y)
 L3:
   y = y + x
   x = x - 1
   goto L2
+L4:
+  ret (y)
+}
+
+Test:tests/test3
+f(x, y) {
+L1:
+  goto L2
+L2:
+  if x > 0 then goto L3 else goto L4
+L3:
+  (z) = f(x - 1, y - 1) goto L5
+L4:
+  ret (y)
+L5:
+  y = y + z
+  x = x - 1
+  goto L2
 }
 
 f(x, y) {
@@ -48,29 +66,15 @@ L2:
   if x > 0 then goto L3 else goto L4
 L3:
   (z) = f(x - 1, y - 1) goto L5
-L5:
-  y = y + z
-  x = x - 1
-  goto L2
 L4:
   ret (y)
-}
-
-f(x, y) {
-L1:
-  goto L2
-L2:
-  if x > 0 then goto L3 else goto L4
-L4:
-  ret (y)
-L3:
-  (z) = f(x - 1, y - 1) goto L5
 L5:
   y = y + z
   x = x - 1
   goto L2
 }
 
+Test:tests/test4
 f(x) {
 L1:
   y = 5
@@ -93,6 +97,7 @@ L4:
   ret ((x + 5) + 4)
 }
 
+Test:tests/if-test
 f() {
 L1:
   x = 3 + 4
@@ -111,6 +116,7 @@ L2:
   ret (1)
 }
 
+Test:tests/if-test2
 f(a) {
 L1:
   x = 3 + 4
@@ -122,6 +128,8 @@ L3:
   a = a - 1
   res = res + x
   if x > 5 then goto L5 else goto L6
+L4:
+  ret (res)
 L5:
   goto L7
 L6:
@@ -129,8 +137,6 @@ L6:
   goto L7
 L7:
   goto L2
-L4:
-  ret (res)
 }
 
 f(a) {
@@ -139,18 +145,19 @@ L1:
   goto L2
 L2:
   if a > 0 then goto L3 else goto L4
-L4:
-  ret (res)
 L3:
   a = a - 1
   res = res + 7
   goto L5
+L4:
+  ret (res)
 L5:
   goto L7
 L7:
   goto L2
 }
 
+Test:tests/if-test3
 f(x) {
 L1:
   if x > 5 then goto L2 else goto L3
@@ -167,14 +174,15 @@ L4:
 f(x) {
 L1:
   if x > 5 then goto L2 else goto L3
-L3:
-  goto L4
 L2:
+  goto L4
+L3:
   goto L4
 L4:
   ret (1)
 }
 
+Test:tests/if-test4
 f(x) {
 L1:
   if x > 5 then goto L2 else goto L3
@@ -191,11 +199,11 @@ L4:
 f(x) {
 L1:
   if x > 5 then goto L2 else goto L3
-L3:
-  z = 2
-  goto L4
 L2:
   z = 1
+  goto L4
+L3:
+  z = 2
   goto L4
 L4:
   ret (z)

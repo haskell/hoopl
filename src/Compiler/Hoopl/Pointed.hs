@@ -12,7 +12,7 @@ module Compiler.Hoopl.Pointed
   )
 where
 
-import Compiler.Hoopl.Graph
+import Compiler.Hoopl.Block
 import Compiler.Hoopl.Label
 import Compiler.Hoopl.Dataflow
 

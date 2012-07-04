@@ -25,14 +25,13 @@ import qualified Data.IntSet as S
 --		Unique
 -----------------------------------------------------------------------------
 
-data Unique = Unique { uniqueToInt ::  {-# UNPACK #-} !Int }
-  deriving (Eq, Ord)
+type Unique = Int
+
+uniqueToInt :: Unique -> Int
+uniqueToInt = id
 
 intToUnique :: Int -> Unique
-intToUnique = Unique
-
-instance Show Unique where
-  show (Unique n) = show n
+intToUnique = id
 
 -----------------------------------------------------------------------------
 -- UniqueSet
@@ -44,22 +43,22 @@ instance IsSet UniqueSet where
 
   setNull (US s) = S.null s
   setSize (US s) = S.size s
-  setMember (Unique k) (US s) = S.member k s
+  setMember k (US s) = S.member k s
 
   setEmpty = US S.empty
-  setSingleton (Unique k) = US (S.singleton k)
-  setInsert (Unique k) (US s) = US (S.insert k s)
-  setDelete (Unique k) (US s) = US (S.delete k s)
+  setSingleton k = US (S.singleton k)
+  setInsert k (US s) = US (S.insert k s)
+  setDelete k (US s) = US (S.delete k s)
 
   setUnion (US x) (US y) = US (S.union x y)
   setDifference (US x) (US y) = US (S.difference x y)
   setIntersection (US x) (US y) = US (S.intersection x y)
   setIsSubsetOf (US x) (US y) = S.isSubsetOf x y
 
-  setFold k z (US s) = S.fold (k . intToUnique) z s
+  setFold k z (US s) = S.fold k z s
 
-  setElems (US s) = map intToUnique (S.elems s)
-  setFromList ks = US (S.fromList (map uniqueToInt ks))
+  setElems (US s) = S.elems s
+  setFromList ks = US (S.fromList ks)
 
 -----------------------------------------------------------------------------
 -- UniqueMap
@@ -71,14 +70,15 @@ instance IsMap UniqueMap where
 
   mapNull (UM m) = M.null m
   mapSize (UM m) = M.size m
-  mapMember (Unique k) (UM m) = M.member k m
-  mapLookup (Unique k) (UM m) = M.lookup k m
-  mapFindWithDefault def (Unique k) (UM m) = M.findWithDefault def k m
+  mapMember k (UM m) = M.member k m
+  mapLookup k (UM m) = M.lookup k m
+  mapFindWithDefault def k (UM m) = M.findWithDefault def k m
 
   mapEmpty = UM M.empty
-  mapSingleton (Unique k) v = UM (M.singleton k v)
-  mapInsert (Unique k) v (UM m) = UM (M.insert k v m)
-  mapDelete (Unique k) (UM m) = UM (M.delete k m)
+  mapSingleton k v = UM (M.singleton k v)
+  mapInsert k v (UM m) = UM (M.insert k v m)
+  mapInsertWith f k v (UM m) = UM (M.insertWith f k v m)
+  mapDelete k (UM m) = UM (M.delete k m)
 
   mapUnion (UM x) (UM y) = UM (M.union x y)
   mapUnionWithKey f (UM x) (UM y) = UM (M.unionWithKey (f . intToUnique) x y)
@@ -92,9 +92,10 @@ instance IsMap UniqueMap where
   mapFoldWithKey k z (UM m) = M.foldWithKey (k . intToUnique) z m
 
   mapElems (UM m) = M.elems m
-  mapKeys (UM m) = map intToUnique (M.keys m)
-  mapToList (UM m) = [(intToUnique k, v) | (k, v) <- M.toList m]
-  mapFromList assocs = UM (M.fromList [(uniqueToInt k, v) | (k, v) <- assocs])
+  mapKeys (UM m) = M.keys m
+  mapToList (UM m) = M.toList m
+  mapFromList assocs = UM (M.fromList assocs)
+  mapFromListWith f assocs = UM (M.fromListWith f assocs)
 
 ----------------------------------------------------------------
 -- Monads
@@ -139,4 +140,4 @@ runUniqueMonadT :: Monad m => UniqueMonadT m a -> m a
 runUniqueMonadT m = do { (a, _) <- unUMT m allUniques; return a }
 
 allUniques :: [Unique]
-allUniques = map Unique [1..]
+allUniques = [1..]

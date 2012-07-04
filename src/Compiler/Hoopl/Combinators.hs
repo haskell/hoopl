@@ -19,7 +19,8 @@ import Data.Maybe
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Fuel
-import Compiler.Hoopl.Graph (Graph, C, O, Shape(..))
+import Compiler.Hoopl.Block
+import Compiler.Hoopl.Graph (Graph)
 import Compiler.Hoopl.Label
 
 ----------------------------------------------------------------

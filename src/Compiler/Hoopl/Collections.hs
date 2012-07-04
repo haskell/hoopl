@@ -59,6 +59,7 @@ class IsMap map where
   mapEmpty :: map a
   mapSingleton :: KeyOf map -> a -> map a
   mapInsert :: KeyOf map -> a -> map a -> map a
+  mapInsertWith :: (a -> a -> a) -> KeyOf map -> a -> map a -> map a
   mapDelete :: KeyOf map -> map a -> map a
 
   mapUnion :: map a -> map a -> map a
@@ -76,6 +77,7 @@ class IsMap map where
   mapKeys :: map a -> [KeyOf map]
   mapToList :: map a -> [(KeyOf map, a)]
   mapFromList :: [(KeyOf map, a)] -> map a
+  mapFromListWith :: (a -> a -> a) -> [(KeyOf map,a)] -> map a
 
 -- Helper functions for IsMap class
 mapInsertList :: IsMap map => [(KeyOf map, a)] -> map a -> map a

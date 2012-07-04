@@ -131,7 +131,7 @@ mlookup blame k m =
     Nothing -> throwError ("unknown lookup for " ++ blame)
 
 blookup :: String -> G -> Label -> EvalM v B
-blookup blame g lbl = 
-  case lookupBlock g lbl of
-    BodyBlock b -> return b
-    NoBlock     -> throwError ("unknown lookup for " ++ blame)
+blookup blame (GMany _ blks _) lbl =
+  case mapLookup lbl blks of
+    Just b  -> return b
+    Nothing -> throwError ("unknown lookup for " ++ blame)

@@ -73,7 +73,6 @@ import Data.Maybe
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph
 import Compiler.Hoopl.MkGraph
-import qualified Compiler.Hoopl.GraphUtil as U
 import Compiler.Hoopl.Label
 import Compiler.Hoopl.Util
 
@@ -620,8 +619,8 @@ normalizeGraph g = (graphMapBlocks dropFact g, facts g)
           exitFacts :: MaybeO x (FBlock f n C O) -> FactBase f
           exitFacts NothingO = noFacts
           exitFacts (JustO (FBlock f b)) = mkFactBase [(entryLabel b, f)]
-          bodyFacts :: Body' (FBlock f) n -> FactBase f
-          bodyFacts (Body body) = foldLabelMap f noFacts body
+          bodyFacts :: Body (FBlock f) n -> FactBase f
+          bodyFacts body = foldLabelMap f noFacts body
             where f (FBlock f b) fb = extendFactBase fb (entryLabel b) f
 
 --- implementation of the constructors (boring)
