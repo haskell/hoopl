@@ -8,11 +8,14 @@
 module Compiler.Hoopl.XUtil
   (
     -- * Utilities for clients
-    distributeFact, distributeFactBwd
+    firstXfer, distributeXfer
+  , distributeFact, distributeFactBwd
   , successorFacts
   , joinFacts
   , joinOutFacts -- deprecated
   , joinMaps
+  , analyzeAndRewriteFwdBody, analyzeAndRewriteBwdBody
+  , analyzeAndRewriteFwdOx, analyzeAndRewriteBwdOx
   )
 where
 
@@ -20,6 +23,7 @@ import qualified Data.Map as M
 import Data.Maybe
 
 import Compiler.Hoopl.Collections
+import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Block
 import Compiler.Hoopl.Graph
