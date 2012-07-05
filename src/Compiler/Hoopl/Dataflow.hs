@@ -199,8 +199,8 @@ arfGraph :: forall m n f e x .
             (NonLocal n, CheckpointMonad m) => FwdPass m n f -> 
             Entries e -> Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
 arfGraph pass@FwdPass { fp_lattice = lattice,
-                        fp_transfer = transfer @ (FwdTransfer3 (ftr, mtr, ltr)),
-                        fp_rewrite  = rewrite @ (FwdRewrite3 (frw, mrw, lrw)) } entries = graph
+                        fp_transfer = transfer,
+                        fp_rewrite  = rewrite } entries = graph
   where
     {- nested type synonyms would be so lovely here 
     type ARF  thing = forall e x . thing e x -> f        -> m (DG f n e x, Fact x f)
@@ -732,7 +732,7 @@ normalizeGraph g = (mapGraphBlocks dropFact g, facts g)
           bodyFacts :: LabelMap (DBlock f n C C) -> FactBase f
           bodyFacts body = mapFoldWithKey f noFacts body
             where f :: forall t a x. (NonLocal t) => Label -> DBlock a t C x -> LabelMap a -> LabelMap a
-                  f lbl (DBlock f b) fb = mapInsert lbl f fb
+                  f lbl (DBlock f _) fb = mapInsert lbl f fb
 
 --- implementation of the constructors (boring)
 
