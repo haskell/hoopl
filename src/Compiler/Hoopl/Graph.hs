@@ -131,9 +131,9 @@ catNodeOOGraph ::               n O O -> Graph n O x -> Graph n O x
 catNodeCOGraph :: NonLocal n => n C O -> Graph n O x -> Graph n C x
 
 catGraphNodeOO GNil                     n = gUnitOO $ BMiddle n
-catGraphNodeOO (GUnit b)                n = gUnitOO $ BHead b n
+catGraphNodeOO (GUnit b)                n = gUnitOO $ BSnoc b n
 catGraphNodeOO (GMany e body (JustO (BlockCO f b))) n
-  = GMany e body (JustO (BlockCO f (BHead b n)))
+  = GMany e body (JustO (BlockCO f (BSnoc b n)))
 
 catGraphNodeOC GNil                     n = gUnitOC $ BlockOC BNil n
 catGraphNodeOC (GUnit b)                n = gUnitOC $ BlockOC b n
@@ -141,9 +141,9 @@ catGraphNodeOC (GMany e body (JustO (BlockCO f x))) n
   = GMany e (addBlock (BlockCC f x n) body) NothingO
 
 catNodeOOGraph n GNil                     = gUnitOO $ BMiddle n
-catNodeOOGraph n (GUnit b)                = gUnitOO $ BTail n b
+catNodeOOGraph n (GUnit b)                = gUnitOO $ BCons n b
 catNodeOOGraph n (GMany (JustO (BlockOC b l)) body x)
-   = GMany (JustO (BlockOC (n `BTail` b) l)) body x
+   = GMany (JustO (BlockOC (n `BCons` b) l)) body x
 
 catNodeCOGraph f GNil                     = gUnitCO (BlockCO f BNil)
 catNodeCOGraph f (GUnit b)                = gUnitCO (BlockCO f b)
@@ -158,8 +158,8 @@ blockGraph b@(BlockCC {}) = gUnitCC b
 blockGraph   (BNil  {})   = GNil
 blockGraph b@(BMiddle {}) = gUnitOO b
 blockGraph b@(BCat {})    = gUnitOO b
-blockGraph b@(BHead {})   = gUnitOO b
-blockGraph b@(BTail {})   = gUnitOO b
+blockGraph b@(BSnoc {})   = gUnitOO b
+blockGraph b@(BCons {})   = gUnitOO b
 
 
 -- -----------------------------------------------------------------------------

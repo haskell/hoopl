@@ -103,8 +103,8 @@ data Block n e x where
   BNil    :: Block n O O
   BMiddle :: n O O                      -> Block n O O
   BCat    :: Block n O O -> Block n O O -> Block n O O
-  BHead   :: Block n O O -> n O O       -> Block n O O
-  BTail   :: n O O       -> Block n O O -> Block n O O
+  BSnoc   :: Block n O O -> n O O       -> Block n O O
+  BCons   :: n O O       -> Block n O O -> Block n O O
 
 
 -- -----------------------------------------------------------------------------
@@ -125,21 +125,21 @@ emptyBlock = BNil
 
 blockCons :: n O O -> Block n O x -> Block n O x
 blockCons n b = case b of
-  BlockOC b l  -> BlockOC (n `BTail` b) l
-  BNil{}    -> n `BTail` b
-  BMiddle{} -> n `BTail` b
-  BCat{}    -> n `BTail` b
-  BHead{}   -> n `BTail` b
-  BTail{}   -> n `BTail` b
+  BlockOC b l  -> BlockOC (n `BCons` b) l
+  BNil{}    -> n `BCons` b
+  BMiddle{} -> n `BCons` b
+  BCat{}    -> n `BCons` b
+  BSnoc{}   -> n `BCons` b
+  BCons{}   -> n `BCons` b
 
 blockSnoc :: Block n e O -> n O O -> Block n e O
 blockSnoc b n = case b of
-  BlockCO f b -> BlockCO f (b `BHead` n)
-  BNil{}      -> b `BHead` n
-  BMiddle{}   -> b `BHead` n
-  BCat{}      -> b `BHead` n
-  BHead{}     -> b `BHead` n
-  BTail{}     -> b `BHead` n
+  BlockCO f b -> BlockCO f (b `BSnoc` n)
+  BNil{}      -> b `BSnoc` n
+  BMiddle{}   -> b `BSnoc` n
+  BCat{}      -> b `BSnoc` n
+  BSnoc{}     -> b `BSnoc` n
+  BCons{}     -> b `BSnoc` n
 
 blockJoinHead :: n C O -> Block n O x -> Block n C x
 blockJoinHead f (BlockOC b l) = BlockCC f b l
@@ -191,8 +191,8 @@ blockSplitAny block = case block of
   b@BNil        -> (NothingC, b, NothingC)
   b@BMiddle{}   -> (NothingC, b, NothingC)
   b@BCat{}      -> (NothingC, b, NothingC)
-  b@BTail{}     -> (NothingC, b, NothingC)
-  b@BHead{}     -> (NothingC, b, NothingC)
+  b@BCons{}     -> (NothingC, b, NothingC)
+  b@BSnoc{}     -> (NothingC, b, NothingC)
 
 blockToList :: Block n O O -> [n O O]
 blockToList b = go b []
@@ -200,11 +200,11 @@ blockToList b = go b []
          go BNil         r = r
          go (BMiddle n)  r = n : r
          go (BCat b1 b2) r = go b1 $! go b2 r
-         go (BHead b1 n) r = go b1 (n:r)
-         go (BTail n b1) r = n : go b1 r
+         go (BSnoc b1 n) r = go b1 (n:r)
+         go (BCons n b1) r = n : go b1 r
 
 blockFromList :: [n O O] -> Block n O O
-blockFromList = foldr BTail BNil
+blockFromList = foldr BCons BNil
 
 
 -- | Convert a list of nodes to a block. The entry and exit node must
@@ -240,41 +240,41 @@ cat x y = case x of
                    BNil         -> x
                    BMiddle _    -> BlockCO l $! (b1 `cat` y)
                    BCat{}       -> BlockCO l $! (b1 `cat` y)
-                   BHead{}      -> BlockCO l $! (b1 `cat` y)
-                   BTail{}      -> BlockCO l $! (b1 `cat` y)
+                   BSnoc{}      -> BlockCO l $! (b1 `cat` y)
+                   BCons{}      -> BlockCO l $! (b1 `cat` y)
 
   BMiddle n -> case y of
                    BlockOC b2 n2 -> (BlockOC $! (x `cat` b2)) n2
                    BNil          -> x
-                   BMiddle{}     -> BTail n y
-                   BCat{}        -> BTail n y
-                   BHead{}       -> BTail n y
-                   BTail{}       -> BTail n y
+                   BMiddle{}     -> BCons n y
+                   BCat{}        -> BCons n y
+                   BSnoc{}       -> BCons n y
+                   BCons{}       -> BCons n y
 
   BCat{} -> case y of
                    BlockOC b3 n2 -> (BlockOC $! (x `cat` b3)) n2
                    BNil          -> x
-                   BMiddle n     -> BHead x n
+                   BMiddle n     -> BSnoc x n
                    BCat{}        -> BCat x y
-                   BHead{}       -> BCat x y
-                   BTail{}       -> BCat x y
+                   BSnoc{}       -> BCat x y
+                   BCons{}       -> BCat x y
 
-  BHead{} -> case y of
+  BSnoc{} -> case y of
                    BlockOC b2 n2 -> (BlockOC $! (x `cat` b2)) n2
                    BNil          -> x
-                   BMiddle n     -> BHead x n
+                   BMiddle n     -> BSnoc x n
                    BCat{}        -> BCat x y
-                   BHead{}       -> BCat x y
-                   BTail{}       -> BCat x y
+                   BSnoc{}       -> BCat x y
+                   BCons{}       -> BCat x y
 
 
-  BTail{} -> case y of
+  BCons{} -> case y of
                    BlockOC b2 n2 -> (BlockOC $! (x `cat` b2)) n2
                    BNil          -> x
-                   BMiddle n     -> BHead x n
+                   BMiddle n     -> BSnoc x n
                    BCat{}        -> BCat x y
-                   BHead{}       -> BCat x y
-                   BTail{}       -> BCat x y
+                   BSnoc{}       -> BCat x y
+                   BCons{}       -> BCat x y
 
 
 -- -----------------------------------------------------------------------------
@@ -288,8 +288,8 @@ mapBlock f (BlockCC n b m) = BlockCC (f n) (mapBlock f b) (f m)
 mapBlock _  BNil           = BNil
 mapBlock f (BMiddle n)     = BMiddle (f n)
 mapBlock f (BCat b1 b2)    = BCat    (mapBlock f b1) (mapBlock f b2)
-mapBlock f (BHead b n)     = BHead   (mapBlock f b)  (f n)
-mapBlock f (BTail n b)     = BTail   (f n)  (mapBlock f b)
+mapBlock f (BSnoc b n)     = BSnoc   (mapBlock f b)  (f n)
+mapBlock f (BCons n b)     = BCons   (f n)  (mapBlock f b)
 
 -- | A strict 'mapBlock'
 mapBlock' :: (forall e x. n e x -> n' e x) -> (Block n e x -> Block n' e x)
@@ -311,8 +311,8 @@ mapBlock3' (f, m, l) b = go b
         go BNil            = BNil
         go (BMiddle n)     = BMiddle $! m n
         go (BCat x y)      = (BCat $! go x) $! (go y)
-        go (BHead x n)     = (BHead $! go x) $! (m n)
-        go (BTail n x)     = (BTail $! m n) $! (go x)
+        go (BSnoc x n)     = (BSnoc $! go x) $! (m n)
+        go (BCons n x)     = (BCons $! m n) $! (go x)
 
 -- -----------------------------------------------------------------------------
 -- Folding
@@ -345,8 +345,8 @@ foldBlockNodesF3 (ff, fm, fl) = block
         block BNil              = id
         block (BMiddle node)    = fm node
         block (b1 `BCat`    b2) = block b1 `cat` block b2
-        block (b1 `BHead` n)    = block b1 `cat` fm n
-        block (n `BTail` b2)    = fm n `cat` block b2
+        block (b1 `BSnoc` n)    = block b1 `cat` fm n
+        block (n `BCons` b2)    = fm n `cat` block b2
         cat :: forall a b c. (a -> b) -> (b -> c) -> a -> c
         cat f f' = f' . f
 
@@ -360,8 +360,8 @@ foldBlockNodesB3 (ff, fm, fl) = block
         block BNil              = id
         block (BMiddle node)    = fm node
         block (b1 `BCat`    b2) = block b1 `cat` block b2
-        block (b1 `BHead` n)    = block b1 `cat` fm n
-        block (n `BTail` b2)    = fm n `cat` block b2
+        block (b1 `BSnoc` n)    = block b1 `cat` fm n
+        block (n `BCons` b2)    = fm n `cat` block b2
         cat :: forall a b c. (b -> c) -> (a -> b) -> a -> c
         cat f f' = f . f'
 
@@ -385,15 +385,15 @@ frontBiasBlock blk = case blk of
    b@BNil{}      -> fb b BNil
    b@BMiddle{}   -> fb b BNil
    b@BCat{}      -> fb b BNil
-   b@BHead{}     -> fb b BNil
-   b@BTail{}     -> fb b BNil
+   b@BSnoc{}     -> fb b BNil
+   b@BCons{}     -> fb b BNil
  where
    fb :: Block n O O -> Block n O O -> Block n O O
    fb BNil        rest = rest
-   fb (BMiddle n) rest = BTail n rest
+   fb (BMiddle n) rest = BCons n rest
    fb (BCat l r)  rest = fb l (fb r rest)
-   fb (BTail n b) rest = BTail n (fb b rest)
-   fb (BHead b n) rest = fb b (BTail n rest)
+   fb (BCons n b) rest = BCons n (fb b rest)
+   fb (BSnoc b n) rest = fb b (BCons n rest)
 
 -- | A block is "back biased" if the right child of every
 -- concatenation operation is a node, not a general block; a
@@ -410,12 +410,12 @@ backBiasBlock blk = case blk of
    b@BNil{}      -> bb BNil b
    b@BMiddle{}   -> bb BNil b
    b@BCat{}      -> bb BNil b
-   b@BHead{}     -> bb BNil b
-   b@BTail{}     -> bb BNil b
+   b@BSnoc{}     -> bb BNil b
+   b@BCons{}     -> bb BNil b
  where
    bb :: Block n O O -> Block n O O -> Block n O O
    bb rest BNil = rest
-   bb rest (BMiddle n) = BHead rest n
+   bb rest (BMiddle n) = BSnoc rest n
    bb rest (BCat l r) = bb (bb rest l) r
-   bb rest (BTail n b) = bb (BHead rest n) b
-   bb rest (BHead b n) = BHead (bb rest b) n
+   bb rest (BCons n b) = bb (BSnoc rest n) b
+   bb rest (BSnoc b n) = BSnoc (bb rest b) n

@@ -254,8 +254,8 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
     block (BMiddle n)  = node n
     block (BCat b1 b2) = block b1 `cat` block b2
 -- @ end block.tex
-    block (BHead h n)  = block h  `cat` node n
-    block (BTail n t)  = node  n  `cat` block t
+    block (BSnoc h n)  = block h  `cat` node n
+    block (BCons n t)  = node  n  `cat` block t
 
 -- @ start node.tex -4
     node n f
@@ -444,8 +444,8 @@ arbGraph pass@BwdPass { bp_lattice  = lattice,
 
     block (BMiddle n)  = node n
     block (BCat b1 b2) = block b1 `cat` block b2
-    block (BHead h n)  = block h  `cat` node n
-    block (BTail n t)  = node  n  `cat` block t
+    block (BSnoc h n)  = block h  `cat` node n
+    block (BCons n t)  = node  n  `cat` block t
 
     node n f
       = do { bwdres <- brewrite rewrite n f

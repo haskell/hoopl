@@ -35,8 +35,8 @@ showGraph node = g
         b (BNil)          = ""
         b (BMiddle n)     = node n ++ "\n"
         b (BCat b1 b2)    = b b1   ++ b b2
-        b (BHead b1 n)    = b b1   ++ node n ++ "\n"
-        b (BTail n b1)    = node n ++ "\n" ++ b b1
+        b (BSnoc b1 n)    = b b1   ++ node n ++ "\n"
+        b (BCons n b1)    = node n ++ "\n" ++ b b1
 
 open :: (a -> String) -> MaybeO z a -> String
 open _ NothingO  = ""

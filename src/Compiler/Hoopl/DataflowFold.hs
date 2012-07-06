@@ -229,8 +229,8 @@ arfGraph pass head entries g f = graph g (head, f)
    block (BMiddle n)  = node n
    block (BLast   n)  = node n
    block (BCat b1 b2) = block b1 `cat` block b2
-   block (BHead h n)  = block h  `cat` node n
-   block (BTail n t)  = node  n  `cat` block t
+   block (BSnoc h n)  = block h  `cat` node n
+   block (BCons n t)  = node  n  `cat` block t
    block (BClosed h t)= block h  `cat` block t
 
    node thenode (head, f)
@@ -353,8 +353,8 @@ arbBlock pass (BFirst  node)  = arbNode pass node
 arbBlock pass (BMiddle node)  = arbNode pass node
 arbBlock pass (BLast   node)  = arbNode pass node
 arbBlock pass (BCat b1 b2)    = arbCat arbBlock arbBlock pass b1 b2
-arbBlock pass (BHead h n)     = arbCat arbBlock arbNode  pass h n
-arbBlock pass (BTail n t)     = arbCat arbNode  arbBlock pass n t
+arbBlock pass (BSnoc h n)     = arbCat arbBlock arbNode  pass h n
+arbBlock pass (BCons n t)     = arbCat arbNode  arbBlock pass n t
 arbBlock pass (BClosed h t)   = arbCat arbBlock arbBlock pass h t
 
 arbCat :: NonLocal n => ARB' n f thing1 e O -> ARB' n f thing2 O x
@@ -632,8 +632,8 @@ rgunit f b@(BFirst  {}) = gUnitCO (FBlock f b)
 rgunit f b@(BMiddle {}) = gUnitOO (FBlock f b)
 rgunit f b@(BLast   {}) = gUnitOC (FBlock f b)
 rgunit f b@(BCat {})    = gUnitOO (FBlock f b)
-rgunit f b@(BHead {})   = gUnitCO (FBlock f b)
-rgunit f b@(BTail {})   = gUnitOC (FBlock f b)
+rgunit f b@(BSnoc {})   = gUnitCO (FBlock f b)
+rgunit f b@(BCons {})   = gUnitOC (FBlock f b)
 rgunit f b@(BClosed {}) = gUnitCC (FBlock f b)
 
 rgCat = U.splice fzCat
@@ -681,7 +681,7 @@ instance ShapeLifter O O where
   frewrite  (FwdPass {fp_rewrite  = FwdRewrites  (_, fr, _)}) n f = fr n f
   brewrite  (BwdPass {bp_rewrite  = BwdRewrites  (_, br, _)}) n f = br n f
   spliceRgNode (GMany e body (JustO (FBlock f x))) _ n = GMany e body (JustO x')
-     where x' = FBlock f $ BHead x n
+     where x' = FBlock f $ BSnoc x n
   spliceRgNode (GNil) f n = GUnit $ FBlock f $ BMiddle n
   spliceRgNode (GUnit (FBlock f b)) _ n = GUnit $ FBlock f $ b `BCat` BMiddle n
   entry _ = NothingC

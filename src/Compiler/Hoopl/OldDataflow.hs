@@ -223,8 +223,8 @@ arfBlock pass (BFirst  node)  = arfNode pass node
 arfBlock pass (BMiddle node)  = arfNode pass node
 arfBlock pass (BLast   node)  = arfNode pass node
 arfBlock pass (BCat b1 b2)    = arfCat arfBlock arfBlock pass b1 b2
-arfBlock pass (BHead h n)     = arfCat arfBlock arfNode  pass h n
-arfBlock pass (BTail n t)     = arfCat arfNode  arfBlock pass n t
+arfBlock pass (BSnoc h n)     = arfCat arfBlock arfNode  pass h n
+arfBlock pass (BCons n t)     = arfCat arfNode  arfBlock pass n t
 arfBlock pass (BClosed h t)   = arfCat arfBlock arfBlock pass h t
 
 arfCat :: (pass -> thing1 -> info1 -> FuelMonad (RG f n e a, info2))
@@ -355,8 +355,8 @@ arbBlock pass (BFirst  node)  = arbNode pass node
 arbBlock pass (BMiddle node)  = arbNode pass node
 arbBlock pass (BLast   node)  = arbNode pass node
 arbBlock pass (BCat b1 b2)    = arbCat arbBlock arbBlock pass b1 b2
-arbBlock pass (BHead h n)     = arbCat arbBlock arbNode  pass h n
-arbBlock pass (BTail n t)     = arbCat arbNode  arbBlock pass n t
+arbBlock pass (BSnoc h n)     = arbCat arbBlock arbNode  pass h n
+arbBlock pass (BCons n t)     = arbCat arbNode  arbBlock pass n t
 arbBlock pass (BClosed h t)   = arbCat arbBlock arbBlock pass h t
 
 arbCat :: (pass -> thing1 -> info1 -> FuelMonad (RG f n e a, info1'))
@@ -636,8 +636,8 @@ rgunit f b@(BFirst  {}) = gUnitCO (FBlock f b)
 rgunit f b@(BMiddle {}) = gUnitOO (FBlock f b)
 rgunit f b@(BLast   {}) = gUnitOC (FBlock f b)
 rgunit f b@(BCat {})    = gUnitOO (FBlock f b)
-rgunit f b@(BHead {})   = gUnitCO (FBlock f b)
-rgunit f b@(BTail {})   = gUnitOC (FBlock f b)
+rgunit f b@(BSnoc {})   = gUnitCO (FBlock f b)
+rgunit f b@(BCons {})   = gUnitOC (FBlock f b)
 rgunit f b@(BClosed {}) = gUnitCC (FBlock f b)
 
 rgCat = U.splice fzCat
