@@ -3,6 +3,9 @@
 #if __GLASGOW_HASKELL__ >= 701
 {-# LANGUAGE Safe #-}
 #endif
+#if __GLASGOW_HASKELL__ < 701
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+#endif
 
 module Compiler.Hoopl.Graph 
   (
