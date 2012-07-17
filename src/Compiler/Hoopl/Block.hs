@@ -125,8 +125,8 @@ emptyBlock = BNil
 
 blockCons :: n O O -> Block n O x -> Block n O x
 blockCons n b = case b of
-  BlockOC b l  -> BlockOC (n `BCons` b) l
-  BNil{}    -> n `BCons` b
+  BlockOC b l  -> (BlockOC $! (n `blockCons` b)) l
+  BNil{}    -> BMiddle n
   BMiddle{} -> n `BCons` b
   BCat{}    -> n `BCons` b
   BSnoc{}   -> n `BCons` b
@@ -134,8 +134,8 @@ blockCons n b = case b of
 
 blockSnoc :: Block n e O -> n O O -> Block n e O
 blockSnoc b n = case b of
-  BlockCO f b -> BlockCO f (b `BSnoc` n)
-  BNil{}      -> b `BSnoc` n
+  BlockCO f b -> BlockCO f $! (b `blockSnoc` n)
+  BNil{}      -> BMiddle n
   BMiddle{}   -> b `BSnoc` n
   BCat{}      -> b `BSnoc` n
   BSnoc{}     -> b `BSnoc` n
