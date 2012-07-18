@@ -90,6 +90,7 @@ instance IsMap UniqueMap where
   mapMapWithKey f (UM m) = UM (M.mapWithKey (f . intToUnique) m)
   mapFold k z (UM m) = M.fold k z m
   mapFoldWithKey k z (UM m) = M.foldWithKey (k . intToUnique) z m
+  mapFilter f (UM m) = UM (M.filter f m)
 
   mapElems (UM m) = M.elems m
   mapKeys (UM m) = M.keys m

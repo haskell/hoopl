@@ -91,6 +91,7 @@ instance IsMap LabelMap where
   mapMapWithKey f (LM m) = LM (mapMapWithKey (f . uniqueToLbl) m)
   mapFold k z (LM m) = mapFold k z m
   mapFoldWithKey k z (LM m) = mapFoldWithKey (k . uniqueToLbl) z m
+  mapFilter f (LM m) = LM (mapFilter f m)
 
   mapElems (LM m) = mapElems m
   mapKeys (LM m) = map uniqueToLbl (mapKeys m)
