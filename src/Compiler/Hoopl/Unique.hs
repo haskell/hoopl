@@ -21,6 +21,8 @@ import Compiler.Hoopl.Collections
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
 
+import Control.Monad (liftM)
+
 -----------------------------------------------------------------------------
 --		Unique
 -----------------------------------------------------------------------------
@@ -105,6 +107,9 @@ class Monad m => UniqueMonad m where
   freshUnique :: m Unique
 
 newtype SimpleUniqueMonad a = SUM { unSUM :: [Unique] -> (a, [Unique]) }
+
+instance Functor SimpleUniqueMonad where
+  fmap = liftM
 
 instance Monad SimpleUniqueMonad where
   return a = SUM $ \us -> (a, us)
