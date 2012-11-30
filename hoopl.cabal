@@ -1,5 +1,5 @@
 Name:                hoopl
-Version:             3.9.0.0
+Version:             3.10.0.0
 -- GHC 7.6.1 released with 3.9.0.0
 -- version 3.8.6.0 is the version that goes with the camera-ready Haskell'10 paper
 -- version 3.8.7.0 works with GHC 7
