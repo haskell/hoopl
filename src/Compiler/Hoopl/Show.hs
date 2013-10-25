@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, GADTs, ScopedTypeVariables, FlexibleContexts #-}
+{-# LANGUAGE CPP, RankNTypes, GADTs, ScopedTypeVariables, FlexibleContexts #-}
 #if __GLASGOW_HASKELL__ >= 701
 {-# LANGUAGE Safe #-}
 #endif

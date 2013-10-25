@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, RankNTypes, TypeFamilies #-}
+{-# LANGUAGE CPP, ScopedTypeVariables, RankNTypes, TypeFamilies #-}
 #if __GLASGOW_HASKELL__ >= 701
 {-# LANGUAGE Trustworthy #-}
 #endif

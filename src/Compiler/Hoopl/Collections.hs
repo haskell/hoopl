@@ -1,6 +1,6 @@
 {- Baseclasses for Map-like and Set-like collections inspired by containers. -}
 
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE CPP, TypeFamilies #-}
 #if __GLASGOW_HASKELL__ >= 701
 {-# LANGUAGE Safe #-}
 #endif

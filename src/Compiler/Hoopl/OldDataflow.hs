@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, MultiParamTypeClasses #-}
+{-# LANGUAGE CPP, RankNTypes, ScopedTypeVariables, GADTs, TypeFamilies, MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-} -- bug in GHC
 #if __GLASGOW_HASKELL__ >= 701
 {-# LANGUAGE Safe #-}

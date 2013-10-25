@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies, ScopedTypeVariables,
+{-# LANGUAGE CPP, GADTs, TypeFamilies, ScopedTypeVariables,
     RankNTypes, FlexibleInstances, TypeSynonymInstances #-}
 #if __GLASGOW_HASKELL__ >= 701
 {-# LANGUAGE Safe #-}
