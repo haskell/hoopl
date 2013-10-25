@@ -21,7 +21,8 @@ import Compiler.Hoopl.Collections
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
 
-import Control.Monad (liftM)
+import Control.Applicative (Applicative(..))
+import Control.Monad (ap,liftM)
 
 -----------------------------------------------------------------------------
 --		Unique
@@ -111,6 +112,10 @@ newtype SimpleUniqueMonad a = SUM { unSUM :: [Unique] -> (a, [Unique]) }
 instance Functor SimpleUniqueMonad where
   fmap = liftM
 
+instance Applicative SimpleUniqueMonad where
+  pure  = return
+  (<*>) = ap
+
 instance Monad SimpleUniqueMonad where
   return a = SUM $ \us -> (a, us)
   m >>= k  = SUM $ \us -> let (a, us') = unSUM m us in
@@ -132,6 +137,13 @@ runSimpleUniqueMonad m = fst (unSUM m allUniques)
 ----------------------------------------------------------------
 
 newtype UniqueMonadT m a = UMT { unUMT :: [Unique] -> m (a, [Unique]) }
+
+instance Monad m => Functor (UniqueMonadT m) where
+  fmap  = liftM
+
+instance Monad m => Applicative (UniqueMonadT m) where
+  pure  = return
+  (<*>) = ap
 
 instance Monad m => Monad (UniqueMonadT m) where
   return a = UMT $ \us -> return (a, us)

@@ -46,8 +46,8 @@ import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Block
 import Compiler.Hoopl.Label
 
-import Control.Monad
-
+import Control.Applicative (Applicative(..))
+import Control.Monad (ap,liftM,liftM2)
 
 -- -----------------------------------------------------------------------------
 -- Body
@@ -348,12 +348,22 @@ postorder_dfs_from blocks b = postorder_dfs_from_except blocks b setEmpty
 ----------------------------------------------------------------
 
 data VM a = VM { unVM :: LabelSet -> (a, LabelSet) }
-marked :: Label -> VM Bool
-mark   :: Label -> VM ()
+
+instance Functor VM where
+  fmap  = liftM
+
+instance Applicative VM where
+  pure  = return
+  (<*>) = ap
+
 instance Monad VM where
   return a = VM $ \visited -> (a, visited)
   m >>= k  = VM $ \visited -> let (a, v') = unVM m visited in unVM (k a) v'
+
+marked :: Label -> VM Bool
 marked l = VM $ \v -> (setMember l v, v)
+
+mark   :: Label -> VM ()
 mark   l = VM $ \v -> ((), setInsert l v)
 
 preorder_dfs_from_except :: forall block e . (NonLocal block, LabelsPtr e)

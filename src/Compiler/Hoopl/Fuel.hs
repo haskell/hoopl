@@ -21,6 +21,9 @@ where
 import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Unique
 
+import Control.Applicative (Applicative(..))
+import Control.Monad (ap,liftM)
+
 class Monad m => FuelMonad m where
   getFuel :: m Fuel
   setFuel :: Fuel -> m ()
@@ -50,6 +53,13 @@ withFuel (Just a) = do f <- getFuel
 
 newtype CheckingFuelMonad m a = FM { unFM :: Fuel -> m (a, Fuel) }
 
+instance Monad m => Functor (CheckingFuelMonad m) where
+  fmap  = liftM
+
+instance Monad m => Applicative (CheckingFuelMonad m) where
+  pure  = return
+  (<*>) = ap
+
 instance Monad m => Monad (CheckingFuelMonad m) where
   return a = FM (\f -> return (a, f))
   fm >>= k = FM (\f -> do { (a, f') <- unFM fm f; unFM (k a) f' })
@@ -74,6 +84,14 @@ instance FuelMonadT CheckingFuelMonad where
 ----------------------------------------------------------------
 
 newtype InfiniteFuelMonad m a = IFM { unIFM :: m a }
+
+instance Monad m => Functor (InfiniteFuelMonad m) where
+  fmap  = liftM
+
+instance Monad m => Applicative (InfiniteFuelMonad m) where
+  pure  = return
+  (<*>) = ap
+
 instance Monad m => Monad (InfiniteFuelMonad m) where
   return a = IFM $ return a
   m >>= k  = IFM $ do { a <- unIFM m; unIFM (k a) }
