@@ -1,3 +1,101 @@
+
+3.9.0.0
+
+   - Lots of API changes; mainly a new API for working with Blocks
+
+  Summary of refactorings:
+
+   - Compiler.Hoopl.Block contains the Block datatype and all the
+     operations on Blocks.  It seemed like a good idea to collect all
+     this stuff together in one place.
+
+   - Compiler.Hoopl.Graph now has the operations on Graphs.
+
+   - Compiler.Hoopl.Util and Compiler.Hoopl.GraphUtil are no more; their
+     contents have been moved to other homes.  (and a bit of duplicated
+     functionality has been removed).
+
+   - I removed the newtypes around Unique and Label, these are now just
+     type synonyms.  The newtype wrappers were costing some performance in
+     GHC, because in cases like mapToList the newtype isn't optimised away.
+
+     This change might be controversial.  Feel free to complain.
+
+  Other changes:
+
+   - Optimisations to the Dataflow algorithms.  I'm not actually using
+     this implementation of Dataflow in GHC any more, instead I have a
+     local copy specialised to our monad, for speed.  Nevertheless I've
+     put some of the optimisations I'm using in the GHC version into the
+     generic library version too.
+
+  Summary of API changes:
+
+  ADDED
+
+   - IsMap(mapInsertWith, mapFromListWith)
+
+   - mapGraphBlocks
+     (was previously called graphMapBlocks, and not exported)
+
+   - mapBlock'
+     (strict version of mapBlock)
+
+   - New API for working with Blocks:
+
+      -- ** Predicates on Blocks
+    , isEmptyBlock
+
+      -- ** Constructing blocks
+    , emptyBlock, blockCons, blockSnoc
+    , blockJoinHead, blockJoinTail, blockJoin, blockJoinAny
+    , blockAppend
+
+      -- ** Deconstructing blocks
+    , firstNode, lastNode, endNodes
+    , blockSplitHead, blockSplitTail, blockSplit, blockSplitAny
+
+      -- ** Modifying blocks
+    , replaceFirstNode, replaceLastNode
+
+      -- ** Converting to and from lists
+    , blockToList, blockFromList
+
+      -- ** Maps and folds
+    , mapBlock, mapBlock', mapBlock3'
+    , foldBlockNodesF, foldBlockNodesF3
+    , foldBlockNodesB, foldBlockNodesB3
+
+  REMOVED
+
+   - mapMaybeO, mapMaybeC
+     (no need: we have Functor instances)
+
+   - Block constructors are no longer exported
+     (use the block API instead)
+
+   - blockToNodeList, blockToNodeList', blockToNodeList'', blockToNodeList'''
+     (use the block API instead)
+
+   - tfFoldBlock, ScottBlock, scottFoldBlock, fbnf3,
+     BlockResult(..), lookupBlock,
+     (I don't know what any of these are for, if they're still important
+     we could reinstate)
+
+  CHANGED
+
+   - Compiler.Hoopl.GHC is now Compiler.Hoopl.Internals and exports some
+     more stuff.
+
+   - Label is not a newtype; type Label = Unique
+   - Unique is not a newtype: type Unique = Int
+     (these newtypes were adding overhead)
+
+   - blockMapNodes3 is now mapBlock3'
+
+   - Lots of internal refactoring and tidying up
+
+
 3.8.7.4
   Re-export runWithFuel as per Justin Bailey
 
@@ -30,7 +128,7 @@
 3.7.13.0
 
   Pointed type replaces WithTop and WithBot, which are now synonyms.
-  
+
 
 3.7.12.3
 
@@ -56,13 +154,13 @@
     -- interface.
     firstXfer :: Edges n => (n C O -> f -> f) -> (n C O -> FactBase f -> f)
     firstXfer xfer n fb = xfer n $ fromJust $ lookupFact fb $ entryLabel n
-    
+
     -- | This utility function handles a common case in which a transfer function
     -- produces a single fact out of a last node, which is then distributed
     -- over the outgoing edges.
     distributeXfer :: Edges n => (n O C -> f -> f) -> (n O C -> f -> FactBase f)
     distributeXfer xfer n f = mkFactBase [ (l, xfer n f) | l <- successors n ]
-    
+
     -- | This utility function handles a common case in which a transfer function
     -- for a last node takes the incoming fact unchanged and simply distributes
     -- that fact over the outgoing edges.
@@ -90,7 +188,7 @@
   I added a function showGraph to print Graphs.  Right now it requires a
   polymorphic node-showing function as argument. When we change the
   Block representation we may get enough static type information that we
-  can simply have an instance declaration for 
+  can simply have an instance declaration for
 
     instance (Show n C O, Show n O O, Show n O C) => Show (Graph n e x)
 
@@ -131,7 +229,7 @@
   transfer functions.  The implementation will use monomorphic
   functions, which will enable more useful combinators on passes,
   including adding more debugging information and enabling us to combine
-  passes. 
+  passes.
 
   Perhaps we should provide splicing and 'addBlocks' on Graph?
 

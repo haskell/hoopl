@@ -1,5 +1,6 @@
 Name:                hoopl
 Version:             3.10.0.0
+-- NOTE: Don't forget to update 'repository this' tag when incrementing version!
 -- GHC 7.6.1 released with 3.9.0.0
 -- version 3.8.6.0 is the version that goes with the camera-ready Haskell'10 paper
 -- version 3.8.7.0 works with GHC 7
@@ -20,14 +21,29 @@ Author:              Norman Ramsey, João Dias, Simon Marlow and Simon Peyton Jo
 Maintainer:          nr@cs.tufts.edu
 Homepage:            http://ghc.cs.tufts.edu/hoopl/
 Build-Type:          Simple
-Cabal-Version:       >=1.6
+Cabal-Version:       >=1.10
 Synopsis:            A library to support dataflow analysis and optimization
 Category:            Compilers/Interpreters
-Extra-Source-Files:  README, hoopl.pdf, CHANGES, FAQ
+Tested-With:         GHC==7.6.3, GHC==7.6.2, GHC==7.6.1, GHC==7.4.2, GHC==7.4.1, GHC==7.2.2, GHC==7.0.4, GHC==7.0.3, GHC==7.0.2, GHC==7.0.1
+Extra-Source-Files:  README, hoopl.pdf, changelog
 
 Library
+  Default-Language:  Haskell2010
+  Other-Extensions:  CPP
+                     FlexibleContexts
+                     FlexibleInstances
+                     GADTs
+                     LiberalTypeSynonyms
+                     MultiParamTypeClasses
+                     RankNTypes
+                     ScopedTypeVariables
+                     TypeFamilies
+                     TypeSynonymInstances
+  If impl(ghc>=7.2)
+    Other-Extensions: Safe Trustworthy
+
   Hs-Source-Dirs:    src
-  Build-Depends:     base >= 3 && < 5, containers
+  Build-Depends:     base >= 4.3 && < 4.8, containers >= 0.4 && < 0.6
   Exposed-Modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Internals,
                      Compiler.Hoopl.Wrappers,
@@ -49,13 +65,17 @@ Library
                      Compiler.Hoopl.Fuel,
                      Compiler.Hoopl.Pointed,
                      Compiler.Hoopl.Shape,
-                     Compiler.Hoopl.Show, 
-                     Compiler.Hoopl.Unique, 
+                     Compiler.Hoopl.Show,
+                     Compiler.Hoopl.Unique,
                      Compiler.Hoopl.XUtil
 
   Ghc-Options:       -Wall -fno-warn-name-shadowing
-  Extensions:        CPP
 
 Source-repository head
   Type:       git
-  Location:   git://ghc.cs.tufts.edu/hoopl/hoopl.git
+  Location:   git://ghc.haskell.org/packages/hoopl.git
+
+Source-repository this
+  Type:       git
+  Location:   git://ghc.haskell.org/packages/hoopl.git
+  Tag:        hoopl-3.10.0.0-release
