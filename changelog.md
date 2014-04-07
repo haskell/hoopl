@@ -1,5 +1,10 @@
 # Changelog for [`hoopl` package](http://hackage.haskell.org/package/hoopl)
 
+## 3.10.0.1  *Mar 2014*
+
+  - Remove UTF8 character from hoopl.cabal to workaround issue
+    in GHC 7.8.1's build system
+
 ## 3.10.0.0  *Mar 2014*
 
   - Bundled with GHC 7.8.1

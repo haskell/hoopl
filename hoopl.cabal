@@ -1,5 +1,5 @@
 Name:                hoopl
-Version:             3.10.0.0
+Version:             3.10.0.1
 -- NOTE: Don't forget to update 'repository this' tag when incrementing version!
 -- GHC 7.6.1 released with 3.9.0.0
 -- version 3.8.6.0 is the version that goes with the camera-ready Haskell'10 paper
@@ -11,12 +11,12 @@ Version:             3.10.0.0
 Description:
   Higher-order optimization library
   .
-  See /Norman Ramsey, João Dias, and Simon Peyton Jones./
+  See /Norman Ramsey, Joao Dias, and Simon Peyton Jones./
   <http://research.microsoft.com/en-us/um/people/simonpj/Papers/c--/hoopl-haskell10.pdf "Hoopl: A Modular, Reusable Library for Dataflow Analysis and Transformation"> /(2010)/ for more details.
 
 License:             BSD3
 License-File:        LICENSE
-Author:              Norman Ramsey, João Dias, Simon Marlow and Simon Peyton Jones
+Author:              Norman Ramsey, Joao Dias, Simon Marlow and Simon Peyton Jones
 Maintainer:          nr@cs.tufts.edu
 Homepage:            http://ghc.cs.tufts.edu/hoopl/
 Bug-Reports:         http://ghc.haskell.org/trac/ghc/newticket?component=libraries/hoopl
@@ -34,7 +34,7 @@ Source-repository head
 Source-repository this
   Type:       git
   Location:   http://git.haskell.org/packages/hoopl.git
-  Tag:        hoopl-3.10.0.0-release
+  Tag:        hoopl-3.10.0.1-release
 
 Library
   Default-Language:  Haskell2010
