@@ -21,7 +21,7 @@ import Compiler.Hoopl.Collections
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
 
-import Control.Applicative (Applicative(..))
+import Control.Applicative
 import Control.Monad (ap,liftM)
 
 -----------------------------------------------------------------------------
