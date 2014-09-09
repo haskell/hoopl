@@ -1,5 +1,9 @@
 # Changelog for [`hoopl` package](http://hackage.haskell.org/package/hoopl)
 
+## 3.10.0.2  *TBA*
+
+ - Add support for `base-4.8.0.0` package version
+
 ## 3.10.0.1  *Mar 2014*
 
   - Remove UTF8 character from hoopl.cabal to workaround issue
