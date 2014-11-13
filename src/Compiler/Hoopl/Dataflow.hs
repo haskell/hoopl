@@ -1,9 +1,11 @@
 {-# LANGUAGE CPP, RankNTypes, ScopedTypeVariables, GADTs, TypeFamilies, MultiParamTypeClasses #-}
-#if __GLASGOW_HASKELL__ >= 703
-{- OPTIONS_GHC -fprof-auto #-}
-#endif
-#if __GLASGOW_HASKELL__ >= 701
+#if __GLASGOW_HASKELL__ >= 709
+{-# LANGUAGE Safe #-}
+#elif __GLASGOW_HASKELL__ >= 701
 {-# LANGUAGE Trustworthy #-}
+#endif
+#if __GLASGOW_HASKELL__ >= 703
+{-# OPTIONS_GHC -fprof-auto #-}
 #endif
 #if __GLASGOW_HASKELL__ < 701
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
