@@ -21,7 +21,9 @@ where
 import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Unique
 
+#if !MIN_VERSION_base(4,8,0)
 import Control.Applicative (Applicative(..))
+#endif
 import Control.Monad (ap,liftM)
 
 class Monad m => FuelMonad m where

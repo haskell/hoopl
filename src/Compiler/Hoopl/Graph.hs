@@ -46,7 +46,9 @@ import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Block
 import Compiler.Hoopl.Label
 
+#if !MIN_VERSION_base(4,8,0)
 import Control.Applicative (Applicative(..))
+#endif
 import Control.Monad (ap,liftM,liftM2)
 
 -- -----------------------------------------------------------------------------
