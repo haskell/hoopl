@@ -67,7 +67,7 @@ bodyUnion :: forall a . LabelMap a -> LabelMap a -> LabelMap a
 bodyUnion = mapUnionWithKey nodups
   where nodups l _ _ = error $ "duplicate blocks with label " ++ show l
 
-bodyList :: NonLocal (block n) => Body' block n -> [(Label,block n C C)]
+bodyList :: Body' block n -> [(Label,block n C C)]
 bodyList body = mapToList body
 
 addBlock :: NonLocal thing
@@ -308,8 +308,7 @@ preorder_dfs  :: NonLocal (block n) => Graph' block n O x -> [block n C C]
 -- Better to get [A,B,C,D]
 
 
-graphDfs :: (NonLocal (block n))
-         => (LabelMap (block n C C) -> block n O C -> LabelSet -> [block n C C])
+graphDfs :: (LabelMap (block n C C) -> block n O C -> LabelSet -> [block n C C])
          -> (Graph' block n O x -> [block n C C])
 graphDfs _     (GNil)    = []
 graphDfs _     (GUnit{}) = []
