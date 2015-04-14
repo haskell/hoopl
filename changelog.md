@@ -1,5 +1,9 @@
 # Changelog for [`hoopl` package](http://hackage.haskell.org/package/hoopl)
 
+## 3.10.1.0  **TBA**
+
+ - Remove redundant constraints
+
 ## 3.10.0.2  *Dec 2014*
 
  - Add support for `base-4.8.0.0` package version
