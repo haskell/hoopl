@@ -27,7 +27,7 @@ import Compiler.Hoopl.Combinators
 import Compiler.Hoopl.Dataflow hiding ( wrapFR, wrapFR2, wrapBR, wrapBR2
                                       )
 import Compiler.Hoopl.Debug
-import Compiler.Hoopl.Fuel hiding (withFuel, getFuel, setFuel, runWithFuel)
+import Compiler.Hoopl.Fuel hiding (withFuel, getFuel, setFuel)
 import Compiler.Hoopl.Block
 import Compiler.Hoopl.Graph hiding (splice, gSplice)
 import Compiler.Hoopl.Label hiding (uniqueToLbl, lblToUnique)
