@@ -1,5 +1,5 @@
 Name:                hoopl
-Version:             3.10.1.0
+Version:             3.10.2.1
 -- NOTE: Don't forget to update ./changelog.md
 Description:
   Higher-order optimization library
@@ -10,7 +10,7 @@ Description:
 License:             BSD3
 License-File:        LICENSE
 Author:              Norman Ramsey, Joao Dias, Simon Marlow and Simon Peyton Jones
-Maintainer:          nr@cs.tufts.edu
+Maintainer:          Ning Wang <email@ningwang.org>, Andreas Voellmy <andreas.voellmy@gmail.com>
 Homepage:            http://ghc.cs.tufts.edu/hoopl/
 Bug-Reports:         http://ghc.haskell.org/trac/ghc/newticket?component=libraries/hoopl
 Build-Type:          Simple
@@ -68,3 +68,13 @@ Library
 
   Ghc-Options:       -Wall -fno-warn-name-shadowing
 
+Test-Suite hoopl-test
+  Default-Language:  Haskell2010
+  Type:              exitcode-stdio-1.0
+  Main-Is:           Main.hs
+  Hs-Source-Dirs:    testing src
+  Ghc-Options:       -fhpc -Wall
+  Build-Depends:     base >= 4.3 && < 4.9, 
+                     containers >= 0.4 && < 0.6,
+                     parsec >= 3.1.7,
+                     mtl >= 2.1.3.1

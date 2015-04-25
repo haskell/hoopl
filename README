@@ -17,6 +17,10 @@ To build the library, change to the src directory and run
   cabal build
   cabal install --enable-documentation
 
+To run the tests in the folder testing/, change to the top level and run
+  cabal configure --enable-tests
+  cabal test
+
 You'll need a Haskell Platform, which should include appropriate
 versions of Cabal and GHC.
 

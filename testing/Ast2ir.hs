@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
-module Ast2ir (astToIR) where
+module Ast2ir (astToIR, IdLabelMap) where
 
 import           Compiler.Hoopl
 import           Control.Monad
@@ -17,17 +17,19 @@ import qualified IR  as I
 -- the following operation:
 labelFor :: String -> LabelMapM Label
 getBody  :: forall n. Graph n C C   -> LabelMapM (Graph n C C)
-run      :: LabelMapM a -> I.M a
+run      :: LabelMapM a -> I.M (IdLabelMap, a)
 
 -- We proceed with the translation from AST to IR; the implementation of the monad
 -- is at the end of this file.
 
-astToIR :: A.Proc -> I.M I.Proc
+astToIR :: A.Proc -> I.M (IdLabelMap, I.Proc)
 astToIR (A.Proc {A.name = n, A.args = as, A.body = b}) = run $
   do entry <- getEntry b
      body  <- toBody   b
      return $ I.Proc { I.name  = n, I.args = as, I.body = body, I.entry = entry }
+     
 
+          
 getEntry :: [A.Block] -> LabelMapM Label
 getEntry [] = error "Parsed procedures should not be empty"
 getEntry (b : _) = labelFor $ A.first b
@@ -80,4 +82,4 @@ labelFor l = LabelMapM f
 getBody graph = LabelMapM f
   where f m = return (m, graph)
 
-run (LabelMapM f) = f M.empty >>=  return . snd
+run (LabelMapM f) = f M.empty -- >>=  return -- . snd

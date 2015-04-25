@@ -1,6 +1,5 @@
 Here is some testing code which may also serve as a sample client.
 
-
 Base system
 ~~~~~~~~~~~
   Ast.hs         Abstract syntax for a language of basic blocks,
@@ -14,6 +13,9 @@ Base system
   Ast2ir.hs      Translation from Ast to IR.  The highlight is mapping
                  the string labels in the source from the abstract Labels
                  defined by Hoopl.
+
+  Ir2Ast.hs      Translated from IR to Ast. The original string Labels to the
+                 abstract Labels mappings are used to do this translation.
 
 
 Optimizations
