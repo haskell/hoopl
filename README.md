@@ -3,7 +3,7 @@ The `hoopl` Package  [![Hackage](https://img.shields.io/hackage/v/hoopl.svg)](ht
 
 ## Hoopl: A Higher-Order OPtimization Library
 
-API documentation can be found on [Hackage](https://hackage.haskell.org/package/directory).
+API documentation can be found on [Hackage](https://hackage.haskell.org/package/hoopl).
 
 | Directory      | Contents
 | -------------- | ---------
@@ -24,6 +24,8 @@ You'll need a Haskell Platform, which should include appropriate
 versions of Cabal and GHC.
 
 ### Checklist for Making Releases
+
+In order to facilitate GHC development's workflow, the version in [`hoopl.cabal`](hoopl.cabal) is to be bumped as soon as a change requires a respective version bump (according to the PVP) relative to the last released `hoopl` version.
 
 1. Make sure `hoopl` passes Travis for all GHC versions in the build-matrix
 2. Update Changelog (& `git commit`)
