@@ -1,10 +1,8 @@
 # Changelog for [`hoopl` package](http://hackage.haskell.org/package/hoopl)
 
-## 3.10.2.0 *Apr 2015*
+## 3.10.1.0 *Apr 2015*
 
  - Re-export runWithFuel from Compiler.Hoopl.
-
-## 3.10.1.0  **TBA**
 
  - Remove redundant constraints
 

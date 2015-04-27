@@ -1,5 +1,5 @@
 Name:                hoopl
-Version:             3.10.2.0
+Version:             3.10.1.0
 -- NOTE: Don't forget to update ./changelog.md
 Description:
   Higher-order optimization library
