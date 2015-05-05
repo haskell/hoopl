@@ -27,8 +27,9 @@ install:
  - travis_retry cabal update
 
 script:
- - cabal configure -v2
+ - cabal configure -v2 --enable-tests
  - cabal build
+ - cabal test
  - cabal check
  - cabal sdist
  - SRC_TGZ=$(cabal info . | awk '{print $2;exit}').tar.gz &&

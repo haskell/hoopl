@@ -25,6 +25,11 @@ To run the tests in the folder testing/, change to the src directory and run
     cabal configure --enable-tests
     cabal test
 
+To run the tests with the test coverage report, change to the src directory and run 
+
+    cabal configure --enable-tests -f testcoverage
+    cabal test
+
 You'll need a Haskell Platform, which should include appropriate
 versions of Cabal and GHC.
 
