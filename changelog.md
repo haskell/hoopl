@@ -1,15 +1,18 @@
 # Changelog for [`hoopl` package](http://hackage.haskell.org/package/hoopl)
 
-## 3.10.2.1 *Apr 2015*
- - Add #if CABAL macro to several hoopl source files such that the Cabal generated macro is not included when building in ghci
- - Change the test code (testing/*) to compare the converted graphs against the expected graphs in AST form 
- - Update the cabal file to run tests and generate a test coverage report 
+## 3.10.1.1 *Apr 2015*
 
-## 3.10.2.0 *Apr 2015*
+ - Add #if CABAL macro to several hoopl source files such that the Cabal generated macro is not included when building in ghci
+
+ - Change the test code (testing/*) to compare the converted graphs against the expected graphs in AST form 
+
+ - Update the cabal file to run tests and generate a test coverage report 
+ 
+ - Unhide gSplice of Hoopl.Graph
+
+## 3.10.1.0 *Apr 2015*
 
  - Re-export runWithFuel from Compiler.Hoopl.
-
-## 3.10.1.0  **TBA**
 
  - Remove redundant constraints
 

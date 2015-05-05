@@ -1,5 +1,5 @@
 Name:                hoopl
-Version:             3.10.2.1
+Version:             3.10.1.0
 -- NOTE: Don't forget to update ./changelog.md
 Description:
   Higher-order optimization library
@@ -18,7 +18,7 @@ Cabal-Version:       >=1.10
 Synopsis:            A library to support dataflow analysis and optimization
 Category:            Compilers/Interpreters
 Tested-With:         GHC>=7.0.1
-Extra-Source-Files:  README, hoopl.pdf, changelog.md
+Extra-Source-Files:  README.md, hoopl.pdf, changelog.md
 
 Source-repository head
   Type:       git
