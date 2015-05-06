@@ -14,7 +14,7 @@ import Control.Applicative (Applicative(..))
 import Control.Applicative (Applicative(..))
 #endif
 
-import Compiler.Hoopl
+import Compiler.Hoopl hiding ((<*>))
 import IR
 
 ----------------------------------------------

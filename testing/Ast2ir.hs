@@ -2,7 +2,9 @@
 {-# LANGUAGE CPP, RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
 module Ast2ir (astToIR, IdLabelMap) where
 
-import           Compiler.Hoopl
+
+import           Compiler.Hoopl hiding ((<*>))
+import qualified Compiler.Hoopl as H ((<*>))
 import           Control.Monad
 import qualified Data.Map       as M
 
@@ -52,7 +54,7 @@ toBlock (A.Block { A.first = f, A.mids = ms, A.last = l }) =
   do f'  <- toFirst f
      ms' <- mapM toMid ms
      l'  <- toLast l
-     return $ mkFirst f' <*> mkMiddles ms' <*> mkLast l'
+     return $ mkFirst f' H.<*> mkMiddles ms' H.<*> mkLast l'
 
 toFirst :: A.Lbl -> LabelMapM (I.Insn C O)
 toFirst = liftM I.Label . labelFor
