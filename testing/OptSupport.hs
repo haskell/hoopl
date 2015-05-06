@@ -1,10 +1,18 @@
-{-# LANGUAGE GADTs, RankNTypes #-}
+{-# LANGUAGE CPP, GADTs, RankNTypes #-}
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
 module OptSupport (mapVE, mapEE, mapEN, mapVN, fold_EE, fold_EN, insnToG) where
 
 import Control.Monad
 import Data.Maybe
 import Prelude hiding (succ)
+
+#if CABAL
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative (Applicative(..))
+#endif
+#else
+import Control.Applicative (Applicative(..))
+#endif
 
 import Compiler.Hoopl
 import IR
@@ -33,6 +41,14 @@ instance Monad Mapped where
   New a >>= k = asNew (k a)
     where asNew (Old a)   = New a
           asNew m@(New _) = m
+
+instance Functor Mapped where
+  fmap = liftM
+  
+instance Applicative Mapped where
+  pure = return
+  (<*>) = ap
+
 
 makeTotal :: (a -> Maybe a) -> (a -> Mapped a)
 makeTotal f a = case f a of Just a' -> New a'

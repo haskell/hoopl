@@ -1,10 +1,18 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
+{-# LANGUAGE CPP, RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns #-}
 module Ast2ir (astToIR, IdLabelMap) where
 
 import           Compiler.Hoopl
 import           Control.Monad
 import qualified Data.Map       as M
+
+#if CABAL
+#if !MIN_VERSION_base(4,8,0)
+import qualified Control.Applicative as AP (Applicative(..))
+#endif
+#else
+import qualified Control.Applicative as AP (Applicative(..)) 
+#endif
 
 import qualified Ast as A
 import qualified IR  as I
@@ -67,11 +75,21 @@ toLast (A.Return es)      = return $ I.Return es
 
 type IdLabelMap = M.Map String Label
 data LabelMapM a = LabelMapM (IdLabelMap -> I.M (IdLabelMap, a))
+
 instance Monad LabelMapM where
   return x = LabelMapM (\m -> return (m, x))
   LabelMapM f1 >>= k = LabelMapM (\m -> do (m', x) <- f1 m
                                            let (LabelMapM f2) = k x
                                            f2 m')
+                       
+instance Functor LabelMapM where                       
+  fmap = liftM
+  
+instance AP.Applicative LabelMapM where  
+  pure = return
+  (<*>) = ap
+
+  
 labelFor l = LabelMapM f
   where f m = case M.lookup l m of
                 Just l' -> return (m, l')

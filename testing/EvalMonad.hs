@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns , FlexibleInstances, MultiParamTypeClasses, TypeSynonymInstances #-}
+{-# LANGUAGE CPP, RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns , FlexibleInstances, MultiParamTypeClasses, TypeSynonymInstances #-}
 
 module EvalMonad (ErrorM, VarEnv, B, State,
                   EvalM, runProg, inNewFrame, get_proc, get_block,
@@ -9,6 +9,14 @@ module EvalMonad (ErrorM, VarEnv, B, State,
 import Control.Monad.Error
 import qualified Data.Map as M
 import Prelude hiding (succ)
+
+#if CABAL
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative (Applicative(..))
+#endif
+#else
+import Control.Applicative (Applicative(..))
+#endif
 
 import Compiler.Hoopl
 import IR
@@ -26,6 +34,15 @@ instance Monad (EvalM v) where
   EvalM f >>= k = EvalM $ \s -> do (s', x) <- f s
                                    let EvalM f' = k x
                                    f' s'
+
+instance Functor (EvalM v) where
+  fmap = liftM
+
+instance Applicative (EvalM v) where
+  pure = return
+  (<*>) = ap
+
+
 instance MonadError String (EvalM v) where
   throwError e = EvalM (\s -> throwError (s, e))
   catchError (EvalM f) handler =
