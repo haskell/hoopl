@@ -1,20 +1,37 @@
 module Main (main) where
 
-import Test
-import System.IO
+import qualified System.FilePath as FilePath
 
--- Hardcoding test locations for now
-tests = map (\t -> "testing" ++ "/" ++ "tests" ++ "/" ++ t)
-        (["test1", "test2", "test3", "test4"] ++
-             ["if-test", "if-test2", "if-test3", "if-test4"])
-        
-test_expected_results = map (\t -> "testing" ++ "/" ++ "tests" ++ "/" ++ t)
-                        (["test1.expected", "test2.expected", "test3.expected", "test4.expected"] ++
-                         ["if-test.expected", "if-test2.expected", "if-test3.expected", "if-test4.expected"])
-        
+import qualified Test.Framework as Framework
+import qualified Test.Framework.Providers.HUnit as HUnit
+
+import qualified Test
 
 main :: IO ()
-main = do hSetBuffering stdout NoBuffering
-          hSetBuffering stderr NoBuffering
-          mapM (\(x, ex) -> putStrLn ("Test:" ++ x) >> parseTest x >> optTest x ex) (zip tests test_expected_results)
-          return ()
+main = Framework.defaultMain tests
+
+tests :: [Framework.Test]
+tests = [goldensTests]
+
+-- | All the tests that depend on reading an input file with a simple program,
+-- parsing and optimizing it and then comparing with an expected output.
+goldensTests :: Framework.Test
+goldensTests = Framework.testGroup "Goldens tests"
+    [ HUnit.testCase inputFile $ compareWithExpected inputFile expectedFile
+    | (inputFile, expectedFile) <- zip inputFiles expectedFiles ]
+  where
+    compareWithExpected = Test.optTest
+    inputFiles = [ basePath FilePath.</> test | test <- testFileNames ]
+    expectedFiles = [ basePath FilePath.</> test FilePath.<.> "expected"
+                    | test <- testFileNames ]
+    basePath = "testing" FilePath.</> "tests"
+    testFileNames =
+        [ "test1"
+        , "test2"
+        , "test3"
+        , "test4"
+        , "if-test"
+        , "if-test2"
+        , "if-test3"
+        , "if-test4"
+        ]
