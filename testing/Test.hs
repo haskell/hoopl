@@ -15,8 +15,6 @@ import IR
 import Live
 import Parse (parseCode)
 import Simplify
-import Debug.Trace
-
 parse :: String -> String -> ErrorM (M [(IdLabelMap, Proc)])
 parse file text =
   case parseCode file text of
@@ -55,7 +53,6 @@ optTest' procs =
     optProc proc@(Proc {entry, body, args}) =
       do { (body',  _, _) <- analyzeAndRewriteFwd fwd (JustC [entry]) body
                              (mapSingleton entry (initFact args))
-         ; trace (showProc (proc {body=body'})) $ return ()
          ; (body'', _, _) <- analyzeAndRewriteBwd bwd (JustC [entry]) body' mapEmpty
          ; return $ proc { body = body'' } }
     -- With debugging info: 
@@ -115,7 +112,6 @@ optTest file expectedFile =
            Right p  -> do { let opted = runSimpleUniqueMonad $ runWithFuel fuel p
                                 lbmaps = runSimpleUniqueMonad $ runWithFuel fuel (liftM (fst . unzip) lps)
                                 expected = runSimpleUniqueMonad $ runWithFuel fuel exps
-                          ; mapM_ (putStrLn . showProc) opted
                           ; compareAst (toAst (zip lbmaps opted)) (toAst expected)
                           }
   where
