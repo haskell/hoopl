@@ -51,8 +51,8 @@ instance Show Control where
   show (Branch lbl)       = ind $ "goto " ++ lbl
   show (Cond e t f)       =
     ind $ "if " ++ show e ++ " then goto " ++ t ++ " else goto " ++ f
-  show (Call ress f cargs succ) =
-    ind $ tuple ress ++ " = " ++ f ++ tuple (map show cargs) ++ " goto " ++ succ
+  show (Call ress f cargs successor) =
+    ind $ tuple ress ++ " = " ++ f ++ tuple (map show cargs) ++ " goto " ++ successor
   show (Return      rargs) = ind $ "ret " ++ tuple (map show rargs)
 
 ind :: String -> String

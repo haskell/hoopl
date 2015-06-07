@@ -3,7 +3,7 @@
 
 module Eval (evalProg, ErrorM) where
 
-import Control.Monad.Error
+import Control.Monad.Except
 import qualified Data.Map    as M
 import Prelude hiding (succ)
 

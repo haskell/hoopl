@@ -6,7 +6,7 @@ module EvalMonad (ErrorM, VarEnv, B, State,
                          get_var, set_var, get_heap, set_heap,
                   Event (..), event) where
 
-import Control.Monad.Error
+import Control.Monad.Except
 import qualified Data.Map as M
 import Prelude hiding (succ)
 
@@ -23,9 +23,6 @@ import IR
 
 type ErrorM        = Either String
 type InnerErrorM v = Either (State v, String)
-instance Error (State v, String) where
-  noMsg      = (undefined, "")
-  strMsg str = (undefined, str)
 
 data EvalM v a = EvalM (State v -> InnerErrorM v (State v, a))
 

@@ -50,7 +50,7 @@ fromBlock blk = foldBlockNodesF3 (fromIrInstCO, fromIrInstOO, fromIrInstOC) blk
 
   
 fromIrInstCO :: I.Insn C O -> () -> Rm (A.Lbl, [A.Insn])
-fromIrInstCO inst p = case inst of
+fromIrInstCO inst _ = case inst of
   I.Label l -> strLabelFor l >>= \x -> return (x, [])
 
   

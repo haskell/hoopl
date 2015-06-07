@@ -3,7 +3,7 @@
 module Test (parseTest, evalTest, optTest) where
 
 import Compiler.Hoopl
-import Control.Monad.Error
+import Control.Monad.Except
 import System.Exit
 
 import qualified Ast as A
