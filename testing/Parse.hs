@@ -52,7 +52,7 @@ expr :: Parser Expr
 expr = buildExpressionParser table factor
     <?> "Expression"
   where
-    table = [[op "*"  (Binop Mul) AssocLeft, op "/"  (Binop Div) AssocLeft], 
+    table = [[op "*"  (Binop Mul) AssocLeft, op "/"  (Binop Div) AssocLeft],
              [op "+"  (Binop Add) AssocLeft, op "-"  (Binop Sub) AssocLeft],
              [op "="  (Binop Eq)  AssocLeft, op "/=" (Binop Ne)  AssocLeft,
               op ">"  (Binop Gt)  AssocLeft, op "<"  (Binop Lt)  AssocLeft,
@@ -73,7 +73,7 @@ lit =  (natural >>= (return . Lit . Int))
    <|> (bool    >>= (return . Lit . Bool))
    <|> (bool    >>= (return . Lit . Bool))
    <?> "lit"
-      
+
 loc :: Char -> Parser x -> Parser x
 loc s addr = try (lexeme (do { char' s
                              ; char' '['

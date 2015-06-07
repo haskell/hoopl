@@ -28,7 +28,7 @@ evalProc' (Proc {name=_, args, body, entry}) actuals =
 
 -- Responsible for allocating and deallocating its own stack frame.
 evalBody :: EvalTarget v => VarEnv v -> Graph Insn C C -> Label -> EvalM v [v]
-evalBody vars graph entry = inNewFrame vars graph $ get_block entry >>= evalB 
+evalBody vars graph entry = inNewFrame vars graph $ get_block entry >>= evalB
 
 evalB :: forall v . EvalTarget v => Block Insn C C -> EvalM v [v]
 evalB b = foldBlockNodesF3 (lift evalF, lift evalM, lift evalL) b $ return ()
@@ -111,7 +111,7 @@ instance EvalTarget Value where
                                             return $ up $ op v_x v_y
               fromI (I x) = return x
               fromI (B _) = throwError "fromI: got a B"
-              
+
               fromB (I _) = throwError "fromB: got an I"
               fromB (B x) = return x
 

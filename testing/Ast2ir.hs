@@ -13,7 +13,7 @@ import qualified Data.Map       as M
 import qualified Control.Applicative as AP (Applicative(..))
 #endif
 #else
-import qualified Control.Applicative as AP (Applicative(..)) 
+import qualified Control.Applicative as AP (Applicative(..))
 #endif
 
 import qualified Ast as A
@@ -37,9 +37,9 @@ astToIR (A.Proc {A.name = n, A.args = as, A.body = b}) = run $
   do entry <- getEntry b
      body  <- toBody   b
      return $ I.Proc { I.name  = n, I.args = as, I.body = body, I.entry = entry }
-     
 
-          
+
+
 getEntry :: [A.Block] -> LabelMapM Label
 getEntry [] = error "Parsed procedures should not be empty"
 getEntry (b : _) = labelFor $ A.first b
@@ -83,15 +83,15 @@ instance Monad LabelMapM where
   LabelMapM f1 >>= k = LabelMapM (\m -> do (m', x) <- f1 m
                                            let (LabelMapM f2) = k x
                                            f2 m')
-                       
-instance Functor LabelMapM where                       
+
+instance Functor LabelMapM where
   fmap = liftM
-  
-instance AP.Applicative LabelMapM where  
+
+instance AP.Applicative LabelMapM where
   pure = return
   (<*>) = ap
 
-  
+
 labelFor l = LabelMapM f
   where f m = case M.lookup l m of
                 Just l' -> return (m, l')

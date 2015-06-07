@@ -13,8 +13,8 @@ import Control.Monad.Reader
 type Rm = Reader (M.Map Label A.Lbl)
 
 invertMap :: (Ord k, Ord v) => M.Map k v -> M.Map v k
-invertMap m = foldl (\p (k,v) -> 
-                      if M.member v p 
+invertMap m = foldl (\p (k,v) ->
+                      if M.member v p
                       then error $ "irrefutable error in invertMap, the values are not unique"
                       else M.insert v k p
                     ) M.empty (M.toList m)
@@ -28,7 +28,7 @@ strLabelFor l = do { mp <- ask
                    }
 
 irToAst :: M.Map String Label -> I.Proc -> A.Proc
-irToAst mp (I.Proc {I.name = n, I.args = as, I.body = graph, I.entry = entry }) = 
+irToAst mp (I.Proc {I.name = n, I.args = as, I.body = graph, I.entry = entry }) =
   runReader (do { body <- fromGraph entry graph
                 ; return $ A.Proc { A.name = n, A.args = as, A.body = body }
                 }) (invertMap mp)
@@ -39,36 +39,36 @@ fromGraph entry g = let entryNode = gUnitOC (BlockOC BNil (I.Branch entry))
                     in foldM (\p blk -> do { ablk <- fromBlock blk ()
                                            ; return (ablk:p)
                                            }) [] blks
-               
-              
+
+
 
 type instance IndexedCO C () (Rm (A.Lbl, [A.Insn])) = ()
 type instance IndexedCO C (Rm A.Block) (Rm (A.Lbl, [A.Insn])) = Rm A.Block
 
 fromBlock :: Block I.Insn C C -> () -> Rm A.Block
-fromBlock blk = foldBlockNodesF3 (fromIrInstCO, fromIrInstOO, fromIrInstOC) blk 
+fromBlock blk = foldBlockNodesF3 (fromIrInstCO, fromIrInstOO, fromIrInstOC) blk
 
-  
+
 fromIrInstCO :: I.Insn C O -> () -> Rm (A.Lbl, [A.Insn])
 fromIrInstCO inst _ = case inst of
   I.Label l -> strLabelFor l >>= \x -> return (x, [])
 
-  
+
 fromIrInstOO :: I.Insn O O -> Rm (A.Lbl, [A.Insn]) -> Rm (A.Lbl, [A.Insn])
 fromIrInstOO inst p = case inst of
   I.Assign v e -> do { (sl, insts) <- p
                      ; return (sl, (A.Assign v e):insts)
                      }
-  I.Store a e -> do { (sl, insts) <- p 
+  I.Store a e -> do { (sl, insts) <- p
                     ; return (sl, (A.Store a e):insts)
                     }
 
 
 fromIrInstOC :: I.Insn e x -> Rm (A.Lbl, [A.Insn]) -> Rm A.Block
 fromIrInstOC inst p = case inst of
-  I.Branch tl -> do { (l, insts) <- p 
+  I.Branch tl -> do { (l, insts) <- p
                     ; stl <- strLabelFor tl
-                    ; return $ A.Block {A.first = l, A.mids = reverse insts 
+                    ; return $ A.Block {A.first = l, A.mids = reverse insts
                                        , A.last = A.Branch stl}
                     }
   I.Cond e tl fl -> do { (l, insts)<- p

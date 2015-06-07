@@ -32,7 +32,7 @@ mapVN = mapEN . mapEE . mapVE
 
 mapVE f (Var v) = f v
 mapVE _ _       = Nothing
-                  
+
 
 data Mapped a = Old a | New a
 instance Monad Mapped where
@@ -44,7 +44,7 @@ instance Monad Mapped where
 
 instance Functor Mapped where
   fmap = liftM
-  
+
 instance Applicative Mapped where
   pure = return
   (<*>) = ap
@@ -71,7 +71,7 @@ class HasExpressions a where
 
 instance HasExpressions (Insn e x) where
   mapAllSubexpressions = error "urk!" (mapVars, (/@/), makeTotal, ifNew)
-                           
+
 mapVars :: (Var -> Maybe Expr) -> Mapping Expr Expr
 mapVars f e@(Var x) = makeTotalDefault e f x
 mapVars _ e         = return e
@@ -80,7 +80,7 @@ mapVars _ e         = return e
 mapEE f e@(Lit _)     = f e
 mapEE f e@(Var _)     = f e
 mapEE f e@(Load addr) =
-  case mapEE f addr of 
+  case mapEE f addr of
     Just addr' -> Just $ fromMaybe e' (f e')
                     where e' = Load addr'
     Nothing    -> f e

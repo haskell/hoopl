@@ -8,11 +8,11 @@ data Expr = Lit   Lit
           | Var   Var
           | Load  Expr
           | Binop BinOp Expr Expr deriving (Eq)
-                                           
+
 data BinOp = Add | Sub | Mul | Div | Eq | Ne | Lt | Gt | Lte | Gte deriving Eq
 
 data Lit = Bool Bool | Int Integer deriving Eq
-type Var = String 
+type Var = String
 
 --------------------------------------------------------------------------------
 --- Prettyprinting

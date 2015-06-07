@@ -35,19 +35,19 @@ type Lbl = String
 
 
 showProc :: Proc -> String
-showProc (Proc { name = n, args = as, body = blks}) 
+showProc (Proc { name = n, args = as, body = blks})
   = n ++ tuple as ++ graph
   where
     graph  = foldl (\p b -> p ++ "\n" ++ show b) (" {") blks ++ "\n}\n"
 
 instance Show Block where
-  show (Block f m l) = (foldl (\p e -> p ++ "\n" ++ show e) (f++":") m) ++ "\n" ++ show l 
+  show (Block f m l) = (foldl (\p e -> p ++ "\n" ++ show e) (f++":") m) ++ "\n" ++ show l
 
 instance Show Insn where
   show (Assign v e)       = ind $ v ++ " = " ++ show e
   show (Store addr e)     = ind $ "m[" ++ show addr ++ "] = " ++ show e
-  
-instance Show Control where  
+
+instance Show Control where
   show (Branch lbl)       = ind $ "goto " ++ lbl
   show (Cond e t f)       =
     ind $ "if " ++ show e ++ " then goto " ++ t ++ " else goto " ++ f

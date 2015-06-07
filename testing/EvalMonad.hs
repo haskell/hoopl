@@ -56,7 +56,7 @@ type PEnv      = M.Map String Proc
 type G         = Graph Insn C C
 
 runProg :: [Proc] -> [v] -> EvalM v x -> ErrorM (State v, x)
-runProg procs vs (EvalM f) = 
+runProg procs vs (EvalM f) =
   case f init_state of
     Left (_, e) -> throwError e
     Right x     -> return x
@@ -64,7 +64,7 @@ runProg procs vs (EvalM f) =
     init_state = State { frames = [], heap = M.empty, events = [],
                          vsupply = vs, procs = procMap }
     procMap = M.fromList $ zip (map name procs) procs
-  
+
 get_state :: EvalM v (State v)
 get_state = EvalM f
   where f state = return (state, state)
@@ -137,7 +137,7 @@ inNewFrame vars graph runFrame =
      x <- runFrame
      popFrame
      return x
-        
+
 mlookup :: Ord k => String -> k -> M.Map k v -> EvalM v' v
 mlookup blame k m =
   case M.lookup k m of

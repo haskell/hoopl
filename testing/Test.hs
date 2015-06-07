@@ -47,7 +47,7 @@ evalTest file =
        Right  s -> putStrLn s
 
 optTest' :: M [Proc] -> ErrorM (M [Proc])
-optTest' procs = 
+optTest' procs =
   return $ procs >>= mapM optProc
   where
     optProc proc@(Proc {entry, body, args}) =
@@ -55,7 +55,7 @@ optTest' procs =
                              (mapSingleton entry (initFact args))
          ; (body'', _, _) <- analyzeAndRewriteBwd bwd (JustC [entry]) body' mapEmpty
          ; return $ proc { body = body'' } }
-    -- With debugging info: 
+    -- With debugging info:
     -- fwd  = debugFwdJoins trace (const True) $ FwdPass { fp_lattice = constLattice, fp_transfer = varHasLit
     --                                      , fp_rewrite = constProp `thenFwdRw` simplify }
     fwd  = constPropPass
@@ -73,15 +73,15 @@ constPropPass = FwdPass
   , fp_rewrite  = constProp `thenFwdRw` simplify }
 -- @ end cprop.tex
 
-toAst :: [(IdLabelMap, Proc)] -> [A.Proc] 
-toAst l = fmap (uncurry Ia.irToAst) l 
+toAst :: [(IdLabelMap, Proc)] -> [A.Proc]
+toAst l = fmap (uncurry Ia.irToAst) l
 
 compareAst :: [A.Proc] -> [A.Proc] -> IO ()
 compareAst [] [] = return ()
 compareAst (r:results) (e:expected) =
   if r == e
   then compareAst results expected
-  else 
+  else
     do { putStrLn "expecting"
        ; putStrLn $ A.showProc e
        ; putStrLn "resulting"
@@ -96,8 +96,8 @@ compareAst results expected = do { putStrLn "expecting"
                                  ; putStrLn "the result does not match the expected, abort the test!!!!"
                                  ; exitFailure
                                  }
-        
-  
+
+
 
 optTest :: String -> String -> IO ()
 optTest file expectedFile =
@@ -106,7 +106,7 @@ optTest file expectedFile =
      case (parse file text, parse expectedFile expectedText) of
        (Left err, _) -> putStrLn err
        (_, Left err) -> putStrLn err
-       (Right lps, Right exps) -> 
+       (Right lps, Right exps) ->
          case optTest' (liftM (snd . unzip) lps) of
            Left err -> putStrLn err
            Right p  -> do { let opted = runSimpleUniqueMonad $ runWithFuel fuel p

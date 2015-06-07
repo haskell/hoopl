@@ -35,12 +35,12 @@ liveness = mkBTransfer live
 
     fact :: FactBase (S.Set Var) -> Label -> Live
     fact f l = fromMaybe S.empty $ lookupFact l f
-    
+
     addUses :: S.Set Var -> Insn e x -> Live
     addUses = fold_EN (fold_EE addVar)
     addVar s (Var v) = S.insert v s
     addVar s _       = s
-     
+
 deadAsstElim :: forall m . FuelMonad m => BwdRewrite m Insn Live
 deadAsstElim = mkBRewrite d
   where

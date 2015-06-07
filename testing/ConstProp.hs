@@ -24,7 +24,7 @@ constLattice = DataflowLattice
  , fact_bot  = Map.empty
  , fact_join = joinMaps (extendJoinDomain constFactAdd) }
  where
-   constFactAdd _ (OldFact old) (NewFact new) 
+   constFactAdd _ (OldFact old) (NewFact new)
        = if new == old then (NoChange, PElem new)
          else               (SomeChange, Top)
 
@@ -49,7 +49,7 @@ varHasLit = mkFTransfer ft
   ft (Assign x _)         f = Map.insert x Top f
   ft (Store _ _)          f = f
   ft (Branch l)           f = mapSingleton l f
-  ft (Cond (Var x) tl fl) f 
+  ft (Cond (Var x) tl fl) f
       = mkFactBase constLattice
            [(tl, Map.insert x (PElem (Bool True))  f),
             (fl, Map.insert x (PElem (Bool False)) f)]
@@ -74,7 +74,7 @@ constProp = mkFRewrite cp
 
    mapVN :: (Var  -> Maybe Expr) -> MaybeChange (Node e x)
    mapVN      = mapEN . mapEE . mapVE
-   
+
    lookup :: ConstFact -> Var -> Maybe Expr
    lookup f x = case Map.lookup x f of
                   Just (PElem v) -> Just $ Lit v
