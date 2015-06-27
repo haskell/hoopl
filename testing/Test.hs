@@ -25,7 +25,7 @@ parseTest :: String -> IO ()
 parseTest file =
   do text <- readFile file
      case parse file text of
-       Left err -> putStrLn err
+       Left err -> error err
        Right p  -> mapM (putStrLn . showProc . snd) (runSimpleUniqueMonad $ runWithFuel 0 p) >> return ()
 
 evalTest' :: String -> String -> ErrorM String
@@ -43,7 +43,7 @@ evalTest :: String -> IO ()
 evalTest file =
   do text    <- readFile file
      case evalTest' file text of
-       Left err -> putStrLn err
+       Left err -> error err
        Right  s -> putStrLn s
 
 optTest' :: M [Proc] -> ErrorM (M [Proc])
@@ -104,11 +104,11 @@ optTest file expectedFile =
   do text    <- readFile file
      expectedText <- readFile expectedFile
      case (parse file text, parse expectedFile expectedText) of
-       (Left err, _) -> putStrLn err
-       (_, Left err) -> putStrLn err
+       (Left err, _) -> error err
+       (_, Left err) -> error err
        (Right lps, Right exps) ->
          case optTest' (liftM (snd . unzip) lps) of
-           Left err -> putStrLn err
+           Left err -> error err
            Right p  -> do { let opted = runSimpleUniqueMonad $ runWithFuel fuel p
                                 lbmaps = runSimpleUniqueMonad $ runWithFuel fuel (liftM (fst . unzip) lps)
                                 expected = runSimpleUniqueMonad $ runWithFuel fuel exps
