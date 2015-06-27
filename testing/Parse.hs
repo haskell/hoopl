@@ -47,6 +47,9 @@ reservedOp = P.reservedOp lexer
 whitespace :: CharParser () ()
 whitespace = P.whiteSpace lexer
 
+brackets :: CharParser () a -> CharParser () a
+brackets = P.brackets lexer
+
 -- Expressions:
 expr :: Parser Expr
 expr = buildExpressionParser table factor
@@ -60,8 +63,8 @@ expr = buildExpressionParser table factor
     op o f assoc = Infix (do {reservedOp o; return f} <?> "operator") assoc
     factor =   parens expr
            <|> lit
-           <|> fetchVar
            <|> load
+           <|> fetchVar
            <?> "simple Expression"
 
 bool :: Parser Bool
@@ -75,12 +78,7 @@ lit =  (natural >>= (return . Lit . Int))
    <?> "lit"
 
 loc :: Char -> Parser x -> Parser x
-loc s addr = try (lexeme (do { char' s
-                             ; char' '['
-                             ; a <- addr
-                             ; char' ']'
-                             ; return a
-                             }))
+loc s addr = try (lexeme (char' s >> brackets addr))
           <?> "loc"
 
 var :: Parser String
@@ -104,7 +102,7 @@ labl = lexeme (do { id <- identifier
   <?> "label"
 
 mid :: Parser Insn
-mid =   asst
+mid =   try asst
     <|> store
     <?> "assignment or store"
 
