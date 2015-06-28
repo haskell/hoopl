@@ -114,8 +114,11 @@ fold_EN :: (a -> Expr -> a) -> a -> Insn e x -> a
 
 fold_EE f z e@(Lit _)         = f z e
 fold_EE f z e@(Var _)         = f z e
-fold_EE f z e@(Load addr)     = f (f z addr) e
-fold_EE f z e@(Binop _ e1 e2) = f (f (f z e2) e1) e
+fold_EE f z e@(Load addr)     = f (fold_EE f z addr) e
+fold_EE f z e@(Binop _ e1 e2) =
+  let afterE1 = fold_EE f z e1
+      afterE2 = fold_EE f afterE1 e2
+  in f afterE2 e
 
 fold_EN _ z (Label _)       = z
 fold_EN f z (Assign _ e)    = f z e
