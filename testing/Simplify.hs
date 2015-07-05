@@ -27,6 +27,8 @@ simplify = deepFwdRw simp
     = Just $ Lit $ Int $ n1 + n2
     -- ... more cases for constant folding
 -- @ end cprop.tex
+  s_exp (Binop Div _lhs (Lit (Int 0)))
+    = Nothing
   s_exp (Binop opr e1 e2)
     | (Just op, Lit (Int i1), Lit (Int i2)) <- (intOp opr, e1, e2) =
         Just $ Lit $ Int  $ op i1 i2
