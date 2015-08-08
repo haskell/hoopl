@@ -1,5 +1,5 @@
 Name:                hoopl
-Version:             3.10.1.0
+Version:             3.10.1.1
 -- NOTE: Don't forget to update ./changelog.md
 Description:
   Higher-order optimization library
@@ -24,10 +24,9 @@ Source-repository head
   Type:       git
   Location:   http://git.haskell.org/packages/hoopl.git
 
-flag testcoverage {
+flag testcoverage 
   description: Enable test coverage report
   default: False
-}
 
 
 Library
@@ -86,6 +85,6 @@ Test-Suite hoopl-test
                      parsec >= 3.1.7,
                      test-framework < 0.9,
                      test-framework-hunit < 0.4
-  if flag(testcoverage) {
+                     mtl >= 2.1.3.1
+  if flag(testcoverage) 
     Ghc-Options: -fhpc
-  }
