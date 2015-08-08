@@ -1,6 +1,6 @@
 # Changelog for [`hoopl` package](http://hackage.haskell.org/package/hoopl)
 
-## 3.10.1.1 *Apr 2015*
+## 3.10.1.1 *Aug 2015*
 
  - Add #if CABAL macro to several hoopl source files such that the Cabal generated macro is not included when building in ghci
 
@@ -9,6 +9,10 @@
  - Update the cabal file to run tests and generate a test coverage report 
  
  - Unhide gSplice of Hoopl.Graph
+
+ - Expose Showing of Hoopl.Show
+
+ - Some fixes of testing
 
 ## 3.10.1.0 *Apr 2015*
 
