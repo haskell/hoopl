@@ -12,7 +12,7 @@ License-File:        LICENSE
 Author:              Norman Ramsey, Joao Dias, Simon Marlow and Simon Peyton Jones
 Maintainer:          nr@cs.tufts.edu, andreas.voellmy@gmail.com, email@ningwang.org
 Homepage:            http://ghc.cs.tufts.edu/hoopl/
-Bug-Reports:         http://ghc.haskell.org/trac/ghc/newticket?component=libraries/hoopl
+Bug-Reports:         https://github.com/haskell/hoopl/issues/
 Build-Type:          Simple
 Cabal-Version:       >=1.10
 Synopsis:            A library to support dataflow analysis and optimization
