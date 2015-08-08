@@ -4,7 +4,7 @@
 #endif
 
 module Compiler.Hoopl.Show 
-  ( showGraph, showFactBase
+  ( showGraph, showFactBase, Showing
   )
 where
 
