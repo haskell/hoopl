@@ -358,11 +358,11 @@ instance Functor VM where
   fmap  = liftM
 
 instance Applicative VM where
-  pure  = return
+  pure a = VM $ \visited -> (a, visited)
   (<*>) = ap
 
 instance Monad VM where
-  return a = VM $ \visited -> (a, visited)
+  return = pure
   m >>= k  = VM $ \visited -> let (a, v') = unVM m visited in unVM (k a) v'
 
 marked :: Label -> VM Bool

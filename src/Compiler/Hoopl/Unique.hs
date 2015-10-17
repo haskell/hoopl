@@ -123,11 +123,11 @@ instance Functor SimpleUniqueMonad where
   fmap = liftM
 
 instance Applicative SimpleUniqueMonad where
-  pure  = return
+  pure a = SUM $ \us -> (a, us)
   (<*>) = ap
 
 instance Monad SimpleUniqueMonad where
-  return a = SUM $ \us -> (a, us)
+  return = pure
   m >>= k  = SUM $ \us -> let (a, us') = unSUM m us in
                               unSUM (k a) us'
 
@@ -152,11 +152,11 @@ instance Monad m => Functor (UniqueMonadT m) where
   fmap  = liftM
 
 instance Monad m => Applicative (UniqueMonadT m) where
-  pure  = return
+  pure a = UMT $ \us -> return (a, us)
   (<*>) = ap
 
 instance Monad m => Monad (UniqueMonadT m) where
-  return a = UMT $ \us -> return (a, us)
+  return = pure
   m >>= k  = UMT $ \us -> do { (a, us') <- unUMT m us; unUMT (k a) us' }
 
 instance Monad m => UniqueMonad (UniqueMonadT m) where

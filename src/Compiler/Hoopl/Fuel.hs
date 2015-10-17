@@ -64,11 +64,11 @@ instance Monad m => Functor (CheckingFuelMonad m) where
   fmap  = liftM
 
 instance Monad m => Applicative (CheckingFuelMonad m) where
-  pure  = return
+  pure a = FM (\f -> return (a, f))
   (<*>) = ap
 
 instance Monad m => Monad (CheckingFuelMonad m) where
-  return a = FM (\f -> return (a, f))
+  return = pure
   fm >>= k = FM (\f -> do { (a, f') <- unFM fm f; unFM (k a) f' })
 
 instance CheckpointMonad m => CheckpointMonad (CheckingFuelMonad m) where
@@ -96,11 +96,11 @@ instance Monad m => Functor (InfiniteFuelMonad m) where
   fmap  = liftM
 
 instance Monad m => Applicative (InfiniteFuelMonad m) where
-  pure  = return
+  pure a = IFM $ return a
   (<*>) = ap
 
 instance Monad m => Monad (InfiniteFuelMonad m) where
-  return a = IFM $ return a
+  return = pure
   m >>= k  = IFM $ do { a <- unIFM m; unIFM (k a) }
 
 instance UniqueMonad m => UniqueMonad (InfiniteFuelMonad m) where
