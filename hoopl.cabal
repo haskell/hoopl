@@ -45,7 +45,7 @@ Library
     Other-Extensions: Safe Trustworthy
 
   Hs-Source-Dirs:    src
-  Build-Depends:     base >= 4.3 && < 4.9, containers >= 0.4 && < 0.6
+  Build-Depends:     base >= 4.3 && < 4.10, containers >= 0.4 && < 0.6
   Exposed-Modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Internals,
                      Compiler.Hoopl.Wrappers,
@@ -78,7 +78,7 @@ Test-Suite hoopl-test
   Type:              exitcode-stdio-1.0
   Main-Is:           Main.hs
   Hs-Source-Dirs:    testing src
-  Build-Depends:     base >= 4.3 && < 4.9, 
+  Build-Depends:     base >= 4.3 && < 4.10, 
                      containers >= 0.4 && < 0.6,
                      filepath,
                      mtl >= 2.1.3.1,
