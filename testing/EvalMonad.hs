@@ -1,22 +1,15 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE CPP, RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns , FlexibleInstances, MultiParamTypeClasses, TypeSynonymInstances #-}
+{-# LANGUAGE RankNTypes, ScopedTypeVariables, GADTs, EmptyDataDecls, PatternGuards, TypeFamilies, NamedFieldPuns , FlexibleInstances, MultiParamTypeClasses, TypeSynonymInstances #-}
 
 module EvalMonad (ErrorM, VarEnv, B, State,
                   EvalM, runProg, inNewFrame, get_proc, get_block,
                          get_var, set_var, get_heap, set_heap,
                   Event (..), event) where
 
+import Control.Applicative as AP (Applicative(..))
 import Control.Monad.Except
 import qualified Data.Map as M
 import Prelude hiding (succ)
-
-#if CABAL
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative (Applicative(..))
-#endif
-#else
-import Control.Applicative (Applicative(..))
-#endif
 
 import Compiler.Hoopl hiding ((<*>))
 import IR
@@ -27,7 +20,7 @@ type InnerErrorM v = Either (State v, String)
 data EvalM v a = EvalM (State v -> InnerErrorM v (State v, a))
 
 instance Monad (EvalM v) where
-  return x = EvalM (\s -> return (s, x))
+  return = AP.pure
   EvalM f >>= k = EvalM $ \s -> do (s', x) <- f s
                                    let EvalM f' = k x
                                    f' s'
@@ -36,9 +29,8 @@ instance Functor (EvalM v) where
   fmap = liftM
 
 instance Applicative (EvalM v) where
-  pure = return
+  pure x = EvalM (\s -> return (s, x))
   (<*>) = ap
-
 
 instance MonadError String (EvalM v) where
   throwError e = EvalM (\s -> throwError (s, e))

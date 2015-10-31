@@ -1,5 +1,9 @@
 # Changelog for [`hoopl` package](http://hackage.haskell.org/package/hoopl)
 
+## ...
+
+ - replace `#if CABAL` macro by no CPP at all
+
 ## 3.10.1.1 *Aug 2015*
 
  - Add #if CABAL macro to several hoopl source files such that the Cabal generated macro is not included when building in ghci

@@ -6,14 +6,7 @@ import Control.Monad
 import Data.Maybe
 import Prelude hiding (succ)
 
-#if CABAL
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative (Applicative(..))
-#endif
-#else
-import Control.Applicative (Applicative(..))
-#endif
-
+import Control.Applicative as AP (Applicative(..))
 import Compiler.Hoopl hiding ((<*>))
 import IR
 
@@ -35,8 +28,10 @@ mapVE _ _       = Nothing
 
 
 data Mapped a = Old a | New a
+
 instance Monad Mapped where
-  return = Old
+  return = AP.pure
+
   Old a >>= k = k a
   New a >>= k = asNew (k a)
     where asNew (Old a)   = New a
@@ -46,7 +41,7 @@ instance Functor Mapped where
   fmap = liftM
 
 instance Applicative Mapped where
-  pure = return
+  pure = Old
   (<*>) = ap
 
 
