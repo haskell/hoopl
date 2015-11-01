@@ -21,14 +21,7 @@ where
 import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Unique
 
-#if CABAL
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative (Applicative(..))
-#endif
-#else
-import Control.Applicative (Applicative(..))
-#endif
-
+import Control.Applicative as AP (Applicative(..))
 import Control.Monad (ap,liftM)
 
 class Monad m => FuelMonad m where
@@ -68,7 +61,7 @@ instance Monad m => Applicative (CheckingFuelMonad m) where
   (<*>) = ap
 
 instance Monad m => Monad (CheckingFuelMonad m) where
-  return = pure
+  return = AP.pure
   fm >>= k = FM (\f -> do { (a, f') <- unFM fm f; unFM (k a) f' })
 
 instance CheckpointMonad m => CheckpointMonad (CheckingFuelMonad m) where

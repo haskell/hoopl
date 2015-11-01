@@ -24,14 +24,7 @@ import Compiler.Hoopl.Collections
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
 
-#ifdef CABAL
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative
-#endif
-#else
-import Control.Applicative
-#endif
-
+import Control.Applicative as AP
 import Control.Monad (ap,liftM)
 
 -----------------------------------------------------------------------------
@@ -127,7 +120,7 @@ instance Applicative SimpleUniqueMonad where
   (<*>) = ap
 
 instance Monad SimpleUniqueMonad where
-  return = pure
+  return = AP.pure
   m >>= k  = SUM $ \us -> let (a, us') = unSUM m us in
                               unSUM (k a) us'
 

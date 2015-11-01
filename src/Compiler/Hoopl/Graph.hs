@@ -46,13 +46,7 @@ import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Block
 import Compiler.Hoopl.Label
 
-#if CABAL
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative (Applicative(..))
-#endif
-#else
-import Control.Applicative (Applicative(..))
-#endif
+import Control.Applicative as AP (Applicative(..))
 import Control.Monad (ap,liftM,liftM2)
 
 -- -----------------------------------------------------------------------------
@@ -362,7 +356,7 @@ instance Applicative VM where
   (<*>) = ap
 
 instance Monad VM where
-  return = pure
+  return = AP.pure
   m >>= k  = VM $ \visited -> let (a, v') = unVM m visited in unVM (k a) v'
 
 marked :: Label -> VM Bool
