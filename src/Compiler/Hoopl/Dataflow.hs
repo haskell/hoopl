@@ -247,7 +247,9 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
                 -> Fact e f -> m (DG f n e C, Fact C f)
              c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
              c (JustC entries) NothingO = body entries bdy
+#if __GLASGOW_HASKELL__ < 711
              c _ _ = error "bogus GADT pattern match failure"
+#endif
 
     -- Lift from nodes to blocks
 -- @ start block.tex -2
@@ -439,7 +441,9 @@ arbGraph pass@BwdPass { bp_lattice  = lattice,
                 -> Fact C f -> m (DG f n e C, Fact e f)
              c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
              c (JustC entries) NothingO = body entries bdy
+#if __GLASGOW_HASKELL__ < 711
              c _ _ = error "bogus GADT pattern match failure"
+#endif
 
     -- Lift from nodes to blocks
     block BNil          = \f -> return (dgnil, f)
