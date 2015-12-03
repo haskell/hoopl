@@ -193,7 +193,9 @@ splice bcat = sp
         sp (GMany e1 b1 NothingO) (GMany NothingO b2 x2)
           = {-# SCC "sp5" #-} (GMany e1 $! b1 `bodyUnion` b2) x2
 
+#if __GLASGOW_HASKELL__ < 711
         sp _ _ = error "bogus GADT match failure"
+#endif
 
 gSplice :: NonLocal n => Graph n e a -> Graph n a x -> Graph n e x
 gSplice = splice blockAppend
