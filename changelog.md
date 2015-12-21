@@ -1,10 +1,19 @@
 # Changelog for [`hoopl` package](http://hackage.haskell.org/package/hoopl)
 
-## ...
+## 3.10.2.1 *Dec 2015*
+  This release includes only non-functional changes.
 
- - replace `#if CABAL` macro by no CPP at all
+ - Rewrite Applicative/Monad instances into normal-form
 
-## 3.10.1.1 *Aug 2015*
+ - Relax the upper bound constraint of base to include 4.9
+
+ - Replace `#if CABAL` macro by no CPP at all
+
+ - Wrap redudant wild card pattens in conditional compilation 
+
+ - Prefix unused type variables with underscores. 
+
+## 3.10.2.0 *Aug 2015*
 
  - Add #if CABAL macro to several hoopl source files such that the Cabal generated macro is not included when building in ghci
 
