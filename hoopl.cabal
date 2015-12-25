@@ -51,8 +51,6 @@ Library
                      Compiler.Hoopl.Wrappers,
                      Compiler.Hoopl.Passes.Dominator,
                      Compiler.Hoopl.Passes.DList
---                     Compiler.Hoopl.DataflowFold,
---                     Compiler.Hoopl.OldDataflow,
 
   -- The remaining modules are hidden *provisionally*
   Other-modules:     Compiler.Hoopl.Checkpoint,
