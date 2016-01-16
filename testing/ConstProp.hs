@@ -15,7 +15,6 @@ type Node = Insn -- for paper
 --   Not present in map => bottom
 --   PElem v => variable has value v
 --   Top     => variable's value is not constant
--- @ start cprop.tex
 -- Type and definition of the lattice
 type ConstFact = Map.Map Var (WithTop Lit)
 constLattice :: DataflowLattice ConstFact
@@ -28,7 +27,6 @@ constLattice = DataflowLattice
        = if new == old then (NoChange, PElem new)
          else               (SomeChange, Top)
 
--- @ end cprop.tex
 -- Initially, we assume that all variable values are unknown.
 initFact :: [Var] -> ConstFact
 initFact vars = Map.fromList $ [(v, Top) | v <- vars]
@@ -37,7 +35,6 @@ initFact vars = Map.fromList $ [(v, Top) | v <- vars]
 -- a call site.
 -- Note that we don't need a case for x := y, where y holds a constant.
 -- We can write the simplest solution and rely on the interleaved optimization.
--- @ start cprop.tex
 --------------------------------------------------
 -- Analysis: variable equals a literal constant
 varHasLit :: FwdTransfer Node ConstFact
@@ -56,13 +53,11 @@ varHasLit = mkFTransfer ft
   ft (Cond _ tl fl) f
       = mkFactBase constLattice [(tl, f), (fl, f)]
 
--- @ end cprop.tex
   ft (Call vs _ _ bid)      f = mapSingleton bid (foldl toTop f vs)
       where toTop f v = Map.insert v Top f
   ft (Return _)             _ = mapEmpty
 
 type MaybeChange a = a -> Maybe a
--- @ start cprop.tex
 --------------------------------------------------
 -- Rewriting: replace constant variables
 constProp :: forall m. FuelMonad m => FwdRewrite m Node ConstFact
@@ -79,4 +74,3 @@ constProp = mkFRewrite cp
    lookup f x = case Map.lookup x f of
                   Just (PElem v) -> Just $ Lit v
                   _              -> Nothing
--- @ end cprop.tex

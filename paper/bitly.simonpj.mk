@@ -1,3 +1,0 @@
-%.bitly:VQ:
-	# do nothing
- 

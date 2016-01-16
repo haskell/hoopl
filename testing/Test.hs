@@ -63,7 +63,6 @@ optTest' procs =
                    , bp_rewrite = deadAsstElim }
 
 constPropPass :: FuelMonad m => FwdPass m Insn ConstFact
--- @ start cprop.tex
 
 ----------------------------------------
 -- Defining the forward dataflow pass
@@ -71,7 +70,6 @@ constPropPass = FwdPass
   { fp_lattice  = constLattice
   , fp_transfer = varHasLit
   , fp_rewrite  = constProp `thenFwdRw` simplify }
--- @ end cprop.tex
 
 toAst :: [(IdLabelMap, Proc)] -> [A.Proc]
 toAst l = fmap (uncurry Ia.irToAst) l
