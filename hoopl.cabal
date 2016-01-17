@@ -53,8 +53,7 @@ Library
                      Compiler.Hoopl.Passes.DList
 
   -- The remaining modules are hidden *provisionally*
-  Other-modules:     Compiler.Hoopl.Checkpoint,
-                     Compiler.Hoopl.Collections,
+  Other-modules:     Compiler.Hoopl.Collections,
                      Compiler.Hoopl.Combinators,
                      Compiler.Hoopl.Dataflow,
                      Compiler.Hoopl.Debug,
