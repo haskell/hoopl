@@ -11,7 +11,7 @@ License:             BSD3
 License-File:        LICENSE
 Author:              Norman Ramsey, Joao Dias, Simon Marlow and Simon Peyton Jones
 Maintainer:          nr@cs.tufts.edu, andreas.voellmy@gmail.com, email@ningwang.org
-Homepage:            http://ghc.cs.tufts.edu/hoopl/
+Homepage:            https://github.com/haskell/hoopl
 Bug-Reports:         https://github.com/haskell/hoopl/issues/
 Build-Type:          Simple
 Cabal-Version:       >=1.10
