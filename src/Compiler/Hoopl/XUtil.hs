@@ -140,16 +140,16 @@ successorFacts :: NonLocal n => n O C -> FactBase f -> [f]
 successorFacts n fb = [ f | id <- successors n, let Just f = lookupFact id fb ]
 
 -- | Join a list of facts.
-joinFacts :: DataflowLattice f -> Label -> [f] -> f
-joinFacts lat inBlock = foldr extend (fact_bot lat)
-  where extend new old = snd $ fact_join lat inBlock (OldFact old) (NewFact new)
+joinFacts :: DataflowLattice f -> [f] -> f
+joinFacts lat = foldr extend (fact_bot lat)
+  where extend new old = snd $ fact_join lat (OldFact old) (NewFact new)
 
 {-# DEPRECATED joinOutFacts
     "should be replaced by 'joinFacts lat l (successorFacts n f)'; as is, it uses the wrong Label" #-}
 
 joinOutFacts :: (NonLocal node) => DataflowLattice f -> node O C -> FactBase f -> f
 joinOutFacts lat n f = foldr join (fact_bot lat) facts
-  where join (lbl, new) old = snd $ fact_join lat lbl (OldFact old) (NewFact new)
+  where join (lbl, new) old = snd $ fact_join lat (OldFact old) (NewFact new)
         facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
 
 
@@ -158,12 +158,12 @@ joinOutFacts lat n f = foldr join (fact_bot lat) facts
 -- operation on the map can be expressed in terms of the join on each
 -- element of the codomain:
 joinMaps :: Ord k => JoinFun v -> JoinFun (M.Map k v)
-joinMaps eltJoin l (OldFact old) (NewFact new) = M.foldrWithKey add (NoChange, old) new
+joinMaps eltJoin (OldFact old) (NewFact new) = M.foldrWithKey add (NoChange, old) new
   where 
     add k new_v (ch, joinmap) =
       case M.lookup k joinmap of
         Nothing    -> (SomeChange, M.insert k new_v joinmap)
-        Just old_v -> case eltJoin l (OldFact old_v) (NewFact new_v) of
+        Just old_v -> case eltJoin (OldFact old_v) (NewFact new_v) of
                         (SomeChange, v') -> (SomeChange, M.insert k v' joinmap)
                         (NoChange,   _)  -> (ch, joinmap)
 

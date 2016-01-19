@@ -45,7 +45,7 @@ domLattice :: DataflowLattice Doms
 domLattice = addPoints "dominators" extend
 
 extend :: JoinFun DPath
-extend _ (OldFact (DPath l)) (NewFact (DPath l')) =
+extend (OldFact (DPath l)) (NewFact (DPath l')) =
                                 (changeIf (l `lengthDiffers` j), DPath j)
     where j = lcs l l'
           lcs :: [Label] -> [Label] -> [Label] -- longest common suffix

@@ -13,7 +13,6 @@ module Compiler.Hoopl.Pointed
 where
 
 import Compiler.Hoopl.Block
-import Compiler.Hoopl.Label
 import Compiler.Hoopl.Dataflow
 
 -- | Adds top, bottom, or both to help form a lattice
@@ -67,37 +66,37 @@ addPoints  :: String -> JoinFun a -> DataflowLattice (Pointed t C a)
 -- | A more general case for creating a new lattice
 addPoints' :: forall a t .
               String
-           -> (Label -> OldFact a -> NewFact a -> (ChangeFlag, Pointed t C a))
+           -> (OldFact a -> NewFact a -> (ChangeFlag, Pointed t C a))
            -> DataflowLattice (Pointed t C a)
 
 addPoints name join = addPoints' name join'
-   where join' l o n = (change, PElem f)
-            where (change, f) = join l o n
+   where join' o n = (change, PElem f)
+            where (change, f) = join o n
 
 addPoints' name joinx = DataflowLattice name Bot join
   where -- careful: order of cases matters for ChangeFlag
         join :: JoinFun (Pointed t C a)
-        join _ (OldFact f)            (NewFact Bot) = (NoChange, f)
-        join _ (OldFact Top)          (NewFact _)   = (NoChange, Top)
-        join _ (OldFact Bot)          (NewFact f)   = (SomeChange, f)
-        join _ (OldFact _)            (NewFact Top) = (SomeChange, Top)
-        join l (OldFact (PElem old)) (NewFact (PElem new))
-           = joinx l (OldFact old) (NewFact new)
+        join (OldFact f)            (NewFact Bot) = (NoChange, f)
+        join (OldFact Top)          (NewFact _)   = (NoChange, Top)
+        join (OldFact Bot)          (NewFact f)   = (SomeChange, f)
+        join (OldFact _)            (NewFact Top) = (SomeChange, Top)
+        join (OldFact (PElem old)) (NewFact (PElem new))
+           = joinx (OldFact old) (NewFact new)
 
 
 liftJoinTop :: JoinFun a -> JoinFun (WithTop a)
 extendJoinDomain :: forall a
-              . (Label -> OldFact a -> NewFact a -> (ChangeFlag, WithTop a))
+              . (OldFact a -> NewFact a -> (ChangeFlag, WithTop a))
              -> JoinFun (WithTop a)
 
 extendJoinDomain joinx = join
  where join :: JoinFun (WithTop a)
-       join _ (OldFact Top)          (NewFact _)   = (NoChange, Top)
-       join _ (OldFact _)            (NewFact Top) = (SomeChange, Top)
-       join l (OldFact (PElem old)) (NewFact (PElem new))
-           = joinx l (OldFact old) (NewFact new)
+       join (OldFact Top)          (NewFact _)   = (NoChange, Top)
+       join (OldFact _)            (NewFact Top) = (SomeChange, Top)
+       join (OldFact (PElem old)) (NewFact (PElem new))
+           = joinx (OldFact old) (NewFact new)
 
-liftJoinTop joinx = extendJoinDomain (\l old new -> liftPair $ joinx l old new)
+liftJoinTop joinx = extendJoinDomain (\old new -> liftPair $ joinx old new)
   where liftPair (c, a) = (c, PElem a)
 
 -- | Given a join function and a name, creates a semi lattice by
@@ -108,21 +107,21 @@ addTop  :: DataflowLattice a -> DataflowLattice (WithTop a)
 addTop' :: forall a .
               String
            -> a
-           -> (Label -> OldFact a -> NewFact a -> (ChangeFlag, WithTop a))
+           -> (OldFact a -> NewFact a -> (ChangeFlag, WithTop a))
            -> DataflowLattice (WithTop a)
 
 addTop lattice = addTop' name' (fact_bot lattice) join'
    where name' = fact_name lattice ++ " + T"
-         join' l o n = (change, PElem f)
-            where (change, f) = fact_join lattice l o n
+         join' o n = (change, PElem f)
+            where (change, f) = fact_join lattice o n
 
 addTop' name bot joinx = DataflowLattice name (PElem bot) join
   where -- careful: order of cases matters for ChangeFlag
         join :: JoinFun (WithTop a)
-        join _ (OldFact Top)          (NewFact _)   = (NoChange, Top)
-        join _ (OldFact _)            (NewFact Top) = (SomeChange, Top)
-        join l (OldFact (PElem old)) (NewFact (PElem new))
-           = joinx l (OldFact old) (NewFact new)
+        join (OldFact Top)          (NewFact _)   = (NoChange, Top)
+        join (OldFact _)            (NewFact Top) = (SomeChange, Top)
+        join (OldFact (PElem old)) (NewFact (PElem new))
+           = joinx (OldFact old) (NewFact new)
 
 instance Show a => Show (Pointed t b a) where
   show Bot = "_|_"

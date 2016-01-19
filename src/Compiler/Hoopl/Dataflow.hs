@@ -60,7 +60,7 @@ data DataflowLattice a = DataflowLattice
 -- in a big finite map.  We don't want Hoopl to show the whole fact,
 -- and only the transfer function knows exactly what changed.
 
-type JoinFun a = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
+type JoinFun a = OldFact a -> NewFact a -> (ChangeFlag, a)
   -- the label argument is for debugging purposes only
 newtype OldFact a = OldFact a
 newtype NewFact a = NewFact a
@@ -80,7 +80,7 @@ mkFactBase lattice = foldl add mapEmpty
         add map (lbl, f) = mapInsert lbl newFact map
           where newFact = case mapLookup lbl map of
                             Nothing -> f
-                            Just f' -> snd $ join lbl (OldFact f') (NewFact f)
+                            Just f' -> snd $ join (OldFact f') (NewFact f)
                 join = fact_join lattice
 
 
@@ -314,7 +314,7 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
 joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
 joinInFacts (lattice @ DataflowLattice {fact_bot = bot, fact_join = fj}) fb =
   mkFactBase lattice $ map botJoin $ mapToList fb
-    where botJoin (l, f) = (l, snd $ fj l (OldFact bot) (NewFact f))
+    where botJoin (l, f) = (l, snd $ fj (OldFact bot) (NewFact f))
 
 forwardBlockList :: (NonLocal n, LabelsPtr entry)
                  => entry -> Body n -> [Block n C C]
@@ -557,7 +557,7 @@ updateFact lat newblocks lbl new_fact (cha, fbase)
            Nothing -> (SomeChange, new_fact_debug)  -- Note [Unreachable blocks]
            Just old_fact -> join old_fact
          where join old_fact = 
-                 fact_join lat lbl
+                 fact_join lat
                    (OldFact old_fact) (NewFact new_fact)
                (_, new_fact_debug) = join (fact_bot lat)
 
