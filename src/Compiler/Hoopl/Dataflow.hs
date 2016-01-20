@@ -222,7 +222,6 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
            (f1 -> m (DG f n e a, f2))
         -> (f2 -> m (DG f n a x, f3))
         -> (f1 -> m (DG f n e x, f3))
--- @ end cat.tex
 
     graph GNil            = \f -> return (dgnil, f)
     graph (GUnit blk)     = block blk
@@ -242,7 +241,6 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
 #endif
 
     -- Lift from nodes to blocks
--- @ start block.tex -2
     block BNil          = \f -> return (dgnil, f)
     block (BlockCO l b)   = node l `cat` block b
     block (BlockCC l b n) = node l `cat` block b `cat` node n
@@ -250,11 +248,9 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
 
     block (BMiddle n)  = node n
     block (BCat b1 b2) = block b1 `cat` block b2
--- @ end block.tex
     block (BSnoc h n)  = block h  `cat` node n
     block (BCons n t)  = node  n  `cat` block t
 
--- @ start node.tex -4
     node n f
      = do { grw <- frewrite rewrite n f
           ; case grw of
@@ -265,25 +261,19 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
                       f'    = fwdEntryFact n f
                   in  arfGraph pass' (fwdEntryLabel n) g f' }
 
--- @ end node.tex
 
     -- | Compose fact transformers and concatenate the resulting
     -- rewritten graphs.
     {-# INLINE cat #-} 
--- @ start cat.tex -2
     cat ft1 ft2 f = do { (g1,f1) <- ft1 f
                        ; (g2,f2) <- ft2 f1
                        ; return (g1 `dgSplice` g2, f2) }
--- @ end cat.tex
     arfx :: forall thing x .
             NonLocal thing
          => (thing C x ->        f -> m (DG f n C x, Fact x f))
          -> (thing C x -> Fact C f -> m (DG f n C x, Fact x f))
     arfx arf thing fb = 
       arf thing $ fromJust $ lookupFact (entryLabel thing) fb
-     -- joinInFacts adds debugging information
-
-
      -- Outgoing factbase is restricted to Labels *not* in
      -- in the Body; the facts for Labels *in*
      -- the Body are in the 'DG f n C C'
@@ -294,10 +284,8 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
                  -> m (DG f n C x, Fact x f)
         do_block b fb = block b entryFact
           where entryFact = getFact lattice (entryLabel b) fb
--- @ end bodyfun.tex
 
-forwardBlockList :: (NonLocal n, LabelsPtr entry)
-                 => entry -> Body n -> [Block n C C]
+forwardBlockList :: (NonLocal n, LabelsPtr entry) => entry -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for forward analysis,
 -- along with the list of Labels it may depend on for facts.
 forwardBlockList entries blks = postorder_dfs_from blks entries
@@ -547,7 +535,6 @@ class Monad m => FixpointMonad m where
   observeChangedFactBase :: m (Maybe (FactBase f)) -> Maybe (FactBase f)
 -}
 
--- @ start fptype.tex
 data Direction = Fwd | Bwd
 fixpoint :: forall m n f. (CheckpointMonad m, NonLocal n)
  => Direction
@@ -683,11 +670,9 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 --          TOTALLY internal to Hoopl; each block is decorated with a fact
 -----------------------------------------------------------------------------
 
--- @ start dg.tex
 type Graph = Graph' Block
 type DG f  = Graph' (DBlock f)
 data DBlock f n e x = DBlock f (Block n e x) -- ^ block decorated with fact
--- @ end dg.tex
 instance NonLocal n => NonLocal (DBlock f n) where
   entryLabel (DBlock _ b) = entryLabel b
   successors (DBlock _ b) = successors b
@@ -740,7 +725,6 @@ dgSplice = splice fzCat
 -- Lowering back:
 --  - from fact-like things to facts
 -- Note that the latter two functions depend only on the entry shape.
--- @ start node.tex
 class ShapeLifter e x where
  singletonDG   :: f -> n e x -> DG f n e x
  fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
