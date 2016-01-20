@@ -290,7 +290,7 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
          => (thing C x ->        f -> m (DG f n C x, Fact x f))
          -> (thing C x -> Fact C f -> m (DG f n C x, Fact x f))
     arfx arf thing fb = 
-      arf thing $ fromJust $ lookupFact (entryLabel thing) $ joinInFacts lattice fb
+      arf thing $ fromJust $ lookupFact (entryLabel thing) fb
      -- joinInFacts adds debugging information
 
 
@@ -306,15 +306,6 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
         do_block b fb = block b entryFact
           where entryFact = getFact lattice (entryLabel b) fb
 -- @ end bodyfun.tex
-
-
--- Join all the incoming facts with bottom.
--- We know the results _shouldn't change_, but the transfer
--- functions might, for example, generate some debugging traces.
-joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
-joinInFacts (lattice @ DataflowLattice {fact_bot = bot, fact_join = fj}) fb =
-  mkFactBase lattice $ map botJoin $ mapToList fb
-    where botJoin (l, f) = (l, snd $ fj (OldFact bot) (NewFact f))
 
 forwardBlockList :: (NonLocal n, LabelsPtr entry)
                  => entry -> Body n -> [Block n C C]
@@ -479,8 +470,7 @@ arbGraph pass@BwdPass { bp_lattice  = lattice,
          -> (thing C x -> Fact x f -> m (DG f n C x, Fact C f))
 
     arbx arb thing f = do { (rg, f) <- arb thing f
-                          ; let fb = joinInFacts lattice $
-                                     mapSingleton (entryLabel thing) f
+                          ; let fb = mapSingleton (entryLabel thing) f
                           ; return (rg, fb) }
      -- joinInFacts adds debugging information
 
