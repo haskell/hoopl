@@ -1,32 +1,16 @@
 .*.swp
 *.bak
-*.bbl.old*
-odfopt.tex
-oodfopt.tex
-nrbib.tex
-_darcs
 *~
 
-dfopt.txt
-dfoptdu.tex
-defuse.tex
-dfopt.bbl
-notesinmargin.tex
-
-
-timestamp.tex
-
-*.log
-*.blg
-*.nlg
-*.dvi
-*.aux
-*.out
-dfopt.ps
-paper/*.pdf
 dist
-/GNUmakefile
-/dist-install
-/dist-boot
-/ghc.mk
+dist-install
+dist-boot
+ghc.mk
 .hpc
+
+# Cabal sandbox
+.cabal-sandbox
+cabal.sandbox.config
+
+# Coverage reports
+*.tix

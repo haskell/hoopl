@@ -212,22 +212,12 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
     type ARFX thing = forall e x . thing e x -> Fact e f -> m (DG f n e x, Fact x f)
     -}
     graph ::              Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
--- @ start block.tex -2
-    block :: forall e x . 
-             Block n e x -> f -> m (DG f n e x, Fact x f)
--- @ end block.tex
--- @ start node.tex -4
-    node :: forall e x . (ShapeLifter e x) 
-         => n e x -> f -> m (DG f n e x, Fact x f)
--- @ end node.tex
--- @ start bodyfun.tex
-    body  :: [Label] -> LabelMap (Block n C C)
-          -> Fact C f -> m (DG f n C C, Fact C f)
--- @ end bodyfun.tex
-                    -- Outgoing factbase is restricted to Labels *not* in
-                    -- in the Body; the facts for Labels *in*
-                    -- the Body are in the 'DG f n C C'
--- @ start cat.tex -2
+    block :: forall e x . Block n e x -> f -> m (DG f n e x, Fact x f)
+    node :: forall e x . (ShapeLifter e x) => n e x -> f -> m (DG f n e x, Fact x f)
+    body  :: [Label] -> LabelMap (Block n C C) -> Fact C f -> m (DG f n C C, Fact C f)
+     -- Outgoing factbase is restricted to Labels *not* in
+     -- in the Body; the facts for Labels *in*
+     -- the Body are in the 'DG f n C C'
     cat :: forall e a x f1 f2 f3. 
            (f1 -> m (DG f n e a, f2))
         -> (f2 -> m (DG f n a x, f3))
@@ -294,10 +284,9 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
      -- joinInFacts adds debugging information
 
 
-                    -- Outgoing factbase is restricted to Labels *not* in
-                    -- in the Body; the facts for Labels *in*
-                    -- the Body are in the 'DG f n C C'
--- @ start bodyfun.tex
+     -- Outgoing factbase is restricted to Labels *not* in
+     -- in the Body; the facts for Labels *in*
+     -- the Body are in the 'DG f n C C'
     body entries blockmap init_fbase
       = fixpoint Fwd lattice do_block entries blockmap init_fbase
       where
@@ -474,9 +463,9 @@ arbGraph pass@BwdPass { bp_lattice  = lattice,
                           ; return (rg, fb) }
      -- joinInFacts adds debugging information
 
-                    -- Outgoing factbase is restricted to Labels *not* in
-                    -- in the Body; the facts for Labels *in*
-                    -- the Body are in the 'DG f n C C'
+     -- Outgoing factbase is restricted to Labels *not* in
+     -- in the Body; the facts for Labels *in*
+     -- the Body are in the 'DG f n C C'
     body entries blockmap init_fbase
       = fixpoint Bwd lattice do_block (map entryLabel (backwardBlockList entries blockmap)) blockmap init_fbase
       where
@@ -567,8 +556,7 @@ fixpoint :: forall m n f. (CheckpointMonad m, NonLocal n)
  -> [Label]
  -> LabelMap (Block n C C)
  -> (Fact C f -> m (DG f n C C, Fact C f))
--- @ end fptype.tex
--- @ start fpimp.tex
+
 fixpoint direction lat do_block entries blockmap init_fbase
   = do
         -- trace ("fixpoint: " ++ show (case direction of Fwd -> True; Bwd -> False) ++ " " ++ show (mapKeys blockmap) ++ show entries ++ " " ++ show (mapKeys init_fbase)) $ return()
@@ -758,9 +746,7 @@ class ShapeLifter e x where
  fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
  fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
  ftransfer :: FwdTransfer n f -> n e x -> f -> Fact x f
- frewrite  :: FwdRewrite m n f -> n e x
-           -> f -> m (Maybe (Graph n e x, FwdRewrite m n f))
--- @ end node.tex
+ frewrite  :: FwdRewrite m n f -> n e x -> f -> m (Maybe (Graph n e x, FwdRewrite m n f))
  bwdEntryFact :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
  btransfer    :: BwdTransfer n f -> n e x -> Fact x f -> f
  brewrite     :: BwdRewrite m n f -> n e x

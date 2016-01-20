@@ -37,12 +37,10 @@ deepFwdRw f = deepFwdRw3 f f f
 
 -- N.B. rw3, rw3', and rw3a are triples of functions.
 -- But rw and rw' are single functions.
--- @ start comb1.tex
 thenFwdRw :: forall m n f. Monad m 
           => FwdRewrite m n f 
           -> FwdRewrite m n f 
           -> FwdRewrite m n f
--- @ end comb1.tex
 thenFwdRw rw3 rw3' = wrapFR2 thenrw rw3 rw3'
  where
   thenrw :: forall m1 e x t t1.
@@ -56,11 +54,9 @@ thenFwdRw rw3 rw3' = wrapFR2 thenrw rw3 rw3'
      where fwdRes Nothing   = rw' n f
            fwdRes (Just gr) = return $ Just $ fadd_rw rw3' gr
 
--- @ start iterf.tex
 iterFwdRw :: forall m n f. Monad m 
           => FwdRewrite m n f 
           -> FwdRewrite m n f
--- @ end iterf.tex
 iterFwdRw rw3 = wrapFR iter rw3
  where iter :: forall a m1 m2 e x t.
                (Monad m2, Monad m1) =>
@@ -141,12 +137,10 @@ badd_rw :: Monad m
 badd_rw rw2 (g, rw1) = (g, rw1 `thenBwdRw` rw2)
 
 
--- @ start pairf.tex
 pairFwd :: forall m n f f'. Monad m
         => FwdPass m n f
         -> FwdPass m n f' 
         -> FwdPass m n (f, f')
--- @ end pairf.tex
 pairFwd pass1 pass2 = FwdPass lattice transfer rewrite
   where
     lattice = pairLattice (fp_lattice pass1) (fp_lattice pass2)
