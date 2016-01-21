@@ -149,7 +149,7 @@ joinFacts lat = foldr extend (fact_bot lat)
 
 joinOutFacts :: (NonLocal node) => DataflowLattice f -> node O C -> FactBase f -> f
 joinOutFacts lat n f = foldr join (fact_bot lat) facts
-  where join (lbl, new) old = snd $ fact_join lat (OldFact old) (NewFact new)
+  where join (_, new) old = snd $ fact_join lat (OldFact old) (NewFact new)
         facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
 
 
