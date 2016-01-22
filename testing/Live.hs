@@ -16,7 +16,7 @@ liveLattice = DataflowLattice
   , fact_bot  = S.empty
   , fact_join = add
   }
-    where add _ (OldFact old) (NewFact new) = (ch, j)
+    where add (OldFact old) (NewFact new) = (ch, j)
             where
               j = new `S.union` old
               ch = changeIf (S.size j > S.size old)
