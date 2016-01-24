@@ -16,6 +16,8 @@ Transformation"](http://research.microsoft.com/en-us/um/people/simonpj/Papers/c-
 
 ### Development Notes
 
+#### Building and testing
+
 To build the library run:
 
     cabal configure
@@ -34,6 +36,12 @@ To run the tests with the test coverage report run:
 
 You'll need a Haskell Platform, which should include appropriate
 versions of Cabal and GHC.
+
+#### Coding style
+
+Please follow Johan Tibell's
+[Haskell Style Guide](https://github.com/tibbe/haskell-style-guide/blob/master/haskell-style.md)
+for all new/modified code.
 
 ### Checklist for Making Releases
 
