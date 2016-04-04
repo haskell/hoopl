@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP, TypeFamilies #-}
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 #if __GLASGOW_HASKELL__ >= 701
 {-# LANGUAGE Safe #-}
 #endif
@@ -17,6 +18,10 @@ where
 
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Unique
+#if !MIN_VERSION_base(4,8,0)
+import Data.Traversable (Traversable)
+import Data.Foldable (Foldable)
+#endif
 
 -----------------------------------------------------------------------------
 --		Label
@@ -64,7 +69,8 @@ instance IsSet LabelSet where
 -----------------------------------------------------------------------------
 -- LabelMap
 
-newtype LabelMap v = LM (UniqueMap v) deriving (Eq, Ord, Show)
+newtype LabelMap v = LM (UniqueMap v)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 instance IsMap LabelMap where
   type KeyOf LabelMap = Label

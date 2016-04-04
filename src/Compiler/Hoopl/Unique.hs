@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP, TypeFamilies #-}
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 #if __GLASGOW_HASKELL__ >= 709
 {-# LANGUAGE Safe #-}
 #elif __GLASGOW_HASKELL__ >= 701
@@ -26,6 +27,10 @@ import qualified Data.IntSet as S
 
 import Control.Applicative as AP
 import Control.Monad (ap,liftM)
+#if !MIN_VERSION_base(4,8,0)
+import Data.Traversable (Traversable)
+import Data.Foldable (Foldable)
+#endif
 
 -----------------------------------------------------------------------------
 --		Unique
@@ -69,7 +74,8 @@ instance IsSet UniqueSet where
 -----------------------------------------------------------------------------
 -- UniqueMap
 
-newtype UniqueMap v = UM (M.IntMap v) deriving (Eq, Ord, Show)
+newtype UniqueMap v = UM (M.IntMap v)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 instance IsMap UniqueMap where
   type KeyOf UniqueMap = Unique
