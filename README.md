@@ -31,7 +31,7 @@ To run the tests in the `testing/` folder run:
 
 To run the tests with the test coverage report run:
 
-    cabal configure --enable-tests -f testcoverage
+    cabal configure --enable-tests --enable-coverage
     cabal test
 
 You'll need a Haskell Platform, which should include appropriate
