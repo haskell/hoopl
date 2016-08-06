@@ -2,6 +2,9 @@
 *.bak
 *~
 
+# GHC build system produces these
+GNUmakefile
+
 dist
 dist-install
 dist-boot
