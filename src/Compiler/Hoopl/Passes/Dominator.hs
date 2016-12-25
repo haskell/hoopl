@@ -13,6 +13,7 @@ module Compiler.Hoopl.Passes.Dominator
 where
 
 import Data.Maybe
+import qualified Data.Set as Set
 
 import Compiler.Hoopl
 
@@ -47,15 +48,8 @@ domLattice = addPoints "dominators" extend
 extend :: JoinFun DPath
 extend _ (OldFact (DPath l)) (NewFact (DPath l')) =
                                 (changeIf (l `lengthDiffers` j), DPath j)
-    where j = lcs l l'
-          lcs :: [Label] -> [Label] -> [Label] -- longest common suffix
-          lcs l l' | length l > length l' = lcs (drop (length l - length l') l) l'
-                   | length l < length l' = lcs l' l
-                   | otherwise = dropUnlike l l' l
-          dropUnlike [] [] maybe_like = maybe_like
-          dropUnlike (x:xs) (y:ys) maybe_like =
-              dropUnlike xs ys (if x == y then maybe_like else xs)
-          dropUnlike _ _ _ = error "this can't happen"
+    where j = filter (\elem -> Set.member elem common) l
+          common = Set.intersection (Set.fromList l) (Set.fromList l')
 
           lengthDiffers [] [] = False
           lengthDiffers (_:xs) (_:ys) = lengthDiffers xs ys
