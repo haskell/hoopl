@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP, GADTs #-}
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
-#if __GLASGOW_HASKELL__ >= 701
+#if __GLASGOW_HASKELL__ >= 723
 {-# LANGUAGE Safe #-}
 #endif
 
