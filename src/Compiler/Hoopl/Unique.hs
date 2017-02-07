@@ -66,7 +66,7 @@ instance IsSet UniqueSet where
   setIntersection (US x) (US y) = US (S.intersection x y)
   setIsSubsetOf (US x) (US y) = S.isSubsetOf x y
 
-  setFold k z (US s) = S.fold k z s
+  setFold k z (US s) = S.foldr k z s
 
   setElems (US s) = S.elems s
   setFromList ks = US (S.fromList ks)
