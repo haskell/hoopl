@@ -1,5 +1,19 @@
 # Changelog for [`hoopl` package](http://hackage.haskell.org/package/hoopl)
 
+## 3.10.2.2 *Feb 2017*
+  This release includes non-API changes.
+
+ - Use cabal builtin options to enable test coverage
+
+ - Move up the constraints of base and containers
+
+ - Refactor the references of the fold family functions to their equivalant foldr functions.
+
+ - Drop the support for 7.0.1
+
+ - Fix a bug that drops out dominators when joined DPATHs have non-shared nodes in the middle.
+
+
 ## 3.10.2.1 *Dec 2015*
   This release includes only non-functional changes.
 
