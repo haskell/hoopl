@@ -60,7 +60,7 @@ data DataflowLattice a = DataflowLattice
 -- in a big finite map.  We don't want Hoopl to show the whole fact,
 -- and only the transfer function knows exactly what changed.
 
-type JoinFun a = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
+type JoinFun a = OldFact a -> NewFact a -> (ChangeFlag, a)
   -- the label argument is for debugging purposes only
 newtype OldFact a = OldFact a
 newtype NewFact a = NewFact a
@@ -80,7 +80,7 @@ mkFactBase lattice = foldl add mapEmpty
         add map (lbl, f) = mapInsert lbl newFact map
           where newFact = case mapLookup lbl map of
                             Nothing -> f
-                            Just f' -> snd $ join lbl (OldFact f') (NewFact f)
+                            Just f' -> snd $ join (OldFact f') (NewFact f)
                 join = fact_join lattice
 
 
@@ -261,6 +261,7 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
                       f'    = fwdEntryFact n f
                   in  arfGraph pass' (fwdEntryLabel n) g f' }
 
+
     -- | Compose fact transformers and concatenate the resulting
     -- rewritten graphs.
     {-# INLINE cat #-} 
@@ -272,10 +273,7 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
          => (thing C x ->        f -> m (DG f n C x, Fact x f))
          -> (thing C x -> Fact C f -> m (DG f n C x, Fact x f))
     arfx arf thing fb = 
-      arf thing $ fromJust $ lookupFact (entryLabel thing) $ joinInFacts lattice fb
-     -- joinInFacts adds debugging information
-
-
+      arf thing $ fromJust $ lookupFact (entryLabel thing) fb
      -- Outgoing factbase is restricted to Labels *not* in
      -- in the Body; the facts for Labels *in*
      -- the Body are in the 'DG f n C C'
@@ -287,16 +285,7 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
         do_block b fb = block b entryFact
           where entryFact = getFact lattice (entryLabel b) fb
 
--- Join all the incoming facts with bottom.
--- We know the results _shouldn't change_, but the transfer
--- functions might, for example, generate some debugging traces.
-joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
-joinInFacts (lattice @ DataflowLattice {fact_bot = bot, fact_join = fj}) fb =
-  mkFactBase lattice $ map botJoin $ mapToList fb
-    where botJoin (l, f) = (l, snd $ fj l (OldFact bot) (NewFact f))
-
-forwardBlockList :: (NonLocal n, LabelsPtr entry)
-                 => entry -> Body n -> [Block n C C]
+forwardBlockList :: (NonLocal n, LabelsPtr entry) => entry -> Body n -> [Block n C C]
 -- This produces a list of blocks in order suitable for forward analysis,
 -- along with the list of Labels it may depend on for facts.
 forwardBlockList entries blks = postorder_dfs_from blks entries
@@ -458,8 +447,7 @@ arbGraph pass@BwdPass { bp_lattice  = lattice,
          -> (thing C x -> Fact x f -> m (DG f n C x, Fact C f))
 
     arbx arb thing f = do { (rg, f) <- arb thing f
-                          ; let fb = joinInFacts lattice $
-                                     mapSingleton (entryLabel thing) f
+                          ; let fb = mapSingleton (entryLabel thing) f
                           ; return (rg, fb) }
      -- joinInFacts adds debugging information
 
@@ -536,7 +524,7 @@ updateFact lat newblocks lbl new_fact (cha, fbase)
            Nothing -> (SomeChange, new_fact_debug)  -- Note [Unreachable blocks]
            Just old_fact -> join old_fact
          where join old_fact = 
-                 fact_join lat lbl
+                 fact_join lat
                    (OldFact old_fact) (NewFact new_fact)
                (_, new_fact_debug) = join (fact_bot lat)
 
@@ -685,7 +673,6 @@ we'll propagate (x=4) to L4, and nuke the otherwise-good rewriting of L4.
 type Graph = Graph' Block
 type DG f  = Graph' (DBlock f)
 data DBlock f n e x = DBlock f (Block n e x) -- ^ block decorated with fact
-
 instance NonLocal n => NonLocal (DBlock f n) where
   entryLabel (DBlock _ b) = entryLabel b
   successors (DBlock _ b) = successors b

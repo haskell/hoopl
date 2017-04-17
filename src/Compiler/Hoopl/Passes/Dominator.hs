@@ -46,7 +46,7 @@ domLattice :: DataflowLattice Doms
 domLattice = addPoints "dominators" extend
 
 extend :: JoinFun DPath
-extend _ (OldFact (DPath l)) (NewFact (DPath l')) =
+extend (OldFact (DPath l)) (NewFact (DPath l')) =
                                 (changeIf (l `lengthDiffers` j), DPath j)
     where lx = filter (\elem -> Set.member elem common) l
           rx = filter (\elem -> Set.member elem common) l'

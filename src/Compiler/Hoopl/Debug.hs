@@ -57,13 +57,13 @@ debugBwdJoins trace pred p = p { bp_lattice = debugJoins trace pred $ bp_lattice
 debugJoins :: Show f => TraceFn -> ChangePred -> DataflowLattice f -> DataflowLattice f
 debugJoins trace showPred l@(DataflowLattice {fact_join = join}) = l {fact_join = join'}
   where
-   join' l f1@(OldFact of1) f2@(NewFact nf2) =
+   join' f1@(OldFact of1) f2@(NewFact nf2) =
      if showPred c then trace output res else res
-       where res@(c, f') = join l f1 f2
+       where res@(c, f') = join f1 f2
              output = case c of
-                        SomeChange -> "+ Join@" ++ show l ++ ": " ++ show of1 ++ " `join` "
+                        SomeChange -> "+ Join: " ++ show of1 ++ " `join` "
                                                                   ++ show nf2 ++ " = " ++ show f'
-                        NoChange   -> "_ Join@" ++ show l ++ ": " ++ show nf2 ++ " <= " ++ show of1
+                        NoChange   -> "_ Join: " ++ show nf2 ++ " <= " ++ show of1
 
 --------------------------------------------------------------------------------
 -- Functions we'd like to have, but don't know how to implement generically:

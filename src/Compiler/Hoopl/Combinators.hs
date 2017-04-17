@@ -222,9 +222,9 @@ pairLattice l1 l2 =
     , fact_join = join
     }
   where
-    join lbl (OldFact (o1, o2)) (NewFact (n1, n2)) = (c', (f1, f2))
-      where (c1, f1) = fact_join l1 lbl (OldFact o1) (NewFact n1)
-            (c2, f2) = fact_join l2 lbl (OldFact o2) (NewFact n2)
+    join (OldFact (o1, o2)) (NewFact (n1, n2)) = (c', (f1, f2))
+      where (c1, f1) = fact_join l1 (OldFact o1) (NewFact n1)
+            (c2, f2) = fact_join l2 (OldFact o2) (NewFact n2)
             c' = case (c1, c2) of
                    (NoChange, NoChange) -> NoChange
                    _                    -> SomeChange
