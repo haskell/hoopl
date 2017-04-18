@@ -48,9 +48,9 @@ domLattice = addPoints "dominators" extend
 extend :: JoinFun DPath
 extend _ (OldFact (DPath l)) (NewFact (DPath l')) =
                                 (changeIf (l `lengthDiffers` j), DPath j)
-    where lx = filter (\elem -> Set.member elem common) l
-          rx = filter (\elem -> Set.member elem common) l'
-          common = Set.intersection (Set.fromList l) (Set.fromList l')
+    where lx = filter (`Set.member` common) l
+          rx = filter (`Set.member` common) l'
+          common = Set.fromList l `Set.intersection` Set.fromList l'
           j = [x | (x, y) <- zip lx rx, x == y]
 
           lengthDiffers [] [] = False
