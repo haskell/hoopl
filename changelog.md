@@ -1,5 +1,8 @@
 # Changelog for [`hoopl` package](http://hackage.haskell.org/package/hoopl)
 
+## 3.10.2.3 *Mar 2018*
+  Update for compatibility with GHC 8.4.1 and base-4.11.
+
 ## 3.10.2.2 *Feb 2017*
   This release includes non-API changes.
 
