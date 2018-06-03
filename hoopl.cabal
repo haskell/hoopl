@@ -18,7 +18,27 @@ Cabal-Version:       >=1.10
 Synopsis:            A library to support dataflow analysis and optimization
 Category:            Compilers/Interpreters
 Tested-With:         GHC>=7.0.1
-Extra-Source-Files:  README.md, changelog.md
+Extra-Source-Files:  README.md, changelog.md,
+                     testing/tests/if-test,  testing/tests/if-test.expected,
+                     testing/tests/if-test2, testing/tests/if-test2.expected,
+                     testing/tests/if-test3, testing/tests/if-test3.expected,
+                     testing/tests/if-test4, testing/tests/if-test4.expected,
+                     testing/tests/test1, testing/tests/test1.expected,
+                     testing/tests/test2, testing/tests/test2.expected,
+                     testing/tests/test3, testing/tests/test3.expected,
+                     testing/tests/test4, testing/tests/test4.expected,
+                     testing/tests/test5, testing/tests/test5.expected,
+                     testing/tests/test6, testing/tests/test6.expected,
+                     testing/tests/test7, testing/tests/test7.expected
+tested-with:         GHC == 7.0.4,
+                     GHC == 7.2.2,
+                     GHC == 7.4.2,
+                     GHC == 7.6.3,
+                     GHC == 7.8.4,
+                     GHC == 7.10.3,
+                     GHC == 8.0.2,
+                     GHC == 8.2.2,
+                     GHC == 8.4.3
 
 Source-repository head
   Type:       git
@@ -71,12 +91,26 @@ Test-Suite hoopl-test
   Default-Language:  Haskell2010
   Type:              exitcode-stdio-1.0
   Main-Is:           Main.hs
-  Hs-Source-Dirs:    testing src
-  Build-Depends:     base >= 4.3 && < 4.10,
+  Other-modules:     Ast
+                     Ast2ir
+                     ConstProp
+                     Eval
+                     EvalMonad
+                     Expr
+                     IR
+                     Ir2ast
+                     Live
+                     OptSupport
+                     Parse
+                     PP
+                     Simplify
+                     Test
+  Hs-Source-Dirs:    testing
+  Build-Depends:     base >= 4.3 && < 4.12,
                      containers >= 0.5 && < 0.6,
                      filepath,
+                     hoopl,
                      mtl >= 2.1.3.1,
                      parsec >= 3.1.7,
                      test-framework < 0.9,
-                     test-framework-hunit < 0.4,
-                     mtl >= 2.1.3.1
+                     test-framework-hunit < 0.4
