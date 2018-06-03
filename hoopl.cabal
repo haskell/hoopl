@@ -110,6 +110,7 @@ Test-Suite hoopl-test
                      filepath,
                      hoopl,
                      mtl >= 2.1.3.1,
+                     mtl-compat,
                      parsec >= 3.1.7,
                      test-framework < 0.9,
                      test-framework-hunit < 0.4

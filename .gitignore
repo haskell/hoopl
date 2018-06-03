@@ -8,6 +8,7 @@ GNUmakefile
 dist
 dist-install
 dist-boot
+dist-newstyle
 ghc.mk
 .hpc
 
