@@ -8,6 +8,7 @@ GNUmakefile
 dist
 dist-install
 dist-boot
+dist-newstyle
 ghc.mk
 .hpc
 
@@ -17,3 +18,22 @@ cabal.sandbox.config
 
 # Coverage reports
 *.tix
+
+# Haskell build artifacts
+*.o
+*.hi
+*.chi
+*.chs.h
+*.dyn_o
+*.dyn_hi
+*.prof
+*.aux
+*.hp
+*.eventlog
+
+# cabal new-build artifacts
+cabal.project.local
+.ghc.environment.*
+
+# stack artifacts
+.stack-work
