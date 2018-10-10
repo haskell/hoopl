@@ -36,7 +36,6 @@ where
 
 import Compiler.Hoopl.Block
 import Compiler.Hoopl.Collections
-import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph hiding (Graph) -- hiding so we can redefine
                                            -- and include definition in paper
@@ -176,7 +175,7 @@ type instance Fact O f = f
 -- | if the graph being analyzed is open at the entry, there must
 --   be no other entry point, or all goes horribly wrong...
 analyzeAndRewriteFwd
-   :: forall m n f e x entries. (CheckpointMonad m, NonLocal n, LabelsPtr entries)
+   :: forall m n f e x entries. (Monad m, NonLocal n, LabelsPtr entries)
    => FwdPass m n f
    -> MaybeC e entries
    -> Graph n e x -> Fact e f
@@ -201,7 +200,7 @@ distinguishedExitFact g f = maybe g
 type Entries e = MaybeC e [Label]
 
 arfGraph :: forall m n f e x .
-            (NonLocal n, CheckpointMonad m) => FwdPass m n f -> 
+            (NonLocal n, Monad m) => FwdPass m n f ->
             Entries e -> Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
 arfGraph pass@FwdPass { fp_lattice = lattice,
                         fp_transfer = transfer,
@@ -387,7 +386,7 @@ mkBRewrite f = mkBRewrite3 f f f
 -----------------------------------------------------------------------------
 
 arbGraph :: forall m n f e x .
-            (NonLocal n, CheckpointMonad m) => BwdPass m n f -> 
+            (NonLocal n, Monad m) => BwdPass m n f ->
             Entries e -> Graph n e x -> Fact x f -> m (DG f n e x, Fact e f)
 arbGraph pass@BwdPass { bp_lattice  = lattice,
                         bp_transfer = transfer,
@@ -498,7 +497,7 @@ effects.)
 -- | if the graph being analyzed is open at the exit, I don't
 --   quite understand the implications of possible other exits
 analyzeAndRewriteBwd
-   :: (CheckpointMonad m, NonLocal n, LabelsPtr entries)
+   :: (Monad m, NonLocal n, LabelsPtr entries)
    => BwdPass m n f
    -> MaybeC e entries -> Graph n e x -> Fact x f
    -> m (Graph n e x, FactBase f, MaybeO e f)
@@ -548,7 +547,7 @@ class Monad m => FixpointMonad m where
 -}
 
 data Direction = Fwd | Bwd
-fixpoint :: forall m n f. (CheckpointMonad m, NonLocal n)
+fixpoint :: forall m n f. (Monad m, NonLocal n)
  => Direction
  -> DataflowLattice f
  -> (Block n C C -> Fact C f -> m (DG f n C C, Fact C f))
