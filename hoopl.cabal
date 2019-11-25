@@ -56,12 +56,22 @@ Library
                      ScopedTypeVariables
                      TypeFamilies
                      TypeSynonymInstances
+  Default-Extensions: UnicodeSyntax
+                      LambdaCase
+                      MonadComprehensions
+                      PolyKinds
+                      DeriveFoldable
+                      DeriveFunctor
+                      DeriveTraversable
+                      StandaloneDeriving
   If impl(ghc>=7.2)
     Other-Extensions: Safe Trustworthy
 
   Hs-Source-Dirs:    src
-  Build-Depends:     base >= 4.3 && < 4.13,
-                     containers >= 0.5 && < 0.7
+  Build-Depends:     base >= 4.3 && < 4.13
+                   , containers >= 0.5 && < 0.7
+                   , strict-identity >= 0.1 && < 0.2
+                   , transformers >= 0.4 && < 0.7
   Exposed-Modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Internals,
                      Compiler.Hoopl.Wrappers,

@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP, TypeFamilies #-}
+{-# LANGUAGE DerivingVia #-}
 #if __GLASGOW_HASKELL__ >= 701
 {-# LANGUAGE Safe #-}
 #endif
@@ -22,7 +23,8 @@ import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Unique
 
 import Control.Applicative as AP (Applicative(..))
-import Control.Monad (ap,liftM)
+import Control.Monad (join)
+import Control.Monad.Trans.State
 
 class Monad m => FuelMonad m where
   getFuel :: m Fuel
@@ -42,66 +44,45 @@ class FuelMonadT fm where
 type Fuel = Int
 
 withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
-withFuel Nothing  = return Nothing
-withFuel (Just a) = do f <- getFuel
-                       if f == 0
-                         then return Nothing
-                         else setFuel (f-1) >> return (Just a)
+withFuel = (fmap . fmap) join . traverse $ \ a -> getFuel >>= \ case
+    0 -> pure Nothing
+    f -> Just a <$ setFuel (f-1)
 
 
 ----------------------------------------------------------------
 
 newtype CheckingFuelMonad m a = FM { unFM :: Fuel -> m (a, Fuel) }
-
-instance Monad m => Functor (CheckingFuelMonad m) where
-  fmap  = liftM
-
-instance Monad m => Applicative (CheckingFuelMonad m) where
-  pure a = FM (\f -> return (a, f))
-  (<*>) = ap
-
-instance Monad m => Monad (CheckingFuelMonad m) where
-  return = AP.pure
-  fm >>= k = FM (\f -> do { (a, f') <- unFM fm f; unFM (k a) f' })
+  deriving (Functor)
+  deriving (Applicative, Monad) via (StateT Fuel m)
 
 instance CheckpointMonad m => CheckpointMonad (CheckingFuelMonad m) where
   type Checkpoint (CheckingFuelMonad m) = (Fuel, Checkpoint m)
-  checkpoint = FM $ \fuel -> do { s <- checkpoint
-                                ; return ((fuel, s), fuel) }
-  restart (fuel, s) = FM $ \_ -> do { restart s; return ((), fuel) }
+  checkpoint = FM $ \fuel -> [((fuel, s), fuel) | s <- checkpoint]
+  restart (fuel, s) = FM $ \_ -> ((), fuel) <$ restart s
 
 instance UniqueMonad m => UniqueMonad (CheckingFuelMonad m) where
-  freshUnique = FM (\f -> do { l <- freshUnique; return (l, f) })
+  freshUnique = FM (\f -> [(l, f) | l <- freshUnique])
 
 instance Monad m => FuelMonad (CheckingFuelMonad m) where
-  getFuel   = FM (\f -> return (f, f))
-  setFuel f = FM (\_ -> return ((),f))
+  getFuel   = FM (\f -> pure (f, f))
+  setFuel f = FM (\_ -> pure ((),f))
 
 instance FuelMonadT CheckingFuelMonad where
-  runWithFuel fuel m = do { (a, _) <- unFM m fuel; return a }
-  liftFuel m = FM $ \f -> do { a <- m; return (a, f) }
+  runWithFuel fuel m = [a | (a, _) <- unFM m fuel]
+  liftFuel m = FM $ \f -> [(a, f) | a <- m]
 
 ----------------------------------------------------------------
 
 newtype InfiniteFuelMonad m a = IFM { unIFM :: m a }
-
-instance Monad m => Functor (InfiniteFuelMonad m) where
-  fmap  = liftM
-
-instance Monad m => Applicative (InfiniteFuelMonad m) where
-  pure a = IFM $ return a
-  (<*>) = ap
-
-instance Monad m => Monad (InfiniteFuelMonad m) where
-  return = pure
-  m >>= k  = IFM $ do { a <- unIFM m; unIFM (k a) }
+  deriving (Functor)
+  deriving (Applicative, Monad) via m
 
 instance UniqueMonad m => UniqueMonad (InfiniteFuelMonad m) where
-  freshUnique = IFM $ freshUnique
+  freshUnique = IFM freshUnique
 
 instance Monad m => FuelMonad (InfiniteFuelMonad m) where
-  getFuel   = return infiniteFuel
-  setFuel _ = return ()
+  getFuel   = pure infiniteFuel
+  setFuel _ = pure ()
 
 instance CheckpointMonad m => CheckpointMonad (InfiniteFuelMonad m) where
   type Checkpoint (InfiniteFuelMonad m) = Checkpoint m

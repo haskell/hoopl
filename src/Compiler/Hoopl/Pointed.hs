@@ -45,9 +45,15 @@ data Pointed t b a where
 --
 -- The advantage of all this GADT-ishness is that the constructors
 -- 'Bot', 'Top', and 'PElem' can all be used polymorphically.
---
--- A 'Pointed t b' type is an instance of 'Functor' and 'Show'.
 
+deriving instance Eq a => Eq (Pointed t b a)
+deriving instance Ord a => Ord (Pointed t b a)
+instance Show a => Show (Pointed t b a) where
+  show Bot = "_|_"
+  show Top = "T"
+  show (PElem a) = show a
+
+deriving instance Functor (Pointed t b)
 
 
 type WithBot a = Pointed O C a
@@ -123,28 +129,3 @@ addTop' name bot joinx = DataflowLattice name (PElem bot) join
         join _ (OldFact _)            (NewFact Top) = (SomeChange, Top)
         join l (OldFact (PElem old)) (NewFact (PElem new))
            = joinx l (OldFact old) (NewFact new)
-
-instance Show a => Show (Pointed t b a) where
-  show Bot = "_|_"
-  show Top = "T"
-  show (PElem a) = show a
-
-instance Functor (Pointed t b) where
-  fmap _ Bot = Bot
-  fmap _ Top = Top
-  fmap f (PElem a) = PElem (f a)
-
-instance Eq a => Eq (Pointed t b a) where
-  Bot == Bot = True
-  Top == Top = True
-  (PElem a) == (PElem a') = a == a'
-  _ == _ = False
-
-instance Ord a => Ord (Pointed t b a) where
-  Bot     `compare` Bot      = EQ
-  Bot     `compare` _        = LT
-  _       `compare` Bot      = GT
-  PElem a `compare` PElem a' = a `compare` a'
-  Top     `compare` Top      = EQ
-  Top     `compare` _        = GT
-  _       `compare` Top      = LT
