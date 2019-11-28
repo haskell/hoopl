@@ -25,7 +25,6 @@ import qualified Data.Map as M
 import Data.Maybe
 
 import Compiler.Hoopl.Collections
-import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Dataflow
 import Compiler.Hoopl.Block
 import Compiler.Hoopl.Graph
@@ -37,7 +36,7 @@ import Compiler.Hoopl.Label
 -- A set of entry points must be supplied; blocks not reachable from
 -- the set are thrown away.
 analyzeAndRewriteFwdBody
-   :: forall m n f entries. (CheckpointMonad m, NonLocal n, LabelsPtr entries)
+   :: forall m n f entries. (Monad m, NonLocal n, LabelsPtr entries)
    => FwdPass m n f
    -> entries -> Body n -> FactBase f
    -> m (Body n, FactBase f)
@@ -46,7 +45,7 @@ analyzeAndRewriteFwdBody
 -- A set of entry points must be supplied; blocks not reachable from
 -- the set are thrown away.
 analyzeAndRewriteBwdBody
-   :: forall m n f entries. (CheckpointMonad m, NonLocal n, LabelsPtr entries)
+   :: forall m n f entries. (Monad m, NonLocal n, LabelsPtr entries)
    => BwdPass m n f 
    -> entries -> Body n -> FactBase f 
    -> m (Body n, FactBase f)
@@ -54,15 +53,14 @@ analyzeAndRewriteBwdBody
 analyzeAndRewriteFwdBody pass en = mapBodyFacts (analyzeAndRewriteFwd pass (JustC en))
 analyzeAndRewriteBwdBody pass en = mapBodyFacts (analyzeAndRewriteBwd pass (JustC en))
 
-mapBodyFacts :: (Monad m)
+mapBodyFacts :: (Functor m)
     => (Graph n C C -> Fact C f   -> m (Graph n C C, Fact C f, MaybeO C f))
     -> (Body n      -> FactBase f -> m (Body n, FactBase f))
 -- ^ Internal utility; should not escape
-mapBodyFacts anal b f = anal (GMany NothingO b NothingO) f >>= bodyFacts
-  where -- the type constraint is needed for the pattern match;
-        -- if it were not, we would use do-notation here.
-    bodyFacts :: Monad m => (Graph n C C, Fact C f, MaybeO C f) -> m (Body n, Fact C f)
-    bodyFacts (GMany NothingO body NothingO, fb, NothingO) = return (body, fb)
+mapBodyFacts anal b f = bodyFacts <$> anal (GMany NothingO b NothingO) f
+  where
+    bodyFacts :: (Graph n C C, Fact C f, MaybeO C f) -> (Body n, Fact C f)
+    bodyFacts (GMany NothingO body NothingO, fb, NothingO) = (body, fb)
 
 {-
   Can't write:
@@ -81,7 +79,7 @@ mapBodyFacts anal b f = anal (GMany NothingO b NothingO) f >>= bodyFacts
 -- from having to specify a type signature for 'NothingO', which beginners
 -- might find confusing and experts might find annoying.
 analyzeAndRewriteFwdOx
-   :: forall m n f x. (CheckpointMonad m, NonLocal n)
+   :: forall m n f x. (Monad m, NonLocal n)
    => FwdPass m n f -> Graph n O x -> f -> m (Graph n O x, FactBase f, MaybeO x f)
 
 -- | Backward dataflow analysis and rewriting for the special case of a 
@@ -89,7 +87,7 @@ analyzeAndRewriteFwdOx
 -- from having to specify a type signature for 'NothingO', which beginners
 -- might find confusing and experts might find annoying.
 analyzeAndRewriteBwdOx
-   :: forall m n f x. (CheckpointMonad m, NonLocal n)
+   :: forall m n f x. (Monad m, NonLocal n)
    => BwdPass m n f -> Graph n O x -> Fact x f -> m (Graph n O x, FactBase f, f)
 
 -- | A value that can be used for the entry point of a graph open at the entry.
@@ -97,9 +95,9 @@ noEntries :: MaybeC O Label
 noEntries = NothingC
 
 analyzeAndRewriteFwdOx pass g f  = analyzeAndRewriteFwd pass noEntries g f
-analyzeAndRewriteBwdOx pass g fb = analyzeAndRewriteBwd pass noEntries g fb >>= strip
-  where strip :: forall m a b c . Monad m => (a, b, MaybeO O c) -> m (a, b, c)
-        strip (a, b, JustO c) = return (a, b, c)
+analyzeAndRewriteBwdOx pass g fb = strip <$> analyzeAndRewriteBwd pass noEntries g fb
+  where strip :: forall a b c . (a, b, MaybeO O c) -> (a, b, c)
+        strip (a, b, JustO c) = (a, b, c)
 
 
 
@@ -150,7 +148,7 @@ joinFacts lat inBlock = foldr extend (fact_bot lat)
 joinOutFacts :: (NonLocal node) => DataflowLattice f -> node O C -> FactBase f -> f
 joinOutFacts lat n f = foldr join (fact_bot lat) facts
   where join (lbl, new) old = snd $ fact_join lat lbl (OldFact old) (NewFact new)
-        facts = [(s, fromJust fact) | s <- successors n, let fact = lookupFact s f, isJust fact]
+        facts = [(s, fact) | s <- successors n, let Just fact = lookupFact s f]
 
 
 -- | It's common to represent dataflow facts as a map from variables

@@ -19,7 +19,6 @@ module Compiler.Hoopl.Fuel
   )
 where
 
-import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Unique
 
 import Control.Applicative as AP (Applicative(..))
@@ -55,11 +54,6 @@ newtype CheckingFuelMonad m a = FM { unFM :: Fuel -> m (a, Fuel) }
   deriving (Functor)
   deriving (Applicative, Monad) via (StateT Fuel m)
 
-instance CheckpointMonad m => CheckpointMonad (CheckingFuelMonad m) where
-  type Checkpoint (CheckingFuelMonad m) = (Fuel, Checkpoint m)
-  checkpoint = FM $ \fuel -> [((fuel, s), fuel) | s <- checkpoint]
-  restart (fuel, s) = FM $ \_ -> ((), fuel) <$ restart s
-
 instance UniqueMonad m => UniqueMonad (CheckingFuelMonad m) where
   freshUnique = FM (\f -> [(l, f) | l <- freshUnique])
 
@@ -83,13 +77,6 @@ instance UniqueMonad m => UniqueMonad (InfiniteFuelMonad m) where
 instance Monad m => FuelMonad (InfiniteFuelMonad m) where
   getFuel   = pure infiniteFuel
   setFuel _ = pure ()
-
-instance CheckpointMonad m => CheckpointMonad (InfiniteFuelMonad m) where
-  type Checkpoint (InfiniteFuelMonad m) = Checkpoint m
-  checkpoint = IFM checkpoint
-  restart s  = IFM $ restart s
-
-
 
 instance FuelMonadT InfiniteFuelMonad where
   runWithFuel _ = unIFM

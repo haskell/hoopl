@@ -20,7 +20,6 @@ module Compiler.Hoopl.Unique
 
 where
 
-import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Collections
 
 import Control.Monad.Trans.State
@@ -118,11 +117,6 @@ class Monad m => UniqueMonad m where
   freshUnique :: m Unique
 
 type SimpleUniqueMonad = UniqueMonadT Identity
-
-instance CheckpointMonad (UniqueMonadT Identity) where
-  type Checkpoint (UniqueMonadT Identity) = [Unique]
-  checkpoint = UMT $ \us -> pure (us, us)
-  restart us = UMT $ \_  -> pure ((), us)
 
 runSimpleUniqueMonad :: SimpleUniqueMonad a -> a
 runSimpleUniqueMonad = runIdentity . runUniqueMonadT
