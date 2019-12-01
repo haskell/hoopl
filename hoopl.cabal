@@ -89,7 +89,6 @@ Library
                      Compiler.Hoopl.MkGraph,
                      Compiler.Hoopl.Fuel,
                      Compiler.Hoopl.Pointed,
-                     Compiler.Hoopl.Shape,
                      Compiler.Hoopl.Show,
                      Compiler.Hoopl.Unique,
                      Compiler.Hoopl.XUtil
