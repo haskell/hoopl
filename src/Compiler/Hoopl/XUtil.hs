@@ -135,7 +135,7 @@ distributeFactBwd n f = mapSingleton (entryLabel n) f
 
 -- | List of (unlabelled) facts from the successors of a last node
 successorFacts :: NonLocal n => n O C -> FactBase f -> [f]
-successorFacts n fb = [ f | id <- successors n, let Just f = lookupFact id fb ]
+successorFacts n fb = [f | id <- successors n, Just f <- [lookupFact id fb]]
 
 -- | Join a list of facts.
 joinFacts :: DataflowLattice f -> Label -> [f] -> f
@@ -148,7 +148,7 @@ joinFacts lat inBlock = foldr extend (fact_bot lat)
 joinOutFacts :: (NonLocal node) => DataflowLattice f -> node O C -> FactBase f -> f
 joinOutFacts lat n f = foldr join (fact_bot lat) facts
   where join (lbl, new) old = snd $ fact_join lat lbl (OldFact old) (NewFact new)
-        facts = [(s, fact) | s <- successors n, let Just fact = lookupFact s f]
+        facts = [(s, fact) | s <- successors n, Just fact <- [lookupFact s f]]
 
 
 -- | It's common to represent dataflow facts as a map from variables

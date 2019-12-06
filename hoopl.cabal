@@ -93,7 +93,14 @@ Library
                      Compiler.Hoopl.Unique,
                      Compiler.Hoopl.XUtil
 
-  Ghc-Options:       -Wall -fno-warn-name-shadowing
+  Ghc-Options:       -Wall -Wcompat -Wredundant-constraints -Wno-name-shadowing
+                     -Wincomplete-record-updates -Wincomplete-uni-patterns
+                     -Werror=incomplete-patterns
+                     -Werror=incomplete-uni-patterns
+                     -Werror=incomplete-record-updates
+                     -Werror=missing-fields
+                     -Werror=missing-methods
+
 
 Test-Suite hoopl-test
   Default-Language:  Haskell2010
