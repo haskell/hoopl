@@ -36,7 +36,6 @@ where
 
 import Compiler.Hoopl.Block
 import Compiler.Hoopl.Collections
-import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Fuel
 import Compiler.Hoopl.Graph hiding (Graph) -- hiding so we can redefine
                                            -- and include definition in paper
@@ -157,8 +156,8 @@ mkFRewrite3 f m l = FwdRewrite3 (lift f, lift m, lift l)
 noFwdRewrite :: Monad m => FwdRewrite m n f
 noFwdRewrite = FwdRewrite3 (noRewrite, noRewrite, noRewrite)
 
-noRewrite :: Monad m => a -> b -> m (Maybe c)
-noRewrite _ _ = return Nothing
+noRewrite :: Applicative m => a -> b -> m (Maybe c)
+noRewrite _ _ = pure Nothing
 
                                
 
@@ -176,15 +175,15 @@ type instance Fact O f = f
 -- | if the graph being analyzed is open at the entry, there must
 --   be no other entry point, or all goes horribly wrong...
 analyzeAndRewriteFwd
-   :: forall m n f e x entries. (CheckpointMonad m, NonLocal n, LabelsPtr entries)
+   :: forall m n f e x entries. (Monad m, NonLocal n, LabelsPtr entries)
    => FwdPass m n f
    -> MaybeC e entries
    -> Graph n e x -> Fact e f
    -> m (Graph n e x, FactBase f, MaybeO x f)
 analyzeAndRewriteFwd pass entries g f =
-  do (rg, fout) <- arfGraph pass (fmap targetLabels entries) g f
-     let (g', fb) = normalizeGraph rg
-     return (g', fb, distinguishedExitFact g' fout)
+    [(g', fb, distinguishedExitFact g' fout)
+    | (rg, fout) <- arfGraph pass (fmap targetLabels entries) g f
+    , let (g', fb) = normalizeGraph rg]
 
 distinguishedExitFact :: forall n e x f . Graph n e x -> Fact x f -> MaybeO x f
 distinguishedExitFact g f = maybe g
@@ -201,7 +200,7 @@ distinguishedExitFact g f = maybe g
 type Entries e = MaybeC e [Label]
 
 arfGraph :: forall m n f e x .
-            (NonLocal n, CheckpointMonad m) => FwdPass m n f -> 
+            (NonLocal n, Monad m) => FwdPass m n f ->
             Entries e -> Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
 arfGraph pass@FwdPass { fp_lattice = lattice,
                         fp_transfer = transfer,
@@ -223,14 +222,14 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
         -> (f2 -> m (DG f n a x, f3))
         -> (f1 -> m (DG f n e x, f3))
 
-    graph GNil            = \f -> return (dgnil, f)
+    graph GNil            = \f -> pure (dgnil, f)
     graph (GUnit blk)     = block blk
     graph (GMany e bdy x) = (e `ebcat` bdy) `cat` exit x
      where
       ebcat :: MaybeO e (Block n O C) -> Body n -> Fact e f -> m (DG f n e C, Fact C f)
       exit  :: MaybeO x (Block n C O)           -> Fact C f -> m (DG f n C x, Fact x f)
       exit (JustO blk) = arfx block blk
-      exit NothingO    = \fb -> return (dgnilC, fb)
+      exit NothingO    = \fb -> pure (dgnilC, fb)
       ebcat entry bdy = c entries entry
        where c :: MaybeC e [Label] -> MaybeO e (Block n O C)
                 -> Fact e f -> m (DG f n e C, Fact C f)
@@ -241,7 +240,7 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
 #endif
 
     -- Lift from nodes to blocks
-    block BNil          = \f -> return (dgnil, f)
+    block BNil          = \f -> pure (dgnil, f)
     block (BlockCO l b)   = node l `cat` block b
     block (BlockCC l b n) = node l `cat` block b `cat` node n
     block (BlockOC   b n) =              block b `cat` node n
@@ -251,22 +250,18 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
     block (BSnoc h n)  = block h  `cat` node n
     block (BCons n t)  = node  n  `cat` block t
 
-    node n f
-     = do { grw <- frewrite rewrite n f
-          ; case grw of
-              Nothing -> return ( singletonDG f n
-                                , ftransfer transfer n f )
-              Just (g, rw) ->
-                  let pass' = pass { fp_rewrite = rw }
-                      f'    = fwdEntryFact n f
-                  in  arfGraph pass' (fwdEntryLabel n) g f' }
+    node n f = frewrite rewrite n f >>= \ case
+        Nothing -> pure ( singletonDG f n
+                        , ftransfer transfer n f )
+        Just (g, rw) ->
+            let pass' = pass { fp_rewrite = rw }
+                f'    = fwdEntryFact n f
+            in  arfGraph pass' (fwdEntryLabel n) g f'
 
     -- | Compose fact transformers and concatenate the resulting
     -- rewritten graphs.
     {-# INLINE cat #-} 
-    cat ft1 ft2 f = do { (g1,f1) <- ft1 f
-                       ; (g2,f2) <- ft2 f1
-                       ; return (g1 `dgSplice` g2, f2) }
+    cat ft1 ft2 f = [(g1 `dgSplice` g2, f2) | (g1,f1) <- ft1 f, (g2,f2) <- ft2 f1]
     arfx :: forall thing x .
             NonLocal thing
          => (thing C x ->        f -> m (DG f n C x, Fact x f))
@@ -387,7 +382,7 @@ mkBRewrite f = mkBRewrite3 f f f
 -----------------------------------------------------------------------------
 
 arbGraph :: forall m n f e x .
-            (NonLocal n, CheckpointMonad m) => BwdPass m n f -> 
+            (NonLocal n, Monad m) => BwdPass m n f ->
             Entries e -> Graph n e x -> Fact x f -> m (DG f n e x, Fact e f)
 arbGraph pass@BwdPass { bp_lattice  = lattice,
                         bp_transfer = transfer,
@@ -407,14 +402,14 @@ arbGraph pass@BwdPass { bp_lattice  = lattice,
         -> (info  -> m (DG f n a x, info'))
         -> (info  -> m (DG f n e x, info''))
 
-    graph GNil            = \f -> return (dgnil, f)
+    graph GNil            = \f -> pure (dgnil, f)
     graph (GUnit blk)     = block blk
     graph (GMany e bdy x) = (e `ebcat` bdy) `cat` exit x
      where
       ebcat :: MaybeO e (Block n O C) -> Body n -> Fact C f -> m (DG f n e C, Fact e f)
       exit  :: MaybeO x (Block n C O)           -> Fact x f -> m (DG f n C x, Fact C f)
       exit (JustO blk) = arbx block blk
-      exit NothingO    = \fb -> return (dgnilC, fb)
+      exit NothingO    = \fb -> pure (dgnilC, fb)
       ebcat entry bdy = c entries entry
        where c :: MaybeC e [Label] -> MaybeO e (Block n O C)
                 -> Fact C f -> m (DG f n e C, Fact e f)
@@ -425,7 +420,7 @@ arbGraph pass@BwdPass { bp_lattice  = lattice,
 #endif
 
     -- Lift from nodes to blocks
-    block BNil          = \f -> return (dgnil, f)
+    block BNil          = \f -> pure (dgnil, f)
     block (BlockCO l b)   = node l `cat` block b
     block (BlockCC l b n) = node l `cat` block b `cat` node n
     block (BlockOC   b n) =              block b `cat` node n
@@ -435,32 +430,28 @@ arbGraph pass@BwdPass { bp_lattice  = lattice,
     block (BSnoc h n)  = block h  `cat` node n
     block (BCons n t)  = node  n  `cat` block t
 
-    node n f
-      = do { bwdres <- brewrite rewrite n f
-           ; case bwdres of
-               Nothing -> return (singletonDG entry_f n, entry_f)
-                            where entry_f = btransfer transfer n f
-               Just (g, rw) ->
-                          do { let pass' = pass { bp_rewrite = rw }
-                             ; (g, f) <- arbGraph pass' (fwdEntryLabel n) g f
-                             ; return (g, bwdEntryFact lattice n f)} }
+    node n f = brewrite rewrite n f >>= \ case
+        Nothing -> let entry_f = btransfer transfer n f in
+            pure (singletonDG entry_f n, entry_f)
+        Just (g, rw) ->
+            [(g, bwdEntryFact lattice n f)
+            | let pass' = pass { bp_rewrite = rw }
+            , (g, f) <- arbGraph pass' (fwdEntryLabel n) g f]
 
     -- | Compose fact transformers and concatenate the resulting
     -- rewritten graphs.
     {-# INLINE cat #-} 
-    cat ft1 ft2 f = do { (g2,f2) <- ft2 f
-                       ; (g1,f1) <- ft1 f2
-                       ; return (g1 `dgSplice` g2, f1) }
+    cat ft1 ft2 f = [(g1 `dgSplice` g2, f1) | (g2,f2) <- ft2 f, (g1,f1) <- ft1 f2]
 
     arbx :: forall thing x .
             NonLocal thing
          => (thing C x -> Fact x f -> m (DG f n C x, f))
          -> (thing C x -> Fact x f -> m (DG f n C x, Fact C f))
 
-    arbx arb thing f = do { (rg, f) <- arb thing f
-                          ; let fb = joinInFacts lattice $
-                                     mapSingleton (entryLabel thing) f
-                          ; return (rg, fb) }
+    arbx arb thing f = [(rg, fb)
+                       | (rg, f) <- arb thing f
+                       , let fb = joinInFacts lattice $
+                                  mapSingleton (entryLabel thing) f]
      -- joinInFacts adds debugging information
 
      -- Outgoing factbase is restricted to Labels *not* in
@@ -470,8 +461,7 @@ arbGraph pass@BwdPass { bp_lattice  = lattice,
       = fixpoint Bwd lattice do_block (map entryLabel (backwardBlockList entries blockmap)) blockmap init_fbase
       where
         do_block :: forall x. Block n C x -> Fact x f -> m (DG f n C x, LabelMap f)
-        do_block b f = do (g, f) <- block b f
-                          return (g, mapSingleton (entryLabel b) f)
+        do_block b f = [(g, mapSingleton (entryLabel b) f) | (g, f) <- block b f]
 
 
 
@@ -498,14 +488,15 @@ effects.)
 -- | if the graph being analyzed is open at the exit, I don't
 --   quite understand the implications of possible other exits
 analyzeAndRewriteBwd
-   :: (CheckpointMonad m, NonLocal n, LabelsPtr entries)
+   :: (Monad m, NonLocal n, LabelsPtr entries)
    => BwdPass m n f
    -> MaybeC e entries -> Graph n e x -> Fact x f
    -> m (Graph n e x, FactBase f, MaybeO e f)
 analyzeAndRewriteBwd pass entries g f =
-  do (rg, fout) <- arbGraph pass (fmap targetLabels entries) g f
-     let (g', fb) = normalizeGraph rg
-     return (g', fb, distinguishedEntryFact g' fout)
+    [(g', fb, distinguishedEntryFact g' fout)
+    | (rg, fout) <- arbGraph pass (fmap targetLabels entries) g f
+    , let (g', fb) = normalizeGraph rg
+    ]
 
 distinguishedEntryFact :: forall n e x f . Graph n e x -> Fact e f -> MaybeO e f
 distinguishedEntryFact g f = maybe g
@@ -548,7 +539,7 @@ class Monad m => FixpointMonad m where
 -}
 
 data Direction = Fwd | Bwd
-fixpoint :: forall m n f. (CheckpointMonad m, NonLocal n)
+fixpoint :: forall m n f. (Monad m, NonLocal n)
  => Direction
  -> DataflowLattice f
  -> (Block n C C -> Fact C f -> m (DG f n C C, Fact C f))
@@ -557,12 +548,11 @@ fixpoint :: forall m n f. (CheckpointMonad m, NonLocal n)
  -> (Fact C f -> m (DG f n C C, Fact C f))
 
 fixpoint direction lat do_block entries blockmap init_fbase
-  = do
-        -- trace ("fixpoint: " ++ show (case direction of Fwd -> True; Bwd -> False) ++ " " ++ show (mapKeys blockmap) ++ show entries ++ " " ++ show (mapKeys init_fbase)) $ return()
-        (fbase, newblocks) <- loop init_fbase entries mapEmpty
-        -- trace ("fixpoint DONE: " ++ show (mapKeys fbase) ++ show (mapKeys newblocks)) $ return()
-        return (GMany NothingO newblocks NothingO,
-                mapDeleteList (mapKeys blockmap) fbase)
+  = [(GMany NothingO newblocks NothingO,
+      mapDeleteList (mapKeys blockmap) fbase)
+    --  | () <- trace ("fixpoint: " ++ show (case direction of Fwd -> True; Bwd -> False) ++ " " ++ show (mapKeys blockmap) ++ show entries ++ " " ++ show (mapKeys init_fbase)) $ pure ()
+    | (fbase, newblocks) <- loop init_fbase entries mapEmpty]
+    --  , () <- trace ("fixpoint DONE: " ++ show (mapKeys fbase) ++ show (mapKeys newblocks)) $ pure ()
     -- The successors of the Graph are the the Labels
     -- for which we have facts and which are *not* in
     -- the blocks of the graph
@@ -583,29 +573,28 @@ fixpoint direction lat do_block entries blockmap init_fbase
        -> LabelMap (DBlock f n C C)  -- transformed graph
        -> m (FactBase f, LabelMap (DBlock f n C C))
 
-    loop fbase []         newblocks = return (fbase, newblocks)
-    loop fbase (lbl:todo) newblocks = do
-      case mapLookup lbl blockmap of
-         Nothing  -> loop fbase todo newblocks
-         Just blk -> do
-           -- trace ("analysing: " ++ show lbl) $ return ()
-           (rg, out_facts) <- do_block blk fbase
-           let (changed, fbase') = mapFoldWithKey
-                                     (updateFact lat newblocks)
-                                     ([],fbase) out_facts
-           -- trace ("fbase': " ++ show (mapKeys fbase')) $ return ()
-           -- trace ("changed: " ++ show changed) $ return ()
-     
-           let to_analyse
-                 = filter (`notElem` todo) $
-                   concatMap (\l -> mapFindWithDefault [] l dep_blocks) changed
+    loop fbase []         newblocks = pure (fbase, newblocks)
+    loop fbase (lbl:todo) newblocks = case mapLookup lbl blockmap of
+        Nothing  -> loop fbase todo newblocks
+        Just blk -> do
+            -- trace ("analysing: " ++ show lbl) $ pure ()
+            (rg, out_facts) <- do_block blk fbase
+            let (changed, fbase') = mapFoldWithKey
+                                      (updateFact lat newblocks)
+                                      ([],fbase) out_facts
+            -- trace ("fbase': " ++ show (mapKeys fbase')) $ pure ()
+            -- trace ("changed: " ++ show changed) $ pure ()
 
-           -- trace ("to analyse: " ++ show to_analyse) $ return ()
+            let to_analyse
+                  = filter (`notElem` todo) $
+                    concatMap (\l -> mapFindWithDefault [] l dep_blocks) changed
 
-           let newblocks' = case rg of
-                              GMany _ blks _ -> mapUnion blks newblocks
-     
-           loop fbase' (todo ++ to_analyse) newblocks'
+            -- trace ("to analyse: " ++ show to_analyse) $ pure ()
+
+            let newblocks' = case rg of
+                               GMany _ blks _ -> mapUnion blks newblocks
+
+            loop fbase' (todo ++ to_analyse) newblocks'
 
 
 {-  Note [TxFactBase invariants]

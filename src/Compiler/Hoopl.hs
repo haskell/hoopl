@@ -9,7 +9,6 @@ module Compiler.Hoopl
   , module Compiler.Hoopl.MkGraph
   , module Compiler.Hoopl.XUtil
   , module Compiler.Hoopl.Collections
-  , module Compiler.Hoopl.Checkpoint
   , module Compiler.Hoopl.Dataflow
   , module Compiler.Hoopl.Label
   , module Compiler.Hoopl.Pointed
@@ -21,7 +20,6 @@ module Compiler.Hoopl
   )
 where
 
-import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Collections
 import Compiler.Hoopl.Combinators
 import Compiler.Hoopl.Dataflow hiding ( wrapFR, wrapFR2, wrapBR, wrapBR2
