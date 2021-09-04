@@ -38,7 +38,9 @@ tested-with:         GHC == 7.0.4,
                      GHC == 8.0.2,
                      GHC == 8.2.2,
                      GHC == 8.4.3,
-                     GHC == 8.6.1
+                     GHC == 8.6.1,
+                     GHC == 8.10.7,
+                     GHC == 9.0.1
 
 Source-repository head
   Type:       git
@@ -60,7 +62,7 @@ Library
     Other-Extensions: Safe Trustworthy
 
   Hs-Source-Dirs:    src
-  Build-Depends:     base >= 4.3 && < 4.13,
+  Build-Depends:     base >= 4.3 && < 4.16,
                      containers >= 0.5 && < 0.7
   Exposed-Modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Internals,
@@ -106,7 +108,7 @@ Test-Suite hoopl-test
                      Simplify
                      Test
   Hs-Source-Dirs:    testing
-  Build-Depends:     base >= 4.3 && < 4.13,
+  Build-Depends:     base >= 4.3 && < 4.16,
                      containers >= 0.5 && < 0.7,
                      filepath,
                      hoopl,
