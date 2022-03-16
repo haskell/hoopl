@@ -374,7 +374,7 @@ foldBlockNodesB f = foldBlockNodesB3 (f, f, f)
 -- concatenation operation is a node, not a general block; a
 -- front-biased block is analogous to an ordinary list.  If a block is
 -- front-biased, then its nodes can be traversed from front to back
--- without general recusion; tail recursion suffices.  Not all shapes
+-- without general recursion; tail recursion suffices.  Not all shapes
 -- can be front-biased; a closed/open block is inherently back-biased.
 
 frontBiasBlock :: Block n e x -> Block n e x
@@ -399,7 +399,7 @@ frontBiasBlock blk = case blk of
 -- concatenation operation is a node, not a general block; a
 -- back-biased block is analogous to a snoc-list.  If a block is
 -- back-biased, then its nodes can be traversed from back to back
--- without general recusion; tail recursion suffices.  Not all shapes
+-- without general recursion; tail recursion suffices.  Not all shapes
 -- can be back-biased; an open/closed block is inherently front-biased.
 
 backBiasBlock :: Block n e x -> Block n e x
