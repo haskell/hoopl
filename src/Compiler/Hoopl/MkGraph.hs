@@ -216,7 +216,7 @@ instance IfThenElseable C where
        mkLabel lfalse <*> fbranch
 
 mkWhileDo cbranch body = withFresh $ \(test, head, endwhile) ->
-     -- Forrest Baskett's while-loop layout
+     -- Forest Baskett's while-loop layout
   mkBranch test |*><*|
     mkLabel head <*> body <*> mkBranch test |*><*|
     mkLabel test <*> cbranch head endwhile  |*><*|
