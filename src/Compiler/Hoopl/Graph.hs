@@ -289,7 +289,7 @@ preorder_dfs  :: NonLocal (block n) => Graph' block n O x -> [block n C C]
 -- unreachable code and puts blocks in an order that is good for solving forward
 -- dataflow problems quickly.  The reverse order is good for solving backward
 -- dataflow problems quickly.  The forward order is also reasonably good for
--- emitting instructions, except that it will not usually exploit Forrest
+-- emitting instructions, except that it will not usually exploit Forest
 -- Baskett's trick of eliminating the unconditional branch from a loop.  For
 -- that you would need a more serious analysis, probably based on dominators, to
 -- identify loop headers.
