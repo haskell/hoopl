@@ -28,6 +28,7 @@ module Compiler.Hoopl.Graph
 
   -- ** Maps
   , mapGraph, mapGraphBlocks
+  , traverseGraph, traverseGraphBlocks
 
   -- ** Folds
   , foldGraphNodes
@@ -47,7 +48,8 @@ import Compiler.Hoopl.Block
 import Compiler.Hoopl.Label
 
 import Control.Applicative as AP (Applicative(..))
-import Control.Monad (ap,liftM,liftM2)
+import Control.Monad.Trans.State (State, runState, state)
+import Data.Functor.Identity (Identity (..))
 
 -- -----------------------------------------------------------------------------
 -- Body
@@ -206,7 +208,7 @@ gSplice = splice blockAppend
 
 -- | Maps over all nodes in a graph.
 mapGraph :: (forall e x. n e x -> n' e x) -> Graph n e x -> Graph n' e x
-mapGraph f = mapGraphBlocks (mapBlock f)
+mapGraph f = runIdentity . traverseGraph (Identity . f)
 
 -- | Function 'mapGraphBlocks' enables a change of representation of blocks,
 -- nodes, or both.  It lifts a polymorphic block transform into a polymorphic
@@ -215,12 +217,21 @@ mapGraph f = mapGraphBlocks (mapBlock f)
 mapGraphBlocks :: forall block n block' n' e x .
                   (forall e x . block n e x -> block' n' e x)
                -> (Graph' block n e x -> Graph' block' n' e x)
+mapGraphBlocks f = runIdentity . traverseGraphBlocks (Identity . f)
 
-mapGraphBlocks f = map
-  where map :: Graph' block n e x -> Graph' block' n' e x
-        map GNil = GNil
-        map (GUnit b) = GUnit (f b)
-        map (GMany e b x) = GMany (fmap f e) (mapMap f b) (fmap f x)
+traverseGraph :: Applicative p => (∀ e x . n e x -> p (n' e x)) -> Graph n e x -> p (Graph n' e x)
+traverseGraph f = traverseGraphBlocks (traverseBlock f)
+
+traverseGraphBlocks :: ∀ block n block' n' e x p .
+    Applicative p
+ => (∀ e x . block n e x -> p (block' n' e x))
+ -> Graph' block n e x -> p (Graph' block' n' e x)
+traverseGraphBlocks f = go where
+    go :: Graph' block n e x -> p (Graph' block' n' e x)
+    go = \ case
+        GNil -> pure GNil
+        GUnit b -> GUnit <$> f b
+        GMany e b x -> GMany <$> traverse f e <*> traverse f b <*> traverse f x
 
 
 -- -----------------------------------------------------------------------------
@@ -232,7 +243,6 @@ mapGraphBlocks f = map
 foldGraphNodes :: forall n a .
                   (forall e x . n e x       -> a -> a)
                -> (forall e x . Graph n e x -> a -> a)
-
 foldGraphNodes f = graph
     where graph :: forall e x . Graph n e x -> a -> a
           lift  :: forall thing ex . (thing -> a -> a) -> (MaybeO ex thing -> a -> a)
@@ -348,32 +358,18 @@ postorder_dfs_from blocks b = postorder_dfs_from_except blocks b setEmpty
 
 ----------------------------------------------------------------
 
-data VM a = VM { unVM :: LabelSet -> (a, LabelSet) }
+marked :: Label -> State LabelSet Bool
+marked l = state $ \v -> (setMember l v, v)
 
-instance Functor VM where
-  fmap  = liftM
-
-instance Applicative VM where
-  pure a = VM $ \visited -> (a, visited)
-  (<*>) = ap
-
-instance Monad VM where
-  return = AP.pure
-  m >>= k  = VM $ \visited -> let (a, v') = unVM m visited in unVM (k a) v'
-
-marked :: Label -> VM Bool
-marked l = VM $ \v -> (setMember l v, v)
-
-mark   :: Label -> VM ()
-mark   l = VM $ \v -> ((), setInsert l v)
+mark   :: Label -> State LabelSet ()
+mark   l = state $ \v -> ((), setInsert l v)
 
 preorder_dfs_from_except :: forall block e . (NonLocal block, LabelsPtr e)
                          => LabelMap (block C C) -> e -> LabelSet -> [block C C]
 preorder_dfs_from_except blocks b visited =
-    (fst $ unVM (children (get_children b)) visited) []
-  where children [] = return id
-        children (b:bs) = liftM2 (.) (visit b) (children bs)
-        visit :: block C C -> VM (HL (block C C))
+    (fst $ runState (children (get_children b)) visited) []
+  where children = foldr (liftA2 (.) . visit) (pure id)
+        visit :: block C C -> State LabelSet (HL (block C C))
         visit b = do already <- marked (entryLabel b)
                      if already then return id
                       else do mark (entryLabel b)

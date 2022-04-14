@@ -32,15 +32,18 @@ module Compiler.Hoopl.Block (
   , blockToList, blockFromList
 
     -- ** Maps and folds
-  , mapBlock, mapBlock', mapBlock3'
+  , mapBlock, mapBlock3, mapBlock', mapBlock3'
   , foldBlockNodesF, foldBlockNodesF3
   , foldBlockNodesB, foldBlockNodesB3
+  , traverseBlock, traverseBlock3
 
     -- ** Biasing
   , frontBiasBlock, backBiasBlock
 
   ) where
 
+import Control.Monad.StrictIdentity
+import Data.Functor.Identity (Identity (..))
 
 -- -----------------------------------------------------------------------------
 -- Shapes: Open and Closed
@@ -66,19 +69,18 @@ data MaybeO ex t where
   JustO    :: t -> MaybeO O t
   NothingO ::      MaybeO C t
 
+deriving instance Foldable (MaybeO ex)
+deriving instance Functor (MaybeO ex)
+deriving instance Traversable (MaybeO ex)
+
 -- | Maybe type indexed by closed/open
 data MaybeC ex t where
   JustC    :: t -> MaybeC C t
   NothingC ::      MaybeC O t
 
-
-instance Functor (MaybeO ex) where
-  fmap _ NothingO = NothingO
-  fmap f (JustO a) = JustO (f a)
-
-instance Functor (MaybeC ex) where
-  fmap _ NothingC = NothingC
-  fmap f (JustC a) = JustC (f a)
+deriving instance Foldable (MaybeC ex)
+deriving instance Functor (MaybeC ex)
+deriving instance Traversable (MaybeC ex)
 
 
 -- | Dynamic shape value
@@ -282,14 +284,17 @@ cat x y = case x of
 
 -- | map a function over the nodes of a 'Block'
 mapBlock :: (forall e x. n e x -> n' e x) -> Block n e x -> Block n' e x
-mapBlock f (BlockCO n b  ) = BlockCO (f n) (mapBlock f b)
-mapBlock f (BlockOC   b n) = BlockOC       (mapBlock f b) (f n)
-mapBlock f (BlockCC n b m) = BlockCC (f n) (mapBlock f b) (f m)
-mapBlock _  BNil           = BNil
-mapBlock f (BMiddle n)     = BMiddle (f n)
-mapBlock f (BCat b1 b2)    = BCat    (mapBlock f b1) (mapBlock f b2)
-mapBlock f (BSnoc b n)     = BSnoc   (mapBlock f b)  (f n)
-mapBlock f (BCons n b)     = BCons   (f n)  (mapBlock f b)
+mapBlock f = runIdentity . traverseBlock (Identity . f)
+
+-- | map over a block, with different functions to apply to first nodes,
+-- middle nodes and last nodes respectively.  The map is non-strict.
+mapBlock3 :: forall n n' e x .
+            ( n C O -> n' C O
+            , n O O -> n' O O,
+              n O C -> n' O C)
+         -> Block n e x -> Block n' e x
+mapBlock3 (fCO, fOO, fOC) =
+    runIdentity . traverseBlock3 (Identity . fCO, Identity . fOO, Identity . fOC)
 
 -- | A strict 'mapBlock'
 mapBlock' :: (forall e x. n e x -> n' e x) -> (Block n e x -> Block n' e x)
@@ -297,22 +302,33 @@ mapBlock' f = mapBlock3' (f, f, f)
 
 -- | map over a block, with different functions to apply to first nodes,
 -- middle nodes and last nodes respectively.  The map is strict.
---
 mapBlock3' :: forall n n' e x .
              ( n C O -> n' C O
              , n O O -> n' O O,
                n O C -> n' O C)
           -> Block n e x -> Block n' e x
-mapBlock3' (f, m, l) b = go b
-  where go :: forall e x . Block n e x -> Block n' e x
-        go (BlockOC b y)   = (BlockOC $! go b) $! l y
-        go (BlockCO x b)   = (BlockCO $! f x) $! (go b)
-        go (BlockCC x b y) = ((BlockCC $! f x) $! go b) $! (l y)
-        go BNil            = BNil
-        go (BMiddle n)     = BMiddle $! m n
-        go (BCat x y)      = (BCat $! go x) $! (go y)
-        go (BSnoc x n)     = (BSnoc $! go x) $! (m n)
-        go (BCons n x)     = (BCons $! m n) $! (go x)
+mapBlock3' (fCO, fOO, fOC) =
+    runStrictIdentity . traverseBlock3 (StrictIdentity . fCO, StrictIdentity . fOO, StrictIdentity . fOC)
+
+traverseBlock :: Applicative p => (∀ e x . n e x -> p (n' e x)) -> Block n e x -> p (Block n' e x)
+traverseBlock f = traverseBlock3 (f, f, f)
+
+traverseBlock3
+ :: Applicative p
+ => ( n C O -> p (n' C O)
+    , n O O -> p (n' O O)
+    , n O C -> p (n' O C)
+    )
+ -> Block n e x -> p (Block n' e x)
+traverseBlock3 f@(fCO, fOO, fOC) = \ case
+    BlockCO n b   -> BlockCO <$> fCO n <*> traverseBlock3 f b
+    BlockOC   b n -> BlockOC           <$> traverseBlock3 f b <*> fOC n
+    BlockCC n b m -> BlockCC <$> fCO n <*> traverseBlock3 f b <*> fOC m
+    BNil          -> pure BNil
+    BMiddle n     -> BMiddle <$> fOO n
+    BCat b₁ b₂    -> BCat <$> traverseBlock3 f b₁ <*> traverseBlock3 f b₂
+    BSnoc b n     -> BSnoc <$> traverseBlock3 f b <*> fOO n
+    BCons n b     -> BCons <$> fOO n <*> traverseBlock3 f b
 
 -- -----------------------------------------------------------------------------
 -- Folding

@@ -56,12 +56,22 @@ Library
                      ScopedTypeVariables
                      TypeFamilies
                      TypeSynonymInstances
+  Default-Extensions: UnicodeSyntax
+                      LambdaCase
+                      MonadComprehensions
+                      PolyKinds
+                      DeriveFoldable
+                      DeriveFunctor
+                      DeriveTraversable
+                      StandaloneDeriving
   If impl(ghc>=7.2)
     Other-Extensions: Safe Trustworthy
 
   Hs-Source-Dirs:    src
-  Build-Depends:     base >= 4.3 && < 4.13,
-                     containers >= 0.5 && < 0.7
+  Build-Depends:     base >= 4.3 && < 5
+                   , containers >= 0.5 && < 0.7
+                   , strict-identity >= 0.1 && < 0.2
+                   , transformers >= 0.4 && < 0.7
   Exposed-Modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Internals,
                      Compiler.Hoopl.Wrappers,
@@ -69,8 +79,7 @@ Library
                      Compiler.Hoopl.Passes.DList
 
   -- The remaining modules are hidden *provisionally*
-  Other-modules:     Compiler.Hoopl.Checkpoint,
-                     Compiler.Hoopl.Collections,
+  Other-modules:     Compiler.Hoopl.Collections,
                      Compiler.Hoopl.Combinators,
                      Compiler.Hoopl.Dataflow,
                      Compiler.Hoopl.Debug,
@@ -80,12 +89,18 @@ Library
                      Compiler.Hoopl.MkGraph,
                      Compiler.Hoopl.Fuel,
                      Compiler.Hoopl.Pointed,
-                     Compiler.Hoopl.Shape,
                      Compiler.Hoopl.Show,
                      Compiler.Hoopl.Unique,
                      Compiler.Hoopl.XUtil
 
-  Ghc-Options:       -Wall -fno-warn-name-shadowing
+  Ghc-Options:       -Wall -Wcompat -Wredundant-constraints -Wno-name-shadowing
+                     -Wincomplete-record-updates -Wincomplete-uni-patterns
+                     -Werror=incomplete-patterns
+                     -Werror=incomplete-uni-patterns
+                     -Werror=incomplete-record-updates
+                     -Werror=missing-fields
+                     -Werror=missing-methods
+
 
 Test-Suite hoopl-test
   Default-Language:  Haskell2010
@@ -106,7 +121,7 @@ Test-Suite hoopl-test
                      Simplify
                      Test
   Hs-Source-Dirs:    testing
-  Build-Depends:     base >= 4.3 && < 4.13,
+  Build-Depends:     base >= 4.3 && < 5,
                      containers >= 0.5 && < 0.7,
                      filepath,
                      hoopl,
