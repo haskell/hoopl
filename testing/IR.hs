@@ -10,7 +10,7 @@ import Compiler.Hoopl
 import Expr
 import PP
 
-type M = CheckingFuelMonad (SimpleUniqueMonad)
+type M = CheckingFuelMonad SimpleUniqueMonad
 
 data Value = B Bool | I Integer deriving Eq
 

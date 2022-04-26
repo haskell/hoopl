@@ -14,11 +14,9 @@ module Compiler.Hoopl.Fuel
   , FuelMonadT(..)
   , CheckingFuelMonad
   , InfiniteFuelMonad
-  , SimpleFuelMonad
   )
 where
 
-import Compiler.Hoopl.Checkpoint
 import Compiler.Hoopl.Unique
 
 import Control.Applicative as AP (Applicative(..))
@@ -48,7 +46,6 @@ withFuel (Just a) = do f <- getFuel
                          then return Nothing
                          else setFuel (f-1) >> return (Just a)
 
-
 ----------------------------------------------------------------
 
 newtype CheckingFuelMonad m a = FM { unFM :: Fuel -> m (a, Fuel) }
@@ -63,12 +60,6 @@ instance Monad m => Applicative (CheckingFuelMonad m) where
 instance Monad m => Monad (CheckingFuelMonad m) where
   return = AP.pure
   fm >>= k = FM (\f -> do { (a, f') <- unFM fm f; unFM (k a) f' })
-
-instance CheckpointMonad m => CheckpointMonad (CheckingFuelMonad m) where
-  type Checkpoint (CheckingFuelMonad m) = (Fuel, Checkpoint m)
-  checkpoint = FM $ \fuel -> do { s <- checkpoint
-                                ; return ((fuel, s), fuel) }
-  restart (fuel, s) = FM $ \_ -> do { restart s; return ((), fuel) }
 
 instance UniqueMonad m => UniqueMonad (CheckingFuelMonad m) where
   freshUnique = FM (\f -> do { l <- freshUnique; return (l, f) })
@@ -103,12 +94,6 @@ instance Monad m => FuelMonad (InfiniteFuelMonad m) where
   getFuel   = return infiniteFuel
   setFuel _ = return ()
 
-instance CheckpointMonad m => CheckpointMonad (InfiniteFuelMonad m) where
-  type Checkpoint (InfiniteFuelMonad m) = Checkpoint m
-  checkpoint = IFM checkpoint
-  restart s  = IFM $ restart s
-
-
 
 instance FuelMonadT InfiniteFuelMonad where
   runWithFuel _ = unIFM
@@ -116,15 +101,3 @@ instance FuelMonadT InfiniteFuelMonad where
 
 infiniteFuel :: Fuel -- effectively infinite, any, but subtractable
 infiniteFuel = maxBound
-
-type SimpleFuelMonad = CheckingFuelMonad SimpleUniqueMonad
-
-{-
-runWithFuelAndUniques :: Fuel -> [Unique] -> FuelMonad a -> a
-runWithFuelAndUniques fuel uniques m = a
-  where (a, _, _) = unFM m fuel uniques
-
-freshUnique :: FuelMonad Unique
-freshUnique = FM (\f (l:ls) -> (l, f, ls))
--}
-
