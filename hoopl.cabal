@@ -60,7 +60,7 @@ Library
     Other-Extensions: Safe Trustworthy
 
   Hs-Source-Dirs:    src
-  Build-Depends:     base >= 4.3 && < 4.13,
+  Build-Depends:     base >= 4.3 && < 4.16,
                      containers >= 0.5 && < 0.7
   Exposed-Modules:   Compiler.Hoopl,
                      Compiler.Hoopl.Internals,
@@ -106,7 +106,7 @@ Test-Suite hoopl-test
                      Simplify
                      Test
   Hs-Source-Dirs:    testing
-  Build-Depends:     base >= 4.3 && < 4.13,
+  Build-Depends:     base >= 4.3 && < 4.16,
                      containers >= 0.5 && < 0.7,
                      filepath,
                      hoopl,

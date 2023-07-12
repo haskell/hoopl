@@ -291,7 +291,7 @@ arfGraph pass@FwdPass { fp_lattice = lattice,
 -- We know the results _shouldn't change_, but the transfer
 -- functions might, for example, generate some debugging traces.
 joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
-joinInFacts (lattice @ DataflowLattice {fact_bot = bot, fact_join = fj}) fb =
+joinInFacts (lattice@DataflowLattice {fact_bot = bot, fact_join = fj}) fb =
   mkFactBase lattice $ map botJoin $ mapToList fb
     where botJoin (l, f) = (l, snd $ fj l (OldFact bot) (NewFact f))
 
